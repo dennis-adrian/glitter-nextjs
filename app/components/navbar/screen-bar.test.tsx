@@ -64,7 +64,10 @@ describe("AppScreenBar", () => {
   });
 
   it("goes back to the previous screen after moving between screens in the app", () => {
-    window.sessionStorage.setItem("glitter:in-app-history", "1");
+    window.sessionStorage.setItem(
+      "glitter:screen-history",
+      JSON.stringify(["/my_orders", "/profiles/3/orders/1043"]),
+    );
     renderBar();
 
     fireEvent.click(screen.getByRole("button", { name: "Volver" }));
@@ -73,7 +76,10 @@ describe("AppScreenBar", () => {
   });
 
   it("goes to the parent anyway after a step that is over", () => {
-    window.sessionStorage.setItem("glitter:in-app-history", "1");
+    window.sessionStorage.setItem(
+      "glitter:screen-history",
+      JSON.stringify(["/my_orders", "/profiles/3/orders/1043"]),
+    );
     renderBar({ ...orders, toParent: true });
 
     fireEvent.click(screen.getByRole("button", { name: "Volver" }));
@@ -136,16 +142,80 @@ describe("AppScreenBar", () => {
   });
 
   it("never shows a title set on another path", () => {
-    const { rerender } = renderBar(
-      orders,
-      <ScreenTitle title="Pedido #1043" />,
-    );
+    // The title stays mounted while the path moves on: the bar must not
+    // carry it over to the next screen before that screen names itself.
+    const page = <ScreenTitle title="Pedido #1043" />;
+    const { rerender } = renderBar(orders, page);
+    expect(screen.getByText("Pedido #1043")).toBeTruthy();
+
     pathnameMock.mockReturnValue("/my_orders");
     rerender(
       <ScreenBarProvider>
         <AppScreenBar screen={{ ...orders, title: "Mis pedidos" }} />
+        {page}
       </ScreenBarProvider>,
     );
-    expect(screen.queryByText("Pedido #1043")).toBeNull();
+    expect(screen.getByText("Mis pedidos")).toBeTruthy();
+  });
+
+  describe("with the Navigation API", () => {
+    function stubNavigation(index: number, urls: string[]) {
+      vi.stubGlobal("navigation", {
+        currentEntry: { index },
+        entries: () => urls.map((url) => ({ url })),
+      });
+    }
+    afterEach(() => vi.unstubAllGlobals());
+
+    const origin = window.location.origin;
+
+    it("goes back when the entry before is a screen of the app", () => {
+      stubNavigation(1, [
+        `${origin}/my_orders`,
+        `${origin}/profiles/3/orders/1043`,
+      ]);
+      renderBar();
+      fireEvent.click(screen.getByRole("button", { name: "Volver" }));
+      expect(backMock).toHaveBeenCalled();
+    });
+
+    it("goes to the parent when the entry before is sign-in", () => {
+      stubNavigation(1, [
+        `${origin}/sign_in`,
+        `${origin}/profiles/3/orders/1043`,
+      ]);
+      renderBar();
+      fireEvent.click(screen.getByRole("button", { name: "Volver" }));
+      expect(replaceMock).toHaveBeenCalledWith("/my_orders");
+    });
+
+    it("goes to the parent when the app opened on this screen", () => {
+      stubNavigation(0, [`${origin}/profiles/3/orders/1043`]);
+      window.sessionStorage.setItem(
+        "glitter:screen-history",
+        JSON.stringify(["/my_orders", "/profiles/3/orders/1043"]),
+      );
+      renderBar();
+      fireEvent.click(screen.getByRole("button", { name: "Volver" }));
+      expect(replaceMock).toHaveBeenCalledWith("/my_orders");
+    });
+  });
+
+  it("does not count its own fallback as a screen to go back to", () => {
+    // Opened on a deep screen: back replaces it with the parent...
+    const { rerender } = renderBar();
+    fireEvent.click(screen.getByRole("button", { name: "Volver" }));
+    expect(replaceMock).toHaveBeenCalledWith("/my_orders");
+
+    // ...and on the parent, back still has nothing behind it.
+    pathnameMock.mockReturnValue("/my_orders");
+    rerender(
+      <ScreenBarProvider>
+        <AppScreenBar screen={{ ...orders, parentHref: "/menu" }} />
+      </ScreenBarProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Volver" }));
+    expect(backMock).not.toHaveBeenCalled();
+    expect(replaceMock).toHaveBeenLastCalledWith("/menu");
   });
 });

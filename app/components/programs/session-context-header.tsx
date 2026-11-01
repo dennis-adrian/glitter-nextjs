@@ -31,10 +31,10 @@ export default function SessionContextHeader({ program, festival }: Props) {
     // A program or festival name can be long; let the pill drop under the back
     // link rather than squeeze it.
     // The installed app's top bar carries back: the strip steps aside there
-    // unless it still names the festival.
+    // unless it still names the program or the festival.
     <div
       className="container relative mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-4 px-5 py-6 sm:px-8 lg:px-12"
-      data-installed-hidden={!program && festivalHref ? undefined : ""}
+      data-installed-hidden={program || festivalHref ? undefined : ""}
     >
       {program ? (
         <>
@@ -45,6 +45,13 @@ export default function SessionContextHeader({ program, festival }: Props) {
           >
             <ArrowLeftIcon className="size-4" aria-hidden="true" />
             Volver a {program.name}
+          </Link>
+          {/* Where the back link steps aside, the program is still named. */}
+          <Link
+            href={programPath(program.slug)}
+            className="hidden min-h-10 items-center gap-2 rounded-full border border-brand-ink/15 bg-brand-card px-4 text-sm font-semibold transition-colors hover:border-brand-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary standalone:inline-flex"
+          >
+            Parte de {program.name}
           </Link>
         </>
       ) : (

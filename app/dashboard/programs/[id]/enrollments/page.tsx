@@ -43,6 +43,10 @@ export default async function ProgramEnrollmentsPage({ params }: Props) {
         >
           ← {program.name}
         </Link>
+        {/* Where the back link steps aside, the program is still named. */}
+        <p className="hidden text-sm text-muted-foreground standalone:block">
+          {program.name}
+        </p>
         <h1 className="text-2xl font-bold" data-installed-title="">
           Inscritos
         </h1>

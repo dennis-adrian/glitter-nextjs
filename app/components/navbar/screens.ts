@@ -95,6 +95,15 @@ export const SCREENS: Record<string, ScreenDef> = {
   "/portal/blog": { title: "Mis artículos", parent: "tab:home" },
   "/portal/blog/[id]/edit": { title: "Artículo", parent: "/portal/blog" },
   "/live-acts": { title: "Presentaciones en vivo", parent: "tab:home" },
+  // The public address of /live-acts (a rewrite in next.config.ts).
+  "/presentaciones-en-vivo": {
+    title: "Presentaciones en vivo",
+    parent: "tab:home",
+  },
+  // Tab pages for participants; staff reach them as any other page.
+  "/merch": { title: "Merch", parent: "tab:home" },
+  "/supplies": { title: "Mercadito de Insumos", parent: "tab:home" },
+  "/email/unsubscribe": { title: "Darse de baja", parent: "tab:home" },
   "/visitors/tickets": { title: "Mis entradas", parent: "tab:home" },
 
   // Participaciones
@@ -203,10 +212,12 @@ export const SCREENS: Record<string, ScreenDef> = {
   "/store/products/[slug]": { title: "Producto", parent: "/merch" },
   "/checkout": { title: "Confirmar pedido", parent: "/merch", close: true },
   "/orders/[orderId]": { title: "Pedido", parent: "/my_orders" },
+  // Checkout is over by then: the X leads to the order, not back into it.
   "/orders/[orderId]/payment": {
     title: "Pagar pedido",
     parent: "/orders/[orderId]",
     close: true,
+    toParent: true,
   },
   "/profiles/[profileId]/orders/[orderId]": {
     title: "Pedido",

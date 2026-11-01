@@ -14,6 +14,15 @@ import {
 
 import { ChevronLeftIcon, XIcon } from "lucide-react";
 
+import {
+  hasScreenBehind,
+  historyOnLoad,
+  markNextAsReplace,
+  nextHistory,
+  readHistory,
+  takeReplaceMark,
+  writeHistory,
+} from "@/app/components/navbar/screen-history";
 import type { Screen, ScreenContext } from "@/app/components/navbar/screens";
 import { cn } from "@/app/lib/utils";
 
@@ -29,6 +38,8 @@ type Overrides = {
   backHref?: { path: string; value: string };
   onBack?: { path: string; value: () => void };
   action?: { path: string; value: React.ReactNode };
+  /** This page is the named tab's own page, so no bar (see ScreenRoot). */
+  root?: { path: string; value: string };
 };
 
 /**
@@ -50,23 +61,19 @@ const SetterContext = createContext<Setter>(() => {});
 const NavContext = createContext<ScreenContext | null>(null);
 const NavSetterContext = createContext<(ctx: ScreenContext) => void>(() => {});
 
-const HISTORY_FLAG = "glitter:in-app-history";
-
-/** Remembers, for this tab, that someone moved between screens in the app. */
-function useInAppHistoryFlag() {
-  const pathname = usePathname();
-  const first = useRef<string | null>(null);
+/** Follows, for this tab, the screens moved through inside the app. */
+function useScreenHistory() {
+  const pathname = usePathname() ?? "/";
+  const loaded = useRef(false);
   useEffect(() => {
-    if (first.current === null) {
-      first.current = pathname;
+    if (!loaded.current) {
+      loaded.current = true;
+      writeHistory(historyOnLoad(readHistory(), pathname));
       return;
     }
-    if (pathname === first.current) return;
-    try {
-      window.sessionStorage.setItem(HISTORY_FLAG, "1");
-    } catch {
-      // Storage can be blocked; going to the parent is the safe fallback.
-    }
+    writeHistory(
+      nextHistory(readHistory(), pathname, { replace: takeReplaceMark() }),
+    );
   }, [pathname]);
 }
 
@@ -90,7 +97,7 @@ export function ScreenBarProvider({ children }: { children: React.ReactNode }) {
       return next;
     });
   }, []);
-  useInAppHistoryFlag();
+  useScreenHistory();
 
   return (
     <SetterContext.Provider value={set}>
@@ -144,6 +151,24 @@ export function useScreenBack(handler: (() => void) | undefined) {
   useOverride("onBack", handler);
 }
 
+/**
+ * Marks the page as a tab's own page when the navbar could not tell, like
+ * the festival in progress: the navbar learns which festival that is on the
+ * first page it renders, and a static first page (or a festival activated
+ * since) leaves it guessing. Only takes effect for viewers who have `tab`.
+ */
+export function ScreenRoot({ tab }: { tab: string }) {
+  useOverride("root", tab);
+  return null;
+}
+
+/** The tab the current page says it is the own page of, if any. */
+export function useScreenRootMark(): string | undefined {
+  const overrides = useContext(OverridesContext);
+  const path = usePathname() ?? "/";
+  return current(overrides.root, path);
+}
+
 /** The one action on the right of the top bar, like the cart. */
 export function ScreenAction({ children }: { children: React.ReactNode }) {
   useOverride("action", children);
@@ -178,7 +203,11 @@ export function useScreenPlacement() {
   const nav = useContext(NavContext);
   const overrides = useContext(OverridesContext);
   const path = usePathname() ?? "/";
-  return { nav, path, title: current(overrides.title, path) };
+  const rootTab = current(overrides.root, path);
+  const isRoot = Boolean(
+    rootTab && nav?.tabs.some((tab) => tab.key === rootTab),
+  );
+  return { nav, path, title: current(overrides.title, path), isRoot };
 }
 
 function current<T>(
@@ -190,8 +219,8 @@ function current<T>(
 
 /**
  * Whether the screen before this one is a screen of the app. The Navigation
- * API answers exactly where it exists (Chromium, Safari 26); elsewhere, a
- * move between screens in this tab is the best sign there is.
+ * API answers exactly where it exists (Chromium, Safari 26); elsewhere, the
+ * screens this tab moved through (screen-history.ts) are the best sign.
  */
 function hasPreviousScreen(): boolean {
   if (typeof window === "undefined") return false;
@@ -218,11 +247,7 @@ function hasPreviousScreen(): boolean {
       return false;
     }
   }
-  try {
-    return window.sessionStorage.getItem(HISTORY_FLAG) === "1";
-  } catch {
-    return false;
-  }
+  return hasScreenBehind(readHistory());
 }
 
 /** What the bar shows and does for this screen, with the page's overrides. */
@@ -245,6 +270,7 @@ function useScreenBar(screen: Screen) {
       return;
     }
     // Replacing keeps Android's system back from returning to this screen.
+    markNextAsReplace();
     router.replace(parentHref);
   }, [onBack, parentHref, router, screen.toParent]);
 

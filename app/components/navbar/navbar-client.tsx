@@ -21,6 +21,7 @@ import {
   AppScreenBar,
   ScreenHeaderBack,
   usePublishScreenContext,
+  useScreenRootMark,
 } from "@/app/components/navbar/screen-bar";
 import { resolveScreen } from "@/app/components/navbar/screens";
 import SessionButtons from "@/app/components/navbar/session-buttons";
@@ -111,13 +112,19 @@ export default function NavbarClient({
   });
   // Below a tab root, the installed app trades the header for a bar with
   // back and the screen's title (on desktop, both go inside the header).
-  const screen = showShell
-    ? resolveScreen(pathname, {
-        viewer,
-        tabs: navigation.tabs,
-        activeFestival,
-      })
-    : null;
+  // A page can say it is a tab's own page when the navbar cannot tell.
+  const rootMark = useScreenRootMark();
+  const markedRoot = Boolean(
+    rootMark && navigation.tabs.some((tab) => tab.key === rootMark),
+  );
+  const screen =
+    showShell && !markedRoot
+      ? resolveScreen(pathname, {
+          viewer,
+          tabs: navigation.tabs,
+          activeFestival,
+        })
+      : null;
 
   return (
     <>

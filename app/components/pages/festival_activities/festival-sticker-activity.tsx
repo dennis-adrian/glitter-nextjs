@@ -27,9 +27,7 @@ export default function FestivalStickerActivityPage({
 
   return (
     <div className="container p-3 md:p-6">
-      <Heading level={1} data-installed-title="">
-        {activity.name}
-      </Heading>
+      <Heading level={1}>{activity.name}</Heading>
       <p className="text-base md:text-lg">{activity.description}</p>
       {acceptedUserCategories.length > 0 &&
         !acceptedUserCategories.includes(forProfile.category) && (

@@ -63,7 +63,8 @@ export default async function OccurrenceDashboardPage({ params }: Props) {
 
   return (
     <div className="container mx-auto space-y-6 p-3 md:p-6">
-      <ScreenTitle title={when} backHref={sessionAdminPath(session)} />
+      {/* The bar names the session; the date stays as the page's heading. */}
+      <ScreenTitle title={session.title} backHref={sessionAdminPath(session)} />
       <div className="space-y-2">
         {/* The installed app's top bar carries back and the title. */}
         <Link
@@ -74,9 +75,7 @@ export default async function OccurrenceDashboardPage({ params }: Props) {
           ← {session.title}
         </Link>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-bold" data-installed-title="">
-            {when}
-          </h1>
+          <h1 className="text-2xl font-bold">{when}</h1>
           <ProgramStatusBadge
             state={resolved.state}
             wasRescheduled={resolved.wasRescheduled}

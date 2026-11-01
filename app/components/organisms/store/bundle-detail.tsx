@@ -169,10 +169,7 @@ export default function BundleDetail({ bundle }: { bundle: PublicBundle }) {
           <p className="text-xs font-semibold uppercase tracking-wide text-primary">
             Combo
           </p>
-          <h1
-            className="mt-1 font-display text-3xl sm:text-4xl"
-            data-installed-title=""
-          >
+          <h1 className="mt-1 font-display text-3xl sm:text-4xl">
             {bundle.name}
           </h1>
           {bundle.description && (

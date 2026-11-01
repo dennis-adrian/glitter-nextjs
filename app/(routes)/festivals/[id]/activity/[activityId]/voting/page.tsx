@@ -40,7 +40,7 @@ export default async function VotingPage({ params }: VotingPageProps) {
   return (
     <div className="container p-3 md:p-6">
       <ScreenTitle title={`Votación para ${activity.name}`} />
-      <Title data-installed-title="">Votación para {activity.name}</Title>
+      <Title>Votación para {activity.name}</Title>
       {activity.type === "best_stand" && (
         <BestStandActivityVoting
           activity={activity}

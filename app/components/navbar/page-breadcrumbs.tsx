@@ -26,14 +26,14 @@ export default function PageBreadcrumbs({
   labels?: Record<string, string>;
   className?: string;
 }) {
-  const { nav, path, title } = useScreenPlacement();
+  const { nav, path, title, isRoot } = useScreenPlacement();
   const trail = nav
     ? breadcrumbTrail(path, nav, { labels, current: title })
     : [];
 
   // Until the navbar has streamed in, keep the line so nothing moves.
   if (!nav) return <div className={cn("h-5", className)} aria-hidden="true" />;
-  if (trail.length < 2) return null;
+  if (isRoot || trail.length < 2) return null;
 
   const parent = trail[trail.length - 2];
   const here = trail[trail.length - 1];

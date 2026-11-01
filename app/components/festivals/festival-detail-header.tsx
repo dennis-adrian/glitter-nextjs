@@ -8,7 +8,7 @@ import Link from "next/link";
 
 import FestivalStatusBadge from "@/app/components/atoms/festival-status-badge";
 import FestivalActionsMenu from "@/app/components/festivals/festival-actions-menu";
-import { ScreenTitle } from "@/app/components/navbar/screen-bar";
+import { ScreenRoot, ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { Badge } from "@/app/components/ui/badge";
 import {
   Breadcrumb,
@@ -43,6 +43,8 @@ export default function FestivalDetailHeader({
     <header className="space-y-3">
       {/* The installed app's top bar carries back and the festival's name. */}
       <ScreenTitle title={festival.name} />
+      {/* The festival in progress is the staff Festival tab's own page. */}
+      {festival.status === "active" ? <ScreenRoot tab="festival" /> : null}
       <Breadcrumb data-installed-hidden="">
         <BreadcrumbList>
           <BreadcrumbItem>

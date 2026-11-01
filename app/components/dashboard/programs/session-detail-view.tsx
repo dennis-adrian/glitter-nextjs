@@ -104,6 +104,12 @@ export default async function SessionDetailView({
           >
             ← {program ? program.name : "Programas"}
           </Link>
+          {/* Where the back link steps aside, the program is still named. */}
+          {program ? (
+            <p className="hidden text-sm text-muted-foreground standalone:block">
+              {program.name}
+            </p>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             <Badge
               variant={session.status === "published" ? "green" : "outline"}

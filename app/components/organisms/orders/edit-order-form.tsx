@@ -338,7 +338,9 @@ export default function EditOrderForm({
       );
       if (!confirmed) return;
     }
-    router.push(orderDetailUrl);
+    // Replace: the finished edit form leaves history, so back from the order
+    // never returns to it.
+    router.replace(orderDetailUrl);
   };
 
   const handleSave = async () => {
@@ -382,9 +384,9 @@ export default function EditOrderForm({
     if (result.success) {
       toast.success(result.message);
       if (result.wasCancelled) {
-        router.push("/my_orders");
+        router.replace("/my_orders");
       } else {
-        router.push(orderDetailUrl);
+        router.replace(orderDetailUrl);
       }
     } else {
       if (result.cause === "conflict") {
