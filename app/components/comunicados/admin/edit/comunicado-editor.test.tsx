@@ -77,6 +77,7 @@ const PROPS: ComunicadoEditorProps = {
   doc: DOC,
   actionLabel: "Ver mi reserva",
   actionPath: "/my_participations",
+  previewText: null,
   essential: false,
   essentialFestivalName: null,
   sendEmail: true,
@@ -330,6 +331,7 @@ describe("ComunicadoEditor", () => {
       doc,
       actionLabel: "Ver mi reserva",
       actionPath: "/my_participations",
+      previewText: null,
       editNote: "Cambió el horario de armado",
     });
     expect(leavingAsks()).toBe(true);

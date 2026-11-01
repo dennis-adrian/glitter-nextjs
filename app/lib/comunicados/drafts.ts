@@ -117,6 +117,9 @@ export async function saveComunicadoDraft(
       ...(content?.ok ? { doc: content.blocks } : {}),
       actionLabel: withoutNul(draft.actionLabel),
       actionPath: withoutNul(draft.actionPath),
+      ...(draft.previewText === undefined
+        ? {}
+        : { previewText: withoutNul(draft.previewText) }),
       sendEmail: visitors ? true : draft.sendEmail,
       sendPush: visitors ? false : draft.sendPush,
       audienceKind: draft.audienceKind,

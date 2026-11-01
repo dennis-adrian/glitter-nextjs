@@ -52,6 +52,7 @@ export default async function EditComunicadoPage(props: {
       doc={revision.doc}
       actionLabel={revision.actionLabel}
       actionPath={revision.actionPath}
+      previewText={revision.previewText}
       essential={report.essential}
       essentialFestivalName={report.summary?.essentialFestival?.name ?? null}
       sendEmail={report.sendEmail}

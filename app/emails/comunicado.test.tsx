@@ -536,6 +536,17 @@ describe("ComunicadoEmail", () => {
     );
     expect(html).toContain(`data-skip-in-text="true">${preheader}<`);
   });
+
+  it("previews the sender's summary instead, when there is one", async () => {
+    const html = await render(
+      ComunicadoEmail(
+        emailProps({ previewText: "  El armado empieza a las 7:00.  " }),
+      ),
+    );
+    expect(html).toContain(
+      'data-skip-in-text="true">El armado empieza a las 7:00.<',
+    );
+  });
 });
 
 describe("renderComunicadoEmail", () => {
@@ -689,6 +700,21 @@ describe("renderComunicadoPreviewAction", () => {
     );
     // Half a button is no button.
     expect(result.email.html).not.toContain("Ver mi reserva<");
+    expect(result.email.preheader).toBe("Un borrador a medias —");
+  });
+
+  it("previews the summary as the preheader when one is written", async () => {
+    vi.stubEnv("NEXT_PUBLIC_BASE_URL", BASE);
+    const result = await renderComunicadoPreviewAction({
+      ...draft,
+      previewText: "Solo un resumen",
+    });
+    vi.unstubAllEnvs();
+    if (!result.success) throw new Error(result.message);
+    expect(result.email.preheader).toBe("Solo un resumen");
+    expect(result.email.html).toContain(
+      'data-skip-in-text="true">Solo un resumen<',
+    );
   });
 
   it("explains a refused draft, and refuses anyone but a global admin with the flag", async () => {

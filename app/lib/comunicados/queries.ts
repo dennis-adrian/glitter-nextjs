@@ -414,6 +414,7 @@ export type ComposerComunicado = {
   doc: unknown[];
   actionLabel: string | null;
   actionPath: string | null;
+  previewText: string | null;
   sendEmail: boolean;
   sendPush: boolean;
   /** Participants or visitors (§L). */
@@ -559,6 +560,7 @@ export async function fetchComunicadoForComposer(
     doc: Array.isArray(row.doc) ? row.doc : [],
     actionLabel: row.actionLabel,
     actionPath: row.actionPath,
+    previewText: row.previewText,
     sendEmail: row.sendEmail,
     sendPush: row.sendPush,
     audienceKind: row.audienceKind,

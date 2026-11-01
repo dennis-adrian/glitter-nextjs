@@ -65,6 +65,38 @@ describe("buildPushPayload", () => {
     expect(payload.body).toBe(WRITTEN_TEXT_PUSH_BODY);
   });
 
+  it("shows a line its sender wrote for the lock screen, cut like any body", () => {
+    const payload = parse(
+      buildPushPayload({
+        ...ITEM,
+        title: "Cambio de horario de armado",
+        body: "El texto entero, que se queda en su página.",
+        writtenText: true,
+        writtenTextBody: "El armado empieza a las 7:00.",
+      }),
+    );
+    expect(payload.body).toBe("El armado empieza a las 7:00.");
+    const long = parse(
+      buildPushPayload({
+        ...ITEM,
+        writtenText: true,
+        writtenTextBody: "a".repeat(MAX_PUSH_BODY_LENGTH + 10),
+      }),
+    );
+    expect(Array.from(long.body as string)).toHaveLength(MAX_PUSH_BODY_LENGTH);
+    // A sensitive item never shows it.
+    expect(
+      parse(
+        buildPushPayload({
+          ...ITEM,
+          sensitive: true,
+          writtenText: true,
+          writtenTextBody: "No debería verse",
+        }),
+      ).body,
+    ).toBe(SENSITIVE_PUSH_BODY);
+  });
+
   it("sends only the first paragraph, where notes and reasons never are", () => {
     const payload = parse(
       buildPushPayload({

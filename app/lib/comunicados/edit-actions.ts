@@ -43,6 +43,10 @@ const EditSchema = z.object({
   doc: z.array(z.unknown()),
   actionLabel: ComunicadoDraftSchema.shape.actionLabel.transform(withoutNul),
   actionPath: ComunicadoDraftSchema.shape.actionPath.transform(withoutNul),
+  // Left out by a tab opened before the field existed: none.
+  previewText: ComunicadoDraftSchema.shape.previewText.transform((value) =>
+    value == null ? null : withoutNul(value),
+  ),
   // For the team only; an empty note is no note.
   editNote: z
     .string()

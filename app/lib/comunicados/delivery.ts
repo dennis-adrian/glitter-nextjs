@@ -135,9 +135,10 @@ async function readContent(tx: BulkEmailTx, campaignId: number) {
     doc: unknown;
     action_label: string | null;
     action_path: string | null;
+    preview_text: string | null;
   }>(sql`
     SELECT k.id, k.essential, k.audience_summary, k.current_revision,
-      rv.title, rv.doc, rv.action_label, rv.action_path
+      rv.title, rv.doc, rv.action_label, rv.action_path, rv.preview_text
     FROM comunicados k
     LEFT JOIN comunicado_revisions rv
       ON rv.comunicado_id = k.id AND rv.revision = k.current_revision
@@ -157,6 +158,7 @@ async function readContent(tx: BulkEmailTx, campaignId: number) {
     doc: content.doc,
     actionLabel: content.action_label,
     actionPath: content.action_path,
+    previewText: content.preview_text,
   };
 }
 
@@ -285,6 +287,7 @@ export const comunicadoBatchRenderer: BulkEmailRenderer = {
         blocks: normalized.blocks,
         actionLabel: content.actionLabel,
         actionPath: content.actionPath,
+        previewText: content.previewText,
         unsubscribeUrl: links.pageUrl,
         essentialFestivalName: row.check.essential
           ? essentialFestivalName

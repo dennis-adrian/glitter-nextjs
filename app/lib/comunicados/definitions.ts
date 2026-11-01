@@ -22,6 +22,8 @@ export const COMUNICADO_EMAIL_HTML_MAX_BYTES = 90 * 1024;
 /** The inbox list clamps the body to two lines. */
 export const COMUNICADO_EXCERPT_MAX = 280;
 export const COMUNICADO_ACTION_LABEL_MAX = 30;
+/** The push body and the email preheader: about two lock-screen lines. */
+export const COMUNICADO_PREVIEW_TEXT_MAX = 120;
 /** Festivals and saved lists together. */
 export const COMUNICADO_MAX_SOURCES = 10;
 export const COMUNICADO_MAX_PEOPLE = 100;
@@ -52,6 +54,7 @@ export const COMUNICADO_AUTOSAVE_DEBOUNCE_MS = 1_500;
 const DRAFT_TITLE_MAX = 300;
 const DRAFT_ACTION_LABEL_MAX = 120;
 const DRAFT_ACTION_PATH_MAX = 2_000;
+const DRAFT_PREVIEW_TEXT_MAX = 300;
 
 /**
  * Who a comunicado is for (§L): participants with an account (inbox, email,
@@ -202,6 +205,8 @@ export const ComunicadoDraftSchema = z.object({
   doc: z.array(z.unknown()).optional(),
   actionLabel: z.string().max(DRAFT_ACTION_LABEL_MAX).nullable(),
   actionPath: z.string().max(DRAFT_ACTION_PATH_MAX).nullable(),
+  /** Left out by an older tab, which keeps the stored one. */
+  previewText: z.string().max(DRAFT_PREVIEW_TEXT_MAX).nullable().optional(),
   sendEmail: z.boolean(),
   sendPush: z.boolean(),
   /**
@@ -255,6 +260,21 @@ export const ComunicadoActionSchema = z
     const problem = actionPath ? comunicadoActionPathProblem(actionPath) : null;
     if (problem) ctx.addIssue({ code: "custom", message: problem });
   });
+
+/** The optional preview line, as it must be to send: empty means none. */
+export const ComunicadoPreviewTextSchema = z
+  .string()
+  .trim()
+  .nullish()
+  .transform((text) => text || null)
+  .refine(
+    (text) => text === null || text.length <= COMUNICADO_PREVIEW_TEXT_MAX,
+    `El resumen puede tener hasta ${COMUNICADO_PREVIEW_TEXT_MAX} caracteres.`,
+  )
+  .refine(
+    (text) => text === null || !/[\r\n]/.test(text),
+    "El resumen va en una sola línea.",
+  );
 
 export const COMUNICADO_STATUS_LABELS = {
   draft: "Borrador",

@@ -120,6 +120,7 @@ describe("editComunicadoAction", () => {
         doc: DOC,
         actionLabel: "Ver mis participaciones",
         actionPath: "/my_participations",
+        previewText: null,
         editNote: null,
       },
       ADMIN.id,

@@ -81,6 +81,7 @@ export async function loadComunicadoSendConfirmationAction(
         doc: comunicados.doc,
         actionLabel: comunicados.actionLabel,
         actionPath: comunicados.actionPath,
+        previewText: comunicados.previewText,
         sendEmail: comunicados.sendEmail,
         sendPush: comunicados.sendPush,
         audienceKind: comunicados.audienceKind,

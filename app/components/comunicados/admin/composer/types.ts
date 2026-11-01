@@ -56,6 +56,7 @@ export type ComposerDraft = {
   doc: unknown[];
   actionLabel: string | null;
   actionPath: string | null;
+  previewText: string | null;
   sendEmail: boolean;
   sendPush: boolean;
   /** Participants or visitors (§L). */
@@ -78,6 +79,8 @@ export type ComposerFields = {
   actionEnabled: boolean;
   actionLabel: string;
   actionPath: string;
+  /** "Resumen"; empty means none. */
+  previewText: string;
   sendEmail: boolean;
   sendPush: boolean;
   audienceKind: ComunicadoAudienceKind;
@@ -94,6 +97,7 @@ export function draftFieldsOf(fields: ComposerFields): DraftFields {
     // An empty pair still says the switch is on, so it reopens on.
     actionLabel: fields.actionEnabled ? fields.actionLabel : null,
     actionPath: fields.actionEnabled ? fields.actionPath : null,
+    previewText: fields.previewText.trim() ? fields.previewText : null,
     sendEmail: fields.sendEmail,
     sendPush: fields.sendPush,
     audienceKind: fields.audienceKind,
@@ -110,6 +114,7 @@ export function composerFieldsOf(draft: ComposerDraft): ComposerFields {
     actionEnabled: draft.actionLabel !== null || draft.actionPath !== null,
     actionLabel: draft.actionLabel ?? "",
     actionPath: draft.actionPath ?? "",
+    previewText: draft.previewText ?? "",
     sendEmail: draft.sendEmail,
     sendPush: draft.sendPush,
     audienceKind: draft.audienceKind,

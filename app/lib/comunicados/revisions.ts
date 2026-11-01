@@ -32,6 +32,7 @@ export type ComunicadoRevision = ComunicadoRevisionSummary & {
   text: string;
   actionLabel: string | null;
   actionPath: string | null;
+  previewText: string | null;
 };
 
 async function canRead() {
@@ -97,6 +98,7 @@ export async function fetchComunicadoRevision(
       text: comunicadoRevisions.text,
       actionLabel: comunicadoRevisions.actionLabel,
       actionPath: comunicadoRevisions.actionPath,
+      previewText: comunicadoRevisions.previewText,
       editNote: comunicadoRevisions.editNote,
       createdAt: comunicadoRevisions.createdAt,
       createdBy,

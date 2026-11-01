@@ -234,6 +234,18 @@ export function notificationOpensDetail(kind: string, data: unknown): boolean {
   return parsed.success ? def.opensDetail(parsed.data) : true;
 }
 
+/**
+ * The push body its sender wrote, for an item that opens its own page; see
+ * `KindDefinition`. Null when there is none or the snapshot does not parse.
+ */
+export function notificationPushBody(kind: string, data: unknown) {
+  if (!isNotificationKind(kind)) return null;
+  const def = definition(kind);
+  if (!def.pushBody) return null;
+  const parsed = def.schema.safeParse(data);
+  return parsed.success ? def.pushBody(parsed.data)?.trim() || null : null;
+}
+
 /** Whether the item is written already read; see `KindDefinition`. */
 export function notificationStartsRead<K extends NotificationKind>(
   kind: K,

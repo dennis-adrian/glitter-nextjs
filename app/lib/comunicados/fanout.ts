@@ -157,10 +157,11 @@ async function writeChunk(
       text: string | null;
       action_label: string | null;
       action_path: string | null;
+      preview_text: string | null;
     }>(sql`
       SELECT k.campaign_id, k.retracted_at IS NOT NULL AS retracted,
         k.send_email, k.send_push, rv.revision, rv.title, rv.text,
-        rv.action_label, rv.action_path
+        rv.action_label, rv.action_path, rv.preview_text
       FROM comunicados k
       LEFT JOIN comunicado_revisions rv
         ON rv.comunicado_id = k.id AND rv.revision = k.current_revision
@@ -244,6 +245,7 @@ async function writeChunk(
       excerpt: excerptOf(content.text ?? ""),
       actionPath: content.action_path,
       actionLabel: content.action_label,
+      preview: content.preview_text,
     };
     for (const group of byChannels(eligible)) {
       const written = await notifyMany(tx, {

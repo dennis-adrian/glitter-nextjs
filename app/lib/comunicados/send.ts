@@ -198,6 +198,7 @@ export type SendableComunicadoRow = {
   doc: unknown;
   actionLabel: string | null;
   actionPath: string | null;
+  previewText: string | null;
   essential: boolean;
   essentialReason: string | null;
   sendEmail: boolean;
@@ -275,6 +276,7 @@ export async function checkComunicadoSendable(
     doc: row.doc,
     actionLabel: row.actionLabel,
     actionPath: row.actionPath,
+    previewText: row.previewText,
     essential: row.essential,
     essentialReason: row.essentialReason,
     sendEmail: row.sendEmail,
@@ -348,6 +350,7 @@ async function checkVisitorComunicadoSendable(
     doc: row.doc,
     actionLabel: row.actionLabel,
     actionPath: row.actionPath,
+    previewText: row.previewText,
     essential: false,
     essentialReason: null,
     sendEmail: true,
@@ -453,6 +456,7 @@ export async function startComunicadoSend(
       doc: comunicados.doc,
       actionLabel: comunicados.actionLabel,
       actionPath: comunicados.actionPath,
+      previewText: comunicados.previewText,
       sendEmail: comunicados.sendEmail,
       sendPush: comunicados.sendPush,
       audienceKind: comunicados.audienceKind,
@@ -572,6 +576,7 @@ export async function startComunicadoSend(
     text: content.text,
     actionLabel: content.actionLabel,
     actionPath: content.actionPath,
+    previewText: content.previewText,
     createdByUserId: by,
   });
 

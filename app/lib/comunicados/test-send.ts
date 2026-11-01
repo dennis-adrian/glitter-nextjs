@@ -113,6 +113,7 @@ export async function sendComunicadoTestAction(
         doc: comunicados.doc,
         actionLabel: comunicados.actionLabel,
         actionPath: comunicados.actionPath,
+        previewText: comunicados.previewText,
         audience: comunicados.audience,
         essential: comunicados.essential,
         essentialReason: comunicados.essentialReason,
@@ -134,6 +135,7 @@ export async function sendComunicadoTestAction(
       doc: row.doc,
       actionLabel: row.actionLabel,
       actionPath: row.actionPath,
+      previewText: row.previewText,
       essential: row.essential,
       essentialReason: row.essentialReason,
       sendEmail: true,
@@ -173,6 +175,7 @@ export async function sendComunicadoTestAction(
       blocks: checked.blocks,
       actionLabel: checked.actionLabel,
       actionPath: checked.actionPath,
+      previewText: checked.previewText,
       unsubscribeUrl: links.pageUrl,
       essentialFestivalName: row.essential
         ? await essentialFestivalName(row.audience)

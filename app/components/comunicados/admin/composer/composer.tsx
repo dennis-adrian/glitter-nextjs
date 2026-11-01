@@ -213,6 +213,7 @@ export default function ComunicadoComposer({
     doc: fields.doc,
     actionLabel: fields.actionEnabled ? fields.actionLabel : null,
     actionPath: fields.actionEnabled ? fields.actionPath : null,
+    previewText: fields.previewText.trim() || null,
     essentialFestivalName: essentialFestival,
   };
 
@@ -409,6 +410,8 @@ export default function ComunicadoComposer({
             initialDoc={draft.doc}
             onDocChange={(doc) => update({ doc })}
             textLength={text.length}
+            previewText={fields.previewText}
+            onPreviewTextChange={(previewText) => update({ previewText })}
             contentError={autosave.contentError}
             action={{
               enabled: fields.actionEnabled,

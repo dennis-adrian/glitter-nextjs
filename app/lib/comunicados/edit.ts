@@ -121,8 +121,9 @@ async function editInTransaction(
     text: string;
     action_label: string | null;
     action_path: string | null;
+    preview_text: string | null;
   }>(sql`
-    SELECT title, html, text, action_label, action_path
+    SELECT title, html, text, action_label, action_path, preview_text
     FROM comunicado_revisions
     WHERE comunicado_id = ${comunicadoId}::int AND revision = ${current}::int
   `);
@@ -133,7 +134,8 @@ async function editInTransaction(
     before.html === content.html &&
     before.text === content.text &&
     before.action_label === content.actionLabel &&
-    before.action_path === content.actionPath
+    before.action_path === content.actionPath &&
+    before.preview_text === content.previewText
   ) {
     return refusal("NO_CHANGES");
   }
@@ -149,6 +151,7 @@ async function editInTransaction(
     text: content.text,
     actionLabel: content.actionLabel,
     actionPath: content.actionPath,
+    previewText: content.previewText,
     editNote: content.note,
     createdByUserId: by,
   });
@@ -181,6 +184,7 @@ async function editInTransaction(
     excerpt: content.excerpt,
     actionPath: content.actionPath,
     actionLabel: content.actionLabel,
+    preview: content.previewText,
   });
   if (!data) throw new Error("notification_data_invalid:comunicado");
   const copy = buildInAppCopy("comunicado", data);
@@ -198,7 +202,8 @@ async function editInTransaction(
         'revision', ${data.revision}::int, 'title', ${data.title}::text,
         'excerpt', ${data.excerpt}::text,
         'actionPath', ${data.actionPath}::text,
-        'actionLabel', ${data.actionLabel}::text)
+        'actionLabel', ${data.actionLabel}::text,
+        'preview', ${data.preview ?? null}::text)
     WHERE campaign_id = ${campaignId}::int AND kind = 'comunicado'
       AND retracted_at IS NULL
     RETURNING id
@@ -223,6 +228,7 @@ export async function editSentComunicado(
     doc: unknown;
     actionLabel: string | null;
     actionPath: string | null;
+    previewText: string | null;
     editNote?: string | null;
   },
   by: number,
@@ -254,6 +260,7 @@ export async function editSentComunicado(
     doc: i.doc,
     actionLabel: i.actionLabel,
     actionPath: i.actionPath,
+    previewText: i.previewText,
     essential: row.essential,
     essentialReason: row.essentialReason,
     sendEmail: row.sendEmail,

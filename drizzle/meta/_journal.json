@@ -2150,6 +2150,13 @@
       "when": 1793569921479,
       "tag": "0307_comunicado_resends",
       "breakpoints": true
+    },
+    {
+      "idx": 308,
+      "version": "7",
+      "when": 1793574941880,
+      "tag": "0308_comunicado_preview_text",
+      "breakpoints": true
     }
   ]
 }
