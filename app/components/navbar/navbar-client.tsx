@@ -17,6 +17,7 @@ import {
   type NavViewer,
 } from "@/app/components/navbar/app-navigation";
 import NavbarNavigationMenu from "@/app/components/navbar/navigation-menu";
+import PullToRefresh from "@/app/components/navbar/pull-to-refresh";
 import {
   AppScreenBar,
   ScreenHeaderBack,
@@ -226,6 +227,8 @@ export default function NavbarClient({
             viewer={viewer}
           />
           <AppTabBar tabs={navigation.tabs} />
+          {/* The installed app has no reload button: pulling down refreshes. */}
+          <PullToRefresh />
         </>
       ) : null}
     </>
