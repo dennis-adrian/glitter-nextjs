@@ -371,6 +371,42 @@ describe("buildPendingItems once reserving is closed or blocked", () => {
   });
 });
 
+describe("buildPendingItems during a sanction delay", () => {
+  it("keeps enrolling linked and says from when reserving opens", () => {
+    const items = buildPendingItems({
+      isGastronomy: false,
+      hasReservation: false,
+      isConfirmed: false,
+      shouldSubmitProducts: false,
+      teamCount: 0,
+      links,
+      status: "reservations_blocked",
+      enrollmentStatus: null,
+      reservationBlock: { eligibleAt: new Date("2026-11-10T16:00:00Z") },
+    });
+
+    expect(items[0]).toMatchObject({ key: "enrollment", href: "/terms" });
+  });
+
+  it("marks a payment under review as waiting, not as a task", () => {
+    const items = buildPendingItems({
+      isGastronomy: false,
+      hasReservation: true,
+      isConfirmed: false,
+      shouldSubmitProducts: false,
+      teamCount: 0,
+      links,
+      status: "pending_payment_approval",
+      enrollmentStatus: "accepted",
+    });
+
+    expect(items.find((item) => item.key === "payment")).toMatchObject({
+      waiting: true,
+      meta: "en revisión",
+    });
+  });
+});
+
 describe("buildParticipantSchedule", () => {
   const day1 = {
     startDate: new Date("2026-11-14T14:00:00Z"),

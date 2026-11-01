@@ -1,4 +1,5 @@
 import type { CardStatus } from "@/app/components/participant_dashboard/reservation-card";
+import { formatDisplayDate } from "@/app/lib/formatters";
 
 /**
  * The participation hub's decisions, kept free of data fetching so each rule
@@ -146,6 +147,8 @@ export type HubPendingItem = {
   href?: string;
   /** A short note beside it: a count, a deadline, "en revisión". */
   meta?: string;
+  /** Linked only to follow it: the team has it now, so it is not a task. */
+  waiting?: boolean;
 };
 
 export type HubLinks = {
@@ -172,17 +175,24 @@ export function buildPendingItems({
   shouldSubmitProducts,
   teamCount,
   links,
+  reservationBlock = null,
 }: {
   status: HubStatus;
   isGastronomy: boolean;
   enrollmentStatus: EnrollmentStatus;
   hasReservation: boolean;
   isConfirmed: boolean;
+  /** The sanction behind "reservations_blocked": a ban, or a delay. */
+  reservationBlock?: { eligibleAt: Date | null } | null;
   shouldSubmitProducts: boolean;
   teamCount: number;
   links: HubLinks;
 }): HubPendingItem[] {
   const items: HubPendingItem[] = [];
+  const blocked = status === "reservations_blocked";
+  // A ban closes the edition; a delay only moves when they can reserve, so
+  // enrolling still makes sense and stays linked.
+  const banned = blocked && !reservationBlock?.eligibleAt;
   const enrolled =
     hasReservation ||
     enrollmentStatus === "pending" ||
@@ -194,8 +204,8 @@ export function buildPendingItems({
   items.push(
     enrolled
       ? { key: "enrollment", label: "Inscripción", done: true, meta: "lista" }
-      : status === "reservations_blocked"
-        ? // Enrolling would lead nowhere while reserving is blocked.
+      : banned
+        ? // Enrolling would lead nowhere during a ban.
           {
             key: "enrollment",
             label: "Inscribirte al festival",
@@ -233,9 +243,11 @@ export function buildPendingItems({
                 ? "aún no abre"
                 : status === "no_stands_available"
                   ? "sin espacios"
-                  : status === "reservations_blocked"
+                  : banned
                     ? "no disponible"
-                    : undefined,
+                    : blocked && reservationBlock?.eligibleAt
+                      ? `desde el ${formatDisplayDate(reservationBlock.eligibleAt, { day: "numeric", month: "short" })}`
+                      : undefined,
           },
     );
   }
@@ -251,6 +263,7 @@ export function buildPendingItems({
               done: false,
               href: links.invoices,
               meta: "en revisión",
+              waiting: true,
             }
           : {
               key: "payment",

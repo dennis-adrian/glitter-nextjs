@@ -42,8 +42,11 @@ export function participationSentence({
   standLabel,
   categoryName,
   partners,
+  blockedUntil = null,
 }: {
   status: HubStatus;
+  /** When a sanction delay lets them reserve; null for a ban. */
+  blockedUntil?: Date | null;
   reservationsStartDate: Date;
   /** "stand B12", once there is a reservation. */
   standLabel: string | null;
@@ -85,6 +88,11 @@ export function participationSentence({
         ? `Tu reserva del ${standLabel} fue cancelada`
         : "Tu reserva fue cancelada";
     case "reservations_blocked":
-      return "No podés reservar en esta edición";
+      return blockedUntil
+        ? `Podés reservar desde el ${formatDisplayDate(blockedUntil, {
+            day: "numeric",
+            month: "long",
+          })}`
+        : "No podés reservar en esta edición";
   }
 }

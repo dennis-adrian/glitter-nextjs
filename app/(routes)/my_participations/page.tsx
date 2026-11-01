@@ -45,7 +45,10 @@ export default async function ParticipationsPage() {
     return (
       <div className="container flex max-w-3xl flex-col gap-5 p-4 md:p-6">
         <Heading>Participaciones</Heading>
-        <ParticipationHistoryPreview profile={hub.profile} />
+        <ParticipationHistoryPreview
+          profile={hub.profile}
+          emptyState="Cuando participes en un festival, acá vas a ver tus participaciones."
+        />
       </div>
     );
   }

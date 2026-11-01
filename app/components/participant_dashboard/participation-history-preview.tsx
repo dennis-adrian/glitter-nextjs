@@ -24,9 +24,12 @@ function firstDay(participation: Participation) {
 export default function ParticipationHistoryPreview({
   profile,
   activeFestivalId,
+  emptyState,
 }: {
   profile: ProfileType;
   activeFestivalId?: number;
+  /** Shown where the list would be, when the page has nothing else. */
+  emptyState?: string;
 }) {
   const seen = new Set<number>();
   const past = profile.participations
@@ -44,7 +47,13 @@ export default function ParticipationHistoryPreview({
     })
     .slice(0, SHOWN);
 
-  if (past.length === 0) return null;
+  if (past.length === 0) {
+    return emptyState ? (
+      <div className="rounded-2xl border border-dashed border-brand-lavender p-4 text-center text-sm text-brand-neutral">
+        {emptyState}
+      </div>
+    ) : null;
+  }
 
   return (
     <HubSection

@@ -26,12 +26,18 @@ export function hubSectionAvailability(hub: ParticipationHub) {
  */
 function reservationShortcuts(hub: ParticipationHub): HubShortcut[] {
   return [
-    {
-      key: "reservation",
-      label: "Reserva",
-      href: hub.links.reservation ?? hub.links.invoices,
-      icon: TicketIcon,
-    },
+    // With several reservations there is no single page to open, and the
+    // payments page already lists them all: no second link to the same place.
+    ...(hub.links.reservation
+      ? [
+          {
+            key: "reservation",
+            label: "Reserva",
+            href: hub.links.reservation,
+            icon: TicketIcon,
+          },
+        ]
+      : []),
     {
       key: "payments",
       label: "Pagos",

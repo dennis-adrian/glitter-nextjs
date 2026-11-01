@@ -26,8 +26,8 @@ const SOON_MS = 48 * 60 * 60 * 1000;
 
 /**
  * The participation's open steps that have somewhere to go. Done steps and
- * steps that only wait (a review in progress, reservations not open yet) stay
- * in the hub's own list.
+ * steps that only wait (a review in progress, a payment under review,
+ * reservations not open yet) are not tasks.
  */
 export function festivalTasks(
   items: readonly HubPendingItem[],
@@ -37,7 +37,7 @@ export function festivalTasks(
   }: { standLabel?: string | null; invoiceDueAt?: Date | null } = {},
 ): HomeTask[] {
   return items
-    .filter((item) => !item.done && item.href)
+    .filter((item) => !item.done && !item.waiting && item.href)
     .map((item) => {
       const href = item.href as string;
       if (item.key === "payment") {

@@ -76,6 +76,19 @@ describe("buildHubShortcuts", () => {
     ).toEqual(["reservation", "payments", "products", "team", "schedule", "terms"]);
   });
 
+  it("leaves out the reservation tile when there is no single reservation page", () => {
+    const shortcuts = buildHubShortcuts(
+      hub("confirmed_reservation", {
+        links: {
+          ...hub("confirmed_reservation").links,
+          reservation: null,
+        },
+      }),
+    );
+    expect(shortcuts.map((s) => s.key)).not.toContain("reservation");
+    expect(shortcuts.filter((s) => s.href === "/invoices")).toHaveLength(1);
+  });
+
   it("has nothing to open once the participation ended", () => {
     expect(buildHubShortcuts(hub("rejected_reservation"))).toEqual([]);
   });

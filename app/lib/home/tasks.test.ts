@@ -38,6 +38,14 @@ describe("festivalTasks", () => {
     });
   });
 
+  it("leaves out what the team already has, like a payment under review", () => {
+    expect(
+      festivalTasks([
+        { key: "payment", label: "Pago de la reserva", done: false, href: "/invoices", meta: "en revisión", waiting: true },
+      ]),
+    ).toEqual([]);
+  });
+
   it("keeps the step's note, like the team count", () => {
     const [task] = festivalTasks([
       { key: "team", label: "Agregar a tu equipo", done: false, href: "/team", meta: "0 de 4" },

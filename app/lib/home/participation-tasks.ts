@@ -9,6 +9,7 @@ import {
   type HomeTask,
 } from "@/app/lib/home/tasks";
 import type { ParticipationHub } from "@/app/lib/participations/hub";
+import { isParticipationEnded } from "@/app/lib/participations/hub-status";
 import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 
 const ACTIVITIES_HREF = "/my_participations/activities";
@@ -44,6 +45,9 @@ export function participationTasks(
   hub: ParticipationHub,
   { invoiceDueAt = null }: { invoiceDueAt?: Date | null } = {},
 ): HomeTask[] {
+  // A participation that ended has nothing left to do, activities included:
+  // their page redirects back to the hub.
+  if (isParticipationEnded(hub.status)) return [];
   return [
     ...festivalTasks(hub.pending, {
       standLabel: hub.reservation

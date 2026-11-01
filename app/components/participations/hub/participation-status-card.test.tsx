@@ -262,10 +262,28 @@ describe("ParticipationStatusCard", () => {
     expect(screen.queryByText("Motivo del equipo")).toBeNull();
   });
 
-  it("says reserving is blocked, until when, and links the detail", () => {
+  it("says a ban closes the edition and links the detail", () => {
     render(
       <ParticipationStatusCard
         hub={hub("reservations_blocked", {
+          reservationBlock: { reason: "ban", eligibleAt: null },
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "No podés reservar en esta edición" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Reservas no disponibles")).toBeTruthy();
+    expect(href("Ver detalle")).toBe("/profiles/3/infractions");
+    expect(screen.queryByRole("link", { name: "Reservar stand" })).toBeNull();
+  });
+
+  it("says when a delay lets them reserve, and keeps enrolling open", () => {
+    render(
+      <ParticipationStatusCard
+        hub={hub("reservations_blocked", {
+          enrollment: null,
           reservationBlock: {
             reason: "reservation_delay",
             eligibleAt: new Date("2026-11-10T16:00:00Z"),
@@ -275,12 +293,41 @@ describe("ParticipationStatusCard", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "No podés reservar en esta edición" }),
+      screen.getByRole("heading", { name: /^Podés reservar desde el 10 de noviembre/ }),
     ).toBeTruthy();
-    expect(screen.getByText("Reservas no disponibles")).toBeTruthy();
-    expect(screen.getByText(/hasta el 10 de noviembre de 2026/)).toBeTruthy();
+    expect(screen.getByText("Reservas desde el 10 nov")).toBeTruthy();
+    expect(screen.queryByText("No podés reservar en esta edición")).toBeNull();
+    expect(href("Inscribirme")).toBe("/profiles/3/festivals/9/terms");
     expect(href("Ver detalle")).toBe("/profiles/3/infractions");
-    expect(screen.queryByRole("link", { name: "Reservar stand" })).toBeNull();
+  });
+
+  it("counts nothing once the participation ended", () => {
+    render(
+      <ParticipationStatusCard
+        hub={hub("rejected_reservation", {
+          closedReservation: { reservationId: 41, standLabel: "B12", reason: null },
+          pending: [
+            { key: "products", label: "Subir imágenes de tus productos", done: false, href: "/p" },
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.queryByText(/tareas? pendientes?/)).toBeNull();
+  });
+
+  it("does not count a payment the team is already reviewing", () => {
+    render(
+      <ParticipationStatusCard
+        hub={hub("pending_payment_approval", {
+          pending: [
+            { key: "payment", label: "Pago de la reserva", done: false, href: "/invoices", meta: "en revisión", waiting: true },
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.queryByText(/tareas? pendientes?/)).toBeNull();
   });
 
   it("notes a stand released earlier and offers a new reservation", () => {

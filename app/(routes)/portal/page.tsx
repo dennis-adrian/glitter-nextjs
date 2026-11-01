@@ -118,7 +118,7 @@ function hubFestivalCard(hub: ParticipationHub, now: Date) {
       festival={hub.festival}
       href="/my_participations"
       daysLeft={firstDayLeft(hub.festival, now)}
-      badge={badgeFor(hub.status)}
+      badge={badgeFor(hub.status, hub.reservationBlock)}
       sentence={participationSentence({
         status: hub.status,
         reservationsStartDate: hub.festival.reservationsStartDate,
@@ -129,6 +129,7 @@ function hubFestivalCard(hub: ParticipationHub, now: Date) {
             : null,
         categoryName: categoryName(hub.profile.category),
         partners,
+        blockedUntil: hub.reservationBlock?.eligibleAt ?? null,
       })}
     />
   );

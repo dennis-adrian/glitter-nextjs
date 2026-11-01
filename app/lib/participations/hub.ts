@@ -144,7 +144,15 @@ export const loadParticipationHub = cache(
       fetchFestivalActivitiesByFestivalId(festival.id),
       fetchFestivalSessions(festival.id),
       fetchEndedReservations(profile.id, festival.id),
-      getReservationEligibility({ userId: profile.id, festivalId: festival.id }),
+      // Whether they can reserve when it matters: at opening, or now once
+      // reservations are open. A ban that ends before opening blocks nothing.
+      getReservationEligibility({
+        userId: profile.id,
+        festivalId: festival.id,
+        now: new Date(
+          Math.max(Date.now(), festival.reservationsStartDate.getTime()),
+        ),
+      }),
     ]);
     const reservationBlock = eligibility.eligible
       ? null
@@ -246,6 +254,7 @@ export const loadParticipationHub = cache(
         enrollmentStatus,
         hasReservation,
         isConfirmed,
+        reservationBlock,
         shouldSubmitProducts: Boolean(profile.shouldSubmitProducts),
         teamCount,
         links,

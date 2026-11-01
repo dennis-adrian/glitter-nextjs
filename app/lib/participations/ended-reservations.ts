@@ -48,7 +48,8 @@ async function fetchEmailedReason(reservationId: number, userId: number) {
  * The participant's reservations in a festival that are no longer live. A
  * reservation the team rejected or cancelled (both are stored as "rejected";
  * "cancelled" is kept for older rows) closes the festival for them: they
- * cannot reserve again. One they released themselves does not.
+ * cannot reserve again. One they released themselves does not, and only its
+ * owner is told about it.
  */
 export async function fetchEndedReservations(
   userId: number,
@@ -62,7 +63,13 @@ export async function fetchEndedReservations(
     columns: { id: true },
     with: {
       reservation: {
-        columns: { id: true, festivalId: true, status: true, updatedAt: true },
+        columns: {
+          id: true,
+          festivalId: true,
+          status: true,
+          updatedAt: true,
+          ownerUserId: true,
+        },
         with: {
           stand: true,
           members: { with: { stand: true } },
@@ -89,8 +96,11 @@ export async function fetchEndedReservations(
     (reservation) =>
       reservation.status === "rejected" || reservation.status === "cancelled",
   );
+  // Only the owner can release, and only the owner pays for it: a partner
+  // left on a released reservation did neither, so it says nothing to them.
   const releasedRow = ended.find(
-    (reservation) => reservation.status === "released",
+    (reservation) =>
+      reservation.status === "released" && reservation.ownerUserId === userId,
   );
 
   const reasonOf = (payload: unknown) =>

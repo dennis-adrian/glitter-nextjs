@@ -61,10 +61,21 @@ const BLOCKED_BADGE = {
 };
 
 /** The participation's state as a badge; Inicio's festival card shows the same. */
-export function badgeFor(status: HubStatus) {
+export function badgeFor(
+  status: HubStatus,
+  reservationBlock?: { eligibleAt: Date | null } | null,
+) {
   if (status === "no_stands_available") return NO_STANDS_BADGE;
   if (status === "rejected_reservation") return CLOSED_BADGE;
-  if (status === "reservations_blocked") return BLOCKED_BADGE;
+  if (status === "reservations_blocked") {
+    const until = reservationBlock?.eligibleAt;
+    return until
+      ? {
+          label: `Reservas desde el ${formatDisplayDate(until, { day: "numeric", month: "short" })}`,
+          badgeStyle: NO_STANDS_BADGE.badgeStyle,
+        }
+      : BLOCKED_BADGE;
+  }
   const { label, badgeStyle } = STATUS_CONFIG[status];
   return { label, badgeStyle };
 }
@@ -197,7 +208,17 @@ function copyFor(hub: ParticipationHub, tasks: HomeTask[]): Copy {
       return {
         title: "",
         actions: next
-          ? [{ label: ACTION_LABELS[next.key] ?? next.label, href: next.href, primary: true }]
+          ? [
+              {
+                label:
+                  ACTION_LABELS[next.key] ??
+                  (next.key.startsWith("activity-")
+                    ? "Ir a actividades"
+                    : next.label),
+                href: next.href,
+                primary: true,
+              },
+            ]
           : [],
       };
     }
@@ -222,14 +243,36 @@ function copyFor(hub: ParticipationHub, tasks: HomeTask[]): Copy {
     }
     case "reservations_blocked": {
       const until = hub.reservationBlock?.eligibleAt;
+      const detail = {
+        label: "Ver detalle",
+        href: `/profiles/${profile.id}/infractions`,
+      };
+      if (!until) {
+        return {
+          title: "No podés reservar en esta edición",
+          body: `Tu cuenta tiene una restricción activa que no permite reservar en ${sentenceEnd(festival.name)} En el detalle ves por qué y hasta cuándo dura.`,
+          actions: [detail],
+        };
+      }
+      // A delay moves when they can reserve within this edition; enrolling
+      // now leaves them ready for that moment.
+      const enrolled =
+        hub.enrollment?.status === "accepted" ||
+        hub.enrollment?.status === "pending";
       return {
-        title: "No podés reservar en esta edición",
-        body: until
-          ? `Tu cuenta tiene una restricción que no permite reservar en ${festival.name} hasta el ${formatFullDate(until, DateTime.DATE_FULL)}. En el detalle ves por qué.`
-          : `Tu cuenta tiene una restricción activa que no permite reservar en ${festival.name}. En el detalle ves por qué y hasta cuándo dura.`,
-        actions: [
-          { label: "Ver detalle", href: `/profiles/${profile.id}/infractions` },
-        ],
+        title: `Podés reservar desde el ${formatDisplayDate(until, {
+          day: "numeric",
+          month: "long",
+          hour: "numeric",
+          minute: "2-digit",
+        })}`,
+        body: `Tu cuenta tiene una restricción que demora tus reservas en ${sentenceEnd(festival.name)} En el detalle ves por qué.`,
+        actions: enrolled
+          ? [detail]
+          : [
+              { label: "Inscribirme", href: links.terms, primary: true },
+              detail,
+            ],
       };
     }
   }
@@ -348,7 +391,7 @@ export default function ParticipationStatusCard({
 }) {
   const tasks = participationTasks(hub);
   const copy = copyFor(hub, tasks);
-  const badge = badgeFor(hub.status);
+  const badge = badgeFor(hub.status, hub.reservationBlock);
   const confirmed = hub.status === "confirmed_reservation";
   const ended = isParticipationEnded(hub.status);
   // The tasks are listed on Inicio; the card says how many. A lone task the
@@ -377,6 +420,16 @@ export default function ParticipationStatusCard({
 
       {confirmed || ended ? null : <Steps steps={hub.steps} />}
 
+      {copy.note ? (
+        <p className="flex items-start gap-2 rounded-xl border border-brand-border bg-brand-lavender/20 px-3 py-2.5 text-sm text-brand-ink">
+          <InfoIcon
+            className="mt-0.5 size-4 shrink-0 text-brand-primary"
+            aria-hidden="true"
+          />
+          {copy.note}
+        </p>
+      ) : null}
+
       {confirmed ? (
         <ConfirmedReservation hub={hub} />
       ) : (
@@ -401,15 +454,6 @@ export default function ParticipationStatusCard({
         </figure>
       ) : null}
 
-      {copy.note ? (
-        <p className="flex items-start gap-2 rounded-xl border border-brand-border bg-brand-lavender/20 px-3 py-2.5 text-sm text-brand-ink">
-          <InfoIcon
-            className="mt-0.5 size-4 shrink-0 text-brand-primary"
-            aria-hidden="true"
-          />
-          {copy.note}
-        </p>
-      ) : null}
 
       {copy.actions.length > 0 ? (
         <div className="flex flex-wrap gap-2">
