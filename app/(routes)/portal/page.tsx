@@ -1,43 +1,45 @@
-import { BookOpenIcon, CakeIcon, CogIcon } from "lucide-react";
-import { DateTime } from "luxon";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Suspense } from "react";
 
-import VerificationStatusLabel from "@/app/components/atoms/verification-status-label";
-import DashboardActivities from "@/app/components/home/dashboard-activities";
-import DashboardNextEvent from "@/app/components/home/dashboard-next-event";
+import type { ProfileType } from "@/app/api/users/definitions";
 import DashboardNotifications from "@/app/components/home/dashboard-notifications";
-import DashboardStats from "@/app/components/home/dashboard-stats";
-import {
-  PortalBanners,
-  PortalBannersSkeleton,
-} from "@/app/components/marketing/portal-banners";
-import ParticipationHistoryPreview from "@/app/components/participant_dashboard/participation-history-preview";
+import HomeCredits from "@/app/components/home/home-credits";
+import HomeFestivalCard from "@/app/components/home/home-festival-card";
+import HomeGreeting from "@/app/components/home/home-greeting";
+import HomeHistoryCard from "@/app/components/home/home-history-card";
+import HomeReviewNote from "@/app/components/home/home-review-note";
+import HomeStoreStrip from "@/app/components/home/home-store-strip";
+import HomeTasks from "@/app/components/home/home-tasks";
 import PausedParticipantDashboard from "@/app/components/participant_dashboard/paused-dashboard";
 import RestrictedDashboard from "@/app/components/participant_dashboard/restricted-dashboard";
-import HubPendingList from "@/app/components/participations/hub/hub-pending-list";
 import { HubSection } from "@/app/components/participations/hub/hub-section";
-import { HUB_SECTIONS } from "@/app/components/participations/hub/hub-quick-access";
-import { hubSectionAvailability } from "@/app/components/participations/hub/hub-shortcuts";
-import ParticipationStatusCard from "@/app/components/participations/hub/participation-status-card";
+import {
+  badgeFor,
+  categoryName,
+} from "@/app/components/participations/hub/participation-status-card";
 import { readCreditBalances } from "@/app/lib/credits/service";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import type { FestivalWithDates } from "@/app/lib/festivals/definitions";
+import { getActiveFestivalBase } from "@/app/lib/festivals/helpers";
+import { participationSentence } from "@/app/lib/home/festival";
 import {
-  buildDashboardStats,
-  countUpcomingPurchases,
-} from "@/app/lib/home/dashboard";
+  loadHistorySummary,
+  loadHomeStore,
+  loadUpcomingFestival,
+  loadVerifiedTasks,
+  profileReviewTasks,
+} from "@/app/lib/home/load";
 import {
   fetchInboxPage,
   resolveInboxViewerWithAccess,
 } from "@/app/lib/notifications/queries";
-import { fetchOrderCountsByUserId } from "@/app/lib/orders/actions";
-import { loadParticipationHub } from "@/app/lib/participations/hub";
+import {
+  loadParticipationHub,
+  type ParticipationHub,
+} from "@/app/lib/participations/hub";
 import { daysUntil } from "@/app/lib/participations/hub-status";
 import { canAuthorPosts } from "@/app/lib/posts/eligibility";
-import { fetchPurchasesForUser } from "@/app/lib/programs/purchase-queries";
-import { Button } from "@/components/ui/button";
+import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 
 export const dynamic = "force-dynamic";
 
@@ -45,188 +47,225 @@ export const metadata: Metadata = {
   title: "Inicio",
 };
 
-/** How many of the participation's open items the home lists. */
-const PENDING_ON_HOME = 3;
 const NOTIFICATIONS_ON_HOME = 3;
 
+function firstDayLeft(festival: Pick<FestivalWithDates, "festivalDates">, now: Date) {
+  const start = [...festival.festivalDates].sort(
+    (a, b) => a.startDate.getTime() - b.startDate.getTime(),
+  )[0]?.startDate;
+  return daysUntil(start, now);
+}
+
+async function loadNotifications() {
+  const viewer = await resolveInboxViewerWithAccess();
+  if (!viewer) return null;
+  return (await fetchInboxPage(viewer, { limit: NOTIFICATIONS_ON_HOME })).items;
+}
+
 /**
- * The signed-in home: the participant's figures, their participation in the
- * active festival and what it still needs, and on desktop the festival's
- * activities and the latest notifications. The hub has the rest.
+ * Two columns from the desktop breakpoint: the festival, the store and the
+ * history on the left; what is always there (tasks, credits) and the latest
+ * notifications on the right. On a phone the always-there blocks come right
+ * under the greeting, so they render twice and each copy hides at the other
+ * size.
  */
-export default async function ParticipantDashboardPage() {
+function HomeLayout({
+  greeting,
+  always,
+  main,
+  notifications,
+}: {
+  greeting: React.ReactNode;
+  always: React.ReactNode;
+  main: React.ReactNode;
+  notifications: Awaited<ReturnType<typeof loadNotifications>>;
+}) {
+  return (
+    <div className="container max-w-6xl p-4 md:p-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] lg:items-start">
+        <div className="flex min-w-0 flex-col gap-6">
+          {greeting}
+          <div className="flex flex-col gap-6 lg:hidden">{always}</div>
+          {main}
+        </div>
+        <aside className="hidden flex-col gap-6 lg:flex">
+          {always}
+          {notifications ? (
+            <HubSection
+              title="Notificaciones"
+              action={{ label: "Ver todas", href: "/my_notifications" }}
+            >
+              <DashboardNotifications items={notifications} />
+            </HubSection>
+          ) : null}
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function hubFestivalCard(hub: ParticipationHub, now: Date) {
+  const reservation = hub.reservation;
+  const partners =
+    reservation?.participants
+      .map((participant) => participant.user)
+      .filter((user) => user.id !== hub.profile.id)
+      .map((user) => user.displayName ?? "tu compañero") ?? [];
+
+  return (
+    <HomeFestivalCard
+      title="Festival en curso"
+      festival={hub.festival}
+      href="/my_participations"
+      daysLeft={firstDayLeft(hub.festival, now)}
+      badge={badgeFor(hub.status)}
+      sentence={participationSentence({
+        status: hub.status,
+        reservationsStartDate: hub.festival.reservationsStartDate,
+        standLabel: reservation
+          ? `stand ${reservationStandLabel(reservation)}`
+          : null,
+        categoryName: categoryName(hub.profile.category),
+        partners,
+      })}
+    />
+  );
+}
+
+/**
+ * Inicio for a verified participant: what is pending and the credits, always;
+ * then the festival in its banner, the store, and the history.
+ */
+async function VerifiedHome({
+  profile,
+  hub,
+}: {
+  profile: ProfileType;
+  hub: ParticipationHub | null;
+}) {
+  const now = new Date();
+  const isStaff = profile.role === "admin" || profile.role === "festival_admin";
+
+  const [showBlogCta, balances, notifications, upcoming, history] =
+    await Promise.all([
+      // Staff reach the blog through the dashboard; contributors only here.
+      isStaff ? false : canAuthorPosts(profile),
+      isFeatureEnabled("credits", profile).then((on) =>
+        on ? readCreditBalances(profile.id) : null,
+      ),
+      loadNotifications(),
+      hub ? Promise.resolve(null) : loadUpcomingFestival(),
+      loadHistorySummary(profile, hub?.festival.id ?? null),
+    ]);
+
+  const [tasks, store] = await Promise.all([
+    loadVerifiedTasks({
+      profile,
+      hub,
+      creditDebt: balances ? Math.max(0, -balances.ledgerBalance) : 0,
+      now,
+    }),
+    // Supplies and rentals for a stand that is coming up; merch otherwise,
+    // and merch too when the supplies market is closed.
+    hub?.isConfirmed
+      ? loadHomeStore("supplies").then((supplies) =>
+          supplies ? supplies : loadHomeStore("merch"),
+        )
+      : loadHomeStore("merch"),
+  ]);
+
+  return (
+    <HomeLayout
+      greeting={<HomeGreeting profile={profile} showBlogCta={showBlogCta} />}
+      always={
+        <>
+          <HomeTasks tasks={tasks} now={now} />
+          {balances ? <HomeCredits balances={balances} /> : null}
+        </>
+      }
+      main={
+        <>
+          {hub ? (
+            hubFestivalCard(hub, now)
+          ) : upcoming ? (
+            <HomeFestivalCard
+              title="Próximo festival"
+              festival={upcoming}
+              href={`/festivals/${upcoming.id}`}
+              daysLeft={firstDayLeft(upcoming, now)}
+            />
+          ) : null}
+          {store ? <HomeStoreStrip store={store} /> : null}
+          <HomeHistoryCard summary={history} wide />
+        </>
+      }
+      notifications={notifications}
+    />
+  );
+}
+
+/**
+ * Inicio for a profile under review or not verified: what the review will
+ * look at, where the review stands, and the festival as a visitor sees it.
+ * No credits and no history: neither exists before verification.
+ */
+async function UnverifiedHome({ profile }: { profile: ProfileType }) {
+  const now = new Date();
+  const [active, notifications, store] = await Promise.all([
+    getActiveFestivalBase(),
+    loadNotifications(),
+    loadHomeStore("merch"),
+  ]);
+  const festival = active ?? (await loadUpcomingFestival());
+  const tasks = profileReviewTasks(profile);
+
+  return (
+    <HomeLayout
+      greeting={<HomeGreeting profile={profile} />}
+      always={
+        <>
+          <HomeTasks tasks={tasks} now={now} />
+          <HomeReviewNote profile={profile} hasTasks={tasks.length > 0} />
+        </>
+      }
+      main={
+        <>
+          {festival ? (
+            <HomeFestivalCard
+              title={active ? "Festival en curso" : "Próximo festival"}
+              festival={festival}
+              href={`/festivals/${festival.id}`}
+              daysLeft={firstDayLeft(festival, now)}
+            />
+          ) : null}
+          {store ? <HomeStoreStrip store={store} /> : null}
+        </>
+      }
+      notifications={notifications}
+    />
+  );
+}
+
+export default async function HomePage() {
   const hub = await loadParticipationHub();
 
   if (hub.kind === "signed-out") redirect("/");
 
   if (hub.kind === "not-verified") {
     const { profile } = hub;
-    const { status } = profile;
-    if (status === "paused") {
+    if (profile.status === "paused") {
       return <PausedParticipantDashboard profile={profile} />;
     }
-    if (status !== "verified") {
-      return <RestrictedDashboard profile={profile} status={status} />;
+    if (profile.status === "banned") {
+      return <RestrictedDashboard profile={profile} status="banned" />;
     }
+    return <UnverifiedHome profile={profile} />;
   }
 
-  const profile = hub.profile;
-  const festivalHub = hub.kind === "hub" ? hub : null;
-
-  // Admins reach the blog through the dashboard; this CTA is the only entry
-  // point contributors have, so it is scoped to eligible non-admins.
-  const isAdmin = profile.role === "admin" || profile.role === "festival_admin";
-
-  const [
-    showBlogCta,
-    creditBalance,
-    orderCounts,
-    upcomingPurchases,
-    notifications,
-  ] = await Promise.all([
-    isAdmin ? false : canAuthorPosts(profile),
-    isFeatureEnabled("credits", profile).then(async (on) =>
-      on ? (await readCreditBalances(profile.id)).spendableBalance : null,
-    ),
-    fetchOrderCountsByUserId(profile.id),
-    isFeatureEnabled("paid_programs", profile).then(async (on) =>
-      on ? countUpcomingPurchases(await fetchPurchasesForUser(profile.id)) : null,
-    ),
-    resolveInboxViewerWithAccess().then(async (viewer) =>
-      viewer
-        ? (await fetchInboxPage(viewer, { limit: NOTIFICATIONS_ON_HOME }))
-            .items
-        : null,
-    ),
-  ]);
-
-  const daysLeft = festivalHub
-    ? daysUntil(festivalHub.festival.festivalDates[0]?.startDate, new Date())
-    : null;
-  const stats = buildDashboardStats({
-    creditBalance,
-    orderCounts,
-    upcomingPurchases,
-    nextFestival:
-      festivalHub && daysLeft
-        ? { name: festivalHub.festival.name, daysLeft }
-        : null,
-  });
-
-  const openItems = festivalHub
-    ? festivalHub.pending.filter((item) => !item.done)
-    : [];
-  const showActivities = festivalHub
-    ? hubSectionAvailability(festivalHub).activities
-    : false;
-  const showAside = showActivities || notifications != null;
-
   return (
-    <div className="container flex max-w-6xl flex-col gap-5 p-4 md:p-6">
-      <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <VerificationStatusLabel status={profile.status} />
-          <h1 className="font-display text-3xl font-bold tracking-tight text-brand-ink md:text-4xl">
-            Hola, {profile.firstName ?? profile.displayName ?? "artista"}
-          </h1>
-          {profile.verifiedAt && (
-            <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-              <CakeIcon className="size-4" />
-              Te uniste en {DateTime.fromJSDate(profile.verifiedAt).year}
-            </p>
-          )}
-        </div>
-        <div className="flex shrink-0 flex-wrap justify-end gap-2">
-          {showBlogCta && (
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/portal/blog">
-                <BookOpenIcon className="mr-1 size-4" />
-                Mis artículos
-              </Link>
-            </Button>
-          )}
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/my_profile" aria-label="Configuración">
-              <CogIcon className="size-4 md:mr-1" />
-              <span className="hidden md:inline">Configuración</span>
-            </Link>
-          </Button>
-        </div>
-      </header>
-
-      <DashboardStats stats={stats} />
-
-      <div
-        className={
-          showAside
-            ? "grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] lg:items-start"
-            : "grid grid-cols-1 gap-5"
-        }
-      >
-        <div className="flex min-w-0 flex-col gap-5">
-          {festivalHub ? (
-            <>
-              <HubSection
-                title="Mi participación"
-                action={{ label: "Participaciones", href: "/my_participations" }}
-              >
-                <ParticipationStatusCard hub={festivalHub} showFestival />
-              </HubSection>
-
-              {openItems.length > 0 ? (
-                <HubSection
-                  title={`Pendientes (${openItems.length})`}
-                  action={
-                    openItems.length > PENDING_ON_HOME
-                      ? { label: "Ver todo", href: "/my_participations" }
-                      : undefined
-                  }
-                >
-                  <HubPendingList items={openItems.slice(0, PENDING_ON_HOME)} />
-                </HubSection>
-              ) : null}
-
-              <HubSection title="Próximo evento" className="lg:hidden">
-                <DashboardNextEvent festival={festivalHub.festival} />
-              </HubSection>
-            </>
-          ) : null}
-
-          <Suspense fallback={<PortalBannersSkeleton />}>
-            <PortalBanners />
-          </Suspense>
-
-          <ParticipationHistoryPreview
-            profile={profile}
-            activeFestivalId={festivalHub?.festival.id}
-          />
-        </div>
-
-        {showAside ? (
-          <aside className="hidden flex-col gap-5 lg:flex">
-            {festivalHub && showActivities ? (
-              <HubSection
-                title="Actividades del festival"
-                action={{ label: "Todas", href: HUB_SECTIONS.activities.href }}
-              >
-                <DashboardActivities
-                  activities={festivalHub.activities}
-                  profileId={profile.id}
-                  href={HUB_SECTIONS.activities.href}
-                />
-              </HubSection>
-            ) : null}
-            {notifications ? (
-              <HubSection
-                title="Notificaciones recientes"
-                action={{ label: "Bandeja", href: "/my_notifications" }}
-              >
-                <DashboardNotifications items={notifications} />
-              </HubSection>
-            ) : null}
-          </aside>
-        ) : null}
-      </div>
-    </div>
+    <VerifiedHome
+      profile={hub.profile}
+      hub={hub.kind === "hub" ? hub : null}
+    />
   );
 }

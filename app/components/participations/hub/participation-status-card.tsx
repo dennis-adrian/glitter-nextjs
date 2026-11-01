@@ -33,13 +33,14 @@ const NO_STANDS_BADGE = {
     "bg-amber-500/10 text-amber-800 border-amber-500/20 dark:text-amber-200",
 };
 
-function badgeFor(status: HubStatus) {
+/** The participation's state as a badge; Inicio's festival card shows the same. */
+export function badgeFor(status: HubStatus) {
   if (status === "no_stands_available") return NO_STANDS_BADGE;
   const { label, badgeStyle } = STATUS_CONFIG[status];
   return { label, badgeStyle };
 }
 
-function categoryName(category: string) {
+export function categoryName(category: string) {
   return (
     CATEGORY_LABELS[category as keyof typeof CATEGORY_LABELS] ?? "tu categoría"
   );
@@ -241,11 +242,8 @@ function ConfirmedReservation({ hub }: { hub: ParticipationHub }) {
  */
 export default function ParticipationStatusCard({
   hub,
-  showFestival = false,
 }: {
   hub: ParticipationHub;
-  /** Names the festival too, where no hero above the card already does. */
-  showFestival?: boolean;
 }) {
   const copy = copyFor(hub);
   const badge = badgeFor(hub.status);
@@ -263,7 +261,6 @@ export default function ParticipationStatusCard({
       <div className="flex items-center justify-between gap-3">
         <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-brand-primary">
           {confirmed ? "Tu reserva" : "Tu participación"}
-          {showFestival ? ` · ${hub.festival.name}` : null}
         </span>
         <Badge className={cn("shrink-0", badge.badgeStyle)}>
           {badge.label}
