@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   audienceCountLine,
+  copiedMessage,
+  defaultCopyName,
+  DuplicateDistributionListSchema,
+  PullDistributionListSchema,
+  pulledMessage,
+  removedByHandText,
   CreateDistributionListSchema,
   DistributionListFilterV1,
   DistributionListNameSchema,
@@ -189,5 +195,68 @@ describe("audienceCountLine", () => {
     expect(audienceCountLine({ eligible: 2, skipped: 1 })).toBe(
       "Pueden recibirlo hoy: 2 · 1 no lo recibe",
     );
+  });
+});
+
+describe("duplicating and pulling (B10)", () => {
+  it("names a copy «Copia de …», cut to fit and valid for a Confirmados source", () => {
+    expect(defaultCopyName("Confirmados · Glitter Navidad")).toBe(
+      "Copia de Confirmados · Glitter Navidad",
+    );
+    const long = defaultCopyName("x".repeat(80));
+    expect(long).toHaveLength(60);
+    expect(
+      DuplicateDistributionListSchema.safeParse({
+        source: { kind: "festival", festivalId: 1 },
+        name: defaultCopyName("Confirmados · Glitter"),
+      }).success,
+    ).toBe(true);
+    expect(
+      DuplicateDistributionListSchema.safeParse({
+        source: { kind: "festival", festivalId: 1 },
+        name: "Confirmados · Glitter",
+      }).success,
+    ).toBe(false);
+    expect(
+      DuplicateDistributionListSchema.safeParse({
+        source: { kind: "list" },
+        name: "Copia",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("takes up to a full list of ticked people, deduped, and needs one", () => {
+    expect(
+      PullDistributionListSchema.parse({ listId: 1, userIds: [2, 2, 3] }),
+    ).toEqual({ listId: 1, userIds: [2, 3], includeRemoved: false });
+    expect(
+      PullDistributionListSchema.safeParse({ listId: 1, userIds: [] }).success,
+    ).toBe(false);
+    expect(
+      PullDistributionListSchema.safeParse({
+        listId: 1,
+        userIds: Array.from({ length: 3_001 }, (_, i) => i + 1),
+      }).success,
+    ).toBe(false);
+  });
+
+  it("words the copy, the pull and the removed line", () => {
+    expect(copiedMessage(312, "Confirmados · Glitter", 0)).toBe(
+      "Copiamos 312 personas de «Confirmados · Glitter».",
+    );
+    expect(copiedMessage(1, "Ilustración", 1)).toBe(
+      "Copiamos 1 persona de «Ilustración». 1 no es participante y no se copió.",
+    );
+    expect(copiedMessage(1_240, "Ilustración", 2)).toBe(
+      "Copiamos 1.240 personas de «Ilustración». 2 no son participantes y no se copiaron.",
+    );
+    expect(pulledMessage(4, "Ilustración", 0)).toBe(
+      "Agregamos 4 personas de «Ilustración».",
+    );
+    expect(pulledMessage(1, "Ilustración", 2)).toBe(
+      "Agregamos 1 persona de «Ilustración». 2 ya no estaban para agregar.",
+    );
+    expect(removedByHandText(1)).toBe("1 quitado a mano no se agrega");
+    expect(removedByHandText(3)).toBe("3 quitados a mano no se agregan");
   });
 });

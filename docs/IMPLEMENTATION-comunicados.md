@@ -37,9 +37,9 @@ This is the technical design behind §12 of [`docs/PRD-in-app-notifications.md`]
 | `0302_distribution_lists` (PR 3)       | `distribution_list_kind`                                                         | none                                                                                             | `distribution_lists`, `distribution_list_members` (no `stand_reservations` index: A3)                                                                                                                                                                   |
 | `0303_comunicados` (PR 4)              | `comunicado_status`, `campaign_recipient_source`                                 | `notification_campaign_type`: `comunicado`; `notification_campaign_recipient_status`: `notified` | `comunicados` (with `autosave_key`), `comunicado_revisions`, `notification_campaign_recipients.source`                                                                                                                                                  |
 | `0304_comunicados_autosave_key` (PR 4) | none                                                                             | none                                                                                             | `comunicados.autosave_key`, `ADD COLUMN IF NOT EXISTS`: 0303 gained the column after an earlier version of it had run on preview databases                                                                                                              |
-| `0305_comunicados_visitors` (§L)       | `comunicado_audience_kind`, `campaign_contact_source`, `campaign_contact_status` | `email_topic`: `news` (runtime only)                                                             | `notification_campaign_contacts`; `comunicados.audience_kind` and the CHECK `comunicados_visitors_email_only`; `notification_deliveries.campaign_id`, its CHECK and partial index; `visitors.news_opt_in`, `news_opt_in_at`; `orders.guest_news_opt_in` |
+| `0306_comunicados_visitors` (§L)       | `comunicado_audience_kind`, `campaign_contact_source`, `campaign_contact_status` | `email_topic`: `news` (runtime only)                                                             | `notification_campaign_contacts`; `comunicados.audience_kind` and the CHECK `comunicados_visitors_email_only`; `notification_deliveries.campaign_id`, its CHECK and partial index; `visitors.news_opt_in`, `news_opt_in_at`; `orders.guest_news_opt_in` |
 
-PRs 5–8 need no migration; §L adds 0305. A migration that has run anywhere is never edited again: a change ships as a new file, as 0304 does.
+PRs 5–8 need no migration; §L adds 0306. A migration that has run anywhere is never edited again: a change ships as a new file, as 0304 does.
 
 ### A1. `notification_deliveries` (0301)
 
@@ -142,6 +142,37 @@ CREATE INDEX distribution_list_members_user_idx ON distribution_list_members (us
 ```
 
 - **No index on `stand_reservations (festival_id) WHERE status = 'accepted'` in 0302.** The release that carries 0302 also carries 0301 (A0). 0301 holds `notifications` exclusively, so a `CREATE INDEX` on `stand_reservations` after it takes the two tables in the reverse of a reservation change that writes the reservation and then `notify()`s in one transaction: a deadlock window during the deploy. The table is a few thousand rows, so the lists read it without one. If it is ever needed, it ships in a release of its own, or as `CREATE INDEX CONCURRENTLY` outside the migration transaction. The foreign keys to `users` take `SHARE ROW EXCLUSIVE` on `users` after 0301's locks too; that is safe only because no transaction writes `users` and then calls `notify()` (checked for this release), so none may be added before 0301 is in production.
+
+**Copies (0305, B10).** Duplicating an audience adds these to `distribution_lists`, and one table:
+
+```sql
+ALTER TABLE distribution_lists
+  ADD COLUMN origin_festival_id int REFERENCES festivals ON DELETE SET NULL,          -- copy of "Confirmados · F"
+  ADD COLUMN origin_list_id int REFERENCES distribution_lists ON DELETE SET NULL,     -- copy of a filter list
+  ADD COLUMN origin_name text,                                                        -- the origin's name when copied
+  ADD COLUMN copied_at timestamp,
+  ADD COLUMN last_pulled_at timestamp,                                                -- the last "Traer nuevos"
+  ADD CONSTRAINT distribution_lists_origin CHECK (
+    num_nonnulls(origin_festival_id, origin_list_id) <= 1
+    AND (origin_name IS NULL) = (copied_at IS NULL)
+    AND (origin_name IS NOT NULL OR (origin_festival_id IS NULL AND origin_list_id IS NULL AND last_pulled_at IS NULL))
+    AND (origin_name IS NULL OR kind = 'fixed'));
+
+CREATE TABLE distribution_list_removals (             -- removed by hand from a copy; "Traer nuevos" leaves them out
+  list_id int NOT NULL REFERENCES distribution_lists ON DELETE CASCADE,
+  user_id int NOT NULL REFERENCES users ON DELETE CASCADE,
+  removed_by_user_id int REFERENCES users ON DELETE SET NULL,
+  removed_at timestamp NOT NULL DEFAULT now(),
+  PRIMARY KEY (list_id, user_id)
+);
+CREATE INDEX distribution_list_removals_user_idx ON distribution_list_removals (user_id);
+```
+
+- A copy is an ordinary fixed list: `kind = 'fixed'`, members in `distribution_list_members`. The composer, the scheduler, the send and the gift picker (B9) resolve it exactly like any fixed list, and none of them reads the origin columns.
+- `origin_name` survives the origin: if the festival is deleted the foreign key goes null and the page still says what it was a copy of, with no pull.
+- Only a copy of a computed audience has an origin. A copy of a fixed list has none.
+- **Contacts without an account, later.** Members and removals are keyed by `user_id` today. Visitor audiences (a parallel effort) would add a nullable contact column to both tables and a surrogate key, with a CHECK that exactly one of `user_id` and the contact is set; nothing in B10 depends on members being users beyond that key, and the pull's `NOT EXISTS` and removal lookups compare whichever is set.
+- The foreign key to `festivals` takes `SHARE ROW EXCLUSIVE` on `festivals` while 0305 runs, briefly. No reservation or `notify()` path writes `festivals` and then the lists tables, so there is no lock-order inversion (compare the 0302 note below).
 
 - "Confirmados · \<festival\>" lists are **not rows**. They are computed from `festivals` every time they are used (decision 4). `festivals.name` is unique (`db/schema.ts:370`), so the label is stable.
 - A saved list's name may not start with "Confirmados ·". The action checks it.
@@ -588,6 +619,27 @@ The Anuncios opt-out is **email only**. The inbox copy always lands (decision 1)
   - Gift email is real on previews.
   - The first real use is therefore checked by hand in production (I2).
 
+### B10. Duplicating an audience, and "Traer nuevos" (0305)
+
+Any audience can be duplicated into a frozen, hand-editable list (decided by Dennis, 2026-11):
+
+- **Duplicate = frozen copy.** `duplicateDistributionListAction({ source: { kind: "festival", festivalId } | { kind: "list", listId }, name })` in `app/lib/distribution_lists/actions.ts`:
+  - resolves the source as B2 and B3 do (an unreadable filter refuses with its usual message; an archived list can be copied, which is how one comes back);
+  - in one transaction, inserts a fixed list and, in one statement, the source's distinct members who still exist and are participants (`role = 'user'`), as `distribution_list_members` rows. Membership is not eligibility, as for any list: a banned participant is copied and shows "No lo recibe ahora";
+  - refuses past `DISTRIBUTION_LIST_MAX_MEMBERS` (3,000), rolling back: "«…» tiene 3.240 participantes y una lista elegida a mano llega a 3.000 como máximo. Copiá una lista más chica.";
+  - answers "Copiamos 312 personas de «Confirmados · Glitter Navidad 2026». 2 no son participantes y no se copiaron." (admin owners on Confirmados, say);
+  - for a Confirmados or filter source, records `origin_*`, `origin_name` and `copied_at`. New members of the source do **not** enter the copy by themselves.
+- **Duplicating a fixed list is a plain copy:** same people, no origin, no pull, removals not recorded.
+- The name defaults to "Copia de \<origen\>" cut to 60 characters (`defaultCopyName`), which never starts with "Confirmados ·"; it follows the usual name rules and uniqueness.
+- **"Traer nuevos de «\<origen\>»"**, on a copy with an origin that still exists and is not archived:
+  - `previewDistributionListPullAction(listId)` resolves the origin again (B2, B3; an archived origin list still resolves, an unreadable filter refuses) and returns the participants in it now and not in the copy, split into `candidates` and `removed` (in `distribution_list_removals`);
+  - the dialog lists the candidates **all ticked**, so the admin can untick some, and says "N quitados a mano no se agregan" with "Incluirlos", which adds them to the ticked list;
+  - `pullDistributionListMembersAction({ listId, userIds, includeRemoved })` locks the list, resolves the origin again, and adds only ids still offered: in the origin, not in the copy, a participant, and not removed by hand unless `includeRemoved`. The rest are counted as "ya no estaba para agregar". It honours the 3,000 cap like any add, forgets the removals of those it adds, and sets `last_pulled_at`;
+  - an unticked person is not remembered: they are offered again next time.
+- **Manual removals are remembered.** "Quitar" on a copy upserts `distribution_list_removals`; adding the person back by hand ("Agregar por nombre o correo") deletes the row.
+- **Where it shows** (G8): "Duplicar" on every Confirmados row and page and on every saved list (menu and page, archived included); a copy's page shows "Copia de «…», del \<fecha\>", when it was last pulled ("Todavía no trajiste nuevos."), and the pull button; the lists page shows "Copia de «…»" under the name.
+- Festival admins see none of it; every action refuses them (G2).
+
 ---
 
 ## C. Content
@@ -707,7 +759,7 @@ export const announcementEditorSchema = BlockNoteSchema.create({
 ### C5. Personalization
 
 - **No `{nombre}` in phase 3** (K1).
-- The email opens with "¡Hola Ana!", using `safeGreetingName(getUserName(user))` (`invitation-helpers.ts:105`), read when the batch is rendered. Without a usable name it says "¡Hola!".
+- The email has no greeting: it opens with the title, and carries only what the admin wrote.
 - The inbox never greets, as gift items don't.
 - **One body for everyone keeps three things simple:**
   - the fan-out is one set-based INSERT per chunk;
@@ -987,7 +1039,7 @@ WHERE d.id = ANY($claimed) AND d.lease_owner = $o;
 
 **Render per row:**
 
-- `render(<ComunicadoEmail revision greetingName unsubscribeUrl essentialNote stagingNote />)`;
+- `render(<ComunicadoEmail revision unsubscribeUrl essentialNote />)`;
 - `text` is the revision's text with URLs, plus the action URL and the unsubscribe page URL;
 - **headers:** `unsubscribeLinks({ kind: "user", id }, "announcements").headers` (`unsubscribe-links.ts:26-41`), **except on `overridden` rows** (D7);
 - `from: COMUNICADOS_FROM` (outside production `COMUNICADOS_FROM_STAGING`), `replyTo: COMUNICADOS_REPLY_TO` (K3);
@@ -1089,7 +1141,7 @@ Comunicado email never queues ahead of transactional email, and it uses under ha
 - **Staging marks** (every environment except production; also on the test send):
   - the subject is prefixed with `getEnvLabel()`, giving "[Prev] Cambio de horario de armado";
   - the From display name becomes "Productora Glitter (prueba)";
-  - a footer note reads: "Este correo salió del entorno de prueba de Glitter. Darte de baja acá no cambia nada en los correos del sitio real de Glitter; si no esperabas recibirlo, respondé a este correo."
+  - no footer note: the From name and subject are enough.
 - **The override** is the single `essential` argument of `comunicadoEmailExclusion` in the pre-check. `essential` cannot change after the send starts.
 - **`EmailCopy` and the transactional `runDelivery` do not change:** the bulk lane builds its own Resend payload.
 
@@ -1152,14 +1204,14 @@ The gift-only `giftWasRevoked` guard (`deliveries.ts:106-114,153-162`) stays as 
 - **Either way, 2,000 emails go out in about 2–3 minutes.**
 - **A scheduled send** has no `after()`. The first cron run sends 6–15 batches after the release, fan-out and push; later runs send 11–17. That is about 2–3 minutes.
 - **Today, for comparison:** about 1,000 per hour.
-- **If rendering proves slow** in PR 5's measurement, render once per revision and substitute the escaped greeting and unsubscribe URL per row (the nonce-sentinel technique).
+- **If rendering proves slow** in PR 5's measurement, render once per revision and substitute the unsubscribe URL per row (the nonce-sentinel technique).
 
 ### D11. Test send ("Enviarme una prueba")
 
 `sendComunicadoTestAction(comunicadoId)`:
 
 - checks `canMutateAdminReservations`, `featureFlagGuard("comunicados")` and `consumeActionRateLimit("comunicado-test:{adminId}")` (5 per 10 minutes);
-- runs `normalizeAnnouncementDoc(…, { stage: "send" })` on the **working copy** and renders it through the same email renderer, greeting the acting admin;
+- runs `normalizeAnnouncementDoc(…, { stage: "send" })` on the **working copy** and renders it through the same email renderer;
 - sends with `sendEmail` to the acting admin's own address, with the subject "[Prueba] {título}" (prefixed with `getEnvLabel()` outside production), the staging marks of D7, and the key `comunicado-test:{id}:{uuid}`;
 - the unsubscribe link is real, so the opt-out flow can be tested end to end;
 - writes no delivery and no inbox row, so it never touches dedupe or the report.
@@ -1515,7 +1567,7 @@ One transaction, with `SET LOCAL lock_timeout = '20s'`; a 40P01 retries once:
 - **Notificación:** the real `NotificationItem` (static), with the excerpt.
 - **Detalle:** the real `NotificationDetail`, with the server-rendered HTML.
 - **Correo:**
-  - the real template, rendered on the server for the acting admin ("¡Hola Dennis!"), with the subject above it, including the staging marks outside production;
+  - the real template, rendered on the server, with the subject above it, including the staging marks outside production;
   - the unsubscribe link is `?token=preview`, which the server refuses (`invitations.ts:483-485`);
   - it is shown in an iframe sandboxed without `allow-scripts` or `allow-same-origin` (`invitation-email-preview.tsx:113-115`).
 - **Dispositivo:** a lock-screen card with "Glitter", the title and "Tocá para ver el detalle."
@@ -1730,6 +1782,10 @@ It loads fresh numbers from the server when it opens:
 - members paged at 50, with "Quitar" (at most 3,000 members);
 - a member who cannot receive it today shows "No lo recibe ahora: Cuenta suspendida".
 
+**Duplicar (B10):** on each Confirmados row and page, in each saved list's ⋯ menu, and on a saved list's page. The dialog asks for the copy's name ("Copia de «…»" by default) and explains, for a computed source: "Copiamos a quienes están hoy en «…» en una lista elegida a mano, que podés cambiar. Quienes entren después a «…» no se suman solos: los traés con «Traer nuevos»." It then opens the copy.
+
+**A copy's page:** the fixed editor, plus a line "Copia de «Confirmados · Glitter Navidad 2026», del 1 nov 2026, 4:12 PM. Trajiste nuevos por última vez el … / Todavía no trajiste nuevos." and the button "Traer nuevos de «…»" (not on an archived copy, nor when the origin is gone: "El original ya no existe: no hay de dónde traer nuevos.").
+
 **Archivar:** "¿Archivar «Ilustradores»? Deja de aparecer al elegir destinatarios. Los borradores y los programados que la usan la siguen usando; los enviados no cambian."
 
 ### G9. Admin item in the bell: `comunicado_not_sent`
@@ -1780,8 +1836,8 @@ It loads fresh numbers from the server when it opens:
 | Reply-To  | `soporte@productoraglitter.com`, the orders precedent (`order-emails.ts:64`). K3.                                                                                                                                                             |
 | Subject   | the title; prefixed with "[Prev]" or "[Dev]" outside production                                                                                                                                                                               |
 | Preheader | the excerpt, cut to 120 characters                                                                                                                                                                                                            |
-| Body      | `EmailHeader`; "¡Hola Ana!" (or "¡Hola!"); the title as a heading; the rendered blocks (C3); the button, with an absolute URL                                                                                                                 |
-| Footer    | `EmailFooter`: "Enviado por el equipo Glitter / © 2026 \| Productora Glitter, Santa Cruz, Bolivia / ¿No querés recibir más correos como este? Darme de baja". Essential sends and staging sends add their note lines (D7).                    |
+| Body      | `EmailHeader`; the title as a heading (no greeting); the rendered blocks (C3); the button, with an absolute URL                                                                                                                               |
+| Footer    | `EmailFooter`: "Enviado por el equipo Glitter / © 2026 \| Productora Glitter, Santa Cruz, Bolivia / ¿No querés recibir más correos como este? Darme de baja". Essential sends add their note line (D7).                                       |
 | Headers   | `List-Unsubscribe` with one-click, topic `announcements`; left out only for an essential email to someone already unsubscribed from Anuncios (D7)                                                                                             |
 | Text part | the full text with URLs, the button as "Texto: https://…", then "Darme de baja: \<url\>"                                                                                                                                                      |
 
@@ -1867,7 +1923,7 @@ It loads fresh numbers from the server when it opens:
    - a button path with a tab is refused;
    - the four preview tabs match the real inbox, detail page and email, in dark mode too.
 5. **"Enviarme una prueba":**
-   - it arrives as "[Prev] [Prueba] …" from "Productora Glitter (prueba)", with the staging footer note;
+   - it arrives as "[Prev] [Prueba] …" from "Productora Glitter (prueba)";
    - Reply-To, the button and the footer are right, and the links point at the preview's https host, not localhost;
    - Gmail → "Mostrar original" shows `List-Unsubscribe` and `List-Unsubscribe-Post`;
    - the 6th try in 10 minutes is refused.
@@ -1883,7 +1939,7 @@ It loads fresh numbers from the server when it opens:
    - essential is disabled for an archived festival;
    - an address on the suppression list is not mailed.
 8. **One-click on a protected preview:**
-   - `curl -X POST "<preview>/api/email/unsubscribe?token=…"` without Vercel credentials. If it answers 401 (Vercel's login), that is expected on staging only, and the footer note covers it;
+   - `curl -X POST "<preview>/api/email/unsubscribe?token=…"` without Vercel credentials. If it answers 401 (Vercel's login), that is expected on staging only;
    - with the `x-vercel-protection-bypass` header it answers 200.
 9. **Edit after sending** ("Editar" on a sent comunicado):
    - the dialog's lines match the report's numbers;
@@ -2102,7 +2158,7 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
 **Scope:**
 
 - The `announcement` variant without images (schema, tags, toolbar).
-- `normalizeAnnouncementDoc` with stages. `announcementBlocksToText`, `announcementBlocksToEmail` and `app/emails/comunicado.tsx`, with the staging and essential note slots. `excerptOf`.
+- `normalizeAnnouncementDoc` with stages. `announcementBlocksToText`, `announcementBlocksToEmail` and `app/emails/comunicado.tsx`, with the essential note slot. `excerptOf`.
 - Kinds `comunicado` (`push: "per_send"`) and `comunicado_not_sent`; the `notificationPushes` option and `notify({ push })`.
 - `safeActionPath` with the whitespace rule.
 - The gift report's `status` narrowed to its literal union (`credit_gifts/queries.ts:377`), which 0303's `notified` label requires (A6).
@@ -2115,7 +2171,7 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
 
 - **Unit:**
   - `comunicados/content.test.ts`: refuses unknown types, h1/h4, depth 3, `javascript:`/`data:`/`//`; strips colours, underline, strike, alignment; size limits; draft vs send stage;
-  - `app/emails/comunicado.test.tsx`: absolute URLs by concatenation, inline styles, no `details`/`input`/`figure`/`pre`, the greeting through `safeGreetingName`, essential and staging notes, the `[Prev]` subject;
+  - `app/emails/comunicado.test.tsx`: absolute URLs by concatenation, inline styles, no `details`/`input`/`figure`/`pre`, no greeting, the essential note and no staging note, the `[Prev]` subject;
   - `comunicados/text.test.ts`;
   - the announcement sanitizer's XSS cases (as `rich-text.test.ts:100-177`);
   - `definitions.test.ts`: `safeActionPath` refuses `/\t/x`, `/\n/x`, `/ x`;
@@ -2280,6 +2336,17 @@ What the code does where this design left a detail open or said something else. 
 
 ---
 
+### Follow-up: duplicating lists and "Traer nuevos" (B10)
+
+**Migration:** `0305_distribution_list_copies` (generated from `db/schema.ts`; additive: five nullable columns, one CHECK that every existing row passes, one new table).
+
+**Tests:**
+
+- **Unit:** `distribution_lists/definitions.test.ts` (default copy name, the duplicate and pull schemas, the messages); `duplicate-list-dialog.test.tsx` (suggested name, the frozen-copy explanation only for a computed source, opens the copy, stays open on a refusal); `pull-new-members-dialog.test.tsx` (all ticked, unticked left out, removed counted and only included when asked, nothing new, a refusal).
+- **Integration** (`lists.integration.test.ts`): a Confirmados copy holds its participants only and remembers the origin, and a later confirmation does not enter it; the pull offers newcomers, adds only the ticked, re-offers the unticked, keeps out removals unless asked and forgets them once added (by pull or by hand), and sets `last_pulled_at`; a filter-list copy pulls from an archived origin and refuses an unreadable one; a fixed-list copy has no origin, no pull and no removals; a taken or reserved name and a source over 3,000 are refused with nothing left behind; the CHECK refuses malformed origins; every new action refuses a festival admin, a participant and an admin without the flag.
+
+---
+
 ## L. Comunicados to visitors and guest buyers ("Novedades")
 
 Decided by Dennis on 2026-11-01. A comunicado is either for **participants** (everything above) or for **visitors**: people without a Glitter account, reached only by email. Never both.
@@ -2294,18 +2361,18 @@ Decided by Dennis on 2026-11-01. A comunicado is either for **participants** (ev
 - **Consent.** Contacts from before this ships are assumed to have agreed. From now on, visitor registration (online and door) and guest checkout ask "Quiero recibir novedades", unticked by default, and store the answer: `visitors.news_opt_in` (+ `news_opt_in_at` when ticked) and `orders.guest_news_opt_in`. Null means the record predates the question. An address is left out only when **every** record of it said no, so an old contact keeps its assumed consent. Leaving the box unticked later never withdraws a consent; unsubscribing does. A returning visitor goes straight to their tickets and is not asked.
 - **Unsubscribe is mandatory and honoured at send:** every email carries `List-Unsubscribe` + one-click POST for `news` and the footer link. `news` and `all` opt-outs and every active suppression are skipped at the snapshot **and** again in the lane's pre-check; nothing overrides them.
 
-### L2. Data (0305)
+### L2. Data (0306)
 
 - `comunicados.audience_kind` (`users` | `visitors`, default `users`). `comunicados_visitors_email_only`: `status = 'draft' OR audience_kind = 'users' OR (send_email AND NOT send_push AND NOT essential)`. The autosave stores email on, push and essential off for a visitor draft; the participant `audience` is kept, so switching back finds the lists and people as they were.
-- `notification_campaign_contacts`: the frozen audience of one sent visitor comunicado, one row per address (`unique(campaign_id, email_key)`): `email` as mailed, `name` for the greeting (the oldest visitor row's first name, else the newest guest order's first word), `visitor_id` (SET NULL), `source` (`visitor` wins over `guest_buyer`; `staging_admin` outside production), `status` (`queued` | `skipped`, with the CHECK that a skip has a reason), `delivery_id` (the latest email row). The address is stored, so the report and the unsubscribe link outlive the visitor or order.
+- `notification_campaign_contacts`: the frozen audience of one sent visitor comunicado, one row per address (`unique(campaign_id, email_key)`): `email` as mailed, `name` for the report (the oldest visitor row's first name, else the newest guest order's first word), `visitor_id` (SET NULL), `source` (`visitor` wins over `guest_buyer`; `staging_admin` outside production), `status` (`queued` | `skipped`, with the CHECK that a skip has a reason), `delivery_id` (the latest email row). The address is stored, so the report and the unsubscribe link outlive the visitor or order.
 - `notification_deliveries.campaign_id` (FK, CASCADE): set only on rows with no inbox item, CHECK `campaign_id IS NULL OR (notification_id IS NULL AND lane = 'bulk' AND channel = 'email')`, partial index. A participant row still reaches its campaign through `notifications`.
 - The summary (`audience_summary`) gains `audienceKind` and `contacts: {visitors, guestBuyers}`; one source of kind `contacts`. Older summaries parse as `users`.
-- The migration locks `comunicados`, `notification_campaigns`, `notification_deliveries`, `visitors`, `orders` up front in that order (a send locks its comunicado, then writes the campaign). `news` is used by runtime code only (A0); the whole set 0000–0305 was applied to an empty database in one transaction.
+- The migration locks `comunicados`, `notification_campaigns`, `notification_deliveries`, `visitors`, `orders` up front in that order (a send locks its comunicado, then writes the campaign). `news` is used by runtime code only (A0); the whole set 0000–0306 was applied to an empty database in one transaction.
 
 ### L3. Audience, snapshot and send (`app/lib/comunicados/contacts.ts`)
 
 - One SQL resolver (`judged` CTEs) for the composer's count, the confirm dialog and the snapshot, as B2–B4. Skip labels, first match: "Dirección no válida", "No aceptó recibir novedades", "Correo bloqueado por rebote o spam", "Se dio de baja de las novedades", then the preview's "Entorno de prueba: no se envía a visitantes".
-- **The audience is a source,** `all_contacts`, judged by rules that do not depend on where the address came from. A duplicable frozen copy (the parallel duplicable-audiences work) becomes one more source of addresses feeding the same `judged` CTE; nothing here builds it.
+- **The audience is a source,** `all_contacts`, judged by rules that do not depend on where the address came from. A frozen copy of it, as B10 makes of participant audiences, would be one more source of addresses feeding the same `judged` CTE; nothing here builds it.
 - **Narrowing (B6):** outside production every contact is skipped with the staging label and the global admins (not banned, no pending deletion) are added as `staging_admin` contacts. The cap, "nobody eligible" and the typed count are judged before narrowing.
 - **Cap:** `COMUNICADO_VISITOR_MAX_RECIPIENTS` = 10,000 addresses (participants stay at 3,000). The typed confirmation still applies at 300.
 - `startComunicadoSend` branches on `audience_kind`: the content checks, email-only (`INVALID_AUDIENCE` "Un comunicado a visitantes va solo por correo…"), the base URL, the campaign, then the snapshot. There is **no fan-out step**: the snapshot writes the contacts and, in the same transaction, one bulk email row per queued contact (`template_key = 'comunicado_contact'`, `notification_id` and `user_id` NULL, `campaign_id`, payload `{comunicadoId, contactId}`, key `comunicado:{k}:contact:{id}:email`). No participant recipient and no inbox row exist for it.
@@ -2315,7 +2382,7 @@ Decided by Dennis on 2026-11-01. A comunicado is either for **participants** (ev
 
 - `bulk-email.ts` stays generic: a row's campaign is `coalesce(nd.campaign_id, notifications.campaign_id)` with `notifications` LEFT-joined, the quota step fails the campaign's never-batched rows by either link, and a renderer may name its own `retracted()` test for rows handed back outside the content lock.
 - `comunicado_contact` renderer: scope is this environment's campaigns (D9), the same content lock, then the pre-check (allowlist): retracted; the contact missing, not queued, of another campaign or with a different address → `not_eligible`; outside production only `staging_admin` rows whose address is still a non-banned admin's pass (`staging` otherwise), and in production a `staging_admin` row is never mailed; then `newsEmailExclusion` (`suppressed` | `unsubscribed`).
-- Each email: the current revision, "¡Hola {nombre}!" through `safeGreetingName`, the footer note "Te escribimos porque te registraste para visitar un festival de Productora Glitter o compraste en nuestra tienda. Son nuestras novedades: podés darte de baja cuando quieras.", `unsubscribeLinks({ kind: "contact", id }, "news")`: deterministic, so a retried batch carries the same bytes. The token's new kind `c` resolves through `notification_campaign_contacts.email`, the address that was mailed.
+- Each email: the current revision (no greeting, as every comunicado since #607), the footer note "Te escribimos porque te registraste para visitar un festival de Productora Glitter o compraste en nuestra tienda. Son nuestras novedades: podés darte de baja cuando quieras.", `unsubscribeLinks({ kind: "contact", id }, "news")`: deterministic, so a retried batch carries the same bytes. The token's new kind `c` resolves through `notification_campaign_contacts.email`, the address that was mailed.
 
 ### L5. Admin UI
 

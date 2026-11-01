@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import FestivalStatusBadge from "@/app/components/atoms/festival-status-badge";
+import ListDuplicateButton from "@/app/components/communications/admin/list-duplicate-button";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import {
@@ -84,13 +85,26 @@ export default function FestivalListsTable({
                     {audienceCountLine(festival.count)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button asChild variant="outline" size="sm">
-                      <Link
-                        href={`/dashboard/communications/lists/festival/${festival.festivalId}`}
-                      >
-                        Ver
-                      </Link>
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                      <ListDuplicateButton
+                        size="sm"
+                        list={{
+                          source: {
+                            kind: "festival",
+                            festivalId: festival.festivalId,
+                          },
+                          name: confirmadosListName(festival.festivalName),
+                          dynamic: true,
+                        }}
+                      />
+                      <Button asChild variant="outline" size="sm">
+                        <Link
+                          href={`/dashboard/communications/lists/festival/${festival.festivalId}`}
+                        >
+                          Ver
+                        </Link>
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

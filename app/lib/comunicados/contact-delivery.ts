@@ -196,7 +196,6 @@ export const comunicadoContactBatchRenderer: BulkEmailRenderer = {
         blocks: normalized.blocks,
         actionLabel: content.actionLabel,
         actionPath: content.actionPath,
-        greetingName: row.check.name,
         unsubscribeUrl: links.pageUrl,
         essentialFestivalName: null,
         staging,

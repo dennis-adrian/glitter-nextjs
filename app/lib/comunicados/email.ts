@@ -4,13 +4,11 @@ import { render } from "react-email";
 
 import ComunicadoEmail, {
   comunicadoFooterNotes,
-  comunicadoGreeting,
 } from "@/app/emails/comunicado";
 import { comunicadoActionUrl } from "@/app/emails/comunicado-blocks";
 import type { AnnouncementBlock } from "@/app/lib/comunicados/content";
 import { announcementBlocksToText } from "@/app/lib/comunicados/text";
 import { getEnvLabel } from "@/app/lib/config";
-import { safeGreetingName } from "@/app/lib/festivals/invitation-helpers";
 
 /**
  * A comunicado's email as one recipient gets it
@@ -48,16 +46,10 @@ export type ComunicadoEmailInput = {
   blocks: AnnouncementBlock[];
   actionLabel: string | null;
   actionPath: string | null;
-  /**
-   * The recipient's name as stored (`getUserName`): it goes through
-   * `safeGreetingName` here, so anything that is not plainly a name greets
-   * with "¡Hola!".
-   */
-  greetingName: string | null;
   unsubscribeUrl: string;
   /** Set on an essential send only. */
   essentialFestivalName?: string | null;
-  /** Any environment but production: the From name, subject and note (D7). */
+  /** Any environment but production: the From name and subject (D7). */
   staging: boolean;
   /** "[Prueba]" in the subject. */
   test: boolean;
@@ -79,18 +71,13 @@ export type RenderedComunicadoEmail = {
 };
 
 /**
- * The text part: the greeting, the title and the text with its URLs, the
+ * The text part: the title and the text with its URLs, the
  * button as "Ver mi reserva: https://…", the footer notes, then the
  * unsubscribe link.
  */
-function textPart(
-  input: ComunicadoEmailInput,
-  greetingName: string | null,
-  actionUrl: string | null,
-) {
+function textPart(input: ComunicadoEmailInput, actionUrl: string | null) {
   const label = input.actionLabel?.trim();
   return [
-    comunicadoGreeting(greetingName),
     input.title.trim(),
     announcementBlocksToText(input.blocks, {
       withUrls: true,
@@ -107,18 +94,15 @@ function textPart(
 export async function renderComunicadoEmail(
   input: ComunicadoEmailInput,
 ): Promise<RenderedComunicadoEmail> {
-  const greetingName = safeGreetingName(input.greetingName);
   const actionUrl = comunicadoActionUrl(input.actionPath, input.baseUrl);
   const html = await render(
     ComunicadoEmail({
-      greetingName,
       title: input.title.trim(),
       blocks: input.blocks,
       actionLabel: input.actionLabel,
       actionPath: input.actionPath,
       unsubscribeUrl: input.unsubscribeUrl,
       essentialFestivalName: input.essentialFestivalName,
-      staging: input.staging,
       visitors: input.visitors === true,
       baseUrl: input.baseUrl,
     }),
@@ -134,6 +118,6 @@ export async function renderComunicadoEmail(
       envLabel: input.staging ? getEnvLabel() : "",
     }),
     html,
-    text: textPart(input, greetingName, actionUrl),
+    text: textPart(input, actionUrl),
   };
 }

@@ -244,6 +244,100 @@ export type DistributionListSource = z.infer<
   typeof DistributionListSourceSchema
 >;
 
+/**
+ * Duplicating any audience into a fixed list (B10): the source's members
+ * today, frozen. The name is the admin's; it defaults to `defaultCopyName`.
+ */
+export const DuplicateDistributionListSchema = z.object({
+  source: DistributionListSourceSchema,
+  name: DistributionListNameSchema,
+});
+export type DuplicateDistributionListInput = z.input<
+  typeof DuplicateDistributionListSchema
+>;
+
+/** "Copia de <name>", cut to fit a list name. */
+export function defaultCopyName(sourceName: string) {
+  return `Copia de ${sourceName}`
+    .slice(0, DISTRIBUTION_LIST_NAME_MAX_LENGTH)
+    .trimEnd();
+}
+
+/**
+ * "Traer nuevos": the people ticked in the dialog. Those removed by hand are
+ * added only with `includeRemoved`, whatever the ids say.
+ */
+export const PullDistributionListSchema = z.object({
+  listId: serialId,
+  userIds: z
+    .array(serialId)
+    .min(1, "Elegí al menos una persona.")
+    .max(DISTRIBUTION_LIST_MAX_MEMBERS)
+    .transform((ids) => [...new Set(ids)]),
+  includeRemoved: z.boolean().default(false),
+});
+export type PullDistributionListInput = z.input<
+  typeof PullDistributionListSchema
+>;
+
+/** Where a copy came from (B10). */
+export type DistributionListOrigin = {
+  /** The origin's name when copied ("Confirmados · …" or the list's). */
+  name: string;
+  /** Null once the origin no longer exists: nothing to pull from. */
+  source: DistributionListSource | null;
+  copiedAt: Date;
+  lastPulledAt: Date | null;
+};
+
+export function pullButtonLabel(originName: string) {
+  return `Traer nuevos de «${originName}»`;
+}
+
+/** "3 quitados a mano no se agregan". */
+export function removedByHandText(removed: number) {
+  return removed === 1
+    ? "1 quitado a mano no se agrega"
+    : `${formatAudienceCount(removed)} quitados a mano no se agregan`;
+}
+
+/** The same line once the admin ticks "Incluirlos". */
+export function removedIncludedText(removed: number) {
+  return removed === 1
+    ? "1 quitado a mano: está arriba, para que elijas"
+    : `${formatAudienceCount(removed)} quitados a mano: están arriba, para que elijas`;
+}
+
+/** "Copiamos 312 personas de «…». 2 no son participantes y no se copiaron." */
+export function copiedMessage(
+  copied: number,
+  sourceName: string,
+  notParticipants: number,
+) {
+  const people =
+    copied === 1 ? "1 persona" : `${formatAudienceCount(copied)} personas`;
+  const message = `Copiamos ${people} de «${sourceName}».`;
+  if (notParticipants === 0) return message;
+  return notParticipants === 1
+    ? `${message} 1 no es participante y no se copió.`
+    : `${message} ${formatAudienceCount(notParticipants)} no son participantes y no se copiaron.`;
+}
+
+/** "Agregamos 4 personas de «…»." plus who was left out meanwhile. */
+export function pulledMessage(
+  added: number,
+  originName: string,
+  leftOut: number,
+) {
+  const people =
+    added === 1 ? "1 persona" : `${formatAudienceCount(added)} personas`;
+  const message = `Agregamos ${people} de «${originName}».`;
+  if (leftOut === 0) return message;
+  return leftOut === 1
+    ? `${message} 1 ya no estaba para agregar.`
+    : `${message} ${formatAudienceCount(leftOut)} ya no estaban para agregar.`;
+}
+
 /** The one count every screen shows (B4). */
 export type AudienceCount = {
   /** Who can receive it today. */
@@ -282,6 +376,8 @@ export type DistributionListSummary = {
   /** Null when its filter no longer parses: nothing can use it until edited. */
   count: AudienceCount | null;
   updatedAt: Date;
+  /** Set on a copy of a computed audience (B10). */
+  origin: DistributionListOrigin | null;
 };
 
 /** A festival's computed list, as the lists page and the pickers show it. */

@@ -558,7 +558,7 @@ describeDatabase("comunicados to visitors and guest buyers", () => {
       ]);
       expect(row.delivery_id !== null, email).toBe(status === "queued");
     }
-    // The oldest visitor row names the contact; a guest's first name greets.
+    // The oldest visitor row names the contact; else a guest's first name.
     expect(rows.get(legacy)!.name).toBe("Lía");
     expect(rows.get(legacy)!.email).toBe(legacy);
     expect(rows.get(guest)!.name).toBe("Gabriela");
@@ -602,7 +602,7 @@ describeDatabase("comunicados to visitors and guest buyers", () => {
     expect(mail.from).toBe(FROM);
     expect(mail.replyTo).toBe(REPLY_TO);
     expect(mail.subject).toBe("Nuevo merch de Navidad");
-    expect(mail.html).toContain("¡Hola Lía!");
+    expect(mail.html).toContain("Llegaron los stickers nuevos.");
     expect(mail.html).toContain(`${BASE_URL}/merch`);
     expect(mail.text).toContain(COMUNICADO_VISITOR_NOTE);
     expect(mail.headers?.["List-Unsubscribe-Post"]).toBe(
@@ -620,7 +620,7 @@ describeDatabase("comunicados to visitors and guest buyers", () => {
       id: rows.get(legacy)!.id,
       topic: "news",
     });
-    expect(emailTo(guest).html).toContain("¡Hola Gabriela!");
+    emailTo(guest);
     emailTo(holder);
     expect(
       batchEmails.some((email) =>
