@@ -23,7 +23,11 @@ export default async function Page() {
 
   return (
     <HubSubpage title="Actividades" festivalName={hub.festival.name}>
-      <HubActivities activities={hub.activities} profile={hub.profile} />
+      <HubActivities
+        activities={hub.activities}
+        profile={hub.profile}
+        votesReceived={hub.votesReceived}
+      />
     </HubSubpage>
   );
 }

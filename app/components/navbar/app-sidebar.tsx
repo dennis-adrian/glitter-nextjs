@@ -351,7 +351,7 @@ export default function AppSidebar({
                 className="mx-auto my-2 h-px w-8 bg-brand-border"
               />
             ) : (
-              <h2 className="px-3 pb-1.5 pt-4 text-[11px] font-bold uppercase tracking-[0.1em] text-brand-neutral">
+              <h2 className="px-3 pb-1.5 pt-4 text-xs font-semibold text-brand-neutral">
                 {group.label}
               </h2>
             )}

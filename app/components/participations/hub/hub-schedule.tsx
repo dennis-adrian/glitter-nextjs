@@ -22,7 +22,7 @@ export default function HubSchedule({
     <HubPanel className="flex flex-col gap-4">
       {days.map((day) => (
         <div key={day.day} className="flex flex-col gap-1">
-          <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-brand-neutral">
+          <h3 className="text-xs font-semibold text-brand-neutral">
             Día {day.day} ·{" "}
             {formatDisplayDate(DateTime.fromJSDate(day.date), {
               weekday: "short",

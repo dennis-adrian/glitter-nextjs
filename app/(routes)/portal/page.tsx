@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
 import type { ProfileType } from "@/app/api/users/definitions";
 import DashboardNotifications from "@/app/components/home/dashboard-notifications";
@@ -10,6 +11,10 @@ import HomeHistoryCard from "@/app/components/home/home-history-card";
 import HomeReviewNote from "@/app/components/home/home-review-note";
 import HomeStoreStrip from "@/app/components/home/home-store-strip";
 import HomeTasks from "@/app/components/home/home-tasks";
+import {
+  PortalBanners,
+  PortalBannersSkeleton,
+} from "@/app/components/marketing/portal-banners";
 import PausedParticipantDashboard from "@/app/components/participant_dashboard/paused-dashboard";
 import RestrictedDashboard from "@/app/components/participant_dashboard/restricted-dashboard";
 import { HubSection } from "@/app/components/participations/hub/hub-section";
@@ -198,6 +203,11 @@ async function VerifiedHome({
               daysLeft={firstDayLeft(upcoming, now)}
             />
           ) : null}
+          {/* The admin's "Carrusel inicio", for banners meant for
+              participants; it has no other place. */}
+          <Suspense fallback={<PortalBannersSkeleton />}>
+            <PortalBanners />
+          </Suspense>
           {store ? <HomeStoreStrip store={store} /> : null}
           <HomeHistoryCard summary={history} wide />
         </>

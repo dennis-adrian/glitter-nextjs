@@ -89,6 +89,7 @@ export default async function ParticipationsPage() {
                 activities={hub.activities}
                 profile={hub.profile}
                 columns={2}
+                votesReceived={hub.votesReceived}
               />
             </HubSection>
           ) : null}

@@ -54,7 +54,7 @@ const COPY: Record<ParticipantReservationStatus, ParticipantStatusCopy> = {
     isLive: true,
   },
   rejected: {
-    label: "Cerrada",
+    label: "Cancelada",
     description:
       "Esta reserva se cerró y el espacio volvió a estar disponible para otras personas.",
     // Stated plainly rather than softened: someone who does not know they are
@@ -67,7 +67,7 @@ const COPY: Record<ParticipantReservationStatus, ParticipantStatusCopy> = {
   // Present in the database enum and never written (PRD §9.1). Mapped rather
   // than left to crash, so a stray row renders as what it would mean.
   cancelled: {
-    label: "Cerrada",
+    label: "Cancelada",
     description:
       "Esta reserva se cerró y el espacio volvió a estar disponible para otras personas.",
     whatNext:

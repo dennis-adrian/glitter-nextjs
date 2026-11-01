@@ -254,7 +254,7 @@ describe("ReservationDetailPage", () => {
       }),
     );
 
-    expect(html).toContain("Cerrada");
+    expect(html).toContain("Cancelada");
     expect(html).toContain("No vas a poder hacer otra reserva");
   });
 

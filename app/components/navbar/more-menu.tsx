@@ -63,7 +63,7 @@ function Card({
 }) {
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="text-xs font-bold uppercase tracking-[0.1em] text-brand-neutral">
+      <h2 className="text-xs font-semibold text-brand-neutral">
         {title}
       </h2>
       <div className="rounded-2xl border border-brand-border bg-brand-card px-4">
@@ -168,7 +168,7 @@ export default function MoreMenu({
       ))}
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-xs font-bold uppercase tracking-[0.1em] text-brand-neutral">
+        <h2 className="text-xs font-semibold text-brand-neutral">
           Tema
         </h2>
         <ThemeSegmentedControl />

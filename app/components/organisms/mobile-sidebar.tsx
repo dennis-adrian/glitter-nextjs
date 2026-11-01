@@ -65,7 +65,7 @@ function SheetLink({ link, pathname }: { link: NavLink; pathname: string }) {
 
 function GroupHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="px-2 pb-1 pt-4 text-xs font-bold uppercase tracking-[0.1em] text-brand-neutral">
+    <h3 className="px-2 pb-1 pt-4 text-xs font-semibold text-brand-neutral">
       {children}
     </h3>
   );

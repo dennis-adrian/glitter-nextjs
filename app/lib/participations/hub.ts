@@ -41,6 +41,7 @@ import {
 } from "@/app/lib/participations/ended-reservations";
 import { fetchActorReservationsByFestival } from "@/app/lib/reservations/queries";
 import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
+import { countVotesReceived } from "@/app/lib/participations/votes";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export type ParticipationHub = {
@@ -67,6 +68,8 @@ export type ParticipationHub = {
   teamCount: number;
   /** Each scoped to this profile: other participants' votes stay out. */
   activities: FestivalActivityWithDetailsAndParticipants[];
+  /** Votes received per activity id, once its voting closed. */
+  votesReceived: Record<number, number>;
   /** Talks and workshops tied to this festival that have not happened yet. */
   sessions: UpcomingSession[];
   /** For the card's payment banner; the portal card reads the same field. */
@@ -271,6 +274,21 @@ export const loadParticipationHub = cache(
       teamCount,
       activities: rawActivities.map((activity) =>
         scopeActivityToViewer(activity, profile.id),
+      ),
+      // Counted before scoping, which keeps only the viewer's own votes.
+      votesReceived: Object.fromEntries(
+        rawActivities.flatMap((activity) => {
+          // Every stand their live reservations occupy, both halves of a
+          // full table included.
+          const standIds = new Set(
+            activeParticipations.flatMap(({ reservation: live }) => [
+              live.stand.id,
+              ...(live.members ?? []).map((member) => member.stand.id),
+            ]),
+          );
+          const count = countVotesReceived(activity, profile.id, standIds, now);
+          return count == null ? [] : [[activity.id, count]];
+        }),
       ),
       sessions,
       activeParticipations,

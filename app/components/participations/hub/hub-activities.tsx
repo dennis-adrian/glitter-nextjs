@@ -13,10 +13,13 @@ export default function HubActivities({
   activities,
   profile,
   columns = 1,
+  votesReceived = {},
 }: {
   activities: FestivalActivityWithDetailsAndParticipants[];
   profile: BaseProfile;
   columns?: 1 | 2;
+  /** Per activity id, once its voting closed. */
+  votesReceived?: Record<number, number>;
 }) {
   if (activities.length === 0) {
     return (
@@ -38,23 +41,36 @@ export default function HubActivities({
     <div className="flex flex-col gap-5">
       {enrolled.length > 0 ? (
         <div className="flex flex-col gap-2">
-          <h3 className="text-xs font-bold uppercase tracking-[0.1em] text-brand-neutral">
+          <h3 className="text-xs font-semibold text-brand-neutral">
             Tus inscripciones
           </h3>
           <div className={grid}>
-            {enrolled.map((activity) => (
-              <FestivalActivityCard
-                key={activity.id}
-                activity={activity}
-                forProfile={profile}
-              />
-            ))}
+            {enrolled.map((activity) => {
+              const votes = votesReceived[activity.id];
+              return (
+                <div key={activity.id} className="flex flex-col gap-1.5">
+                  <FestivalActivityCard
+                    activity={activity}
+                    forProfile={profile}
+                  />
+                  {votes != null ? (
+                    <p className="px-1 text-sm font-semibold text-brand-ink">
+                      {votes === 0
+                        ? "No recibiste votos"
+                        : votes === 1
+                          ? "Recibiste 1 voto"
+                          : `Recibiste ${votes} votos`}
+                    </p>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </div>
       ) : null}
       {others.length > 0 ? (
         <div className="flex flex-col gap-2">
-          <h3 className="text-xs font-bold uppercase tracking-[0.1em] text-brand-neutral">
+          <h3 className="text-xs font-semibold text-brand-neutral">
             {enrolled.length > 0 ? "Más actividades" : "Del festival"}
           </h3>
           <div className={grid}>
