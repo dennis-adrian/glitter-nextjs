@@ -1,5 +1,7 @@
 import { getStandMapParticipants } from "@/app/components/maps/map-participants";
 import type { VisitorActivity } from "@/app/components/festivals/public-festival-activities";
+import { cache } from "react";
+
 import FestivalGuide, {
   buildGuideCards,
 } from "@/app/components/festivals/festival-guide";
@@ -15,17 +17,11 @@ import {
 import { stripHiddenReservationsFromSectors } from "@/app/lib/reservations/reveal";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 
-export default async function FestivalVisitorDiscovery({
-  festivalId,
-  festivalName,
-  locationLabel = null,
-  locationUrl = null,
-}: {
-  festivalId: number;
-  festivalName: string;
-  locationLabel?: string | null;
-  locationUrl?: string | null;
-}) {
+/**
+ * Everything the visitor sections read, loaded once per request: the guide
+ * and the map sit in separate loading boundaries and share this.
+ */
+const loadVisitorDiscovery = cache(async (festivalId: number) => {
   const [rawSectors, activities, publicParticipants] = await Promise.all([
     fetchFestivalSectors(festivalId),
     fetchFestivalActivitiesByFestivalId(festivalId),
@@ -105,32 +101,62 @@ export default async function FestivalVisitorDiscovery({
     },
   );
 
-  const guide = buildGuideCards({
-    sectorCount: sectors.length,
-    standCount: sectors.reduce(
-      (total, sector) =>
-        total +
-        sector.stands.filter((stand) => stand.status !== "disabled").length,
-      0,
-    ),
-    participantCount: publicParticipants.length,
-    activityNames: visitorActivities.map((activity) => activity.name),
-    locationLabel,
-    locationUrl,
-  });
+  return { sectors, publicParticipants, visitorActivities, mapActivityData };
+});
+
+/**
+ * "Guía del festival", with each card's live figure: the sectors and stands,
+ * the participants, the activities, and the way to the venue.
+ */
+export async function FestivalGuideSection({
+  festivalId,
+  locationLabel = null,
+  locationUrl = null,
+}: {
+  festivalId: number;
+  locationLabel?: string | null;
+  locationUrl?: string | null;
+}) {
+  const { sectors, publicParticipants, visitorActivities } =
+    await loadVisitorDiscovery(festivalId);
 
   return (
-    <div className="flex flex-col gap-12 sm:gap-16">
-      <FestivalGuide cards={guide} />
-      <section id="mapa" tabIndex={-1} className="scroll-mt-24">
-        <FestivalVisitorExplorer
-          festivalName={festivalName}
-          sectors={sectors}
-          participants={publicParticipants}
-          activities={visitorActivities}
-          mapActivityData={mapActivityData}
-        />
-      </section>
-    </div>
+    <FestivalGuide
+      cards={buildGuideCards({
+        sectorCount: sectors.length,
+        standCount: sectors.reduce(
+          (total, sector) =>
+            total +
+            sector.stands.filter((stand) => stand.status !== "disabled").length,
+          0,
+        ),
+        participantCount: publicParticipants.length,
+        activityNames: visitorActivities.map((activity) => activity.name),
+        locationLabel,
+        locationUrl,
+      })}
+    />
+  );
+}
+
+/** The map with its search and sectors, the participants and the activities. */
+export default async function FestivalVisitorDiscovery({
+  festivalId,
+  festivalName,
+}: {
+  festivalId: number;
+  festivalName: string;
+}) {
+  const { sectors, publicParticipants, visitorActivities, mapActivityData } =
+    await loadVisitorDiscovery(festivalId);
+
+  return (
+    <FestivalVisitorExplorer
+      festivalName={festivalName}
+      sectors={sectors}
+      participants={publicParticipants}
+      activities={visitorActivities}
+      mapActivityData={mapActivityData}
+    />
   );
 }

@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { Button } from "@/app/components/ui/button";
 import type { PublicFestivalPage } from "@/app/lib/festivals/definitions";
-import { formatTime } from "@/app/lib/formatters";
+import { formatDisplayDate, formatTime } from "@/app/lib/formatters";
 import { formatDaysLeft, formatFestivalDays } from "@/app/lib/home/festival";
 import { daysUntil } from "@/app/lib/participations/hub-status";
 
@@ -19,11 +19,23 @@ function sortedDates(festival: PublicFestivalPage) {
   );
 }
 
-/** "10:00 AM a 7:00 PM", from the first day's own hours. */
-function hoursLine(festival: PublicFestivalPage) {
-  const first = sortedDates(festival)[0];
-  if (!first) return null;
-  return `${formatTime(first.startDate)} a ${formatTime(first.endDate)}`;
+/**
+ * "10:00 AM a 7:00 PM" when every day keeps the same hours; otherwise each
+ * day with its own: "sáb 10:00 AM a 7:00 PM · dom 11:00 AM a 8:00 PM".
+ */
+export function hoursLine(festival: Pick<PublicFestivalPage, "festivalDates">) {
+  const days = [...festival.festivalDates]
+    .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
+    .map((day) => ({
+      weekday: formatDisplayDate(day.startDate, { weekday: "short" }).replace(
+        /\.$/,
+        "",
+      ),
+      hours: `${formatTime(day.startDate)} a ${formatTime(day.endDate)}`,
+    }));
+  if (days.length === 0) return null;
+  if (days.every((day) => day.hours === days[0].hours)) return days[0].hours;
+  return days.map((day) => `${day.weekday} ${day.hours}`).join(" · ");
 }
 
 /**
@@ -58,7 +70,13 @@ export default function FestivalPageHero({
   ]
     .filter(Boolean)
     .join(" · ");
-  const hours = hoursLine(festival);
+  // The public registration is the free ticket; the admin settings say so.
+  const ticketLine = [
+    isRegistrationOpen ? "Entrada gratuita" : null,
+    hoursLine(festival),
+  ]
+    .filter(Boolean)
+    .join(" · ");
   // Without a banner, the poster keeps the festival's art on the page.
   const poster = festival.festivalBannerUrl
     ? null
@@ -101,8 +119,10 @@ export default function FestivalPageHero({
             {line ? (
               <p className="text-sm text-brand-neutral">{line}</p>
             ) : null}
-            {hours ? (
-              <p className="text-sm font-semibold text-brand-ink">{hours}</p>
+            {ticketLine ? (
+              <p className="text-sm font-semibold text-brand-ink">
+                {ticketLine}
+              </p>
             ) : null}
           </div>
         </div>

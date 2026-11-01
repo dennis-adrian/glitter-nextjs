@@ -4,7 +4,10 @@ import { Suspense, cache } from "react";
 import { z } from "zod";
 
 import FestivalPageHero from "@/app/components/festivals/festival-page-hero";
-import FestivalVisitorDiscovery from "@/app/components/festivals/festival-visitor-discovery";
+import { FestivalGuideSkeleton } from "@/app/components/festivals/festival-guide";
+import FestivalVisitorDiscovery, {
+  FestivalGuideSection,
+} from "@/app/components/festivals/festival-visitor-discovery";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { fetchPublicFestivalPage } from "@/app/lib/festivals/actions";
 
@@ -74,15 +77,24 @@ export default async function Page({ params }: PageProps) {
     <article>
       <FestivalPageHero festival={festival} hasFastPass={false} />
 
-      <div className="container mx-auto max-w-7xl px-4 pb-10 pt-6 sm:px-6 sm:pb-14 lg:px-8">
-        <Suspense fallback={<VisitorDiscoveryFallback />}>
-          <FestivalVisitorDiscovery
+      <div className="container mx-auto flex max-w-7xl flex-col gap-12 px-4 pb-10 pt-6 sm:gap-16 sm:px-6 sm:pb-14 lg:px-8">
+        <Suspense fallback={<FestivalGuideSkeleton />}>
+          <FestivalGuideSection
             festivalId={festival.id}
-            festivalName={festival.name}
             locationLabel={festival.locationLabel}
             locationUrl={festival.locationUrl}
           />
         </Suspense>
+        {/* Outside the loading boundary, so a link to #mapa always finds it
+            where the map will be, even before the map has loaded. */}
+        <section id="mapa" tabIndex={-1} className="scroll-mt-24">
+          <Suspense fallback={<VisitorDiscoveryFallback />}>
+            <FestivalVisitorDiscovery
+              festivalId={festival.id}
+              festivalName={festival.name}
+            />
+          </Suspense>
+        </section>
       </div>
     </article>
   );

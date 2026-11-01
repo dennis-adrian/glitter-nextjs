@@ -8,7 +8,9 @@ vi.mock("next/image", () => ({
   ),
 }));
 
-import FestivalPageHero from "@/app/components/festivals/festival-page-hero";
+import FestivalPageHero, {
+  hoursLine,
+} from "@/app/components/festivals/festival-page-hero";
 import type { PublicFestivalPage } from "@/app/lib/festivals/definitions";
 
 afterEach(cleanup);
@@ -43,7 +45,7 @@ describe("FestivalPageHero", () => {
     expect(
       screen.getByText("14 y 15 de noviembre · Casa de la Cultura · faltan 21 días"),
     ).toBeTruthy();
-    expect(screen.getByText("10:00 AM a 7:00 PM")).toBeTruthy();
+    expect(screen.getByText("Entrada gratuita · 10:00 AM a 7:00 PM")).toBeTruthy();
     expect(screen.getByRole("img").getAttribute("src")).toBe("/banner.webp");
     expect(
       screen.getByRole("link", { name: "Obtener entrada" }).getAttribute("href"),
@@ -64,5 +66,19 @@ describe("FestivalPageHero", () => {
     expect(screen.getByRole("img", { name: "Afiche de Festicker 2026" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Obtener entrada" })).toBeNull();
     expect(screen.getByText("No hay entradas habilitadas")).toBeTruthy();
+  });
+});
+
+describe("hoursLine", () => {
+  it("names each day when the days keep different hours", () => {
+    expect(
+      hoursLine({
+        festivalDates: [
+          // sáb 10:00-19:00 and dom 11:00-20:00 in La Paz.
+          { startDate: new Date("2026-11-14T14:00:00Z"), endDate: new Date("2026-11-14T23:00:00Z") },
+          { startDate: new Date("2026-11-15T15:00:00Z"), endDate: new Date("2026-11-16T00:00:00Z") },
+        ],
+      } as unknown as PublicFestivalPage),
+    ).toBe("sáb 10:00 AM a 7:00 PM · dom 11:00 AM a 8:00 PM");
   });
 });

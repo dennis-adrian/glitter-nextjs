@@ -116,7 +116,7 @@ describe("/festivals", () => {
     ).toEqual(["/festivals/9", "/festivals/4"]);
   });
 
-  it("says so when there is no archive yet", async () => {
+  it("says so in one line when there is no archive yet", async () => {
     activeMock.mockResolvedValue(undefined);
     pastMock.mockResolvedValue([]);
 
@@ -125,6 +125,39 @@ describe("/festivals", () => {
     expect(
       screen.getByText("Todavía no hay festivales anteriores."),
     ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Festivales anteriores" }),
+    ).toBeNull();
+  });
+
+  it("says when the announced edition opens reservations, without a countdown", async () => {
+    activeMock.mockResolvedValue(undefined);
+    upcomingMock.mockResolvedValue(
+      festival(9, "Festicker 2027", {
+        status: "published",
+        reservationsStartDate: new Date("2099-03-10T16:00:00Z"),
+      }),
+    );
+    pastMock.mockResolvedValue([]);
+
+    render(await FestivalsPage());
+
+    expect(screen.getByText("Las reservas abren el 10 de marzo")).toBeTruthy();
+    expect(screen.queryByText(/faltan/)).toBeNull();
+  });
+
+  it("gives each side its year when a festival crosses New Year", async () => {
+    const { festivalWhen } = await import(
+      "@/app/components/festivals/past-festivals-list"
+    );
+    expect(
+      festivalWhen({
+        festivalDates: [
+          { startDate: new Date("2026-12-31T16:00:00Z") },
+          { startDate: new Date("2027-01-01T16:00:00Z") },
+        ],
+      } as unknown as FestivalWithDates),
+    ).toBe("31 de diciembre de 2026 y 1 de enero de 2027");
   });
 });
 

@@ -6,6 +6,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { Skeleton } from "@/app/components/ui/skeleton";
 import { cn } from "@/app/lib/utils";
 
 type GuideCard = {
@@ -129,5 +130,22 @@ export default function FestivalGuide({
         })}
       </ul>
     </section>
+  );
+}
+
+/**
+ * The guide's shape while its figures load, the same size as the guide with
+ * four cards, so the map below does not move when it arrives.
+ */
+export function FestivalGuideSkeleton() {
+  return (
+    <div className="flex flex-col gap-3" aria-hidden="true">
+      <Skeleton className="h-7 w-44" />
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Skeleton key={index} className="h-24 rounded-2xl" />
+        ))}
+      </div>
+    </div>
   );
 }

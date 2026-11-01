@@ -9,7 +9,7 @@ import { fetchActiveFestivalBase } from "@/app/lib/festivals/actions";
 import type { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { fetchPastFestivals } from "@/app/lib/festivals/queries";
 import { loadUpcomingFestival } from "@/app/lib/home/load";
-import { daysUntil } from "@/app/lib/participations/hub-status";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export const dynamic = "force-dynamic";
@@ -19,11 +19,15 @@ export const metadata: Metadata = {
   description: "Los festivales de la Productora Glitter, en curso y anteriores.",
 };
 
-function firstDayLeft(festival: FestivalWithDates) {
-  const start = [...festival.festivalDates].sort(
-    (a, b) => a.startDate.getTime() - b.startDate.getTime(),
-  )[0]?.startDate;
-  return daysUntil(start, new Date());
+/**
+ * When the announced edition opens reservations, while that is still ahead.
+ * The board asks for when inscriptions open; festivals record when
+ * reservations do.
+ */
+function reservationsLine(festival: FestivalWithDates) {
+  const opens = festival.reservationsStartDate;
+  if (!opens || opens.getTime() <= Date.now()) return null;
+  return `Las reservas abren el ${formatDisplayDate(opens, { day: "numeric", month: "long" })}`;
 }
 
 /**
@@ -54,13 +58,19 @@ export default async function FestivalsPage() {
             title="Próximo festival"
             festival={upcoming}
             href={`/festivals/${upcoming.id}`}
-            daysLeft={firstDayLeft(upcoming)}
+            daysLeft={null}
+            sentence={reservationsLine(upcoming)}
           />
         </div>
       ) : null}
-      <HubSection title="Festivales anteriores">
+      {past.length > 0 ? (
+        <HubSection title="Festivales anteriores">
+          <PastFestivalsList festivals={past} />
+        </HubSection>
+      ) : (
+        // The minimal case is one line, without a heading the line repeats.
         <PastFestivalsList festivals={past} />
-      </HubSection>
+      )}
     </div>
   );
 }

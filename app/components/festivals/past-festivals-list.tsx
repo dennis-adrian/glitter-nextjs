@@ -7,13 +7,24 @@ import type { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { formatDisplayDate } from "@/app/lib/formatters";
 import { formatFestivalDays } from "@/app/lib/home/festival";
 
-function festivalWhen(festival: FestivalWithDates) {
-  const first = [...festival.festivalDates].sort(
+/**
+ * "11 y 12 de abril de 2026"; across New Year each side keeps its own year:
+ * "31 de diciembre de 2026 y 1 de enero de 2027".
+ */
+export function festivalWhen(festival: Pick<FestivalWithDates, "festivalDates">) {
+  const days = [...festival.festivalDates].sort(
     (a, b) => a.startDate.getTime() - b.startDate.getTime(),
-  )[0]?.startDate;
-  if (!first) return null;
-  const year = formatDisplayDate(first, { year: "numeric" });
-  return `${formatFestivalDays(festival.festivalDates)} de ${year}`;
+  );
+  const first = days[0]?.startDate;
+  const last = days[days.length - 1]?.startDate;
+  if (!first || !last) return null;
+  const year = (date: Date) => formatDisplayDate(date, { year: "numeric" });
+  if (year(first) !== year(last)) {
+    const full = (date: Date) =>
+      `${formatDisplayDate(date, { day: "numeric" })} de ${formatDisplayDate(date, { month: "long" })} de ${year(date)}`;
+    return `${full(first)} ${days.length === 2 ? "y" : "al"} ${full(last)}`;
+  }
+  return `${formatFestivalDays(festival.festivalDates)} de ${year(last)}`;
 }
 
 /**
