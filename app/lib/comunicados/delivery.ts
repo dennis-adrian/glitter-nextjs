@@ -25,7 +25,6 @@ import type {
   ClaimedBulkRow,
 } from "@/app/lib/notifications/bulk-email";
 import { publicBaseUrl } from "@/app/lib/urls";
-import { getUserName } from "@/app/lib/users/utils";
 import { serverEnv } from "@/env";
 
 /**
@@ -47,9 +46,6 @@ export type ComunicadoPrecheck = {
   skip: string | null;
   /** An essential send lifted this person's Anuncios opt-out (D7). */
   overridden: boolean;
-  displayName: string | null;
-  firstName: string | null;
-  lastName: string | null;
 };
 
 type RowToRender = ClaimedBulkRow & { check: ComunicadoPrecheck };
@@ -175,9 +171,6 @@ async function precheck(
     id: number;
     skip: string | null;
     overridden: boolean | null;
-    first_name: string | null;
-    last_name: string | null;
-    display_name: string | null;
   }>(sql`
     SELECT d.id, CASE
       WHEN k.retracted_at IS NOT NULL OR n.retracted_at IS NOT NULL THEN 'retracted'
@@ -200,8 +193,7 @@ async function precheck(
         essential: sql`k.essential`,
       })}
     END AS skip,
-    ${announcementOptOutOverridden(sql`d.recipient_email`, sql`k.essential`)} AS overridden,
-    u.first_name, u.last_name, u.display_name
+    ${announcementOptOutOverridden(sql`d.recipient_email`, sql`k.essential`)} AS overridden
     FROM notification_deliveries d
     JOIN notifications n ON n.id = d.notification_id
     JOIN comunicados k ON k.campaign_id = n.campaign_id
@@ -216,9 +208,6 @@ async function precheck(
     id: Number(row.id),
     skip: row.skip,
     overridden: row.overridden === true,
-    displayName: row.display_name,
-    firstName: row.first_name,
-    lastName: row.last_name,
   }));
 }
 
@@ -282,7 +271,6 @@ export const comunicadoBatchRenderer: BulkEmailRenderer = {
         blocks: normalized.blocks,
         actionLabel: content.actionLabel,
         actionPath: content.actionPath,
-        greetingName: getUserName(row.check),
         unsubscribeUrl: links.pageUrl,
         essentialFestivalName,
         staging,

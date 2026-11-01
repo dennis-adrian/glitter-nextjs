@@ -706,7 +706,7 @@ export const announcementEditorSchema = BlockNoteSchema.create({
 ### C5. Personalization
 
 - **No `{nombre}` in phase 3** (K1).
-- The email opens with "¡Hola Ana!", using `safeGreetingName(getUserName(user))` (`invitation-helpers.ts:105`), read when the batch is rendered. Without a usable name it says "¡Hola!".
+- The email has no greeting: it opens with the title, and carries only what the admin wrote.
 - The inbox never greets, as gift items don't.
 - **One body for everyone keeps three things simple:**
   - the fan-out is one set-based INSERT per chunk;
@@ -986,7 +986,7 @@ WHERE d.id = ANY($claimed) AND d.lease_owner = $o;
 
 **Render per row:**
 
-- `render(<ComunicadoEmail revision greetingName unsubscribeUrl essentialNote stagingNote />)`;
+- `render(<ComunicadoEmail revision unsubscribeUrl essentialNote stagingNote />)`;
 - `text` is the revision's text with URLs, plus the action URL and the unsubscribe page URL;
 - **headers:** `unsubscribeLinks({ kind: "user", id }, "announcements").headers` (`unsubscribe-links.ts:26-41`), **except on `overridden` rows** (D7);
 - `from: COMUNICADOS_FROM` (outside production `COMUNICADOS_FROM_STAGING`), `replyTo: COMUNICADOS_REPLY_TO` (K3);
@@ -1151,14 +1151,14 @@ The gift-only `giftWasRevoked` guard (`deliveries.ts:106-114,153-162`) stays as 
 - **Either way, 2,000 emails go out in about 2–3 minutes.**
 - **A scheduled send** has no `after()`. The first cron run sends 6–15 batches after the release, fan-out and push; later runs send 11–17. That is about 2–3 minutes.
 - **Today, for comparison:** about 1,000 per hour.
-- **If rendering proves slow** in PR 5's measurement, render once per revision and substitute the escaped greeting and unsubscribe URL per row (the nonce-sentinel technique).
+- **If rendering proves slow** in PR 5's measurement, render once per revision and substitute the unsubscribe URL per row (the nonce-sentinel technique).
 
 ### D11. Test send ("Enviarme una prueba")
 
 `sendComunicadoTestAction(comunicadoId)`:
 
 - checks `canMutateAdminReservations`, `featureFlagGuard("comunicados")` and `consumeActionRateLimit("comunicado-test:{adminId}")` (5 per 10 minutes);
-- runs `normalizeAnnouncementDoc(…, { stage: "send" })` on the **working copy** and renders it through the same email renderer, greeting the acting admin;
+- runs `normalizeAnnouncementDoc(…, { stage: "send" })` on the **working copy** and renders it through the same email renderer;
 - sends with `sendEmail` to the acting admin's own address, with the subject "[Prueba] {título}" (prefixed with `getEnvLabel()` outside production), the staging marks of D7, and the key `comunicado-test:{id}:{uuid}`;
 - the unsubscribe link is real, so the opt-out flow can be tested end to end;
 - writes no delivery and no inbox row, so it never touches dedupe or the report.
@@ -1514,7 +1514,7 @@ One transaction, with `SET LOCAL lock_timeout = '20s'`; a 40P01 retries once:
 - **Notificación:** the real `NotificationItem` (static), with the excerpt.
 - **Detalle:** the real `NotificationDetail`, with the server-rendered HTML.
 - **Correo:**
-  - the real template, rendered on the server for the acting admin ("¡Hola Dennis!"), with the subject above it, including the staging marks outside production;
+  - the real template, rendered on the server, with the subject above it, including the staging marks outside production;
   - the unsubscribe link is `?token=preview`, which the server refuses (`invitations.ts:483-485`);
   - it is shown in an iframe sandboxed without `allow-scripts` or `allow-same-origin` (`invitation-email-preview.tsx:113-115`).
 - **Dispositivo:** a lock-screen card with "Glitter", the title and "Tocá para ver el detalle."
@@ -1779,7 +1779,7 @@ It loads fresh numbers from the server when it opens:
 | Reply-To  | `soporte@productoraglitter.com`, the orders precedent (`order-emails.ts:64`). K3.                                                                                                                                                             |
 | Subject   | the title; prefixed with "[Prev]" or "[Dev]" outside production                                                                                                                                                                               |
 | Preheader | the excerpt, cut to 120 characters                                                                                                                                                                                                            |
-| Body      | `EmailHeader`; "¡Hola Ana!" (or "¡Hola!"); the title as a heading; the rendered blocks (C3); the button, with an absolute URL                                                                                                                 |
+| Body      | `EmailHeader`; the title as a heading (no greeting); the rendered blocks (C3); the button, with an absolute URL                                                                                                                 |
 | Footer    | `EmailFooter`: "Enviado por el equipo Glitter / © 2026 \| Productora Glitter, Santa Cruz, Bolivia / ¿No querés recibir más correos como este? Darme de baja". Essential sends and staging sends add their note lines (D7).                    |
 | Headers   | `List-Unsubscribe` with one-click, topic `announcements`; left out only for an essential email to someone already unsubscribed from Anuncios (D7)                                                                                             |
 | Text part | the full text with URLs, the button as "Texto: https://…", then "Darme de baja: \<url\>"                                                                                                                                                      |
@@ -2114,7 +2114,7 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
 
 - **Unit:**
   - `comunicados/content.test.ts`: refuses unknown types, h1/h4, depth 3, `javascript:`/`data:`/`//`; strips colours, underline, strike, alignment; size limits; draft vs send stage;
-  - `app/emails/comunicado.test.tsx`: absolute URLs by concatenation, inline styles, no `details`/`input`/`figure`/`pre`, the greeting through `safeGreetingName`, essential and staging notes, the `[Prev]` subject;
+  - `app/emails/comunicado.test.tsx`: absolute URLs by concatenation, inline styles, no `details`/`input`/`figure`/`pre`, no greeting, essential and staging notes, the `[Prev]` subject;
   - `comunicados/text.test.ts`;
   - the announcement sanitizer's XSS cases (as `rich-text.test.ts:100-177`);
   - `definitions.test.ts`: `safeActionPath` refuses `/\t/x`, `/\n/x`, `/ x`;

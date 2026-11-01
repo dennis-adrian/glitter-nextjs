@@ -7,7 +7,6 @@ import {
   Html,
   Preview,
   Section,
-  Text,
 } from "react-email";
 
 import {
@@ -27,11 +26,6 @@ import {
 export const COMUNICADO_PREHEADER_MAX = 120;
 
 export type ComunicadoEmailProps = {
-  /**
-   * Already through `safeGreetingName`: it is printed as given, and null
-   * greets without a name.
-   */
-  greetingName: string | null;
   title: string;
   /** As `normalizeAnnouncementDoc` returned them. */
   blocks: AnnouncementBlock[];
@@ -67,10 +61,6 @@ export function comunicadoFooterNotes(opts: {
   return notes;
 }
 
-export function comunicadoGreeting(name: string | null) {
-  return name ? `¡Hola ${name}!` : "¡Hola!";
-}
-
 /** The excerpt cut on a word boundary, "…" included, to fit 120. */
 export function comunicadoPreheader(text: string) {
   const excerpt = excerptOf(text);
@@ -96,11 +86,11 @@ const titleStyle = {
 
 /**
  * A comunicado (docs/IMPLEMENTATION-comunicados.md H3): one body for every
- * recipient, except the greeting and the unsubscribe link. Sent as
- * Productora Glitter, never as the admin who wrote it, and with no sign-off.
+ * recipient, except the unsubscribe link. Sent as Productora Glitter, never
+ * as the admin who wrote it, with no greeting and no sign-off: only what the
+ * admin wrote.
  */
 export default function ComunicadoEmail({
-  greetingName,
   title,
   blocks,
   actionLabel,
@@ -125,7 +115,6 @@ export default function ComunicadoEmail({
         <Container style={styles.container}>
           <EmailHeader />
           <Section style={bodyStyle}>
-            <Text style={styles.text}>{comunicadoGreeting(greetingName)}</Text>
             <Heading as="h1" style={titleStyle}>
               {title}
             </Heading>
@@ -149,7 +138,6 @@ export default function ComunicadoEmail({
 }
 
 ComunicadoEmail.PreviewProps = {
-  greetingName: "Ana",
   title: "Cambio de horario de armado",
   blocks: [
     {

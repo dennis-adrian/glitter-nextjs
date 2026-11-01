@@ -124,7 +124,6 @@ function emailProps(
   overrides: Partial<ComunicadoEmailProps> = {},
 ): ComunicadoEmailProps {
   return {
-    greetingName: "Ana",
     title: "Cambio de horario de armado",
     blocks: EVERY_BLOCK,
     actionLabel: "Ver mi reserva",
@@ -194,7 +193,6 @@ function renderInput(
     blocks: EVERY_BLOCK,
     actionLabel: "Ver mi reserva",
     actionPath: "/my_participations",
-    greetingName: "Ana",
     unsubscribeUrl: UNSUBSCRIBE,
     staging: false,
     test: false,
@@ -495,28 +493,19 @@ describe("announcementBlocksToEmail", () => {
 });
 
 describe("ComunicadoEmail", () => {
-  it("opens with the greeting, then the title, the text and the button", async () => {
+  it("opens with the title, then the text and the button, with no greeting", async () => {
     const html = await render(ComunicadoEmail(emailProps()));
-    const greeting = html.indexOf("¡Hola Ana!");
     const title = html.search(/<h1[^>]*>Cambio de horario de armado<\/h1>/);
     const body = html.indexOf("Horario</h2>");
     const button = html.indexOf(
       `href="${BASE}/my_participations" style="line-height:100%`,
     );
-    expect(greeting).toBeGreaterThan(-1);
-    expect(title).toBeGreaterThan(greeting);
+    expect(title).toBeGreaterThan(-1);
+    expect(html).not.toContain("¡Hola");
     expect(body).toBeGreaterThan(title);
     expect(button).toBeGreaterThan(body);
     expect(html).toContain(">Ver mi reserva<");
     expect(html).toContain(`href="${UNSUBSCRIBE.replace("&", "&amp;")}"`);
-  });
-
-  it("greets without a name when there is none", async () => {
-    const html = await render(
-      ComunicadoEmail(emailProps({ greetingName: null })),
-    );
-    expect(html).toContain("¡Hola!");
-    expect(html).not.toContain("¡Hola !");
   });
 
   it("shows the button only with a label and a Glitter path", async () => {
@@ -553,25 +542,6 @@ describe("ComunicadoEmail", () => {
 });
 
 describe("renderComunicadoEmail", () => {
-  it("greets through safeGreetingName: anything that is not plainly a name says ¡Hola!", async () => {
-    expect(
-      (await renderInput({ greetingName: "  Ana   María " })).html,
-    ).toContain("¡Hola Ana María!");
-    for (const name of [
-      "visita evil.com",
-      "<b>Ana</b>",
-      "https://evil.example",
-      "Ana: entrá a este link",
-      "",
-      null,
-    ]) {
-      const email = await renderInput({ greetingName: name });
-      expect(email.html, String(name)).toContain("¡Hola!");
-      expect(email.text.startsWith("¡Hola!\n\n"), String(name)).toBe(true);
-      expect(email.html).not.toContain("evil");
-    }
-  });
-
   it("adds the essential note and the staging note above the unsubscribe line", async () => {
     const email = await renderInput({
       essentialFestivalName: "Glitter Navidad 2026",
@@ -641,7 +611,6 @@ describe("renderComunicadoEmail", () => {
     const email = await renderInput({ baseUrl: `${BASE}/` });
     expect(email.text).toBe(
       [
-        "¡Hola Ana!",
         "Cambio de horario de armado",
         "Horario",
         "Sábado",
@@ -671,7 +640,6 @@ describe("renderComunicadoEmail", () => {
     // An image is its caption in the text part, or nothing.
     expect(withImages.text).toBe(
       [
-        "¡Hola Ana!",
         "Cambio de horario de armado",
         "Así queda el armado:",
         "El plano",
@@ -719,7 +687,7 @@ describe("renderComunicadoPreviewAction", () => {
 
     expect(result.email.subject).toBe("[Prev] Sin título");
     expect(result.email.from).toBe(COMUNICADOS_FROM_STAGING);
-    expect(result.email.html).toContain("¡Hola Dennis!");
+    expect(result.email.html).not.toContain("¡Hola");
     expect(result.email.html).toContain(`href="${BASE}/my_participations"`);
     // Its unsubscribe link is one the page refuses.
     expect(result.email.html).toContain(

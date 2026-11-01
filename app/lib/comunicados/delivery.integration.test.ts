@@ -608,7 +608,7 @@ describeDatabase("comunicado emails on the bulk lane", () => {
       expect(email.headers?.["List-Unsubscribe-Post"]).toBe(
         "List-Unsubscribe=One-Click",
       );
-      expect(email.text).toContain("¡Hola Ana Ilustra!");
+      expect(email.text).not.toContain("¡Hola");
       expect(email.text).toContain("Texto de la revisión 2.");
       expect(email.text).not.toContain("revisión 1");
       expect(email.text).toContain(

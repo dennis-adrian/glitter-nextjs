@@ -53,10 +53,8 @@ export const COMUNICADO_EMAIL_TOO_LARGE_MESSAGE =
 
 /**
  * The longest each per-recipient part can be, so a body measured here fits
- * every recipient's copy: `safeGreetingName` keeps 40 characters, and a
- * signed unsubscribe token is about 105.
+ * every recipient's copy: a signed unsubscribe token is about 105.
  */
-const LONGEST_GREETING = "N".repeat(40);
 const LONGEST_TOKEN = "t".repeat(160);
 const LONGEST_FESTIVAL_NAME = "F".repeat(120);
 
@@ -82,7 +80,6 @@ async function largestEmailBytes(
     title,
     blocks,
     ...action,
-    greetingName: LONGEST_GREETING,
     unsubscribeUrl: `${baseUrl}${UNSUBSCRIBE_PAGE_PATH}?token=${LONGEST_TOKEN}`,
     essentialFestivalName: essential ? LONGEST_FESTIVAL_NAME : null,
     staging: true,
