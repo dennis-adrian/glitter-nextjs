@@ -7,7 +7,6 @@ import {
   Html,
   Preview,
   Section,
-  Text,
 } from "react-email";
 
 import {
@@ -27,11 +26,6 @@ import {
 export const COMUNICADO_PREHEADER_MAX = 120;
 
 export type ComunicadoEmailProps = {
-  /**
-   * Already through `safeGreetingName`: it is printed as given, and null
-   * greets without a name.
-   */
-  greetingName: string | null;
   title: string;
   /** As `normalizeAnnouncementDoc` returned them. */
   blocks: AnnouncementBlock[];
@@ -42,33 +36,23 @@ export type ComunicadoEmailProps = {
   unsubscribeUrl: string;
   /** An essential send's festival: adds the note that explains it (D7). */
   essentialFestivalName?: string | null;
-  /** Any environment but production, test sends included (D7). */
-  staging: boolean;
   /** Origin the Glitter paths are joined to, from `publicBaseUrl()`. */
   baseUrl: string;
 };
-
-export const COMUNICADO_STAGING_NOTE =
-  "Este correo salió del entorno de prueba de Glitter. Darte de baja acá no cambia nada en los correos del sitio real de Glitter; si no esperabas recibirlo, respondé a este correo.";
 
 export function comunicadoEssentialNote(festivalName: string) {
   return `Es un correo esencial sobre tu participación en ${festivalName}: llega también a quienes se dieron de baja de los anuncios.`;
 }
 
-/** The footer's small print, in the order it is printed. */
+/**
+ * The footer's small print: only an essential send's note. Staging mail is
+ * marked by its From name and subject alone.
+ */
 export function comunicadoFooterNotes(opts: {
   essentialFestivalName?: string | null;
-  staging: boolean;
 }): string[] {
-  const notes: string[] = [];
   const festival = opts.essentialFestivalName?.trim();
-  if (festival) notes.push(comunicadoEssentialNote(festival));
-  if (opts.staging) notes.push(COMUNICADO_STAGING_NOTE);
-  return notes;
-}
-
-export function comunicadoGreeting(name: string | null) {
-  return name ? `¡Hola ${name}!` : "¡Hola!";
+  return festival ? [comunicadoEssentialNote(festival)] : [];
 }
 
 /** The excerpt cut on a word boundary, "…" included, to fit 120. */
@@ -96,18 +80,17 @@ const titleStyle = {
 
 /**
  * A comunicado (docs/IMPLEMENTATION-comunicados.md H3): one body for every
- * recipient, except the greeting and the unsubscribe link. Sent as
- * Productora Glitter, never as the admin who wrote it, and with no sign-off.
+ * recipient, except the unsubscribe link. Sent as Productora Glitter, never
+ * as the admin who wrote it, with no greeting and no sign-off: only what the
+ * admin wrote.
  */
 export default function ComunicadoEmail({
-  greetingName,
   title,
   blocks,
   actionLabel,
   actionPath,
   unsubscribeUrl,
   essentialFestivalName,
-  staging,
   baseUrl,
 }: ComunicadoEmailProps) {
   const label = actionLabel?.trim();
@@ -125,7 +108,6 @@ export default function ComunicadoEmail({
         <Container style={styles.container}>
           <EmailHeader />
           <Section style={bodyStyle}>
-            <Text style={styles.text}>{comunicadoGreeting(greetingName)}</Text>
             <Heading as="h1" style={titleStyle}>
               {title}
             </Heading>
@@ -141,7 +123,7 @@ export default function ComunicadoEmail({
         </Container>
         <EmailFooter
           unsubscribeUrl={unsubscribeUrl}
-          notes={comunicadoFooterNotes({ essentialFestivalName, staging })}
+          notes={comunicadoFooterNotes({ essentialFestivalName })}
         />
       </Body>
     </Html>
@@ -149,7 +131,6 @@ export default function ComunicadoEmail({
 }
 
 ComunicadoEmail.PreviewProps = {
-  greetingName: "Ana",
   title: "Cambio de horario de armado",
   blocks: [
     {
@@ -196,6 +177,5 @@ ComunicadoEmail.PreviewProps = {
   actionPath: "/my_participations",
   unsubscribeUrl: "http://localhost:3000/email/unsubscribe?token=preview",
   essentialFestivalName: "Glitter Navidad 2026",
-  staging: true,
   baseUrl: "http://localhost:3000",
 } satisfies ComunicadoEmailProps;

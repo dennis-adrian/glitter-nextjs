@@ -20,7 +20,7 @@ describe("unsubscribe link in the footer", () => {
   it("prints note lines above the unsubscribe line, and none when there are none", () => {
     const notes = [
       "Es un correo esencial sobre tu participación en Glitter 2026.",
-      "Este correo salió del entorno de prueba de Glitter.",
+      "Una segunda nota.",
     ];
     const html = renderToStaticMarkup(
       EmailFooter({ unsubscribeUrl: URL, notes }),
