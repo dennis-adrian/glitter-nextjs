@@ -7,6 +7,7 @@ import {
   isFocusedFlowPage,
   isNavLinkActive,
   type NavViewer,
+  staffMenuSection,
 } from "@/app/components/navbar/app-navigation";
 
 const verified: NavViewer = { role: "user", status: "verified" };
@@ -134,42 +135,100 @@ describe("buildAppNavigation groups", () => {
     ).toBeUndefined();
   });
 
-  it("gives admins the whole dashboard and programs", () => {
-    const admin = group(
-      buildAppNavigation({ viewer: { role: "admin", status: "verified" } }),
-      "admin",
-    )!;
+  it("gives admins their own shell: Inicio, the festival, operation, programs and settings", () => {
+    const nav = buildAppNavigation({
+      viewer: { role: "admin", status: "verified" },
+      activeFestival: { id: 9, name: "Festicker 2026", status: "active" },
+    });
 
-    expect(admin.sections?.map((section) => section.label)).toEqual([
-      "Dashboard",
-      "Programas",
+    expect(nav.tabs.map((tab) => [tab.label, tab.href])).toEqual([
+      ["Inicio", "/dashboard"],
+      ["Festival", "/dashboard/festival"],
+      ["Tienda", "/dashboard/store/analytics"],
+      ["Más", "/menu"],
     ]);
-    const all = admin.sections!.flatMap((section) => hrefs(section.items));
-    expect(all).toEqual(
-      expect.arrayContaining([
-        "/dashboard",
-        "/dashboard/emails",
-        "/dashboard/feature_flags",
-        "/dashboard/programs/check-in",
-      ]),
+    expect(nav.groups.map((entry) => entry.label)).toEqual([
+      "",
+      "Festival en curso",
+      "Operación",
+    ]);
+    const festival = group(nav, "festival")!.sections![0];
+    expect(festival.label).toBe("Festicker 2026");
+    expect(festival.defaultOpen).toBe(true);
+    expect(hrefs(festival.items).slice(0, 2)).toEqual([
+      "/dashboard/festivals",
+      "/dashboard/festivals/9/tickets",
+    ]);
+    const operation = group(nav, "operation")!;
+    expect(operation.sections?.map((section) => section.label)).toEqual([
+      "Programas",
+      "Configuración",
+    ]);
+    // No participant pages: staff do not take part in festivals.
+    expect(nav.groups.flatMap((entry) => hrefs(entry.items))).not.toContain(
+      "/my_participations",
     );
   });
 
-  it("gives festival admins only the pages they may open", () => {
-    const festivalAdmin = group(
-      buildAppNavigation({
-        viewer: { role: "festival_admin", status: "verified" },
-      }),
-      "admin",
-    )!;
-    const all = festivalAdmin.sections!.flatMap((section) =>
-      hrefs(section.items),
-    );
+  it("keeps the staff Más short: people, two section screens and the account", () => {
+    const more = buildAppNavigation({
+      viewer: { role: "admin", status: "verified" },
+    }).more!;
 
+    expect(more.map((entry) => entry.label)).toEqual([
+      "Personas",
+      "Más secciones",
+      "Mi cuenta",
+    ]);
+    expect(hrefs(more[1].items)).toEqual(["/menu/programas", "/menu/configuracion"]);
+    expect(more.flatMap((entry) => entry.items).length).toBeLessThanOrEqual(9);
+  });
+
+  it("gives festival admins programs instead of the store, and only their pages", () => {
+    const nav = buildAppNavigation({
+      viewer: { role: "festival_admin", status: "verified" },
+    });
+
+    expect(nav.tabs.map((tab) => tab.label)).toEqual([
+      "Inicio",
+      "Festival",
+      "Programas",
+      "Más",
+    ]);
+    const all = [
+      ...nav.groups.flatMap((entry) => hrefs(entry.items)),
+      ...nav.groups.flatMap((entry) =>
+        (entry.sections ?? []).flatMap((section) => hrefs(section.items)),
+      ),
+    ];
     expect(all).toContain("/dashboard/festivals");
     expect(all).toContain("/dashboard/programs");
     expect(all).not.toContain("/dashboard/emails");
     expect(all).not.toContain("/dashboard/feature_flags");
+    expect(all).not.toContain("/dashboard/store/analytics");
+  });
+
+  it("opens the staff section screens only for who may see them", () => {
+    expect(
+      staffMenuSection({ role: "admin", status: "verified" }, "configuracion")?.label,
+    ).toBe("Configuración");
+    expect(
+      staffMenuSection({ role: "festival_admin", status: "verified" }, "configuracion"),
+    ).toBeNull();
+    expect(
+      staffMenuSection({ role: "festival_admin", status: "verified" }, "programas")?.label,
+    ).toBe("Programas");
+    expect(staffMenuSection({ role: "user", status: "verified" }, "programas")).toBeNull();
+  });
+
+  it("lights staff Inicio only on its own page", () => {
+    const { tabs } = buildAppNavigation({
+      viewer: { role: "admin", status: "verified" },
+    });
+    expect(activeTabKey(tabs, "/dashboard")).toBe("home");
+    expect(activeTabKey(tabs, "/dashboard/store/orders")).toBe("store");
+    expect(activeTabKey(tabs, "/dashboard/festivals/9/map")).toBe("festival");
+    expect(activeTabKey(tabs, "/dashboard/users")).toBe("more");
   });
 });
 

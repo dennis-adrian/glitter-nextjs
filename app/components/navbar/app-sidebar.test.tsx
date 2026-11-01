@@ -48,14 +48,22 @@ const profile = {
   profileSubcategories: [],
 } as unknown as NavbarProfile;
 
+const participant: NavViewer = { role: "user", status: "verified" };
+const admin: NavViewer = { role: "admin", status: "verified" };
+
 function renderSidebar(
-  viewer: NavViewer = { role: "admin", status: "verified" },
+  viewer: NavViewer = participant,
   suppliesOpen = false,
 ) {
   return render(
     <AppSidebar
       groups={
-        buildAppNavigation({ viewer, creditsEnabled: true, suppliesOpen }).groups
+        buildAppNavigation({
+          viewer,
+          creditsEnabled: true,
+          suppliesOpen,
+          activeFestival: { id: 9, name: "Festicker 2026", status: "active" },
+        }).groups
       }
       profile={profile}
       viewer={viewer}
@@ -64,12 +72,30 @@ function renderSidebar(
 }
 
 describe("AppSidebar", () => {
-  it("shows the signed-in groups", () => {
+  it("shows a participant's groups", () => {
     renderSidebar();
 
-    for (const heading of ["Explorar", "Mi espacio", "Administración"]) {
+    for (const heading of ["Explorar", "Mi espacio"]) {
       expect(screen.getByRole("heading", { name: heading })).toBeTruthy();
     }
+    expect(screen.queryByRole("heading", { name: "Operación" })).toBeNull();
+  });
+
+  it("shows staff their own groups, with the festival in progress open", () => {
+    renderSidebar(admin);
+
+    for (const heading of ["Festival en curso", "Operación"]) {
+      expect(screen.getByRole("heading", { name: heading })).toBeTruthy();
+    }
+    expect(screen.queryByRole("heading", { name: "Explorar" })).toBeNull();
+    expect(
+      screen
+        .getByRole("button", { name: /Festicker 2026/ })
+        .getAttribute("aria-expanded"),
+    ).toBe("true");
+    expect(
+      screen.getByRole("link", { name: "Todos los festivales" }).getAttribute("href"),
+    ).toBe("/dashboard/festivals");
   });
 
   it("marks the current page", () => {
@@ -83,18 +109,18 @@ describe("AppSidebar", () => {
     ).toBe("page");
   });
 
-  it("keeps admin sections closed until opened", () => {
-    renderSidebar();
+  it("keeps staff settings closed until opened", () => {
+    renderSidebar(admin);
 
-    const dashboard = screen.getByRole("button", { name: /Dashboard/ });
-    expect(dashboard.getAttribute("aria-expanded")).toBe("false");
+    const settings = screen.getByRole("button", { name: /Configuración/ });
+    expect(settings.getAttribute("aria-expanded")).toBe("false");
     expect(
       screen.queryByRole("link", { name: "Correos bloqueados" }),
     ).toBeNull();
 
-    fireEvent.click(dashboard);
+    fireEvent.click(settings);
 
-    expect(dashboard.getAttribute("aria-expanded")).toBe("true");
+    expect(settings.getAttribute("aria-expanded")).toBe("true");
     expect(
       screen.getByRole("link", { name: "Correos bloqueados" }),
     ).toBeTruthy();
@@ -102,7 +128,7 @@ describe("AppSidebar", () => {
 
   it("opens the section holding the current page", () => {
     pathnameMock.mockReturnValue("/dashboard/programs/venues");
-    renderSidebar();
+    renderSidebar(admin);
 
     expect(
       screen
@@ -139,7 +165,7 @@ describe("AppSidebar", () => {
   });
 
   it("names the account and its role", () => {
-    renderSidebar();
+    renderSidebar(admin);
 
     expect(
       screen.getByRole("button", { name: "Cuenta de Camila Rojas" })

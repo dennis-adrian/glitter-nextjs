@@ -263,6 +263,10 @@ export default async function HomePage() {
   const hub = await loadParticipationHub();
 
   if (hub.kind === "signed-out") redirect("/");
+  // Staff have an Inicio of their own, made for their work.
+  if (hub.profile.role === "admin" || hub.profile.role === "festival_admin") {
+    redirect("/dashboard");
+  }
 
   if (hub.kind === "not-verified") {
     const { profile } = hub;

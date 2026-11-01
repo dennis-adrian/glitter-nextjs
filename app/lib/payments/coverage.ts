@@ -1,3 +1,4 @@
+import type { FullReservationWithTender } from "@/app/api/reservations/definitions";
 import type { InvoiceStatus } from "@/app/data/invoices/definitions";
 import type { InvoiceTender } from "@/app/lib/payments/tender";
 
@@ -112,3 +113,23 @@ export const COVERAGE_FILTER_OPTIONS: {
   { value: "paid", label: LABELS.paid },
   { value: "cancelled", label: LABELS.cancelled },
 ];
+
+/**
+ * Coverage for the reservation's invoice, or null when it carries none.
+ *
+ * A reservation has exactly one invoice in every creation path, so reading the
+ * first is safe — but the schema does not enforce it, so this returns null
+ * rather than asserting.
+ */
+export function reservationCoverageState(
+  reservation: Pick<FullReservationWithTender, "invoices" | "tender" | "status">,
+): CoverageState | null {
+  const invoice = reservation.invoices[0];
+  if (!invoice || !reservation.tender) return null;
+  return deriveCoverageState({
+    invoiceStatus: invoice.status,
+    reservationStatus: reservation.status,
+    tender: reservation.tender,
+    dueAt: invoice.dueAt,
+  });
+}

@@ -2,6 +2,7 @@ import AnnouncementStrip from "@/app/components/navbar/announcement-strip";
 import NavbarClient from "@/app/components/navbar/navbar-client";
 import {
   resolveNavFlags,
+  resolveStaffFestival,
   resolveSuppliesOpen,
 } from "@/app/components/navbar/nav-flags";
 import {
@@ -37,7 +38,10 @@ export default async function Navbar() {
   const viewer = layoutViewer
     ? { role: layoutViewer.role, status: layoutViewer.status }
     : null;
-  const suppliesOpen = await resolveSuppliesOpen(viewer?.status);
+  const [suppliesOpen, activeFestival] = await Promise.all([
+    resolveSuppliesOpen(viewer?.status),
+    resolveStaffFestival(viewer?.role),
+  ]);
 
   return (
     <div data-site-navbar data-sticky-top className="sticky top-0 z-50">
@@ -46,6 +50,7 @@ export default async function Navbar() {
         programsHref={programsHref}
         creditsEnabled={creditsEnabled}
         suppliesOpen={suppliesOpen}
+        activeFestival={activeFestival}
         blogEnabled={blogEnabled}
         notificationsEnabled={notificationsEnabled}
         pushPublicKey={pushPublicKey}

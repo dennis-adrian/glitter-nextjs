@@ -35,7 +35,14 @@ function Row({ link }: { link: NavLink }) {
         className="flex min-h-12 items-center gap-3 px-1 py-2 text-[15px] font-medium text-brand-ink hover:text-brand-primary"
       >
         <Icon className="size-5 shrink-0" aria-hidden="true" />
-        <span className="flex-1">{link.label}</span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span>{link.label}</span>
+          {link.description ? (
+            <span className="text-xs font-normal text-brand-neutral">
+              {link.description}
+            </span>
+          ) : null}
+        </span>
         {link.isNew ? (
           <>
             <span
@@ -92,7 +99,7 @@ export default function MoreMenu({
 }: MoreMenuProps) {
   const { signOut } = useClerk();
   const router = useRouter();
-  const { groups } = buildAppNavigation({
+  const { groups, more } = buildAppNavigation({
     viewer,
     programsHref,
     blogEnabled,
@@ -102,7 +109,9 @@ export default function MoreMenu({
 
   // Mi espacio first: in the installed app the destinations in "Explorar"
   // already have tabs, so the personal pages are what people come here for.
-  const ordered = [
+  // Staff have a "Más" of their own; for participants, Mi espacio first:
+  // the destinations in "Explorar" already have tabs.
+  const ordered = more ?? [
     ...groups.filter((group) => group.key === "mine"),
     ...groups.filter((group) => group.key !== "mine"),
   ];

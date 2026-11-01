@@ -11,6 +11,7 @@ import AppSidebar from "@/app/components/navbar/app-sidebar";
 import AppTabBar from "@/app/components/navbar/app-tab-bar";
 import {
   buildAppNavigation,
+  type StaffFestival,
   PORTAL_HREF,
   type NavViewer,
 } from "@/app/components/navbar/app-navigation";
@@ -28,6 +29,8 @@ type Props = {
   creditsEnabled: boolean;
   /** The supplies market is open; Tiendita then holds both stores. */
   suppliesOpen?: boolean;
+  /** For staff: the festival in progress, which leads their sidebar. */
+  activeFestival?: StaffFestival | null;
   /** Hides the blog entry until the blog is public. */
   blogEnabled: boolean;
   /** Shows the bell to whoever the `notifications` flag lets in. */
@@ -53,6 +56,7 @@ export default function NavbarClient({
   programsHref,
   creditsEnabled,
   suppliesOpen = false,
+  activeFestival = null,
   blogEnabled,
   notificationsEnabled,
   pushPublicKey = null,
@@ -68,6 +72,7 @@ export default function NavbarClient({
     blogEnabled,
     creditsEnabled,
     suppliesOpen,
+    activeFestival,
   });
 
   const showShell = signedIn && !isNoNavigationPage(pathname);
@@ -96,6 +101,7 @@ export default function NavbarClient({
                   blogEnabled={blogEnabled}
                   creditsEnabled={creditsEnabled}
                   suppliesOpen={suppliesOpen}
+                  activeFestival={activeFestival}
                 >
                   <MenuIcon className="h-5 w-5" />
                 </MobileSidebar>

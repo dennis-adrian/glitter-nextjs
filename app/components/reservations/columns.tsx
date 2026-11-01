@@ -29,29 +29,10 @@ import { EyeOffIcon } from "lucide-react";
 import CoverageCell from "@/app/components/payments/coverage-cell";
 import ViewPaymentProofCell from "@/app/components/payments/cells/view-payment-proof-cell";
 import {
-  deriveCoverageState,
+  reservationCoverageState,
   type CoverageState,
 } from "@/app/lib/payments/coverage";
 
-/**
- * Coverage for the reservation's invoice, or null when it carries none.
- *
- * A reservation has exactly one invoice in every creation path, so reading the
- * first is safe — but the schema does not enforce it, so this returns null
- * rather than asserting.
- */
-function reservationCoverageState(
-  reservation: FullReservationWithTender,
-): CoverageState | null {
-  const invoice = reservation.invoices[0];
-  if (!invoice || !reservation.tender) return null;
-  return deriveCoverageState({
-    invoiceStatus: invoice.status,
-    reservationStatus: reservation.status,
-    tender: reservation.tender,
-    dueAt: invoice.dueAt,
-  });
-}
 
 /**
  * Where a reservation's credits went — the two answers are independent.

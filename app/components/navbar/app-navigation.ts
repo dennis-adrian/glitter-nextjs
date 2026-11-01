@@ -32,6 +32,11 @@ import {
 } from "lucide-react";
 
 import type { BaseProfile } from "@/app/api/users/definitions";
+import {
+  festivalSectionHref,
+  visibleFestivalSections,
+} from "@/app/components/festivals/festival-sections";
+import type { FestivalBase } from "@/app/lib/festivals/definitions";
 
 /**
  * The one description of where Glitter's navigation leads. The desktop
@@ -57,6 +62,8 @@ export type NavLink = {
   activePrefixes?: string[];
   /** One line under the label, where a menu has room for it. */
   description?: string;
+  /** Lit only on its own page, not on the pages under it (staff Inicio). */
+  exact?: boolean;
   /**
    * Destinations inside this entry, like the two stores of Tiendita. The
    * entry is then a heading over them, and the tab bar opens a sheet to pick
@@ -70,14 +77,33 @@ export type NavSection = {
   label: string;
   icon: LucideIcon;
   items: NavLink[];
+  /** Open from the start, like the festival in progress for staff. */
+  defaultOpen?: boolean;
 };
 
 export type NavGroup = {
-  key: "explore" | "mine" | "admin";
+  key:
+    | "explore"
+    | "mine"
+    | "admin"
+    | "home"
+    | "festival"
+    | "operation"
+    | "people"
+    | "sections"
+    | "account";
+  /** Empty for a group that needs no heading, like staff's Inicio. */
   label: string;
   items: NavLink[];
-  /** Collapsible sub-lists; only the admin group has them. */
+  /** Collapsible sub-lists, for staff. */
   sections?: NavSection[];
+};
+
+/** The festival in progress, as staff navigation needs it. */
+export type StaffFestival = {
+  id: number;
+  name: string;
+  status: FestivalBase["status"];
 };
 
 export type AppNavigationInput = {
@@ -89,6 +115,8 @@ export type AppNavigationInput = {
   creditsEnabled?: boolean;
   /** The supplies market is open; it is only ever offered to verified profiles. */
   suppliesOpen?: boolean;
+  /** For staff: the festival in progress, whose sections lead the sidebar. */
+  activeFestival?: StaffFestival | null;
 };
 
 export type AppNavigation = {
@@ -96,6 +124,8 @@ export type AppNavigation = {
   tabs: NavLink[];
   /** Grouped entries for the sidebar, the mobile sheet and "Más". */
   groups: NavGroup[];
+  /** Staff's own, shorter "Más"; participants' "Más" renders `groups`. */
+  more?: NavGroup[];
 };
 
 export const PORTAL_HREF = "/portal";
@@ -420,11 +450,243 @@ const ADMIN: NavSection = {
   ],
 };
 
-function adminSections(viewer: NavViewer | null): NavSection[] {
-  if (viewer?.role === "admin") return [ADMIN, PROGRAMS_ADMIN];
-  if (viewer?.role === "festival_admin")
-    return [FESTIVAL_ADMIN, PROGRAMS_ADMIN];
-  return [];
+const STAFF_HOME_HREF = "/dashboard";
+
+/** An admin page by its key, so each entry is described once. */
+function adminLink(key: string): NavLink {
+  const link = [...ADMIN.items, ...FESTIVAL_ADMIN.items].find(
+    (item) => item.key === key,
+  );
+  if (!link) throw new Error(`Unknown admin link: ${key}`);
+  return link;
+}
+
+/** Admin's catalogue and settings pages: one screen of their own. */
+const SETTINGS_KEYS = [
+  "admin-categories",
+  "admin-terms",
+  "admin-tags",
+  "admin-discount-codes",
+  "admin-qr-codes",
+  "admin-live-acts",
+  "admin-feature-flags",
+  "admin-emails",
+  "admin-blog",
+  "admin-banners",
+  "admin-landing",
+];
+
+const SETTINGS_SECTION: NavSection = {
+  key: "admin-settings",
+  label: "Configuración",
+  icon: ToggleLeftIcon,
+  items: SETTINGS_KEYS.map(adminLink),
+};
+
+/** What admins work on day to day besides the festival. */
+const OPERATION_KEYS = [
+  "admin-store",
+  "admin-users",
+  "admin-profile-requests",
+  "admin-infractions",
+  "admin-credits",
+  "admin-external-participants",
+];
+
+/** The few pages a festival admin may open besides festivals and programs. */
+const FESTIVAL_ADMIN_KEYS = ["admin-infractions", "admin-banners", "admin-landing"];
+
+/** The staff screens "Más" opens for a whole section. */
+export const STAFF_MENU_SECTIONS = {
+  programas: PROGRAMS_ADMIN,
+  configuracion: SETTINGS_SECTION,
+} as const;
+
+export type StaffMenuSection = keyof typeof STAFF_MENU_SECTIONS;
+
+/** The section a staff member may open at /menu/{slug}, or null. */
+export function staffMenuSection(
+  viewer: NavViewer | null,
+  slug: string,
+): NavSection | null {
+  if (!isStaff(viewer)) return null;
+  if (slug === "programas") return PROGRAMS_ADMIN;
+  if (slug === "configuracion" && viewer?.role === "admin") {
+    return SETTINGS_SECTION;
+  }
+  return null;
+}
+
+/** The festival in progress and its admin sections, or the festivals list. */
+function staffFestivalGroup(festival: StaffFestival | null): NavGroup {
+  const allFestivals: NavLink = {
+    key: "admin-festivals",
+    label: festival ? "Todos los festivales" : "Festivales",
+    href: "/dashboard/festivals",
+    icon: CalendarIcon,
+    exact: true,
+  };
+  if (!festival) {
+    return { key: "festival", label: "Festival", items: [allFestivals] };
+  }
+  return {
+    key: "festival",
+    label: "Festival en curso",
+    items: [],
+    sections: [
+      {
+        key: "admin-festival-current",
+        label: festival.name,
+        icon: CalendarIcon,
+        defaultOpen: true,
+        items: [
+          allFestivals,
+          ...visibleFestivalSections(festival.status).map((section) => ({
+            key: `festival-${section.key}`,
+            label: section.label,
+            href: festivalSectionHref(festival.id, section),
+            icon: section.icon,
+          })),
+        ],
+      },
+    ],
+  };
+}
+
+/**
+ * Staff navigation. Staff do not take part in festivals, so the participant
+ * shell has nothing for them: their Inicio is what waits for review, the
+ * festival and the store are tabs of their own (programs for festival
+ * admins, who have no store), and "Más" is short, with programs and the
+ * settings pages each on one screen of their own.
+ */
+function buildStaffNavigation(
+  viewer: NavViewer | null,
+  activeFestival: StaffFestival | null,
+): AppNavigation {
+  const isAdmin = viewer?.role === "admin";
+  const home: NavLink = {
+    key: "home",
+    label: "Inicio",
+    href: STAFF_HOME_HREF,
+    icon: HomeIcon,
+    exact: true,
+  };
+  const festivalTab: NavLink = {
+    key: "festival",
+    label: "Festival",
+    href: "/dashboard/festival",
+    icon: CalendarIcon,
+    activePrefixes: ["/dashboard/festivals"],
+  };
+  const thirdTab: NavLink = isAdmin
+    ? {
+        key: "store",
+        label: "Tienda",
+        href: "/dashboard/store/analytics",
+        icon: StoreIcon,
+        activePrefixes: ["/dashboard/store"],
+      }
+    : {
+        key: "programs",
+        label: "Programas",
+        href: "/dashboard/programs",
+        icon: LibraryBigIcon,
+        activePrefixes: ["/dashboard/programs"],
+      };
+  const tabs: NavLink[] = [
+    home,
+    festivalTab,
+    thirdTab,
+    {
+      key: "more",
+      label: "Más",
+      href: MORE_MENU_HREF,
+      icon: MenuIcon,
+      // Whatever a destination tab does not own, including their account.
+      activePrefixes: [
+        MORE_MENU_HREF,
+        "/dashboard",
+        "/my_profile",
+        "/my_orders",
+        "/my_notifications",
+        "/orders/",
+      ],
+    },
+  ];
+
+  const groups: NavGroup[] = [
+    { key: "home", label: "", items: [home] },
+    staffFestivalGroup(activeFestival),
+    isAdmin
+      ? {
+          key: "operation",
+          label: "Operación",
+          items: OPERATION_KEYS.map(adminLink),
+          sections: [PROGRAMS_ADMIN, SETTINGS_SECTION],
+        }
+      : {
+          key: "operation",
+          label: "Gestión",
+          items: FESTIVAL_ADMIN_KEYS.map(adminLink),
+          sections: [PROGRAMS_ADMIN],
+        },
+  ];
+
+  const programsRow: NavLink = {
+    key: "menu-programs",
+    label: "Programas",
+    description: "Programas, ingresos, inscripciones, pagos, códigos, expositores y lugares",
+    href: "/menu/programas",
+    icon: CalendarCheck2Icon,
+  };
+  const settingsRow: NavLink = {
+    key: "menu-settings",
+    label: "Configuración",
+    description:
+      "Categorías, términos, etiquetas, códigos, QR, presentaciones, funcionalidades, correos, blog, carrusel y contenido de inicio",
+    href: "/menu/configuracion",
+    icon: ToggleLeftIcon,
+  };
+  const account: NavGroup = {
+    key: "account",
+    label: "Mi cuenta",
+    items: [
+      {
+        key: "orders",
+        label: "Mis pedidos",
+        href: "/my_orders",
+        icon: ShoppingBagIcon,
+      },
+    ],
+  };
+
+  const more: NavGroup[] = isAdmin
+    ? [
+        {
+          key: "people",
+          label: "Personas",
+          items: OPERATION_KEYS.filter((key) => key !== "admin-store").map(
+            adminLink,
+          ),
+        },
+        {
+          key: "sections",
+          label: "Más secciones",
+          items: [programsRow, settingsRow],
+        },
+        account,
+      ]
+    : [
+        {
+          key: "operation",
+          label: "Gestión",
+          items: FESTIVAL_ADMIN_KEYS.map(adminLink),
+        },
+        account,
+      ];
+
+  return { tabs, groups, more };
 }
 
 /** Pages a signed-in person reaches through "Más", so its tab stays lit there. */
@@ -449,7 +711,12 @@ export function buildAppNavigation({
   blogEnabled = false,
   creditsEnabled = false,
   suppliesOpen = false,
+  activeFestival = null,
 }: AppNavigationInput): AppNavigation {
+  // Staff do not take part in festivals: they get a shell made for their
+  // work instead of the participant one.
+  if (isStaff(viewer)) return buildStaffNavigation(viewer, activeFestival);
+
   const festival = festivalLink(viewer);
   const store = storeLink(suppliesOpen && isVerified(viewer));
 
@@ -507,21 +774,9 @@ export function buildAppNavigation({
       : []),
   ];
 
-  const sections = adminSections(viewer);
-
   const groups: NavGroup[] = [
     { key: "explore", label: "Explorar", items: explore },
     { key: "mine", label: "Mi espacio", items: mine },
-    ...(isStaff(viewer) && sections.length > 0
-      ? [
-          {
-            key: "admin" as const,
-            label: "Administración",
-            items: [],
-            sections,
-          },
-        ]
-      : []),
   ];
 
   const tabs: NavLink[] = [
@@ -547,6 +802,7 @@ export function buildAppNavigation({
  */
 export function isNavLinkActive(link: NavLink, pathname: string): boolean {
   const href = link.href.split("?")[0];
+  if (link.exact) return pathname === href;
   const prefixes = [href, ...(link.activePrefixes ?? [])];
 
   return prefixes.some((prefix) => {

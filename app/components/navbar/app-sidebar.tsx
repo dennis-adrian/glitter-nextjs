@@ -196,7 +196,7 @@ function SidebarSection({
   const containsActive = section.items.some((item) =>
     isNavLinkActive(item, pathname),
   );
-  const [open, setOpen] = useState(containsActive);
+  const [open, setOpen] = useState(containsActive || Boolean(section.defaultOpen));
   const Icon = section.icon;
 
   // A rail has no room for a sub-list: the section becomes one icon that
@@ -397,7 +397,9 @@ export default function AppSidebar({
       <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pb-3">
         {groups.map((group) => (
           <div key={group.key} className="flex flex-col">
-            {collapsed ? (
+            {!group.label ? (
+              <span aria-hidden="true" className="pt-3" />
+            ) : collapsed ? (
               <span
                 aria-hidden="true"
                 className="mx-auto my-2 h-px w-8 bg-brand-border"
@@ -408,7 +410,7 @@ export default function AppSidebar({
               </h2>
             )}
             <ul
-              aria-label={collapsed ? group.label : undefined}
+              aria-label={collapsed && group.label ? group.label : undefined}
               className="flex flex-col gap-0.5"
             >
               {group.items.map((item) =>

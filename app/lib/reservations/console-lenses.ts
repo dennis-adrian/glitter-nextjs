@@ -159,6 +159,13 @@ export function lensInitialState(
 }
 
 /**
+ * The payment states the settlement queue opens on: what waits for a
+ * decision. Staff's Inicio counts the same states, so its number is what the
+ * queue lists.
+ */
+export const COBROS_COVERAGE = ["under_review", "partial", "overdue"] as const;
+
+/**
  * What each lens opens on.
  *
  * These are defaults, not restrictions: both appear in the filter bar as
@@ -171,7 +178,7 @@ const LENS_FILTERS: Record<
 > = {
   reservas: [],
   // The settlement queue opens on what is waiting for a decision.
-  cobros: [{ id: "coverage", value: ["under_review", "partial", "overdue"] }],
+  cobros: [{ id: "coverage", value: [...COBROS_COVERAGE] }],
   // "Reservas con créditos aplicados o extras pagados con crédito" — the
   // subtitle promised a narrowed list and the lens showed every reservation in
   // the festival, which made the tab indistinguishable from Cobros.

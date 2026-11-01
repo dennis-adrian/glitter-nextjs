@@ -12,6 +12,7 @@ import { ThemeSegmentedControl } from "@/app/components/mode-toggle";
 import {
   buildAppNavigation,
   buildPublicNavigation,
+  type StaffFestival,
   isNavLinkActive,
   PORTAL_HREF,
   type NavLink,
@@ -80,6 +81,7 @@ type MobileSidebarProps = {
   /** Hides the wallet entry until credits are revealed. */
   creditsEnabled?: boolean;
   suppliesOpen?: boolean;
+  activeFestival?: StaffFestival | null;
   children: React.ReactNode;
 };
 
@@ -95,6 +97,7 @@ const MobileSidebar = ({
   blogEnabled = false,
   creditsEnabled = false,
   suppliesOpen = false,
+  activeFestival = null,
 }: MobileSidebarProps) => {
   const { signOut } = useClerk();
   const { isSignedIn } = useUser();
@@ -113,6 +116,7 @@ const MobileSidebar = ({
         blogEnabled,
         creditsEnabled,
         suppliesOpen,
+        activeFestival,
       })
         .groups
     : null;
@@ -155,7 +159,7 @@ const MobileSidebar = ({
           {groups ? (
             groups.map((group) => (
               <div key={group.key}>
-                <GroupHeading>{group.label}</GroupHeading>
+                {group.label ? <GroupHeading>{group.label}</GroupHeading> : null}
                 <ul className="flex flex-col">
                   {group.items.map((item) =>
                     item.children?.length ? (
