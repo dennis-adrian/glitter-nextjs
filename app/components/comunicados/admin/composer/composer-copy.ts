@@ -3,6 +3,7 @@ import {
   COMUNICADO_ESSENTIAL_REASON_MIN,
   COMUNICADO_MAX_RECIPIENTS,
   COMUNICADO_TEXT_MAX,
+  COMUNICADO_VISITOR_MAX_RECIPIENTS,
 } from "@/app/lib/comunicados/definitions";
 import { COMUNICADO_SKIP_REASONS } from "@/app/lib/comunicados/skip-reasons";
 import { formatAudienceCount } from "@/app/lib/distribution_lists/definitions";
@@ -191,4 +192,38 @@ export function missingForSend(input: ReadinessInput): string[] {
     missing.push("por qué es esencial");
   }
   return missing;
+}
+
+/** The visitor audience's cap, as the composer warns of it (§L). */
+export const VISITOR_TOO_LARGE_TEXT = `Por ahora un comunicado a visitantes llega a ${fmt(COMUNICADO_VISITOR_MAX_RECIPIENTS)} direcciones como máximo.`;
+
+/** What a comunicado to visitors is, said where the admin picks it (§L). */
+export const VISITORS_EMAIL_ONLY_TEXT =
+  "Solo por correo: no tienen cuenta en Glitter, así que no les llega a la bandeja de la app ni como notificación. Sale como «Novedades» de Productora Glitter, con un enlace para darse de baja.";
+
+/** "1 dirección", "8.240 direcciones". */
+export function addressCountText(count: number) {
+  return count === 1 ? "1 dirección" : `${fmt(count)} direcciones`;
+}
+
+/**
+ * "Lo recibirían 8.240 direcciones." with, on a preview, who gets it there
+ * instead (B6).
+ */
+export function visitorReachText(
+  preview: ComunicadoAudiencePreview,
+  env: ComposerEnv,
+) {
+  if (!preview.narrowed) {
+    return preview.willReceive === 1
+      ? "Le llegaría a 1 dirección."
+      : `Les llegaría a ${addressCountText(preview.willReceive)}.`;
+  }
+  const reach =
+    preview.willReceive === 1
+      ? "lo recibiría 1 administrador"
+      : `lo recibirían ${fmt(preview.willReceive)} administradores`;
+  const tail =
+    env === "development" ? " En desarrollo no se envían correos." : "";
+  return `Estás en un entorno de prueba: ${reach} en lugar de las ${addressCountText(preview.eligible)} de visitantes y compradores.${tail}`;
 }

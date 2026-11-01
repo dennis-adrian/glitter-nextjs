@@ -1773,6 +1773,7 @@ describeDatabase("starting a comunicado send", () => {
       );
       expect(result.confirmation).toEqual({
         comunicadoId: id,
+        audienceKind: "users",
         version: 1,
         title: "Cambio de horario de armado",
         sendEmail: true,

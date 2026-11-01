@@ -250,6 +250,9 @@ describeDatabase("visitor registration actions", () => {
       firstName: "Camila",
       lastName: "Rojas",
       phoneNumber: "+59171234567",
+      // Not ticked: a new visitor's "no" is stored, so Novedades skip them.
+      newsOptIn: false,
+      newsOptInAt: null,
     });
     expect(stored!.birthdate.toISOString()).toBe("1998-03-02T12:00:00.000Z");
 
@@ -296,9 +299,7 @@ describeDatabase("visitor registration actions", () => {
     });
     cookieJar.set(
       "glitter_visitor_email",
-      (
-        await import("@/app/lib/visitors/access-tokens")
-      ).signVisitorToken({
+      (await import("@/app/lib/visitors/access-tokens")).signVisitorToken({
         purpose: "pending-email",
         subject: victim.email,
         ttlMs: 60_000,
@@ -315,6 +316,29 @@ describeDatabase("visitor registration actions", () => {
       .from(visitors)
       .where(eq(visitors.id, victim.id));
     expect(unchanged).toMatchObject({ firstName: "Ana", lastName: "Pérez" });
+  });
+
+  it("stores a ticked «Quiero recibir novedades» with when it was ticked", async () => {
+    const festival = await createFestival();
+    const email = uniqueEmail("news");
+    await actions.startVisitorRegistration({
+      festivalId: festival.id,
+      email,
+      mode: "online",
+    });
+    const registered = await actions.registerVisitor({
+      festivalId: festival.id,
+      mode: "online",
+      email,
+      details: { ...newVisitorDetails, newsOptIn: true },
+    });
+    expect(registered).toMatchObject({ success: true });
+    const [stored] = await integrationDb!
+      .select()
+      .from(visitors)
+      .where(eq(visitors.email, email.toLowerCase()));
+    expect(stored!.newsOptIn).toBe(true);
+    expect(stored!.newsOptInAt).toBeInstanceOf(Date);
   });
 
   it("refuses details meant for an email another tab has since replaced", async () => {
@@ -460,9 +484,10 @@ describeDatabase("visitor registration actions", () => {
     });
 
     it("stays closed on a day without festival", async () => {
-      const festival = await createFestival({ eventDayRegistration: true }, [
-        1, 2,
-      ]);
+      const festival = await createFestival(
+        { eventDayRegistration: true },
+        [1, 2],
+      );
       const visitor = await createVisitor(uniqueEmail("door-early"));
       await actions.startVisitorRegistration({
         festivalId: festival.id,
@@ -538,9 +563,8 @@ describeDatabase("visitor registration actions", () => {
       const [mail] = sendEmail.mock.calls[0]!;
       expect(mail.to).toEqual([visitor.email]);
 
-      const { visitorIdFromHistoryToken } = await import(
-        "@/app/lib/visitors/session"
-      );
+      const { visitorIdFromHistoryToken } =
+        await import("@/app/lib/visitors/session");
       const html = JSON.stringify(mail.react);
       const token = decodeURIComponent(
         /access\?token=([^"\\&]+)/.exec(html)![1]!,

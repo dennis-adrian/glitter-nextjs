@@ -52,6 +52,7 @@ function confirmation(
   return {
     comunicadoId: 7,
     version: 3,
+    audienceKind: "users",
     title: "Cambio de horario de armado",
     sendEmail: true,
     sendPush: false,
@@ -622,5 +623,52 @@ describe("confirmTitle", () => {
   it("says this comunicado before the numbers bring its title", () => {
     expect(confirmTitle("send", null)).toBe("¿Enviar este comunicado?");
     expect(confirmTitle("schedule", null)).toBe("¿Programar este comunicado?");
+  });
+});
+
+describe("a comunicado to visitors (§L)", () => {
+  const visitorPreview = preview({
+    matched: 1_000,
+    eligible: 930,
+    willReceive: 930,
+    skipped: [
+      { reason: "No aceptó recibir novedades", count: 50 },
+      { reason: "Se dio de baja de las novedades", count: 20 },
+    ],
+    skippedTotal: 70,
+  });
+
+  it("reads as email only: no app, no device", () => {
+    expect(
+      values(
+        confirmation({ audienceKind: "visitors", preview: visitorPreview }),
+      ),
+    ).toEqual({
+      "Pueden recibirlo hoy": "930 direcciones",
+      "Por correo": "930",
+      "En la app": "No: no tienen cuenta",
+      "En el dispositivo": "No",
+      "No lo reciben":
+        "70 · 50 no aceptó recibir novedades · 20 se dio de baja de las novedades",
+    });
+  });
+
+  it("says so in a callout, and on a preview who gets it instead", () => {
+    const production = confirmCallouts(
+      confirmation({ audienceKind: "visitors", preview: visitorPreview }),
+    );
+    expect(production.map((callout) => callout.kind)).toEqual(["email_only"]);
+    expect(production[0]!.text).toContain("Solo por correo");
+
+    const onPreview = confirmCallouts(
+      confirmation({
+        audienceKind: "visitors",
+        env: "preview",
+        preview: { ...visitorPreview, narrowed: true, willReceive: 3 },
+      }),
+    );
+    expect(onPreview.map((callout) => callout.text)).toContain(
+      "Estás en un entorno de prueba: lo recibirían 3 administradores en lugar de las 930 direcciones de visitantes y compradores.",
+    );
   });
 });

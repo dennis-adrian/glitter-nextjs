@@ -44,6 +44,8 @@ export type ComunicadoEmailProps = {
   essentialFestivalName?: string | null;
   /** Any environment but production, test sends included (D7). */
   staging: boolean;
+  /** A comunicado to visitors and guest buyers: says why they get it (§L). */
+  visitors?: boolean;
   /** Origin the Glitter paths are joined to, from `publicBaseUrl()`. */
   baseUrl: string;
 };
@@ -55,12 +57,18 @@ export function comunicadoEssentialNote(festivalName: string) {
   return `Es un correo esencial sobre tu participación en ${festivalName}: llega también a quienes se dieron de baja de los anuncios.`;
 }
 
+/** Why someone without an account gets a comunicado (§L). */
+export const COMUNICADO_VISITOR_NOTE =
+  "Te escribimos porque te registraste para visitar un festival de Productora Glitter o compraste en nuestra tienda. Son nuestras novedades: podés darte de baja cuando quieras.";
+
 /** The footer's small print, in the order it is printed. */
 export function comunicadoFooterNotes(opts: {
   essentialFestivalName?: string | null;
   staging: boolean;
+  visitors?: boolean;
 }): string[] {
   const notes: string[] = [];
+  if (opts.visitors) notes.push(COMUNICADO_VISITOR_NOTE);
   const festival = opts.essentialFestivalName?.trim();
   if (festival) notes.push(comunicadoEssentialNote(festival));
   if (opts.staging) notes.push(COMUNICADO_STAGING_NOTE);
@@ -108,6 +116,7 @@ export default function ComunicadoEmail({
   unsubscribeUrl,
   essentialFestivalName,
   staging,
+  visitors = false,
   baseUrl,
 }: ComunicadoEmailProps) {
   const label = actionLabel?.trim();
@@ -141,7 +150,11 @@ export default function ComunicadoEmail({
         </Container>
         <EmailFooter
           unsubscribeUrl={unsubscribeUrl}
-          notes={comunicadoFooterNotes({ essentialFestivalName, staging })}
+          notes={comunicadoFooterNotes({
+            essentialFestivalName,
+            staging,
+            visitors,
+          })}
         />
       </Body>
     </Html>

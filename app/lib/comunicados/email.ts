@@ -26,6 +26,8 @@ export const COMUNICADOS_FROM_STAGING =
   "Productora Glitter (prueba) <anuncios@productoraglitter.com>";
 /** Replies reach support, as order emails do. */
 export const COMUNICADOS_REPLY_TO = "soporte@productoraglitter.com";
+/** A visitor comunicado's replies reach the team's general inbox (§L). */
+export const COMUNICADOS_VISITORS_REPLY_TO = "glitter@productoraglitter.com";
 
 /**
  * "[Prev] [Prueba] Cambio de horario de armado": the environment label
@@ -59,6 +61,11 @@ export type ComunicadoEmailInput = {
   staging: boolean;
   /** "[Prueba]" in the subject. */
   test: boolean;
+  /**
+   * To visitors and guest buyers (§L): the footer says why they get it, and
+   * replies go to the team's inbox.
+   */
+  visitors?: boolean;
   /** `publicBaseUrl()`, which the caller has already checked. */
   baseUrl: string;
 };
@@ -112,13 +119,16 @@ export async function renderComunicadoEmail(
       unsubscribeUrl: input.unsubscribeUrl,
       essentialFestivalName: input.essentialFestivalName,
       staging: input.staging,
+      visitors: input.visitors === true,
       baseUrl: input.baseUrl,
     }),
   );
 
   return {
     from: input.staging ? COMUNICADOS_FROM_STAGING : COMUNICADOS_FROM,
-    replyTo: COMUNICADOS_REPLY_TO,
+    replyTo: input.visitors
+      ? COMUNICADOS_VISITORS_REPLY_TO
+      : COMUNICADOS_REPLY_TO,
     subject: comunicadoEmailSubject(input.title, {
       test: input.test,
       envLabel: input.staging ? getEnvLabel() : "",

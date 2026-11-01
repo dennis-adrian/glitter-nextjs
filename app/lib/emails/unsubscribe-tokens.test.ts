@@ -39,6 +39,14 @@ describe("unsubscribe tokens", () => {
     expect(verifyUnsubscribeToken(signUnsubscribeToken(user))).toEqual(user);
   });
 
+  it("round-trips a visitor comunicado's contact under Novedades", () => {
+    const contact = { kind: "contact" as const, id: 9, topic: "news" as const };
+    const token = signUnsubscribeToken(contact);
+    expect(verifyUnsubscribeToken(token)).toEqual(contact);
+    // Another kind, same id: another token.
+    expect(token).not.toBe(signUnsubscribeToken({ ...contact, kind: "user" }));
+  });
+
   /** A retried batch must carry the same body to keep its idempotency key. */
   it("is the same every time it is made", () => {
     expect(signUnsubscribeToken(SUBJECT)).toBe(signUnsubscribeToken(SUBJECT));
