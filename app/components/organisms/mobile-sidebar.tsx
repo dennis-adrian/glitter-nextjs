@@ -92,6 +92,8 @@ type MobileSidebarProps = {
   creditsEnabled?: boolean;
   /** The `comunicados` flag for this viewer; shown to global admins only. */
   communicationsEnabled?: boolean;
+  /** Staff's check-in, enrollments and program payments exist only then. */
+  paidProgramsEnabled?: boolean;
   suppliesOpen?: boolean;
   activeFestival?: StaffFestival | null;
   children: React.ReactNode;
@@ -109,6 +111,7 @@ const MobileSidebar = ({
   blogEnabled = false,
   creditsEnabled = false,
   communicationsEnabled = false,
+  paidProgramsEnabled = false,
   suppliesOpen = false,
   activeFestival = null,
 }: MobileSidebarProps) => {
@@ -129,6 +132,7 @@ const MobileSidebar = ({
         blogEnabled,
         creditsEnabled,
         communicationsEnabled,
+        paidProgramsEnabled,
         suppliesOpen,
         activeFestival,
       })

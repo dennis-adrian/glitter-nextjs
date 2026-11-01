@@ -21,7 +21,13 @@ import { getPublishedLandingContent } from "@/app/lib/landing_content/data";
  */
 export default async function Navbar() {
   const [
-    { programsHref, creditsEnabled, blogEnabled, communicationsEnabled },
+    {
+      programsHref,
+      creditsEnabled,
+      blogEnabled,
+      communicationsEnabled,
+      paidProgramsEnabled,
+    },
     notificationsEnabled,
     pushPublicKey,
     landingContent,
@@ -53,6 +59,7 @@ export default async function Navbar() {
         activeFestival={activeFestival}
         blogEnabled={blogEnabled}
         communicationsEnabled={communicationsEnabled}
+        paidProgramsEnabled={paidProgramsEnabled}
         notificationsEnabled={notificationsEnabled}
         pushPublicKey={pushPublicKey}
         viewer={viewer}

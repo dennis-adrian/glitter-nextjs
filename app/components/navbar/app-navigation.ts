@@ -120,6 +120,11 @@ export type AppNavigationInput = {
   blogEnabled?: boolean;
   creditsEnabled?: boolean;
   /**
+   * The `paid_programs` flag: check-in, enrollments and program payments
+   * only exist while it is on.
+   */
+  paidProgramsEnabled?: boolean;
+  /**
    * The `comunicados` flag for this viewer. Its entry is only ever added for
    * global admins, so festival admins never see it.
    */
@@ -317,6 +322,27 @@ const PROGRAMS_ADMIN: NavSection = {
     },
   ],
 };
+
+/**
+ * Programs pages that exist only while paid programs are on: each answers
+ * not found otherwise (`requireFeatureEnabled("paid_programs")`).
+ */
+const PAID_PROGRAMS_KEYS = [
+  "admin-programs-check-in",
+  "admin-programs-enrollments",
+  "admin-programs-purchases",
+];
+
+/** The programs section, without the pages paid programs bring while off. */
+function programsAdminSection(paidProgramsEnabled: boolean): NavSection {
+  if (paidProgramsEnabled) return PROGRAMS_ADMIN;
+  return {
+    ...PROGRAMS_ADMIN,
+    items: PROGRAMS_ADMIN.items.filter(
+      (item) => !PAID_PROGRAMS_KEYS.includes(item.key),
+    ),
+  };
+}
 
 const festivalsAdminLink: NavLink = {
   key: "admin-festivals",
@@ -533,9 +559,10 @@ export type StaffMenuSection = keyof typeof STAFF_MENU_SECTIONS;
 export function staffMenuSection(
   viewer: NavViewer | null,
   slug: string,
+  { paidProgramsEnabled = false }: { paidProgramsEnabled?: boolean } = {},
 ): NavSection | null {
   if (!isStaff(viewer)) return null;
-  if (slug === "programas") return PROGRAMS_ADMIN;
+  if (slug === "programas") return programsAdminSection(paidProgramsEnabled);
   if (slug === "configuracion" && viewer?.role === "admin") {
     return SETTINGS_SECTION;
   }
@@ -590,9 +617,11 @@ function buildStaffNavigation(
   viewer: NavViewer | null,
   activeFestival: StaffFestival | null,
   communicationsEnabled: boolean,
+  paidProgramsEnabled: boolean,
 ): AppNavigation {
   const isAdmin = viewer?.role === "admin";
   const operation = operationKeys(communicationsEnabled);
+  const programs = programsAdminSection(paidProgramsEnabled);
   const home: NavLink = {
     key: "home",
     label: "Inicio",
@@ -664,13 +693,13 @@ function buildStaffNavigation(
           key: "operation",
           label: "Operación",
           items: operation.map(adminLink),
-          sections: [PROGRAMS_ADMIN, SETTINGS_SECTION],
+          sections: [programs, SETTINGS_SECTION],
         }
       : {
           key: "operation",
           label: "Gestión",
           items: FESTIVAL_ADMIN_KEYS.map(adminLink),
-          sections: [PROGRAMS_ADMIN],
+          sections: [programs],
         },
     // Their own pages stay reachable where there is no "Más" tab.
     account,
@@ -679,7 +708,9 @@ function buildStaffNavigation(
   const programsRow: NavLink = {
     key: "menu-programs",
     label: "Programas",
-    description: "Programas, ingresos, inscripciones, pagos, códigos, expositores y lugares",
+    description: paidProgramsEnabled
+      ? "Programas, ingresos, inscripciones, pagos, códigos, expositores y lugares"
+      : "Programas, códigos, expositores y lugares",
     href: "/menu/programas",
     icon: CalendarCheck2Icon,
   };
@@ -714,6 +745,9 @@ function buildStaffNavigation(
           label: "Gestión",
           items: FESTIVAL_ADMIN_KEYS.map(adminLink),
         },
+        // Their Programas tab opens the programs list only; check-in,
+        // enrollments, payments and the rest are reached from here.
+        { key: "sections", label: "Más secciones", items: [programsRow] },
         account,
       ];
 
@@ -742,13 +776,19 @@ export function buildAppNavigation({
   blogEnabled = false,
   creditsEnabled = false,
   communicationsEnabled = false,
+  paidProgramsEnabled = false,
   suppliesOpen = false,
   activeFestival = null,
 }: AppNavigationInput): AppNavigation {
   // Staff do not take part in festivals: they get a shell made for their
   // work instead of the participant one.
   if (isStaff(viewer)) {
-    return buildStaffNavigation(viewer, activeFestival, communicationsEnabled);
+    return buildStaffNavigation(
+      viewer,
+      activeFestival,
+      communicationsEnabled,
+      paidProgramsEnabled,
+    );
   }
 
   const festival = festivalLink(viewer);

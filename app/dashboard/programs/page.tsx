@@ -14,6 +14,7 @@ import {
   fetchProgramsForAdmin,
   fetchStandaloneSessionsForAdmin,
 } from "@/app/lib/programs/data";
+import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { DateTime } from "luxon";
 import { redirect } from "next/navigation";
@@ -22,9 +23,10 @@ export default async function ProgramsDashboardPage() {
   const profile = await requireAdminOrFestivalAdmin();
   if (!profile) redirect("/dashboard");
 
-  const [programs, standaloneSessions] = await Promise.all([
+  const [programs, standaloneSessions, paidProgramsEnabled] = await Promise.all([
     fetchProgramsForAdmin(),
     fetchStandaloneSessionsForAdmin(),
+    isFeatureEnabled("paid_programs", profile),
   ]);
   const now = new Date();
 
@@ -38,6 +40,26 @@ export default async function ProgramsDashboardPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {/* The day-to-day pages first: this list is festival admins'
+              Programas tab, and the door's check-in starts here. They only
+              exist while paid programs are on. */}
+          {paidProgramsEnabled ? (
+            <>
+              <Button asChild variant="outline">
+                <Link href="/dashboard/programs/check-in">
+                  Registrar ingresos
+                </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/dashboard/programs/enrollments">Inscripciones</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/dashboard/programs/purchases">
+                  Pagos por revisar
+                </Link>
+              </Button>
+            </>
+          ) : null}
           <Button asChild variant="outline">
             <Link href="/dashboard/programs/promo-codes">Códigos promo</Link>
           </Button>

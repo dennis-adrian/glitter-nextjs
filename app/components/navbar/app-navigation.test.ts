@@ -214,6 +214,62 @@ describe("buildAppNavigation groups", () => {
     expect(all).not.toContain("/dashboard/store/analytics");
   });
 
+  it("gives festival admins every programs page from Más, not only the list", () => {
+    const more = buildAppNavigation({
+      viewer: { role: "festival_admin", status: "verified" },
+    }).more!;
+
+    expect(more.map((entry) => entry.label)).toEqual([
+      "Gestión",
+      "Más secciones",
+      "Mi cuenta",
+    ]);
+    expect(hrefs(more[1].items)).toEqual(["/menu/programas"]);
+    // The screen it opens lists check-in, enrollments and payments.
+    expect(
+      hrefs(
+        staffMenuSection(
+          { role: "festival_admin", status: "verified" },
+          "programas",
+          { paidProgramsEnabled: true },
+        )!.items,
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        "/dashboard/programs/check-in",
+        "/dashboard/programs/enrollments",
+        "/dashboard/programs/purchases",
+      ]),
+    );
+  });
+
+  it("leaves out the pages paid programs bring while the flag is off", () => {
+    const paidOnly = [
+      "/dashboard/programs/check-in",
+      "/dashboard/programs/enrollments",
+      "/dashboard/programs/purchases",
+    ];
+    for (const role of ["admin", "festival_admin"] as const) {
+      const viewer = { role, status: "verified" as const };
+      const screen = hrefs(staffMenuSection(viewer, "programas")!.items);
+      const sidebar = buildAppNavigation({ viewer }).groups.flatMap((group) =>
+        (group.sections ?? []).flatMap((section) => hrefs(section.items)),
+      );
+      for (const href of paidOnly) {
+        expect(screen).not.toContain(href);
+        expect(sidebar).not.toContain(href);
+      }
+      expect(screen).toContain("/dashboard/programs");
+
+      const on = buildAppNavigation({ viewer, paidProgramsEnabled: true });
+      expect(
+        on.groups.flatMap((group) =>
+          (group.sections ?? []).flatMap((section) => hrefs(section.items)),
+        ),
+      ).toEqual(expect.arrayContaining(paidOnly));
+    }
+  });
+
   it("opens the staff section screens only for who may see them", () => {
     expect(
       staffMenuSection({ role: "admin", status: "verified" }, "configuracion")?.label,

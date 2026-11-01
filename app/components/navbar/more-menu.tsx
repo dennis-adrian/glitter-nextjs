@@ -88,6 +88,8 @@ type MoreMenuProps = {
   creditsEnabled: boolean;
   /** The `comunicados` flag for this viewer; shown to global admins only. */
   communicationsEnabled?: boolean;
+  /** Staff's check-in, enrollments and program payments exist only then. */
+  paidProgramsEnabled?: boolean;
   suppliesOpen?: boolean;
 };
 
@@ -98,6 +100,7 @@ export default function MoreMenu({
   blogEnabled,
   creditsEnabled,
   communicationsEnabled = false,
+  paidProgramsEnabled = false,
   suppliesOpen = false,
 }: MoreMenuProps) {
   const { signOut } = useClerk();
@@ -108,6 +111,7 @@ export default function MoreMenu({
     blogEnabled,
     creditsEnabled,
     communicationsEnabled,
+    paidProgramsEnabled,
     suppliesOpen,
   });
 

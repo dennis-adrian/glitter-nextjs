@@ -38,6 +38,8 @@ type Props = {
    * Comunicaciones entry for global admins only.
    */
   communicationsEnabled?: boolean;
+  /** Staff's check-in, enrollments and program payments exist only then. */
+  paidProgramsEnabled?: boolean;
   /** Shows the bell to whoever the `notifications` flag lets in. */
   notificationsEnabled: boolean;
   /** Offers avisos in the bell; null when they are not open to this viewer. */
@@ -64,6 +66,7 @@ export default function NavbarClient({
   activeFestival = null,
   blogEnabled,
   communicationsEnabled = false,
+  paidProgramsEnabled = false,
   notificationsEnabled,
   pushPublicKey = null,
   viewer: serverViewer = null,
@@ -78,6 +81,7 @@ export default function NavbarClient({
     blogEnabled,
     creditsEnabled,
     communicationsEnabled,
+    paidProgramsEnabled,
     // A static page renders without a viewer, so the server could not check
     // the supplies market; a verified participant keeps both stores there,
     // and the market itself says if it is closed.
@@ -112,6 +116,7 @@ export default function NavbarClient({
                   blogEnabled={blogEnabled}
                   creditsEnabled={creditsEnabled}
                   communicationsEnabled={communicationsEnabled}
+                  paidProgramsEnabled={paidProgramsEnabled}
                   suppliesOpen={suppliesOpen}
                   activeFestival={activeFestival}
                 >

@@ -6,6 +6,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 
 import Heading from "@/app/components/atoms/heading";
 import { staffMenuSection } from "@/app/components/navbar/app-navigation";
+import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 type PageProps = { params: Promise<{ section: string }> };
@@ -29,6 +30,7 @@ export default async function StaffMenuSectionPage({ params }: PageProps) {
   const section = staffMenuSection(
     { role: profile.role, status: profile.status },
     slug,
+    { paidProgramsEnabled: await isFeatureEnabled("paid_programs", profile) },
   );
   if (!section) notFound();
 
