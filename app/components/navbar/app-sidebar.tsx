@@ -131,6 +131,58 @@ function SidebarLink({
   );
 }
 
+/**
+ * An entry that holds other destinations, like Tiendita's two stores: a
+ * heading with its destinations under it, so no two rows lead to the same
+ * page. A rail has no room for the list, so there it is one icon opening the
+ * first destination, lit on any of them.
+ */
+function SidebarParent({
+  link,
+  pathname,
+  collapsed,
+}: {
+  link: NavLink;
+  pathname: string;
+  collapsed: boolean;
+}) {
+  const children = link.children ?? [];
+  const Icon = link.icon;
+
+  if (collapsed) {
+    return (
+      <SidebarLink
+        link={{ ...link, href: children[0]?.href ?? link.href }}
+        pathname={pathname}
+        collapsed
+        active={children.some((child) => isNavLinkActive(child, pathname))}
+      />
+    );
+  }
+
+  return (
+    <li>
+      <div className="flex h-10 items-center gap-3 px-3 text-sm font-medium text-brand-ink">
+        <Icon className="size-5 shrink-0" aria-hidden="true" />
+        <span className="truncate">{link.label}</span>
+      </div>
+      <ul
+        aria-label={link.label}
+        className="ml-4 flex flex-col gap-0.5 border-l border-brand-border pl-2"
+      >
+        {children.map((child) => (
+          <SidebarLink
+            key={child.key}
+            link={child}
+            pathname={pathname}
+            collapsed={false}
+          />
+        ))}
+      </ul>
+    </li>
+  );
+}
+
 function SidebarSection({
   section,
   pathname,
@@ -359,14 +411,23 @@ export default function AppSidebar({
               aria-label={collapsed ? group.label : undefined}
               className="flex flex-col gap-0.5"
             >
-              {group.items.map((item) => (
-                <SidebarLink
-                  key={item.key}
-                  link={item}
-                  pathname={pathname}
-                  collapsed={collapsed}
-                />
-              ))}
+              {group.items.map((item) =>
+                item.children?.length ? (
+                  <SidebarParent
+                    key={item.key}
+                    link={item}
+                    pathname={pathname}
+                    collapsed={collapsed}
+                  />
+                ) : (
+                  <SidebarLink
+                    key={item.key}
+                    link={item}
+                    pathname={pathname}
+                    collapsed={collapsed}
+                  />
+                ),
+              )}
               {group.sections?.map((section) => (
                 <SidebarSection
                   key={section.key}

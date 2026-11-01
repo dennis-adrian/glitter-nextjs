@@ -79,6 +79,7 @@ type MobileSidebarProps = {
   blogEnabled?: boolean;
   /** Hides the wallet entry until credits are revealed. */
   creditsEnabled?: boolean;
+  suppliesOpen?: boolean;
   children: React.ReactNode;
 };
 
@@ -93,6 +94,7 @@ const MobileSidebar = ({
   programsHref = null,
   blogEnabled = false,
   creditsEnabled = false,
+  suppliesOpen = false,
 }: MobileSidebarProps) => {
   const { signOut } = useClerk();
   const { isSignedIn } = useUser();
@@ -105,7 +107,13 @@ const MobileSidebar = ({
     ? { role: profile.role, status: profile.status }
     : null;
   const groups = isSignedIn
-    ? buildAppNavigation({ viewer, programsHref, blogEnabled, creditsEnabled })
+    ? buildAppNavigation({
+        viewer,
+        programsHref,
+        blogEnabled,
+        creditsEnabled,
+        suppliesOpen,
+      })
         .groups
     : null;
   const publicLinks = groups
@@ -149,9 +157,33 @@ const MobileSidebar = ({
               <div key={group.key}>
                 <GroupHeading>{group.label}</GroupHeading>
                 <ul className="flex flex-col">
-                  {group.items.map((item) => (
-                    <SheetLink key={item.key} link={item} pathname={pathname} />
-                  ))}
+                  {group.items.map((item) =>
+                    item.children?.length ? (
+                      <li key={item.key}>
+                        <span className="flex items-center gap-3 p-2 text-brand-neutral">
+                          <item.icon
+                            className="h-6 w-6 shrink-0"
+                            aria-hidden="true"
+                          />
+                          {item.label}
+                        </span>
+                        <ul
+                          aria-label={item.label}
+                          className="ml-5 flex flex-col border-l border-brand-border pl-2"
+                        >
+                          {item.children.map((child) => (
+                            <SheetLink
+                              key={child.key}
+                              link={child}
+                              pathname={pathname}
+                            />
+                          ))}
+                        </ul>
+                      </li>
+                    ) : (
+                      <SheetLink key={item.key} link={item} pathname={pathname} />
+                    ),
+                  )}
                 </ul>
                 {group.sections?.map((section) => (
                   <div key={section.key} className="mt-1">

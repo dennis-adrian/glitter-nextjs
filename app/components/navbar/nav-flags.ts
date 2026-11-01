@@ -31,3 +31,21 @@ export async function resolveNavFlags() {
 
   return { programsHref, creditsEnabled, blogEnabled };
 }
+
+/**
+ * Whether Tiendita should hold the supplies market too: only verified
+ * profiles are offered it, so nobody else's navigation reads the store
+ * settings (the navbar also renders on static pages, with no viewer).
+ */
+export async function resolveSuppliesOpen(
+  viewerStatus: string | null | undefined,
+): Promise<boolean> {
+  if (viewerStatus !== "verified") return false;
+  // Loaded here, not at the top: the store settings bring the database
+  // client, which a navbar for anyone else never needs.
+  const { resolveSectionClosure } = await import(
+    "@/app/lib/store_settings/closure"
+  );
+  const closure = await resolveSectionClosure("supplies").catch(() => null);
+  return closure ? !closure.closed : false;
+}

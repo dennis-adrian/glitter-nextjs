@@ -79,6 +79,7 @@ type MoreMenuProps = {
   programsHref: string | null;
   blogEnabled: boolean;
   creditsEnabled: boolean;
+  suppliesOpen?: boolean;
 };
 
 export default function MoreMenu({
@@ -87,6 +88,7 @@ export default function MoreMenu({
   programsHref,
   blogEnabled,
   creditsEnabled,
+  suppliesOpen = false,
 }: MoreMenuProps) {
   const { signOut } = useClerk();
   const router = useRouter();
@@ -95,6 +97,7 @@ export default function MoreMenu({
     programsHref,
     blogEnabled,
     creditsEnabled,
+    suppliesOpen,
   });
 
   // Mi espacio first: in the installed app the destinations in "Explorar"
@@ -146,9 +149,13 @@ export default function MoreMenu({
         <Card key={group.key} title={group.label}>
           {group.items.length > 0 ? (
             <ul>
-              {group.items.map((item) => (
-                <Row key={item.key} link={item} />
-              ))}
+              {/* An entry holding destinations (Tiendita's two stores) is
+                  its destinations here, one row each. */}
+              {group.items
+                .flatMap((item) => item.children ?? [item])
+                .map((item) => (
+                  <Row key={item.key} link={item} />
+                ))}
             </ul>
           ) : null}
           {group.sections?.map((section) => (

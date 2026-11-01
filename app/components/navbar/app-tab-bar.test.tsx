@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { buildAppNavigation } from "@/app/components/navbar/app-navigation";
@@ -10,10 +10,11 @@ vi.mock("next/navigation", () => ({ usePathname: pathnameMock }));
 
 afterEach(cleanup);
 
-function renderTabBar(pathname: string) {
+function renderTabBar(pathname: string, suppliesOpen = false) {
   pathnameMock.mockReturnValue(pathname);
   const { tabs } = buildAppNavigation({
     viewer: { role: "user", status: "verified" },
+    suppliesOpen,
   });
   return render(<AppTabBar tabs={tabs} />);
 }
@@ -54,5 +55,18 @@ describe("AppTabBar", () => {
     );
 
     expect(container.querySelector("[data-app-tabbar]")).toBeNull();
+  });
+
+  it("asks which store when the supplies market is open", async () => {
+    renderTabBar("/portal", true);
+
+    expect(screen.queryByRole("link", { name: /Tiendita/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Tiendita/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      [...dialog.querySelectorAll("a")].map((link) => link.getAttribute("href")),
+    ).toEqual(["/merch", "/supplies"]);
+    expect(dialog.textContent).toContain("Insumos y alquileres para tu stand");
   });
 });

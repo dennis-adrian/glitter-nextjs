@@ -55,6 +55,14 @@ export type NavLink = {
    * href. A tab is lit for every page reached through it, not only its root.
    */
   activePrefixes?: string[];
+  /** One line under the label, where a menu has room for it. */
+  description?: string;
+  /**
+   * Destinations inside this entry, like the two stores of Tiendita. The
+   * entry is then a heading over them, and the tab bar opens a sheet to pick
+   * one instead of navigating.
+   */
+  children?: NavLink[];
 };
 
 export type NavSection = {
@@ -79,6 +87,8 @@ export type AppNavigationInput = {
   programsHref?: string | null;
   blogEnabled?: boolean;
   creditsEnabled?: boolean;
+  /** The supplies market is open; it is only ever offered to verified profiles. */
+  suppliesOpen?: boolean;
 };
 
 export type AppNavigation = {
@@ -136,13 +146,40 @@ function festivalLink(viewer: NavViewer | null): NavLink {
 
 const STORE_PREFIXES = ["/merch", "/supplies", "/store", "/checkout"];
 
-function storeLink(): NavLink {
-  return {
+/**
+ * Tiendita. Most people have one store, so the entry is the merch store.
+ * When the supplies market is open to this viewer it holds both stores, and
+ * the tab bar asks which one.
+ */
+function storeLink(withSupplies = false): NavLink {
+  const store: NavLink = {
     key: "store",
     label: "Tiendita",
     href: "/merch",
     icon: StoreIcon,
     activePrefixes: STORE_PREFIXES,
+  };
+  if (!withSupplies) return store;
+  return {
+    ...store,
+    children: [
+      {
+        key: "store-merch",
+        label: "Merch",
+        description: "Colecciones, combos y productos de Glitter",
+        href: "/merch",
+        icon: StoreIcon,
+        activePrefixes: ["/merch", "/store", "/checkout"],
+      },
+      {
+        key: "store-supplies",
+        label: "Mercadito de Insumos",
+        description: "Insumos y alquileres para tu stand",
+        href: "/supplies",
+        icon: PackageIcon,
+        activePrefixes: ["/supplies"],
+      },
+    ],
   };
 }
 
@@ -172,7 +209,10 @@ const blogLink: NavLink = {
 export function buildPublicNavigation({
   programsHref = null,
   blogEnabled = false,
-}: Omit<AppNavigationInput, "viewer" | "creditsEnabled">): NavLink[] {
+}: Omit<
+  AppNavigationInput,
+  "viewer" | "creditsEnabled" | "suppliesOpen"
+>): NavLink[] {
   return [
     { key: "home", label: "Inicio", href: "/", icon: HomeIcon },
     {
@@ -408,23 +448,14 @@ export function buildAppNavigation({
   programsHref = null,
   blogEnabled = false,
   creditsEnabled = false,
+  suppliesOpen = false,
 }: AppNavigationInput): AppNavigation {
   const festival = festivalLink(viewer);
-  const store = storeLink();
+  const store = storeLink(suppliesOpen && isVerified(viewer));
 
   const explore: NavLink[] = [
     festival,
     store,
-    ...(isVerified(viewer)
-      ? [
-          {
-            key: "supplies",
-            label: "Mercadito de Insumos",
-            href: "/supplies",
-            icon: PackageIcon,
-          },
-        ]
-      : []),
     ...(programsHref ? [programsLink(programsHref)] : []),
     ...(blogEnabled ? [blogLink] : []),
   ];

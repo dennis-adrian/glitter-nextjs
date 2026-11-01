@@ -50,10 +50,13 @@ const profile = {
 
 function renderSidebar(
   viewer: NavViewer = { role: "admin", status: "verified" },
+  suppliesOpen = false,
 ) {
   return render(
     <AppSidebar
-      groups={buildAppNavigation({ viewer, creditsEnabled: true }).groups}
+      groups={
+        buildAppNavigation({ viewer, creditsEnabled: true, suppliesOpen }).groups
+      }
       profile={profile}
       viewer={viewer}
     />,
@@ -142,5 +145,19 @@ describe("AppSidebar", () => {
       screen.getByRole("button", { name: "Cuenta de Camila Rojas" })
         .textContent,
     ).toContain("Administración");
+  });
+
+  it("shows Tiendita as a heading over its two stores, with no duplicate link", () => {
+    pathnameMock.mockReturnValue("/supplies");
+    renderSidebar({ role: "user", status: "verified" }, true);
+
+    const stores = screen.getByRole("list", { name: "Tiendita" });
+    expect(
+      [...stores.querySelectorAll("a")].map((link) => link.getAttribute("href")),
+    ).toEqual(["/merch", "/supplies"]);
+    expect(
+      screen.getByRole("link", { name: "Mercadito de Insumos" }).getAttribute("aria-current"),
+    ).toBe("page");
+    expect(screen.queryByRole("link", { name: "Tiendita" })).toBeNull();
   });
 });

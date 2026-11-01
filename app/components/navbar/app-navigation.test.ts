@@ -100,13 +100,32 @@ describe("buildAppNavigation groups", () => {
     }
   });
 
-  it("offers the supplies market only to verified participants", () => {
+  it("puts both stores under Tiendita only for verified participants while supplies are open", () => {
+    const store = (viewer: typeof verified, suppliesOpen: boolean) =>
+      group(buildAppNavigation({ viewer, suppliesOpen }), "explore")!.items.find(
+        (item) => item.key === "store",
+      )!;
+
+    expect(hrefs(store(verified, true).children ?? [])).toEqual([
+      "/merch",
+      "/supplies",
+    ]);
+    // No separate supplies entry next to Tiendita.
     expect(
-      hrefs(group(buildAppNavigation({ viewer: verified }), "explore")!.items),
-    ).toContain("/supplies");
-    expect(
-      hrefs(group(buildAppNavigation({ viewer: pending }), "explore")!.items),
+      hrefs(group(buildAppNavigation({ viewer: verified, suppliesOpen: true }), "explore")!.items),
     ).not.toContain("/supplies");
+    expect(store(verified, false).children).toBeUndefined();
+    expect(store(pending, true).children).toBeUndefined();
+  });
+
+  it("gives the Tiendita tab both stores too, so it can ask which one", () => {
+    const tab = buildAppNavigation({ viewer: verified, suppliesOpen: true }).tabs.find(
+      (entry) => entry.key === "store",
+    )!;
+    expect(tab.children?.map((child) => child.label)).toEqual([
+      "Merch",
+      "Mercadito de Insumos",
+    ]);
   });
 
   it("has no administration group for participants", () => {

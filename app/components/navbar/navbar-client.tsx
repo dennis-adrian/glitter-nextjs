@@ -26,6 +26,8 @@ type Props = {
   programsHref: string | null;
   /** Hides the wallet entry in the user menu until credits are revealed. */
   creditsEnabled: boolean;
+  /** The supplies market is open; Tiendita then holds both stores. */
+  suppliesOpen?: boolean;
   /** Hides the blog entry until the blog is public. */
   blogEnabled: boolean;
   /** Shows the bell to whoever the `notifications` flag lets in. */
@@ -50,6 +52,7 @@ type Props = {
 export default function NavbarClient({
   programsHref,
   creditsEnabled,
+  suppliesOpen = false,
   blogEnabled,
   notificationsEnabled,
   pushPublicKey = null,
@@ -64,6 +67,7 @@ export default function NavbarClient({
     programsHref,
     blogEnabled,
     creditsEnabled,
+    suppliesOpen,
   });
 
   const showShell = signedIn && !isNoNavigationPage(pathname);
@@ -91,6 +95,7 @@ export default function NavbarClient({
                   programsHref={programsHref}
                   blogEnabled={blogEnabled}
                   creditsEnabled={creditsEnabled}
+                  suppliesOpen={suppliesOpen}
                 >
                   <MenuIcon className="h-5 w-5" />
                 </MobileSidebar>

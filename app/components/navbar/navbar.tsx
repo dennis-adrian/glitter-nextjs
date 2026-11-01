@@ -1,6 +1,9 @@
 import AnnouncementStrip from "@/app/components/navbar/announcement-strip";
 import NavbarClient from "@/app/components/navbar/navbar-client";
-import { resolveNavFlags } from "@/app/components/navbar/nav-flags";
+import {
+  resolveNavFlags,
+  resolveSuppliesOpen,
+} from "@/app/components/navbar/nav-flags";
 import {
   getLayoutViewer,
   isLayoutFeatureEnabled,
@@ -34,6 +37,7 @@ export default async function Navbar() {
   const viewer = layoutViewer
     ? { role: layoutViewer.role, status: layoutViewer.status }
     : null;
+  const suppliesOpen = await resolveSuppliesOpen(viewer?.status);
 
   return (
     <div data-site-navbar data-sticky-top className="sticky top-0 z-50">
@@ -41,6 +45,7 @@ export default async function Navbar() {
       <NavbarClient
         programsHref={programsHref}
         creditsEnabled={creditsEnabled}
+        suppliesOpen={suppliesOpen}
         blogEnabled={blogEnabled}
         notificationsEnabled={notificationsEnabled}
         pushPublicKey={pushPublicKey}

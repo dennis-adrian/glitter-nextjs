@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import MoreMenu from "@/app/components/navbar/more-menu";
-import { resolveNavFlags } from "@/app/components/navbar/nav-flags";
+import {
+  resolveNavFlags,
+  resolveSuppliesOpen,
+} from "@/app/components/navbar/nav-flags";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export const metadata: Metadata = {
@@ -23,6 +26,7 @@ export default async function MoreMenuPage() {
   if (!profile) {
     redirect("/sign_in");
   }
+  const suppliesOpen = await resolveSuppliesOpen(profile.status);
 
   return (
     <MoreMenu
@@ -35,6 +39,7 @@ export default async function MoreMenuPage() {
         imageUrl: profile.imageUrl ?? null,
       }}
       {...flags}
+      suppliesOpen={suppliesOpen}
     />
   );
 }
