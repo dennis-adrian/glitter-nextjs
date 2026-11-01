@@ -15,6 +15,7 @@ import { participantSkipReasonSql } from "@/app/lib/participants/recipient-eligi
 import { db } from "@/db";
 import {
   distributionListMembers,
+  distributionListRemovals,
   profileSubcategories,
   reservationParticipants,
   standReservations,
@@ -206,4 +207,84 @@ export async function classifyMembers(
     userId: Number(row.user_id),
     reason: row.reason,
   }));
+}
+
+/**
+ * For "Traer nuevos" (B10): the distinct participants `originIds` selects who
+ * are not on fixed list `listId`, each with whether they were removed from it
+ * by hand. Lists hold participants only, so anyone else is never offered.
+ */
+export function pullCandidatesSql(listId: number, originIds: SQL): SQL {
+  return sql`
+    SELECT ${users.id} AS user_id,
+           EXISTS (
+             SELECT 1 FROM ${distributionListRemovals}
+             WHERE ${distributionListRemovals.listId} = ${listId}
+               AND ${distributionListRemovals.userId} = ${users.id}
+           ) AS removed
+    FROM (SELECT DISTINCT o.user_id FROM (${originIds}) AS o(user_id)) AS d
+    JOIN ${users} ON ${users.id} = d.user_id
+    WHERE ${users.role} = 'user'
+      AND NOT EXISTS (
+        SELECT 1 FROM ${distributionListMembers}
+        WHERE ${distributionListMembers.listId} = ${listId}
+          AND ${distributionListMembers.userId} = ${users.id}
+      )`;
+}
+
+/** What a copy remembers of its origin (`distribution_lists.origin_*`). */
+export type ListOriginColumns = {
+  originFestivalId: number | null;
+  originListId: number | null;
+  originName: string | null;
+};
+
+/**
+ * The origin's members as SQL, resolved again now. Refuses when the list is
+ * not a copy, when the origin is gone, and when its filter no longer parses.
+ * An archived origin list still resolves, as it does for a draft (B2).
+ */
+export async function originMemberIdsSql(
+  executor: Executor,
+  origin: ListOriginColumns,
+): Promise<{ ok: true; memberIds: SQL } | { ok: false; message: string }> {
+  if (origin.originFestivalId !== null) {
+    return {
+      ok: true,
+      memberIds: confirmadosMemberIdsSql([origin.originFestivalId]),
+    };
+  }
+  if (origin.originListId !== null) {
+    const result = await executor.execute<{
+      id: number;
+      name: string;
+      kind: DistributionListKind;
+      filter: unknown;
+    }>(sql`SELECT id, name, kind, filter FROM distribution_lists
+           WHERE id = ${origin.originListId}`);
+    const list = result.rows[0];
+    if (list) {
+      try {
+        return {
+          ok: true,
+          memberIds: listMemberIdsSql({ ...list, id: Number(list.id) }),
+        };
+      } catch (error) {
+        if (error instanceof UnreadableListFilterError) {
+          return { ok: false, message: error.message };
+        }
+        throw error;
+      }
+    }
+  }
+  if (origin.originName === null) {
+    return {
+      ok: false,
+      message: "Esta lista no es copia de otra: no hay de dónde traer nuevos.",
+    };
+  }
+  return {
+    ok: false,
+    message: `«${origin.originName}» ya no existe: no hay de dónde traer nuevos.`,
+  };
 }

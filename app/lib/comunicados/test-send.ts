@@ -25,7 +25,6 @@ import {
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { emailBaseUrlProblem, publicBaseUrl } from "@/app/lib/urls";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-import { getUserName } from "@/app/lib/users/utils";
 import { sendEmail } from "@/app/vendors/resend";
 import { assertSent, sendFailureType } from "@/app/vendors/resend-result";
 import { db } from "@/db";
@@ -174,7 +173,6 @@ export async function sendComunicadoTestAction(
       blocks: checked.blocks,
       actionLabel: checked.actionLabel,
       actionPath: checked.actionPath,
-      greetingName: getUserName(actor),
       unsubscribeUrl: links.pageUrl,
       essentialFestivalName: row.essential
         ? await essentialFestivalName(row.audience)

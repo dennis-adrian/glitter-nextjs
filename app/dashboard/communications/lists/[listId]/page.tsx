@@ -4,8 +4,10 @@ import { z } from "zod";
 
 import { FixedListEditor } from "@/app/components/communications/admin/fixed-list-editor";
 import ListArchiveButton from "@/app/components/communications/admin/list-archive-button";
+import ListDuplicateButton from "@/app/components/communications/admin/list-duplicate-button";
 import ListFilterEditor from "@/app/components/communications/admin/list-filter-editor";
 import ListMembersPagination from "@/app/components/communications/admin/list-members-pagination";
+import ListOriginCard from "@/app/components/communications/admin/list-origin-card";
 import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { Badge } from "@/app/components/ui/badge";
@@ -76,10 +78,27 @@ export default async function DistributionListPage(props: {
             </p>
           )}
         </div>
-        {!archived && (
-          <ListArchiveButton list={{ id: list.id, name: list.name }} />
-        )}
+        <div className="flex flex-wrap gap-2">
+          <ListDuplicateButton
+            list={{
+              source: { kind: "list", listId: list.id },
+              name: list.name,
+              dynamic: list.kind === "filter",
+            }}
+          />
+          {!archived && (
+            <ListArchiveButton list={{ id: list.id, name: list.name }} />
+          )}
+        </div>
       </div>
+
+      {list.origin && (
+        <ListOriginCard
+          listId={list.id}
+          origin={list.origin}
+          readOnly={archived}
+        />
+      )}
 
       {archived && (
         <Banner variant="info" title="Esta lista está archivada">
