@@ -8,13 +8,24 @@ import { z } from "zod";
 import CreditGiftReceivedEmail from "@/app/emails/credit-gift-received";
 import { creditGiftBlocker } from "@/app/lib/credit_gifts/access";
 import {
+  CREDIT_GIFT_LISTS_STAGING_REASON,
+  CREDIT_GIFT_MAX_RECIPIENTS,
   CREDIT_GIFT_MESSAGE_MAX_LENGTH,
   CREDIT_GIFT_TITLE_MAX_LENGTH,
   CreateCreditGiftSchema,
+  type CreditGiftRecipientOption,
+  creditGiftListAddedMessage,
+  creditGiftListTooManyMessage,
   isValidCreditGiftAmount,
   personalizeCreditGiftMessage,
 } from "@/app/lib/credit_gifts/definitions";
-import { searchCreditGiftRecipients } from "@/app/lib/credit_gifts/queries";
+import {
+  fetchCreditGiftRecipientOptions,
+  searchCreditGiftRecipients,
+} from "@/app/lib/credit_gifts/queries";
+import { DistributionListSourceSchema } from "@/app/lib/distribution_lists/definitions";
+import { resolveListSourceMembers } from "@/app/lib/distribution_lists/queries";
+import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
 import { MAX_SERIAL_ID } from "@/app/lib/notifications/definitions";
 import {
   createCreditGift,
@@ -33,6 +44,7 @@ import {
   canViewAdminReservationData,
 } from "@/app/lib/reservations/policy";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { serverEnv } from "@/env";
 
 const GIFTS_PATH = "/dashboard/credits/gifts";
 
@@ -41,6 +53,73 @@ type ActionResult = { success: boolean; message: string };
 export async function searchCreditGiftRecipientsAction(query: unknown) {
   if (typeof query !== "string") return [];
   return searchCreditGiftRecipients(query);
+}
+
+const expandListSchema = z.object({
+  source: DistributionListSourceSchema,
+  /** Who the composer already holds, so the cap counts the union. */
+  chosenIds: z
+    .array(z.number().int().positive().max(MAX_SERIAL_ID))
+    .max(CREDIT_GIFT_MAX_RECIPIENTS),
+});
+
+/**
+ * A festival's or a saved list's participants as explicit recipients (B9).
+ * The gift itself never learns about lists: the composer adds the ids and
+ * `createCreditGift` sees a plain list. Nothing is added when the union with
+ * who is already chosen would pass the cap; nothing is truncated.
+ */
+export async function expandListForCreditGiftAction(input: unknown): Promise<
+  | {
+      success: true;
+      message: string;
+      recipients: CreditGiftRecipientOption[];
+    }
+  | { success: false; message: string }
+> {
+  const actor = await getCurrentUserProfile();
+  const blocker = await creditGiftBlocker(actor);
+  if (blocker || !actor) {
+    return { success: false, message: blocker ?? "No autorizado." };
+  }
+  const blocked = await featureFlagGuard("comunicados", actor);
+  if (blocked) return blocked;
+  if (serverEnv.VERCEL_ENV !== "production") {
+    return { success: false, message: CREDIT_GIFT_LISTS_STAGING_REASON };
+  }
+  const parsed = expandListSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, message: "Elegí una lista." };
+  }
+
+  const resolved = await resolveListSourceMembers(parsed.data.source);
+  if (!resolved.ok) return { success: false, message: resolved.message };
+
+  const chosen = new Set(parsed.data.chosenIds);
+  const eligible = resolved.members.filter((member) => member.reason === null);
+  const fresh = eligible.filter((member) => !chosen.has(member.userId));
+  const skipped = resolved.members.length - eligible.length;
+  const total = chosen.size + fresh.length;
+  if (total > CREDIT_GIFT_MAX_RECIPIENTS) {
+    return {
+      success: false,
+      message: creditGiftListTooManyMessage(resolved.label, total),
+    };
+  }
+
+  const recipients = (
+    await fetchCreditGiftRecipientOptions(fresh.map((member) => member.userId))
+  ).filter((recipient) => recipient.skipReason === null);
+  return {
+    success: true,
+    recipients,
+    message: creditGiftListAddedMessage({
+      label: resolved.label,
+      added: recipients.length,
+      alreadyChosen: eligible.length - fresh.length,
+      skipped,
+    }),
+  };
 }
 
 const previewSchema = z.object({

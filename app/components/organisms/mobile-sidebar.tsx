@@ -90,6 +90,8 @@ type MobileSidebarProps = {
   blogEnabled?: boolean;
   /** Hides the wallet entry until credits are revealed. */
   creditsEnabled?: boolean;
+  /** The `comunicados` flag for this viewer; shown to global admins only. */
+  communicationsEnabled?: boolean;
   suppliesOpen?: boolean;
   activeFestival?: StaffFestival | null;
   children: React.ReactNode;
@@ -106,6 +108,7 @@ const MobileSidebar = ({
   programsHref = null,
   blogEnabled = false,
   creditsEnabled = false,
+  communicationsEnabled = false,
   suppliesOpen = false,
   activeFestival = null,
 }: MobileSidebarProps) => {
@@ -125,6 +128,7 @@ const MobileSidebar = ({
         programsHref,
         blogEnabled,
         creditsEnabled,
+        communicationsEnabled,
         suppliesOpen,
         activeFestival,
       })

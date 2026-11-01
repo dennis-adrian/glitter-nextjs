@@ -14,13 +14,17 @@ beforeEach(() => {
   saved = {
     CLERK_SECRET_KEY: env.CLERK_SECRET_KEY,
     NEXT_PUBLIC_BASE_URL: env.NEXT_PUBLIC_BASE_URL,
+    VERCEL_URL: env.VERCEL_URL,
   };
   env.CLERK_SECRET_KEY = "sk_test_links";
   env.NEXT_PUBLIC_BASE_URL = "https://www.glitter.com.bo/";
 });
 
 afterEach(() => {
-  Object.assign(env, saved);
+  for (const [name, value] of Object.entries(saved)) {
+    if (value === undefined) delete env[name];
+    else env[name] = value;
+  }
 });
 
 describe("unsubscribeLinks", () => {
@@ -49,5 +53,22 @@ describe("unsubscribeLinks", () => {
       id: 9,
       topic: "visitor_invitations",
     });
+  });
+
+  it("points a deployment without a configured base URL at its own host", () => {
+    delete env.NEXT_PUBLIC_BASE_URL;
+    env.VERCEL_URL = "glitter-abc123.vercel.app";
+
+    const links = unsubscribeLinks({ kind: "user", id: 4 }, "announcements");
+
+    expect(links.pageUrl).toMatch(
+      /^https:\/\/glitter-abc123\.vercel\.app\/email\/unsubscribe\?token=/,
+    );
+    expect(links.headers["List-Unsubscribe"]).toMatch(
+      /^<https:\/\/glitter-abc123\.vercel\.app\/api\/email\/unsubscribe\?token=/,
+    );
+    expect(
+      verifyUnsubscribeToken(new URL(links.pageUrl).searchParams.get("token")),
+    ).toEqual({ kind: "user", id: 4, topic: "announcements" });
   });
 });

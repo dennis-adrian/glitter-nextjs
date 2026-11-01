@@ -86,6 +86,8 @@ type MoreMenuProps = {
   programsHref: string | null;
   blogEnabled: boolean;
   creditsEnabled: boolean;
+  /** The `comunicados` flag for this viewer; shown to global admins only. */
+  communicationsEnabled?: boolean;
   suppliesOpen?: boolean;
 };
 
@@ -95,6 +97,7 @@ export default function MoreMenu({
   programsHref,
   blogEnabled,
   creditsEnabled,
+  communicationsEnabled = false,
   suppliesOpen = false,
 }: MoreMenuProps) {
   const { signOut } = useClerk();
@@ -104,6 +107,7 @@ export default function MoreMenu({
     programsHref,
     blogEnabled,
     creditsEnabled,
+    communicationsEnabled,
     suppliesOpen,
   });
 

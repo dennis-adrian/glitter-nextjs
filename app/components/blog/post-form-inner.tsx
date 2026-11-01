@@ -25,11 +25,11 @@ import PostSettingsSheet from "@/app/components/blog/post-settings-sheet";
 import PostStatusBadge from "@/app/components/blog/post-status-badge";
 import RequestChangesDialog from "@/app/components/blog/request-changes-dialog";
 import ReviewerNotesBanner from "@/app/components/blog/reviewer-notes-banner";
-import ScheduleDialog from "@/app/components/blog/schedule-dialog";
 import SaveIndicator, {
   type SaveStatus,
 } from "@/app/components/blog/save-indicator";
 import TitleTextarea from "@/app/components/blog/title-textarea";
+import ScheduleDialog from "@/app/components/molecules/schedule-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,6 +48,7 @@ import {
   DropdownMenuTrigger,
 } from "@/app/components/ui/dropdown-menu";
 import { Form } from "@/app/components/ui/form";
+import { formatDateTime } from "@/app/lib/formatters";
 import {
   approvePost,
   autosaveDraft,
@@ -55,6 +56,7 @@ import {
   directPublish,
   discardWorkingCopy,
   publishApproved,
+  schedulePost,
   submitForReview,
 } from "@/app/lib/posts/actions";
 import type {
@@ -767,10 +769,21 @@ export default function PostFormInner({
         />
 
         <ScheduleDialog
-          postId={post.id}
           open={scheduleOpen}
           onOpenChange={setScheduleOpen}
+          title="Programar publicación"
+          description="El artículo se publicará solo en la fecha y hora que elijas. Horario de Bolivia (La Paz)."
+          hint="La revisión del cron corre cada 15 minutos, así que puede publicarse hasta 15 minutos después de la hora elegida."
           currentScheduledAt={post.scheduledAt}
+          onConfirm={async (at) => {
+            const result = await schedulePost(post.id, at);
+            return result.success
+              ? {
+                  success: true,
+                  message: `Se publicará el ${formatDateTime(at)}`,
+                }
+              : result;
+          }}
         />
 
         <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>

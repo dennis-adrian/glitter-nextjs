@@ -53,6 +53,11 @@ export type PushSkipReason =
   /** The device was removed, or now belongs to someone else. */
   | "no_device"
   | "no_notification"
+  /**
+   * Withdrawn by whoever sent it. Such an item is archived too; this reason
+   * keeps it apart from one the person archived.
+   */
+  | "retracted"
   /** Archived, or rewritten unreadable by a profile-deletion scrub. */
   | "archived"
   /** Already opened in the app: an alert now would be old news. */
@@ -158,6 +163,7 @@ export async function attemptPushDelivery(delivery: {
       actionPath: notifications.actionPath,
       readAt: notifications.readAt,
       archivedAt: notifications.archivedAt,
+      retractedAt: notifications.retractedAt,
       role: users.role,
       deviceUserId: pushSubscriptions.userId,
       endpoint: pushSubscriptions.endpoint,
@@ -192,6 +198,7 @@ export async function attemptPushDelivery(delivery: {
     return { kind: "release", reason: "key_mismatch" };
   }
   if (row.deleting) return { kind: "skip", reason: "deleting" };
+  if (row.retractedAt) return { kind: "skip", reason: "retracted" };
   if (row.archivedAt) return { kind: "skip", reason: "archived" };
   if (row.readAt) return { kind: "skip", reason: "read" };
   // The inbox hides these from anyone no longer an admin; the tap would 404.

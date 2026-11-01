@@ -37,6 +37,7 @@ export default async function Page(props: {
         <UnsubscribeCard
           token={token}
           maskedEmail={maskEmail(address)}
+          topic={subject.topic}
           topicLabel={EMAIL_TOPIC_LABELS[subject.topic]}
           allTopicsLabel={EMAIL_TOPIC_LABELS.all}
           unsubscribed={await isUnsubscribed(address, subject.topic)}

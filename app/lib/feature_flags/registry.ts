@@ -66,6 +66,12 @@ export const FEATURE_FLAGS = {
     // Same as the bell: launched by flipping it once an admin has tried it.
     defaultVisibility: "admin_only",
   },
+  comunicados: {
+    label: "Comunicados",
+    description:
+      "Comunicaciones en el panel: escribir, programar y enviar comunicados a participantes, las listas de distribución y «Agregar una lista» en los regalos de créditos. Solo administradores globales. Mientras esté oculta, se habilita marcando a cada administrador. Ocultarla no frena lo ya confirmado: un envío se frena cancelando su programación o retirándolo.",
+    defaultVisibility: "hidden",
+  },
 } as const satisfies Record<string, FeatureFlagDefinition>;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;

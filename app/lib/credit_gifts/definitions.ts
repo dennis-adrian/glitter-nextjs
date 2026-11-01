@@ -2,6 +2,10 @@ import { z } from "zod";
 
 import { roundCredits } from "@/app/lib/credits/balances";
 import { MAX_SERIAL_ID } from "@/app/lib/notifications/definitions";
+import {
+  PARTICIPANT_SKIP_REASONS,
+  participantSkipReason,
+} from "@/app/lib/participants/recipient-eligibility";
 import type { creditGiftOccasionEnum } from "@/db/schema";
 
 /**
@@ -177,29 +181,19 @@ export type CreateCreditGiftInput = z.infer<typeof CreateCreditGiftSchema>;
 
 /** Why someone the admin picked will not receive the gift. */
 export const CREDIT_GIFT_SKIP_REASONS = {
-  not_participant: "No es participante",
-  not_verified: "Perfil no verificado",
-  banned: "Cuenta suspendida",
-  deletion_pending: "Cuenta en eliminación",
+  ...PARTICIPANT_SKIP_REASONS,
   cancelled: "Regalo retirado antes de acreditarse",
 } as const;
 export type CreditGiftSkipReason = keyof typeof CREDIT_GIFT_SKIP_REASONS;
 
 /**
- * Who can open a wallet, and so can hold a gift: the statuses `/my_credits`
- * lets in. Deletion is checked separately, under the account lock.
+ * Who can open a wallet, and so can hold a gift: the participant rule every
+ * admin send shares. Deletion is checked separately, under the account lock.
  */
-export function creditGiftSkipReason(recipient: {
+export const creditGiftSkipReason: (recipient: {
   role: string;
   status: string;
-}): CreditGiftSkipReason | null {
-  if (recipient.role !== "user") return "not_participant";
-  if (recipient.status === "banned") return "banned";
-  if (recipient.status !== "verified" && recipient.status !== "paused") {
-    return "not_verified";
-  }
-  return null;
-}
+}) => CreditGiftSkipReason | null = participantSkipReason;
 
 /** A participant as the composer lists them. */
 export type CreditGiftRecipientOption = {
@@ -224,6 +218,58 @@ export const CREDIT_GIFT_RECIPIENT_STATUS_LABELS = {
   skipped: "Omitido",
   failed: "Falló",
 } as const;
+
+/**
+ * "Agregar una lista" in the picker (docs/IMPLEMENTATION-comunicados.md B9):
+ * production only, global admins only, behind the `comunicados` flag.
+ */
+export type CreditGiftListsAvailability = "enabled" | "staging" | "hidden";
+
+export const CREDIT_GIFT_LISTS_STAGING_REASON =
+  "En el entorno de prueba no se pueden agregar listas a un regalo: agregá a las personas por nombre.";
+
+function people(count: number) {
+  return count === 1
+    ? "1 persona"
+    : `${count.toLocaleString("es-BO")} personas`;
+}
+
+/** Nothing is added when the list would take the gift past the cap. */
+export function creditGiftListTooManyMessage(label: string, total: number) {
+  return `Con «${label}» serían ${people(total)} y un regalo llega a ${CREDIT_GIFT_MAX_RECIPIENTS} como máximo. Elegí una lista más chica o agregá personas una por una.`;
+}
+
+/** "Agregamos 42 personas de «…» (8 ya estaban). 3 no pueden recibir regalos." */
+export function creditGiftListAddedMessage({
+  label,
+  added,
+  alreadyChosen,
+  skipped,
+}: {
+  label: string;
+  added: number;
+  alreadyChosen: number;
+  skipped: number;
+}) {
+  let text =
+    added === 0
+      ? alreadyChosen > 0
+        ? `Las personas de «${label}» ya estaban en el regalo.`
+        : `Nadie de «${label}» puede recibir regalos hoy.`
+      : `Agregamos ${people(added)} de «${label}»${
+          alreadyChosen > 0
+            ? ` (${alreadyChosen === 1 ? "1 ya estaba" : `${alreadyChosen} ya estaban`})`
+            : ""
+        }.`;
+  if (skipped > 0) {
+    text += ` ${
+      skipped === 1
+        ? "1 no puede recibir regalos."
+        : `${skipped.toLocaleString("es-BO")} no pueden recibir regalos.`
+    }`;
+  }
+  return text;
+}
 
 export const NOT_GLOBAL_ADMIN_GIFT_REASON =
   "Solo un administrador general puede regalar créditos.";

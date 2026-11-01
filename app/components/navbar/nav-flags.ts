@@ -23,13 +23,15 @@ export async function resolveProgramsHref(): Promise<string | null> {
 
 /** The flags that decide which navigation entries exist for this viewer. */
 export async function resolveNavFlags() {
-  const [programsHref, creditsEnabled, blogEnabled] = await Promise.all([
-    resolveProgramsHref(),
-    isLayoutFeatureEnabled("credits"),
-    isLayoutFeatureEnabled("blog"),
-  ]);
+  const [programsHref, creditsEnabled, blogEnabled, communicationsEnabled] =
+    await Promise.all([
+      resolveProgramsHref(),
+      isLayoutFeatureEnabled("credits"),
+      isLayoutFeatureEnabled("blog"),
+      isLayoutFeatureEnabled("comunicados"),
+    ]);
 
-  return { programsHref, creditsEnabled, blogEnabled };
+  return { programsHref, creditsEnabled, blogEnabled, communicationsEnabled };
 }
 
 /**

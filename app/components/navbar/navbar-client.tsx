@@ -33,6 +33,11 @@ type Props = {
   activeFestival?: StaffFestival | null;
   /** Hides the blog entry until the blog is public. */
   blogEnabled: boolean;
+  /**
+   * The `comunicados` flag for this viewer. Navigation adds the
+   * Comunicaciones entry for global admins only.
+   */
+  communicationsEnabled?: boolean;
   /** Shows the bell to whoever the `notifications` flag lets in. */
   notificationsEnabled: boolean;
   /** Offers avisos in the bell; null when they are not open to this viewer. */
@@ -58,6 +63,7 @@ export default function NavbarClient({
   suppliesOpen = false,
   activeFestival = null,
   blogEnabled,
+  communicationsEnabled = false,
   notificationsEnabled,
   pushPublicKey = null,
   viewer: serverViewer = null,
@@ -71,6 +77,7 @@ export default function NavbarClient({
     programsHref,
     blogEnabled,
     creditsEnabled,
+    communicationsEnabled,
     // A static page renders without a viewer, so the server could not check
     // the supplies market; a verified participant keeps both stores there,
     // and the market itself says if it is closed.
@@ -104,6 +111,7 @@ export default function NavbarClient({
                   programsHref={programsHref}
                   blogEnabled={blogEnabled}
                   creditsEnabled={creditsEnabled}
+                  communicationsEnabled={communicationsEnabled}
                   suppliesOpen={suppliesOpen}
                   activeFestival={activeFestival}
                 >

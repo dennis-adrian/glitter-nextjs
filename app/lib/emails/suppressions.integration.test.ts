@@ -173,6 +173,46 @@ function exclusion(
     );
 }
 
+type ComunicadoVerdict = { excluded: string | null; overridden: boolean };
+
+/**
+ * How a normal and an essential comunicado treat `email`, through both
+ * forms of the flag: a JS boolean (the counts) and a column (the send's
+ * pre-check), which must agree. A NULL column counts as not essential.
+ */
+async function comunicadoVerdicts(email: string) {
+  const address = sql`${email}::text`;
+  const flags = await integrationDb!.execute(
+    sql`select
+      ${suppressions.comunicadoEmailExclusion(address, { essential: false })} as normal_excluded,
+      ${suppressions.announcementOptOutOverridden(address, false)} as normal_overridden,
+      ${suppressions.comunicadoEmailExclusion(address, { essential: true })} as essential_excluded,
+      ${suppressions.announcementOptOutOverridden(address, true)} as essential_overridden`,
+  );
+  const row = flags.rows[0] as Record<string, string | boolean | null>;
+  const normal = {
+    excluded: row.normal_excluded,
+    overridden: row.normal_overridden,
+  } as ComunicadoVerdict;
+  const essential = {
+    excluded: row.essential_excluded,
+    overridden: row.essential_overridden,
+  } as ComunicadoVerdict;
+
+  const column = sql`k.essential`;
+  const columns = await integrationDb!.execute(
+    sql`select k.essential,
+      ${suppressions.comunicadoEmailExclusion(address, { essential: column })} as excluded,
+      ${suppressions.announcementOptOutOverridden(address, column)} as overridden
+    from (values (false), (true), (null::boolean)) as k(essential)`,
+  );
+  expect(
+    columns.rows.map(({ excluded, overridden }) => ({ excluded, overridden })),
+  ).toEqual([normal, essential, normal]);
+
+  return { normal, essential };
+}
+
 describeDatabase("bulk mail suppressions", () => {
   beforeAll(async () => {
     process.env.POSTGRES_URL = testDatabaseUrl;
@@ -468,6 +508,154 @@ describeDatabase("bulk mail suppressions", () => {
         excluded: "opted_out",
         reachable: false,
       });
+    });
+  });
+
+  describe("who a comunicado's email skips", () => {
+    const when = (minutes: number) => new Date(at(minutes));
+    const sent: ComunicadoVerdict = { excluded: null, overridden: false };
+    const suppressed: ComunicadoVerdict = {
+      excluded: "suppressed",
+      overridden: false,
+    };
+    const unsubscribed: ComunicadoVerdict = {
+      excluded: "unsubscribed",
+      overridden: false,
+    };
+    const overridden: ComunicadoVerdict = { excluded: null, overridden: true };
+
+    it.each<{
+      state: string;
+      setup: (email: string) => Promise<void>;
+      normal: ComunicadoVerdict;
+      essential: ComunicadoVerdict;
+    }>([
+      {
+        state: "an address with no record",
+        setup: async () => {},
+        normal: sent,
+        essential: sent,
+      },
+      {
+        state: "a bounced address",
+        setup: (email) =>
+          suppressions.recordSuppression({ address: email, reason: "bounce" }),
+        normal: suppressed,
+        essential: suppressed,
+      },
+      {
+        state: "an address that reported us",
+        setup: (email) =>
+          suppressions.recordSuppression({
+            address: email,
+            reason: "complaint",
+          }),
+        normal: suppressed,
+        essential: suppressed,
+      },
+      {
+        state: "an address whose suppression was lifted",
+        setup: async (email) => {
+          await suppressions.recordSuppression({
+            address: email,
+            reason: "complaint",
+            eventAt: when(0),
+          });
+          await suppressions.liftSuppression({
+            address: email,
+            reason: "complaint",
+            eventAt: when(5),
+          });
+        },
+        normal: sent,
+        essential: sent,
+      },
+      {
+        state: "someone unsubscribed from announcements",
+        setup: (email) => suppressions.unsubscribe(email, "announcements"),
+        normal: unsubscribed,
+        essential: overridden,
+      },
+      {
+        state: "someone unsubscribed from all bulk mail",
+        setup: (email) => suppressions.unsubscribe(email, "all"),
+        normal: unsubscribed,
+        essential: unsubscribed,
+      },
+      {
+        state: "someone unsubscribed from participant invitations only",
+        setup: (email) =>
+          suppressions.unsubscribe(email, "participant_invitations"),
+        normal: sent,
+        essential: sent,
+      },
+      {
+        state: "someone unsubscribed from visitor invitations only",
+        setup: (email) =>
+          suppressions.unsubscribe(email, "visitor_invitations"),
+        normal: sent,
+        essential: sent,
+      },
+      {
+        state: "an announcements opt-out on an address that reported us",
+        setup: async (email) => {
+          await suppressions.unsubscribe(email, "announcements");
+          await suppressions.recordSuppression({
+            address: email,
+            reason: "complaint",
+          });
+        },
+        normal: suppressed,
+        essential: suppressed,
+      },
+      {
+        state: "an announcements opt-out and an all opt-out",
+        setup: async (email) => {
+          await suppressions.unsubscribe(email, "announcements");
+          await suppressions.unsubscribe(email, "all");
+        },
+        normal: unsubscribed,
+        essential: unsubscribed,
+      },
+    ])("$state", async ({ setup, normal, essential }) => {
+      const email = address("comunicado");
+      await setup(email);
+      expect(await comunicadoVerdicts(email)).toEqual({ normal, essential });
+    });
+
+    it("matches every case and padding of the address", async () => {
+      const optedOut = address("Anuncios.Opt");
+      const bounced = address("Bounced.Opt");
+      const everything = address("All.Opt");
+      await suppressions.unsubscribe(
+        `  ${optedOut.toUpperCase()} `,
+        "announcements",
+      );
+      await suppressions.recordSuppression({
+        address: ` ${bounced.toUpperCase()}`,
+        reason: "bounce",
+      });
+      await suppressions.unsubscribe(everything, "all");
+
+      for (const variant of [
+        (email: string) => email,
+        (email: string) => email.toLowerCase(),
+        (email: string) => email.toUpperCase(),
+        (email: string) => `  ${email} `,
+      ]) {
+        expect(await comunicadoVerdicts(variant(optedOut))).toEqual({
+          normal: unsubscribed,
+          essential: overridden,
+        });
+        expect(await comunicadoVerdicts(variant(bounced))).toEqual({
+          normal: suppressed,
+          essential: suppressed,
+        });
+        expect(await comunicadoVerdicts(variant(everything))).toEqual({
+          normal: unsubscribed,
+          essential: unsubscribed,
+        });
+      }
     });
   });
 

@@ -6,14 +6,20 @@ import {
   type CreateEmailOptions,
   type CreateEmailRequestOptions,
   type CreateEmailResponse,
+  type ErrorResponse,
   Resend,
 } from "resend";
 import { serverEnv } from "../../env";
+import { retryAfterMs } from "./resend-result";
 
 export const resend = new Resend(serverEnv.RESEND_API_KEY);
 
 const RESEND_REQUEST_TIMEOUT_MS = 10_000;
 const MAX_IDEMPOTENCY_KEY_LENGTH = 256;
+/** The longest a throttled send waits before its one retry. */
+const MAX_THROTTLE_WAIT_MS = 2_000;
+/** The wait when a 429 carries no Retry-After that can be read. */
+const DEFAULT_THROTTLE_WAIT_MS = 1_000;
 
 /** Resend refuses a batch request carrying more emails than this. */
 export const RESEND_BATCH_MAX_EMAILS = 100;
@@ -45,6 +51,88 @@ function scopeIdempotencyKey(key: string): string {
   return `${serverEnv.VERCEL_ENV}:sha256:${digest}`;
 }
 
+/**
+ * Runs one request under the ten-second timeout. The SDK has no timeout of
+ * its own, only a signal it hands to fetch. A caller's signal still cancels
+ * the request instead of being replaced.
+ */
+async function withRequestTimeout<T>(
+  callerSignal: AbortSignal | undefined,
+  request: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort(new Error("Resend request timed out"));
+  }, RESEND_REQUEST_TIMEOUT_MS);
+  const signal = callerSignal
+    ? AbortSignal.any([controller.signal, callerSignal])
+    : controller.signal;
+
+  try {
+    const response = await request(signal);
+
+    // The SDK resolves an aborted request as a network failure instead of
+    // rejecting. Reject so callers' try/catch paths still see the timeout.
+    // The abort can land after Resend accepted the email but before the SDK
+    // read the reply, so a caller that retries on this should send an
+    // idempotency key.
+    if (signal.aborted) {
+      throw signal.reason;
+    }
+
+    return response;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/** A setTimeout, so fake timers drive it; a caller's abort ends it early. */
+function wait(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason);
+
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal?.reason);
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+/**
+ * Sends once more after a `rate_limit_exceeded` (429), waiting what Resend's
+ * Retry-After asks for up to two seconds, and returns that second result as
+ * it is. A 429 means Resend accepted nothing, so the same payload under the
+ * same key cannot deliver twice.
+ *
+ * Only that error is retried, and only once: a timeout may have landed, and
+ * every other refusal is the caller's to read. The cap keeps the worst case
+ * near 0.5 + 2 + 10 seconds, inside the budgets of callers that send inline.
+ */
+async function retryThrottledOnce<
+  T extends {
+    error: ErrorResponse | null;
+    headers: Record<string, string> | null;
+  },
+>(send: () => Promise<T>, callerSignal: AbortSignal | undefined): Promise<T> {
+  const first = await send();
+  if (first.error?.name !== "rate_limit_exceeded") return first;
+
+  const waitMs = Math.min(
+    MAX_THROTTLE_WAIT_MS,
+    retryAfterMs(first.headers) ?? DEFAULT_THROTTLE_WAIT_MS,
+  );
+  // The wait only: never the addresses or the message.
+  console.warn("[resend] throttled, retrying once", { waitMs });
+  await wait(waitMs, callerSignal);
+  return send();
+}
+
+/** One email, with the ten-second timeout and one retry of a 429. */
 export async function sendEmail(
   payload: CreateEmailOptions,
   options: SendEmailOptions = {},
@@ -64,60 +152,59 @@ export async function sendEmail(
     };
   }
 
-  // The SDK has no timeout of its own, only a signal it hands to fetch.
-  const controller = new AbortController();
-  const timeout = setTimeout(() => {
-    controller.abort(new Error("Resend request timed out"));
-  }, RESEND_REQUEST_TIMEOUT_MS);
-  // A caller's signal still cancels the request instead of being replaced.
-  const signal = options.signal
-    ? AbortSignal.any([controller.signal, options.signal])
-    : controller.signal;
+  const requestOptions = {
+    ...options,
+    ...(options.idempotencyKey
+      ? { idempotencyKey: scopeIdempotencyKey(options.idempotencyKey) }
+      : {}),
+  };
 
-  try {
-    const response = await resend.emails.send(payload, {
-      ...options,
-      ...(options.idempotencyKey
-        ? { idempotencyKey: scopeIdempotencyKey(options.idempotencyKey) }
-        : {}),
-      signal,
-    });
-
-    // The SDK resolves an aborted request as a network failure instead of
-    // rejecting. Reject so callers' try/catch paths still see the timeout.
-    // The abort can land after Resend accepted the email but before the SDK
-    // read the reply, so a caller that retries on this should send an
-    // idempotency key.
-    if (signal.aborted) {
-      throw signal.reason;
-    }
-
-    return response;
-  } finally {
-    clearTimeout(timeout);
-  }
+  return retryThrottledOnce(
+    () =>
+      withRequestTimeout(options.signal, (signal) =>
+        resend.emails.send(payload, { ...requestOptions, signal }),
+      ),
+    options.signal,
+  );
 }
 
-/** A batch's options: the idempotency key, scoped like a single send's. */
-export type SendBatchOptions = { idempotencyKey?: string };
+export type SendBatchOptions = {
+  /** Scoped like a single send's. */
+  idempotencyKey?: string;
+  /**
+   * `strict`, the SDK's default, fails the whole batch over one invalid
+   * email. `permissive` sends the rest and lists the refused indexes in
+   * `errors`.
+   */
+  batchValidation?: "strict" | "permissive";
+};
+
+/**
+ * The SDK's response, typed by the options' mode: `errors` exists only for
+ * a permissive batch. Or the development no-op's, marked `simulated`.
+ */
+export type SendBatchResult<
+  Options extends SendBatchOptions = SendBatchOptions,
+> =
+  | CreateBatchResponse<Options>
+  | (CreateBatchResponse<Options> & { simulated: true });
 
 /**
  * Up to `RESEND_BATCH_MAX_EMAILS` separate emails in one API call, so a
  * mailing to thousands of people costs a few dozen requests instead of
- * thousands. The batch is atomic: one invalid address fails all of it.
+ * thousands. Strict by default: one invalid address fails all of it.
  *
- * Like `sendEmail`, it has a ten-second timeout that rejects and takes an
- * optional idempotency key, which Resend honours for 24 hours so a retried
- * batch is not delivered twice. Also like it, only local development skips
- * Resend: staging (preview) deployments send real mail.
+ * Like `sendEmail`, it has a ten-second timeout that rejects, retries one
+ * 429, and takes an optional idempotency key, which Resend honours for 24
+ * hours so a retried batch is not delivered twice. Also like it, only local
+ * development skips Resend: staging (preview) deployments send real mail.
  */
-/** Strict validation, the SDK's default: the whole batch fails or sends. */
-type BatchResponse = CreateBatchResponse<CreateBatchRequestOptions>;
-
-export async function sendBatchEmails(
+export async function sendBatchEmails<
+  Options extends SendBatchOptions = SendBatchOptions,
+>(
   payload: CreateBatchOptions,
-  options: SendBatchOptions = {},
-): Promise<BatchResponse | (BatchResponse & { simulated: true })> {
+  options?: Options,
+): Promise<SendBatchResult<Options>> {
   if (payload.length > RESEND_BATCH_MAX_EMAILS) {
     throw new Error(
       `Resend batches hold at most ${RESEND_BATCH_MAX_EMAILS} emails; got ${payload.length}`,
@@ -132,40 +219,46 @@ export async function sendBatchEmails(
       payload[0]?.subject,
     );
 
+    const data = {
+      data: payload.map(() => ({ id: "not-sent" })),
+      // A permissive caller reads the refused indexes; there are none.
+      ...(options?.batchValidation === "permissive" ? { errors: [] } : {}),
+    };
+    // The mode decides the response type, which TypeScript cannot follow
+    // from the runtime check above.
     return {
-      data: { data: payload.map(() => ({ id: "not-sent" })) },
+      data,
       error: null,
       headers: null,
-      simulated: true as const,
-    } as BatchResponse & { simulated: true };
+      simulated: true,
+    } as unknown as CreateBatchResponse<Options> & { simulated: true };
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => {
-    controller.abort(new Error("Resend request timed out"));
-  }, RESEND_REQUEST_TIMEOUT_MS);
+  // The SDK maps replyTo and the rest to the API's names, sends the key as
+  // the Idempotency-Key header and the mode as x-batch-validation.
+  const requestOptions: CreateBatchRequestOptions = {
+    ...(options?.idempotencyKey
+      ? { idempotencyKey: scopeIdempotencyKey(options.idempotencyKey) }
+      : {}),
+    ...(options?.batchValidation
+      ? { batchValidation: options.batchValidation }
+      : {}),
+  };
 
-  try {
-    // The SDK maps replyTo and the rest to the API's names, and sends the
-    // key as the Idempotency-Key header.
-    const response = await resend.batch.send(payload, {
-      ...(options.idempotencyKey
-        ? { idempotencyKey: scopeIdempotencyKey(options.idempotencyKey) }
-        : {}),
-      signal: controller.signal,
-    });
-
-    // As in sendEmail: an aborted request resolves as a network failure.
-    // Reject, so the caller treats the outcome as unknown and retries with
-    // the same key.
-    if (controller.signal.aborted) {
-      throw controller.signal.reason;
-    }
-
-    return response;
-  } finally {
-    clearTimeout(timeout);
-  }
+  // As in sendEmail: a timeout rejects, so the caller treats the outcome as
+  // unknown and retries with the same key.
+  return retryThrottledOnce(
+    () =>
+      withRequestTimeout(
+        undefined,
+        (signal) =>
+          resend.batch.send(payload, {
+            ...requestOptions,
+            signal,
+          }) as Promise<CreateBatchResponse<Options>>,
+      ),
+    undefined,
+  );
 }
 
 export type ResendSuppressionRemoval =

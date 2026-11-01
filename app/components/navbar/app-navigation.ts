@@ -14,6 +14,7 @@ import {
   LibraryBigIcon,
   ListIcon,
   MailXIcon,
+  MegaphoneIcon,
   MenuIcon,
   MicIcon,
   PackageIcon,
@@ -118,6 +119,11 @@ export type AppNavigationInput = {
   programsHref?: string | null;
   blogEnabled?: boolean;
   creditsEnabled?: boolean;
+  /**
+   * The `comunicados` flag for this viewer. Its entry is only ever added for
+   * global admins, so festival admins never see it.
+   */
+  communicationsEnabled?: boolean;
   /** The supplies market is open; it is only ever offered to verified profiles. */
   suppliesOpen?: boolean;
   /** For staff: the festival in progress, whose sections lead the sidebar. */
@@ -383,6 +389,12 @@ const ADMIN: NavSection = {
       href: "/dashboard/credits",
       icon: CoinsIcon,
     },
+    {
+      key: "admin-communications",
+      label: "Comunicaciones",
+      href: "/dashboard/communications",
+      icon: MegaphoneIcon,
+    },
     festivalsAdminLink,
     {
       key: "admin-store",
@@ -495,8 +507,16 @@ const OPERATION_KEYS = [
   "admin-profile-requests",
   "admin-infractions",
   "admin-credits",
+  "admin-communications",
   "admin-external-participants",
 ];
+
+/** Operation pages behind a flag: left out while their flag is off. */
+function operationKeys(communicationsEnabled: boolean) {
+  return OPERATION_KEYS.filter(
+    (key) => communicationsEnabled || key !== "admin-communications",
+  );
+}
 
 /** The few pages a festival admin may open besides festivals and programs. */
 const FESTIVAL_ADMIN_KEYS = ["admin-infractions", "admin-banners", "admin-landing"];
@@ -569,8 +589,10 @@ function staffFestivalGroup(festival: StaffFestival | null): NavGroup {
 function buildStaffNavigation(
   viewer: NavViewer | null,
   activeFestival: StaffFestival | null,
+  communicationsEnabled: boolean,
 ): AppNavigation {
   const isAdmin = viewer?.role === "admin";
+  const operation = operationKeys(communicationsEnabled);
   const home: NavLink = {
     key: "home",
     label: "Inicio",
@@ -641,7 +663,7 @@ function buildStaffNavigation(
       ? {
           key: "operation",
           label: "Operación",
-          items: OPERATION_KEYS.map(adminLink),
+          items: operation.map(adminLink),
           sections: [PROGRAMS_ADMIN, SETTINGS_SECTION],
         }
       : {
@@ -675,9 +697,9 @@ function buildStaffNavigation(
         {
           key: "people",
           label: "Personas",
-          items: OPERATION_KEYS.filter((key) => key !== "admin-store").map(
-            adminLink,
-          ),
+          items: operation
+            .filter((key) => key !== "admin-store")
+            .map(adminLink),
         },
         {
           key: "sections",
@@ -719,12 +741,15 @@ export function buildAppNavigation({
   programsHref = null,
   blogEnabled = false,
   creditsEnabled = false,
+  communicationsEnabled = false,
   suppliesOpen = false,
   activeFestival = null,
 }: AppNavigationInput): AppNavigation {
   // Staff do not take part in festivals: they get a shell made for their
   // work instead of the participant one.
-  if (isStaff(viewer)) return buildStaffNavigation(viewer, activeFestival);
+  if (isStaff(viewer)) {
+    return buildStaffNavigation(viewer, activeFestival, communicationsEnabled);
+  }
 
   const festival = festivalLink(viewer);
   const store = storeLink(suppliesOpen && isVerified(viewer));

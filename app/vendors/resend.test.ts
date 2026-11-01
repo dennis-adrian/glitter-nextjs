@@ -1,6 +1,14 @@
 // @vitest-environment node
 import { createElement } from "react";
-import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
+import {
+  afterEach,
+  describe,
+  expect,
+  expectTypeOf,
+  it,
+  vi,
+  type Mock,
+} from "vitest";
 
 const serverEnv = vi.hoisted(() => ({
   RESEND_API_KEY: "re_test",
@@ -23,15 +31,31 @@ const payload = {
 };
 
 /** What the Resend API answers, as a real Response so the SDK can read it. */
-function resendReply(body: unknown, status = 200) {
+function resendReply(
+  body: unknown,
+  status = 200,
+  headers: Record<string, string> = {},
+) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...headers },
   });
 }
 
-function sentRequest(fetchMock: Mock) {
-  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+function throttled(headers: Record<string, string> = {}) {
+  return resendReply(
+    {
+      statusCode: 429,
+      name: "rate_limit_exceeded",
+      message: "Too many requests. You can only make 10 requests per second.",
+    },
+    429,
+    headers,
+  );
+}
+
+function sentRequest(fetchMock: Mock, call = 0) {
+  const [url, init] = fetchMock.mock.calls[call] as [string, RequestInit];
 
   return {
     url,
@@ -221,6 +245,208 @@ describe("sendEmail", () => {
     ]);
   });
 
+  it("retries a 429 once, after its Retry-After, with the same payload and key", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(throttled({ "retry-after": "0.5" }))
+      .mockResolvedValueOnce(resendReply({ id: "email-1" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = sendEmail(payload, { idempotencyKey: "program-signup-42" });
+
+    await vi.advanceTimersByTimeAsync(499);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const result = await request;
+    expect(result.error).toBeNull();
+    expect(result.data?.id).toBe("email-1");
+
+    const first = sentRequest(fetchMock, 0);
+    const retry = sentRequest(fetchMock, 1);
+    expect(retry.url).toBe(first.url);
+    expect(retry.body).toEqual(first.body);
+    expect(retry.headers.get("Idempotency-Key")).toBe(
+      "production:program-signup-42",
+    );
+    expect(first.headers.get("Idempotency-Key")).toBe(
+      "production:program-signup-42",
+    );
+    // One line with the wait alone: no address, no subject.
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith("[resend] throttled, retrying once", {
+      waitMs: 500,
+    });
+  });
+
+  it("waits at most two seconds, whatever Retry-After asks", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(throttled({ "retry-after": "30" }))
+      .mockResolvedValueOnce(resendReply({ id: "email-1" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = sendEmail(payload);
+
+    await vi.advanceTimersByTimeAsync(1_999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect((await request).data?.id).toBe("email-1");
+  });
+
+  it("waits one second when the 429 has no Retry-After", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(throttled())
+      .mockResolvedValueOnce(resendReply({ id: "email-1" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = sendEmail(payload);
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect((await request).data?.id).toBe("email-1");
+    expect(warn).toHaveBeenCalledWith("[resend] throttled, retrying once", {
+      waitMs: 1_000,
+    });
+  });
+
+  it("returns a second 429 as it is instead of retrying again", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async () => throttled({ "retry-after": "1" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = sendEmail(payload, { idempotencyKey: "k" });
+    await vi.advanceTimersByTimeAsync(30_000);
+    const result = await request;
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.data).toBeNull();
+    expect(result.error).toMatchObject({
+      name: "rate_limit_exceeded",
+      statusCode: 429,
+    });
+    // The caller can still schedule its own retry from the reply.
+    expect(result.headers?.["retry-after"]).toBe("1");
+  });
+
+  it.each([
+    ["validation_error", 422],
+    // A quota is a 429 too, but waiting two seconds does not lift it.
+    ["daily_quota_exceeded", 429],
+    ["concurrent_idempotent_requests", 409],
+    ["application_error", 500],
+  ] as const)("does not retry %s (%i)", async (name, statusCode) => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchMock = vi.fn().mockResolvedValue(
+      resendReply({ statusCode, name, message: name }, statusCode, {
+        "retry-after": "1",
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = sendEmail(payload, { idempotencyKey: "k" });
+    await vi.advanceTimersByTimeAsync(5_000);
+    const result = await request;
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.error).toMatchObject({ name, statusCode });
+  });
+
+  it("does not retry a request that timed out, since it may have landed", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      const signal = init?.signal ?? undefined;
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener("abort", () => reject(signal?.reason), {
+          once: true,
+        });
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = sendEmail(payload, { idempotencyKey: "k" });
+    const rejection = expect(request).rejects.toThrow(
+      "Resend request timed out",
+    );
+    await vi.advanceTimersByTimeAsync(10_000);
+    await rejection;
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives the retry its own ten seconds", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    let retrySignal: AbortSignal | undefined;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(throttled({ "retry-after": "1" }))
+      .mockImplementationOnce((_url: string, init?: RequestInit) => {
+        retrySignal = init?.signal ?? undefined;
+        return new Promise((_resolve, reject) => {
+          retrySignal?.addEventListener(
+            "abort",
+            () => reject(retrySignal?.reason),
+            { once: true },
+          );
+        });
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = sendEmail(payload);
+    const rejection = expect(request).rejects.toThrow(
+      "Resend request timed out",
+    );
+    await vi.advanceTimersByTimeAsync(1_000 + 9_999);
+    expect(retrySignal?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await rejection;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("sends nothing more when the caller gives up during the wait", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(throttled({ "retry-after": "2" }))
+      .mockResolvedValueOnce(resendReply({ id: "email-1" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const caller = new AbortController();
+    const request = sendEmail(payload, { signal: caller.signal });
+    const rejection = expect(request).rejects.toThrow("caller gave up");
+    await vi.advanceTimersByTimeAsync(500);
+    caller.abort(new Error("caller gave up"));
+    await rejection;
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("does not call Resend in development", async () => {
     serverEnv.VERCEL_ENV = "development";
     vi.spyOn(console, "log").mockImplementation(() => {});
@@ -251,6 +477,24 @@ describe("sendBatchEmails", () => {
     const response = await sendBatchEmails([payload, payload]);
     expect(response.error).toBeNull();
     expect("simulated" in response && response.simulated).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("reads a permissive batch in development as all sent, none refused", async () => {
+    serverEnv.VERCEL_ENV = "development";
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const fetchMock = vi.fn().mockResolvedValue(throttled());
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await sendBatchEmails([payload, payload], {
+      idempotencyKey: "comunicado-batch:1:x",
+      batchValidation: "permissive",
+    });
+
+    expect(response.data).toEqual({
+      data: [{ id: "not-sent" }, { id: "not-sent" }],
+      errors: [],
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -320,22 +564,138 @@ describe("sendBatchEmails", () => {
   it("rejects when the batch request times out, so the page is retried with the same key", async () => {
     vi.useFakeTimers();
     vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((_url: string, init?: RequestInit) => {
-        const signal = init?.signal ?? undefined;
-        return new Promise((_resolve, reject) => {
-          signal?.addEventListener("abort", () => reject(signal?.reason), {
-            once: true,
-          });
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      const signal = init?.signal ?? undefined;
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener("abort", () => reject(signal?.reason), {
+          once: true,
         });
-      }),
-    );
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
     const request = sendBatchEmails([payload]);
-    const rejection = expect(request).rejects.toThrow("Resend request timed out");
+    const rejection = expect(request).rejects.toThrow(
+      "Resend request timed out",
+    );
     await vi.advanceTimersByTimeAsync(10_000);
     await rejection;
+    // The batch may have landed: never resent here.
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends permissive validation when asked, and types its refused indexes", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      resendReply({
+        data: [{ id: "a" }],
+        errors: [{ index: 1, message: "Invalid `to` field." }],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await sendBatchEmails([payload, payload], {
+      idempotencyKey: "comunicado-batch:1:x",
+      batchValidation: "permissive",
+    });
+
+    expect(sentRequest(fetchMock).headers.get("x-batch-validation")).toBe(
+      "permissive",
+    );
+    expect(response.data?.errors).toEqual([
+      { index: 1, message: "Invalid `to` field." },
+    ]);
+    expectTypeOf<NonNullable<typeof response.data>["errors"]>().toEqualTypeOf<
+      { index: number; message: string }[]
+    >();
+  });
+
+  it("stays strict, in the header and the type, when no mode is given", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(resendReply({ data: [{ id: "a" }] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await sendBatchEmails([payload], {
+      idempotencyKey: "festival-invitation/x",
+    });
+
+    expect(sentRequest(fetchMock).headers.get("x-batch-validation")).toBe(
+      "strict",
+    );
+    expect(response.data?.data).toEqual([{ id: "a" }]);
+    expectTypeOf<NonNullable<typeof response.data>["errors"]>().toBeNever();
+  });
+
+  it("retries a throttled batch once, after an HTTP-date Retry-After, under the same key", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-25T12:00:00Z"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        throttled({ "retry-after": "Sun, 25 Oct 2026 12:00:01 GMT" }),
+      )
+      .mockResolvedValueOnce(
+        resendReply({ data: [{ id: "a" }, { id: "b" }], errors: [] }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = sendBatchEmails([payload, payload], {
+      idempotencyKey: "comunicado-batch:1:x",
+      batchValidation: "permissive",
+    });
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const response = await request;
+    expect(response.error).toBeNull();
+    expect(response.data?.data).toEqual([{ id: "a" }, { id: "b" }]);
+
+    const first = sentRequest(fetchMock, 0);
+    const retry = sentRequest(fetchMock, 1);
+    expect(retry.body).toEqual(first.body);
+    for (const { headers } of [first, retry]) {
+      expect(headers.get("Idempotency-Key")).toBe(
+        "production:comunicado-batch:1:x",
+      );
+      expect(headers.get("x-batch-validation")).toBe("permissive");
+    }
+  });
+
+  it("returns a batch's second 429 and does not retry its other refusals", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(throttled())
+      .mockResolvedValueOnce(throttled())
+      .mockResolvedValueOnce(
+        resendReply(
+          {
+            statusCode: 422,
+            name: "validation_error",
+            message: "Invalid `to` field.",
+          },
+          422,
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const twice = sendBatchEmails([payload]);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect((await twice).error).toMatchObject({ name: "rate_limit_exceeded" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const refused = sendBatchEmails([payload]);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect((await refused).error).toMatchObject({ name: "validation_error" });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("refuses more emails than one Resend batch holds", async () => {
@@ -388,7 +748,11 @@ describe("removeResendSuppression", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          json: async () => ({}),
+        })
         .mockResolvedValueOnce({
           ok: false,
           status: 403,

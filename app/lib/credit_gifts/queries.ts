@@ -81,6 +81,27 @@ export async function searchCreditGiftRecipients(
   return rows.map((row) => toOption(row, reasons.get(row.id)));
 }
 
+/**
+ * These participants as the composer lists them, in the order given. Ids that
+ * no longer exist are left out.
+ */
+export async function fetchCreditGiftRecipientOptions(
+  userIds: readonly number[],
+): Promise<CreditGiftRecipientOption[]> {
+  const unique = [...new Set(userIds)];
+  if (unique.length === 0) return [];
+  if (!(await canViewCreditGifts())) return [];
+  const [rows, reasons] = await Promise.all([
+    db.select(optionColumns).from(users).where(inArray(users.id, unique)),
+    classifyCreditGiftRecipients(unique),
+  ]);
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return unique.flatMap((id) => {
+    const row = byId.get(id);
+    return row ? [toOption(row, reasons.get(id))] : [];
+  });
+}
+
 export type CreditGiftCounts = {
   total: number;
   pending: number;
@@ -173,6 +194,16 @@ export async function listCreditGifts(): Promise<CreditGiftListRow[] | null> {
       read: Number(row.read),
     },
   }));
+}
+
+/**
+ * A gift recipient's status. `notified` belongs to comunicados and never
+ * appears on a gift, which is read by its `credit_gift` type first.
+ */
+function giftRecipientStatus(
+  status: (typeof notificationCampaignRecipients.$inferSelect)["status"],
+): CreditGiftRecipientRow["status"] {
+  return status === "notified" ? "pending" : status;
 }
 
 export type CreditGiftEmailState =
@@ -374,7 +405,7 @@ export async function fetchCreditGift(
     userId: row.userId,
     name: getUserName(row) || row.email,
     email: row.email,
-    status: row.status,
+    status: giftRecipientStatus(row.status),
     skippedReason: row.skippedReason,
     readAt: row.readAt,
     emailState:

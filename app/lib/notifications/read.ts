@@ -15,7 +15,8 @@ export const CELEBRATED_ON_READ = sql`CASE WHEN ${notifications.kind} = 'credit_
 
 /**
  * Reads one of the viewer's items; the first read time is kept. Scoped to
- * the owner in the statement itself: someone else's id updates nothing.
+ * the owner in the statement itself: someone else's id updates nothing, and
+ * neither does a retracted item, whose read state stays as it was withdrawn.
  */
 export async function markNotificationRead(viewer: InboxViewer, id: number) {
   await db
@@ -26,6 +27,7 @@ export async function markNotificationRead(viewer: InboxViewer, id: number) {
         eq(notifications.id, id),
         eq(notifications.userId, viewer.id),
         isNull(notifications.readAt),
+        isNull(notifications.retractedAt),
       ),
     );
 }
