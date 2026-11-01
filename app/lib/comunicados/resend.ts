@@ -406,13 +406,17 @@ async function resendInTransaction(
 
   const env = serverEnv.VERCEL_ENV;
   const narrow = env !== "production";
-  const comunicado = await readSent(tx, comunicadoId);
+  let comunicado = await readSent(tx, comunicadoId);
   if (comunicado?.campaignId != null) {
+    const lockedCampaignId = comunicado.campaignId;
     await tx.execute(sql`
       SELECT id FROM notification_campaigns
-      WHERE id = ${comunicado.campaignId}::int
+      WHERE id = ${lockedCampaignId}::int
       FOR UPDATE
     `);
+    // Read again under the row lock: a concurrent resend that held it has
+    // committed its `audience_summary.resends`, and this one adds to that.
+    comunicado = await readSent(tx, comunicadoId);
     // A double submit, or a retry whose answer was lost: one resend.
     const { rows: earlier } = await tx.execute<{ id: number }>(sql`
       SELECT id FROM comunicado_resends
@@ -423,7 +427,7 @@ async function resendInTransaction(
       return {
         kind: "already_resent",
         comunicadoId,
-        campaignId: comunicado.campaignId,
+        campaignId: lockedCampaignId,
       };
     }
   }

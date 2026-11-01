@@ -793,6 +793,51 @@ describeDatabase("sending a comunicado to more people (G10)", () => {
       );
       expect(rows[0]!.n).toBe(1);
     });
+
+    it("adds up two resends that ran at once in audience_summary", async () => {
+      const [ana, beto, eva] = [
+        await createUser(),
+        await createUser(),
+        await createUser(),
+      ];
+      const list = await createFixedList([ana]);
+      const sent = await sendTo({ lists: [list] });
+      await addToList(list, [beto]);
+
+      // Both resends read the summary, then wait on the campaign row.
+      const holder = await pool!.connect();
+      await holder.query("BEGIN");
+      await holder.query(
+        "SELECT id FROM notification_campaigns WHERE id = $1 FOR UPDATE",
+        [sent.campaignId],
+      );
+      const first = resend(sent);
+      const second = resend(sent, { includeAudience: false, people: [eva] });
+      for (let attempt = 0; ; attempt += 1) {
+        const { rows } = await pool!.query<{ waiting: number }>(
+          `SELECT count(*)::int AS waiting FROM pg_stat_activity
+           WHERE datname = current_database()
+             AND cardinality(pg_blocking_pids(pid)) > 0`,
+        );
+        if (rows[0]!.waiting >= 2) break;
+        if (attempt > 250) throw new Error("Nothing ever waited.");
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      await holder.query("COMMIT");
+      holder.release();
+
+      expect(await first).toMatchObject({ kind: "resent", willReceive: 1 });
+      expect(await second).toMatchObject({ kind: "resent", willReceive: 1 });
+      const { rows } = await pool!.query(
+        "SELECT audience_summary FROM comunicados WHERE id = $1",
+        [sent.comunicadoId],
+      );
+      expect(rows[0]!.audience_summary.resends).toMatchObject({
+        count: 2,
+        willReceive: 2,
+        pickedByName: 1,
+      });
+    });
   });
 
   describe("essential comunicados (B7)", () => {
