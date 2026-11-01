@@ -785,8 +785,8 @@ function rootLabel(path: string, ctx: ScreenContext): string {
 }
 
 /**
- * The breadcrumb trail for a page, from its tab's own page down to the page
- * itself, built from the same places as the installed app's top bar. Names
+ * The breadcrumb trail for a page, from its tab's own page (or, below Más,
+ * from the section) down to the page itself, built from the same places as the installed app's top bar. Names
  * that depend on data come in `labels` (by href); without one, a crumb takes
  * its screen's generic title, and a crumb with no name at all is skipped.
  * Empty on a tab's own page.
@@ -829,5 +829,8 @@ export function breadcrumbTrail(
     if (!parent) break;
     parentHref = parent.parentHref;
   }
+  // Trails start at the section, not at Más: on a desktop, Más is no page
+  // of the sidebar, and on a phone it is the tab bar's, not the page's.
+  if (normalize(trail[0]?.href ?? "") === MENU) trail.shift();
   return trail.filter((crumb) => crumb.label);
 }

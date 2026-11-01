@@ -44,7 +44,7 @@ describe("PageBreadcrumbs", () => {
       a.getAttribute("href"),
     );
     // The phone's single link up, then the desktop trail.
-    expect(hrefs).toEqual(["/my_orders", "/menu", "/my_orders"]);
+    expect(hrefs).toEqual(["/my_orders", "/my_orders"]);
     expect(screen.getByText("Pedido #1043").getAttribute("aria-current")).toBe(
       "page",
     );

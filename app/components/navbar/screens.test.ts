@@ -200,9 +200,8 @@ describe("resolveScreen", () => {
 describe("breadcrumbTrail", () => {
   const labelsOf = (trail: { label: string }[]) => trail.map((c) => c.label);
 
-  it("runs from the tab's own page down to the page", () => {
+  it("runs from the section down to the page, never from Más", () => {
     expect(breadcrumbTrail("/profiles/3/orders/1043", ctx(verified))).toEqual([
-      { label: "Más", href: "/menu" },
       { label: "Mis pedidos", href: "/my_orders" },
       { label: "Pedido", href: "/profiles/3/orders/1043" },
     ]);
@@ -230,14 +229,27 @@ describe("breadcrumbTrail", () => {
   });
 
   it("follows each role's own way in", () => {
-    expect(
-      labelsOf(breadcrumbTrail("/dashboard/programs/check-in", ctx(admin))),
-    ).toEqual(["Más", "Programas", "Registrar ingresos"]);
-    expect(
-      labelsOf(
-        breadcrumbTrail("/dashboard/programs/check-in", ctx(festivalAdmin)),
-      ),
-    ).toEqual(["Programas", "Registrar ingresos"]);
+    const trailOf = (viewer: NavViewer) =>
+      breadcrumbTrail("/dashboard/programs/check-in", ctx(viewer)).map((c) => [
+        c.label,
+        c.href,
+      ]);
+    // Admins reach programs from their own screen in Más...
+    expect(trailOf(admin)).toEqual([
+      ["Programas", "/menu/programas"],
+      ["Registrar ingresos", "/dashboard/programs/check-in"],
+    ]);
+    // ...festival admins from their Programas tab.
+    expect(trailOf(festivalAdmin)).toEqual([
+      ["Programas", "/dashboard/programs"],
+      ["Registrar ingresos", "/dashboard/programs/check-in"],
+    ]);
+  });
+
+  it("shows nothing on a page right below Más", () => {
+    expect(breadcrumbTrail("/my_orders", ctx(verified))).toEqual([
+      { label: "Mis pedidos", href: "/my_orders" },
+    ]);
   });
 
   it("works for someone signed out, from the public site's pages", () => {
