@@ -184,7 +184,7 @@ export function comunicadoAudienceRowsSql(
     SELECT j.user_id, j.source, j.reason FROM judged j`;
 }
 
-export type AudienceSourceKind = "festival" | "list" | "people";
+export type AudienceSourceKind = "festival" | "list" | "people" | "contacts";
 
 export type ComunicadoAudienceSourcePreview = {
   kind: AudienceSourceKind;

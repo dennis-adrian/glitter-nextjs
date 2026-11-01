@@ -153,6 +153,7 @@ function reportOf(
     },
     retryCounts: { emails: 0, people: 0, maybeSentEmails: 0 },
     sentChannels: { email: true, push: true },
+    audienceKind: "users",
     resends: [],
     ...overrides,
   };
@@ -178,6 +179,7 @@ function rowOf(
   overrides: Partial<ComunicadoRecipientRow> = {},
 ): ComunicadoRecipientRow {
   return {
+    key: `user:${overrides.userId ?? 11}`,
     userId: 11,
     name: "Ana Pérez",
     email: "ana@example.test",
@@ -426,6 +428,13 @@ describe("ComunicadoReport", () => {
     expect(
       screen.getByRole("button", { name: "Enviar a más personas" }),
     ).toBeTruthy();
+  });
+
+  it("offers no Enviar a más personas on a visitor comunicado", () => {
+    renderReport(reportOf({ audienceKind: "visitors" }));
+    expect(
+      screen.queryByRole("button", { name: "Enviar a más personas" }),
+    ).toBeNull();
   });
 
   it("lists each resend under «Envíos a más personas»", () => {

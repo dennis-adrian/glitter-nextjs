@@ -1,13 +1,15 @@
 -- "Enviar a más personas" (docs/IMPLEMENTATION-comunicados.md A6a, G10).
 --
--- Idempotent, as 0281 and 0304 are. An earlier version of this migration ran
--- on preview databases as 0305_comunicado_resends, stamped after
--- 0305_distribution_list_copies. Preview databases never re-run a recorded
--- migration, and Drizzle's migrator compares only the newest row's
+-- Idempotent, as 0281 and 0304 are. Earlier versions of this migration ran
+-- on preview databases as 0305_comunicado_resends and 0306_comunicado_resends
+-- before develop took those numbers. Preview databases never re-run a
+-- recorded migration, and Drizzle's migrator compares only the newest row's
 -- created_at (0281), so:
---  - where the old 0305 ran, this would fail on objects that already exist;
---  - where it ran before 0305_distribution_list_copies did, that one is below
---    the high-water mark and skipped for good, so its DDL is re-applied here.
+--  - where an earlier version ran, this would fail on objects that already
+--    exist;
+--  - where the old 0305 ran before 0305_distribution_list_copies did, that
+--    one is below the high-water mark and skipped for good, so its DDL is
+--    re-applied here.
 -- On a database migrated in order (production, CI, the test containers)
 -- 0305 has run and every statement for it below is a no-op.
 

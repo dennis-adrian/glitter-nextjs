@@ -1,4 +1,5 @@
 import type { ComunicadoAudiencePreview } from "@/app/lib/comunicados/audience";
+import type { ComunicadoAudienceKind } from "@/app/lib/comunicados/definitions";
 
 /**
  * What the send, the retraction and the work driver hand to the admin pages
@@ -27,6 +28,8 @@ export type ComunicadoSendConfirmation = {
   comunicadoId: number;
   /** The stored version these numbers are for: the send's expectedVersion. */
   version: number;
+  /** A visitor comunicado is email only (§L). */
+  audienceKind: ComunicadoAudienceKind;
   title: string;
   sendEmail: boolean;
   sendPush: boolean;
@@ -160,6 +163,7 @@ export const RESEND_REFUSAL_CODES = [
   "NOT_SENT",
   "RETRACTED",
   "OTHER_ENV",
+  "VISITORS",
   "EMPTY",
   "ESSENTIAL_PEOPLE",
   "INVALID_AUDIENCE",

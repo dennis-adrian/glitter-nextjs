@@ -4,6 +4,7 @@ import {
   BellOffIcon,
   FlaskConicalIcon,
   type LucideIcon,
+  MailIcon,
   MailWarningIcon,
   SmartphoneIcon,
 } from "lucide-react";
@@ -92,6 +93,7 @@ const CALLOUT_ICONS: Record<ConfirmCallout["kind"], LucideIcon> = {
   push: SmartphoneIcon,
   environment: FlaskConicalIcon,
   bell: BellOffIcon,
+  email_only: MailIcon,
 };
 
 function Callout({ callout }: { callout: ConfirmCallout }) {

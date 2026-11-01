@@ -2140,8 +2140,15 @@
     {
       "idx": 306,
       "version": "7",
-      "when": 1793567905714,
-      "tag": "0306_comunicado_resends",
+      "when": 1793567955153,
+      "tag": "0306_comunicados_visitors",
+      "breakpoints": true
+    },
+    {
+      "idx": 307,
+      "version": "7",
+      "when": 1793569921479,
+      "tag": "0307_comunicado_resends",
       "breakpoints": true
     }
   ]

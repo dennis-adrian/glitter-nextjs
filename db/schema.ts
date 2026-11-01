@@ -1526,6 +1526,15 @@ export const visitors = pgTable("visitors", {
     .default("other"),
   gender: genderEnum("gender").notNull().default("undisclosed"),
   birthdate: timestamp("birthdate").notNull(),
+  /**
+   * "Quiero recibir novedades" at registration. Null on visitors who
+   * registered before the question existed: they are assumed to have
+   * agreed. A tick records consent; leaving it unticked later never
+   * withdraws it (unsubscribing does).
+   */
+  newsOptIn: boolean("news_opt_in"),
+  /** When they last ticked it. */
+  newsOptInAt: timestamp("news_opt_in_at"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -3189,6 +3198,12 @@ export const orders = pgTable(
     guestEmail: text("guest_email"),
     guestPhone: text("guest_phone"),
     guestOrderToken: text("guest_order_token").unique(),
+    /**
+     * A guest's "Quiero recibir novedades" at checkout. Null on orders placed
+     * before the question existed (assumed to have agreed) and on account
+     * orders.
+     */
+    guestNewsOptIn: boolean("guest_news_opt_in"),
     orderDate: timestamp("order_date").defaultNow(),
     status: orderStatusEnum("status").default("pending").notNull(),
     totalAmount: numeric("total_amount", {
@@ -5286,6 +5301,11 @@ export const emailTopicEnum = pgEnum("email_topic", [
   "all",
   /** Comunicados: announcements admins write to participants (phase 3). */
   "announcements",
+  /**
+   * "Novedades": comunicados to visitors and guest merch buyers, people
+   * without a Glitter account.
+   */
+  "news",
 ]);
 
 /**
@@ -7383,6 +7403,14 @@ export const notificationDeliveries = pgTable(
     maybeSentAt: timestamp("maybe_sent_at"),
     /** Bulk email only: the content revision the accepted request carried. */
     contentRevision: integer("content_revision"),
+    /**
+     * The campaign of a row with no inbox copy (a comunicado to visitors). A
+     * row with one reaches its campaign through `notifications`.
+     */
+    campaignId: integer("campaign_id").references(
+      () => notificationCampaigns.id,
+      { onDelete: "cascade" },
+    ),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -7426,6 +7454,13 @@ export const notificationDeliveries = pgTable(
       "notification_deliveries_revision_is_bulk",
       sql`${t.contentRevision} IS NULL OR ${t.lane} = 'bulk'`,
     ),
+    check(
+      "notification_deliveries_campaign_without_inbox",
+      sql`${t.campaignId} IS NULL OR (${t.notificationId} IS NULL AND ${t.lane} = 'bulk' AND ${t.channel} = 'email')`,
+    ),
+    index("notification_deliveries_campaign_idx")
+      .on(t.campaignId)
+      .where(sql`${t.campaignId} IS NOT NULL`),
     foreignKey({
       name: "notification_deliveries_resend_of_delivery_id_fk",
       columns: [t.resendOfDeliveryId],
@@ -7501,6 +7536,74 @@ export const notificationCampaignRecipients = pgTable(
     check(
       "notification_campaign_recipients_revoked_was_granted",
       sql`${t.revokedAt} IS NULL OR (${t.status} = 'granted' AND ${t.reversalEntryId} IS NOT NULL)`,
+    ),
+  ],
+);
+
+/** How a contact entered a visitor comunicado's audience. */
+export const campaignContactSourceEnum = pgEnum("campaign_contact_source", [
+  /** In `visitors` (a guest order with the same address too). */
+  "visitor",
+  /** Only in `orders.guest_email`. */
+  "guest_buyer",
+  /** Outside production, an admin standing in for the visitors. */
+  "staging_admin",
+]);
+export const campaignContactStatusEnum = pgEnum("campaign_contact_status", [
+  /** Its email row was written. */
+  "queued",
+  "skipped",
+]);
+
+/**
+ * A visitor comunicado's audience, frozen at send: one row per normalized
+ * address, from visitors and guest merch buyers. Email only, so there is no
+ * user, inbox item or push; `delivery_id` is its email row on the bulk lane.
+ * The address is stored, so the report and the unsubscribe link keep working
+ * whatever happens to the visitor or order it came from.
+ */
+export const notificationCampaignContacts = pgTable(
+  "notification_campaign_contacts",
+  {
+    id: serial("id").primaryKey(),
+    campaignId: integer("campaign_id")
+      .notNull()
+      .references(() => notificationCampaigns.id, { onDelete: "cascade" }),
+    /** `lower(trim(email))`. */
+    emailKey: text("email_key").notNull(),
+    /** The address as mailed, trimmed. */
+    email: text("email").notNull(),
+    /** For the report: the visitor's or guest's first name. */
+    name: text("name"),
+    visitorId: integer("visitor_id").references(() => visitors.id, {
+      onDelete: "set null",
+    }),
+    source: campaignContactSourceEnum("source").notNull(),
+    status: campaignContactStatusEnum("status").notNull(),
+    /** Why it was left out, in the admin's words. */
+    skippedReason: text("skipped_reason"),
+    deliveryId: integer("delivery_id").references(
+      () => notificationDeliveries.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("notification_campaign_contacts_campaign_email_unique").on(
+      t.campaignId,
+      t.emailKey,
+    ),
+    uniqueIndex("notification_campaign_contacts_delivery_unique").on(
+      t.deliveryId,
+    ),
+    index("notification_campaign_contacts_visitor_idx").on(t.visitorId),
+    check(
+      "notification_campaign_contacts_skip_reason",
+      sql`(${t.status} = 'skipped') = (${t.skippedReason} IS NOT NULL)`,
+    ),
+    check(
+      "notification_campaign_contacts_email_key_normalized",
+      sql`${t.emailKey} = lower(trim(${t.emailKey})) and ${t.emailKey} <> ''`,
     ),
   ],
 );
@@ -7702,6 +7805,16 @@ export const distributionListRemovals = pgTable(
   ],
 );
 
+/**
+ * Who a comunicado is for: participants with an account (inbox, email,
+ * push) or visitors and guest buyers without one (email only, under
+ * "Novedades"). Never both.
+ */
+export const comunicadoAudienceKindEnum = pgEnum("comunicado_audience_kind", [
+  "users",
+  "visitors",
+]);
+
 export const comunicadoStatusEnum = pgEnum("comunicado_status", [
   "draft",
   "scheduled",
@@ -7742,6 +7855,10 @@ export const comunicados = pgTable(
     actionPath: text("action_path"),
     sendEmail: boolean("send_email").default(true).notNull(),
     sendPush: boolean("send_push").default(false).notNull(),
+    /** Users or visitors; a visitor comunicado is email only. */
+    audienceKind: comunicadoAudienceKindEnum("audience_kind")
+      .default("users")
+      .notNull(),
     audience: jsonb("audience")
       .$type<{ festivals: number[]; lists: number[]; people: number[] }>()
       .default(sql`'{"festivals":[],"lists":[],"people":[]}'::jsonb`)
@@ -7834,6 +7951,10 @@ export const comunicados = pgTable(
     check(
       "comunicados_essential_recorded",
       sql`${t.status} <> 'sent' OR NOT ${t.essential} OR ${t.essentialConfirmedAt} IS NOT NULL`,
+    ),
+    check(
+      "comunicados_visitors_email_only",
+      sql`${t.status} = 'draft' OR ${t.audienceKind} = 'users' OR (${t.sendEmail} AND NOT ${t.sendPush} AND NOT ${t.essential})`,
     ),
     check(
       "comunicados_action_pair",

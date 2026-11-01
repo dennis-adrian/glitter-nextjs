@@ -67,6 +67,8 @@ export const RESEND_MESSAGES = {
   RETRACTED: "Este comunicado fue retirado: no se puede enviar a más personas.",
   OTHER_ENV:
     "Este comunicado se envió desde otro entorno: envialo a más personas desde allí.",
+  VISITORS:
+    "Un comunicado a visitantes no se puede enviar a más personas: duplicalo para enviarlo de nuevo.",
   EMPTY:
     "Elegí a quién enviárselo: las personas nuevas en la audiencia o alguien por nombre.",
   ESSENTIAL_PEOPLE:
@@ -97,6 +99,8 @@ type SentComunicado = {
   status: string;
   campaignId: number | null;
   retracted: boolean;
+  /** Participants (`users`) or visitors (§L): only the first is resent. */
+  audienceKind: string;
   audience: unknown;
   essential: boolean;
   currentRevision: number | null;
@@ -115,6 +119,7 @@ async function readSent(
     status: string;
     campaign_id: number | null;
     retracted: boolean;
+    audience_kind: string;
     audience: unknown;
     essential: boolean;
     current_revision: number | null;
@@ -123,7 +128,7 @@ async function readSent(
     send_push: boolean;
   }>(sql`
     SELECT id, status, campaign_id, retracted_at IS NOT NULL AS retracted,
-      audience, essential, current_revision, audience_summary,
+      audience_kind, audience, essential, current_revision, audience_summary,
       send_email, send_push
     FROM comunicados WHERE id = ${comunicadoId}::int
   `);
@@ -134,6 +139,7 @@ async function readSent(
     status: row.status,
     campaignId: row.campaign_id == null ? null : Number(row.campaign_id),
     retracted: row.retracted === true,
+    audienceKind: row.audience_kind,
     audience: row.audience,
     essential: row.essential === true,
     currentRevision:
@@ -203,6 +209,11 @@ async function checkResend(
   // The work after it drains the campaign with this server's narrowing, and
   // development only simulates, as for "Reintentar fallidos" (D9).
   if (comunicado.summary?.env !== env) throw new ResendRefusal("OTHER_ENV");
+  // A visitor comunicado's audience is contact rows, not recipient rows: a
+  // resend here would add account holders to it (§L, never both).
+  if (comunicado.audienceKind !== "users") {
+    throw new ResendRefusal("VISITORS");
+  }
   if (comunicado.essential && request.people.length > 0) {
     throw new ResendRefusal("ESSENTIAL_PEOPLE");
   }

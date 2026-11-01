@@ -1,6 +1,6 @@
 # Implementation: comunicados and distribution lists (phase 3)
 
-**Status:** Built behind the hidden `comunicados` flag, 2026-10-26; not yet released. PRs 2 and 3 merged on their own (#603, #604); PRs 4–8 shipped together in one pull request (#605). Where the code settled a detail this design left open or got wrong, the implementation notes at the end of §J say what it does. "Enviar a más personas" (G10, migration 0306) came after, on Dennis's rules of 2026-11-01.
+**Status:** Built behind the hidden `comunicados` flag, 2026-10-26; not yet released. PRs 2 and 3 merged on their own (#603, #604); PRs 4–8 shipped together in one pull request (#605). Where the code settled a detail this design left open or got wrong, the implementation notes at the end of §J say what it does. Comunicados to visitors and guest merch buyers (email only, topic "Novedades") are §L, decided by Dennis on 2026-11-01. "Enviar a más personas" (G10, migration 0307) came after, on Dennis's rules of 2026-11-01.
 **PRD:** §12 of [`docs/PRD-in-app-notifications.md`](PRD-in-app-notifications.md)
 
 This is the technical design behind §12 of [`docs/PRD-in-app-notifications.md`](PRD-in-app-notifications.md): comunicados (admin-written announcements) and distribution lists. §12 holds the decisions agreed with Dennis on 2026-10-24. Decisions 1–9 are binding here and are cited as "decision N", by their number there. Its defaults 10–24 are proposed, not decided: each is asked here as a K question, with its default number. "PRD §n" is a section of that PRD. Citations are `file:line` in the repo, checked against develop at `bf067e1b`.
@@ -31,14 +31,16 @@ This is the technical design behind §12 of [`docs/PRD-in-app-notifications.md`]
    - So `scripts/migrate.ts` sets `lock_timeout = '5s'` on its own connections, with `pool.on("connect", …)` attached at the top of `main()`, before any use of the pool. pg-pool reuses the idle clients that the earlier helpers (`catalogMigrationPending`, the backfill checks, `ensureFestivalTermsArchivedEnum`) already opened, and their `connect` event has already fired, so a listener added just before `migrate(db, …)` would never run.
    - A migration that cannot get its lock fails the build. The old deployment keeps serving, and redeploying retries. Without the timeout, every reader of that table would wait behind the `ALTER`.
 
-| Migration (PR)                         | New types                                        | Labels added to existing types                                                                   | Tables and columns                                                                                                                                                               |
-| -------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0301_bulk_lane` (PR 2)                | `notification_delivery_lane`                     | `email_topic`: `announcements`                                                                   | On `notification_deliveries`: `lane`, `batch_key`, `maybe_sent_at`, `content_revision`, their CHECKs and 2 indexes. On `notifications`: `edited_at`, `retracted_at` and a CHECK. |
-| `0302_distribution_lists` (PR 3)       | `distribution_list_kind`                         | none                                                                                             | `distribution_lists`, `distribution_list_members` (no `stand_reservations` index: A3)                                                                                            |
-| `0303_comunicados` (PR 4)              | `comunicado_status`, `campaign_recipient_source` | `notification_campaign_type`: `comunicado`; `notification_campaign_recipient_status`: `notified` | `comunicados` (with `autosave_key`), `comunicado_revisions`, `notification_campaign_recipients.source`                                                                           |
-| `0304_comunicados_autosave_key` (PR 4) | none                                             | none                                                                                             | `comunicados.autosave_key`, `ADD COLUMN IF NOT EXISTS`: 0303 gained the column after an earlier version of it had run on preview databases                                       |
+| Migration (PR)                         | New types                                                                        | Labels added to existing types                                                                   | Tables and columns                                                                                                                                                                                                                                      |
+| -------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0301_bulk_lane` (PR 2)                | `notification_delivery_lane`                                                     | `email_topic`: `announcements`                                                                   | On `notification_deliveries`: `lane`, `batch_key`, `maybe_sent_at`, `content_revision`, their CHECKs and 2 indexes. On `notifications`: `edited_at`, `retracted_at` and a CHECK.                                                                        |
+| `0302_distribution_lists` (PR 3)       | `distribution_list_kind`                                                         | none                                                                                             | `distribution_lists`, `distribution_list_members` (no `stand_reservations` index: A3)                                                                                                                                                                   |
+| `0303_comunicados` (PR 4)              | `comunicado_status`, `campaign_recipient_source`                                 | `notification_campaign_type`: `comunicado`; `notification_campaign_recipient_status`: `notified` | `comunicados` (with `autosave_key`), `comunicado_revisions`, `notification_campaign_recipients.source`                                                                                                                                                  |
+| `0304_comunicados_autosave_key` (PR 4) | none                                                                             | none                                                                                             | `comunicados.autosave_key`, `ADD COLUMN IF NOT EXISTS`: 0303 gained the column after an earlier version of it had run on preview databases                                                                                                              |
+| `0306_comunicados_visitors` (§L)       | `comunicado_audience_kind`, `campaign_contact_source`, `campaign_contact_status` | `email_topic`: `news` (runtime only)                                                             | `notification_campaign_contacts`; `comunicados.audience_kind` and the CHECK `comunicados_visitors_email_only`; `notification_deliveries.campaign_id`, its CHECK and partial index; `visitors.news_opt_in`, `news_opt_in_at`; `orders.guest_news_opt_in` |
+| `0307_comunicado_resends` (G10)        | none                                                                             | none                                                                                             |
 
-PRs 5–8 need no migration. A migration that has run anywhere is never edited again: a change ships as a new file, as 0304 does.
+PRs 5–8 need no migration; §L adds 0306 and G10 adds 0307. A migration that has run anywhere is never edited again: a change ships as a new file, as 0304 does.
 
 ### A1. `notification_deliveries` (0301)
 
@@ -295,9 +297,9 @@ ALTER TABLE notification_campaign_recipients ADD COLUMN source campaign_recipien
 - Gift-only columns stay NULL: `ledger_entry_id`, `reversal_entry_id`, `revoked_at`, `revoked_by_user_id`.
 - `revoked_was_granted` can never fire, because retraction is per comunicado, never per recipient.
 - `source` is how the person entered the audience. Every send-time check is an allowlist on it: a row without a source, or with an unknown one, is never sent (D3).
-- `resend_id` (0306, RESTRICT) names the "Enviar a más personas" that wrote the row, whose channels and essential mark it goes out with (G10). NULL for the original send's snapshot and for gifts.
+- `resend_id` (0307, RESTRICT) names the "Enviar a más personas" that wrote the row, whose channels and essential mark it goes out with (G10). NULL for the original send's snapshot and for gifts.
 
-### A6a. `comunicado_resends` (0306)
+### A6a. `comunicado_resends` (0307)
 
 One row per "Enviar a más personas" (G10), never updated:
 
@@ -312,7 +314,7 @@ One row per "Enviar a más personas" (G10), never updated:
 | `summary` (jsonb, `ComunicadoResendSummarySchema`)       | the counts at the resend                                                                                  |
 | `created_by_user_id` (SET NULL), `created_at`            | who and when                                                                                              |
 
-CHECKs: it targets something (`includes_audience OR people <> []`); `essential` only with email, the audience and nobody by name; `essential = (essential_confirmed_by_user_id IS NOT NULL)`. A new table and a new nullable column: nothing references an enum label 0306 adds (A0). The file is idempotent, as 0281 and 0304 are: an earlier version ran on preview databases as `0305_comunicado_resends`, stamped after `0305_distribution_list_copies`, so 0306 also re-applies that migration's DDL for any database where the earlier stamp pushed it below the migrator's high-water mark. On a database migrated in order, those statements are no-ops.
+CHECKs: it targets something (`includes_audience OR people <> []`); `essential` only with email, the audience and nobody by name; `essential = (essential_confirmed_by_user_id IS NOT NULL)`. A new table and a new nullable column: nothing references an enum label 0307 adds (A0). The file is idempotent, as 0281 and 0304 are: an earlier version ran on preview databases as `0305_comunicado_resends`, stamped after `0305_distribution_list_copies`, so 0306 also re-applies that migration's DDL for any database where the earlier stamp pushed it below the migrator's high-water mark. On a database migrated in order, those statements are no-ops.
 
 ### A7. Registry kinds (code: `app/lib/notifications/kinds/comunicado.ts`)
 
@@ -1849,6 +1851,7 @@ People who left the audience since are ignored and keep what they got. Anyone wi
 | `RETRACTED`          | the comunicado is retracted: it can never be resent                                |
 | `NOT_SENT`           | a draft or a scheduled one                                                         |
 | `OTHER_ENV`          | `audience_summary.env` is another environment's (as for "Reintentar fallidos", D9) |
+| `VISITORS`           | a visitor comunicado (§L): its audience is contacts, not recipient rows            |
 | `EMPTY`              | neither the audience nor anyone by name                                            |
 | `ESSENTIAL_PEOPLE`   | people by name on an essential comunicado                                          |
 | `INVALID_AUDIENCE`   | the stored audience or a list cannot be read                                       |
@@ -2440,6 +2443,63 @@ What the code does where this design left a detail open or said something else. 
 
 - **Unit:** `distribution_lists/definitions.test.ts` (default copy name, the duplicate and pull schemas, the messages); `duplicate-list-dialog.test.tsx` (suggested name, the frozen-copy explanation only for a computed source, opens the copy, stays open on a refusal); `pull-new-members-dialog.test.tsx` (all ticked, unticked left out, removed counted and only included when asked, nothing new, a refusal).
 - **Integration** (`lists.integration.test.ts`): a Confirmados copy holds its participants only and remembers the origin, and a later confirmation does not enter it; the pull offers newcomers, adds only the ticked, re-offers the unticked, keeps out removals unless asked and forgets them once added (by pull or by hand), and sets `last_pulled_at`; a filter-list copy pulls from an archived origin and refuses an unreadable one; a fixed-list copy has no origin, no pull and no removals; a taken or reserved name and a source over 3,000 are refused with nothing left behind; the CHECK refuses malformed origins; every new action refuses a festival admin, a participant and an admin without the flag.
+
+---
+
+## L. Comunicados to visitors and guest buyers ("Novedades")
+
+Decided by Dennis on 2026-11-01. A comunicado is either for **participants** (everything above) or for **visitors**: people without a Glitter account, reached only by email. Never both.
+
+### L1. Rules (Dennis's)
+
+- **Audience:** every visitor of every festival (`visitors`) and every guest merch buyer (`orders.guest_email`, any order status), deduped by the normalized address `lower(trim(email))`. Visitors are unique only by email as typed, as the invitation mailing knows (`visitorAudienceCtes`).
+- **An address that also has an account** gets it once, as a visitor, under Novedades. Nothing is excluded for having an account.
+- **One new topic,** `email_topic` `news`, labelled "las novedades de Productora Glitter" ("Novedades" on the admin page). Separate from `visitor_invitations` and `announcements`; `all` covers it.
+- **Email only:** no inbox item, no push, never essential. The composer says so where the audience is picked, the confirm dialog says so, and the report's rows read "Solo correo".
+- **From** "Productora Glitter <anuncios@productoraglitter.com>" (outside production the existing "(prueba)" variant and the staging marks of D7); **Reply-To** `glitter@productoraglitter.com`.
+- **Consent.** Contacts from before this ships are assumed to have agreed. From now on, visitor registration (online and door) and guest checkout ask "Quiero recibir novedades", unticked by default, and store the answer: `visitors.news_opt_in` (+ `news_opt_in_at` when ticked) and `orders.guest_news_opt_in`. Null means the record predates the question. An address is left out only when **every** record of it said no, so an old contact keeps its assumed consent. Leaving the box unticked later never withdraws a consent; unsubscribing does. A returning visitor goes straight to their tickets and is not asked.
+- **Unsubscribe is mandatory and honoured at send:** every email carries `List-Unsubscribe` + one-click POST for `news` and the footer link. `news` and `all` opt-outs and every active suppression are skipped at the snapshot **and** again in the lane's pre-check; nothing overrides them.
+
+### L2. Data (0306)
+
+- `comunicados.audience_kind` (`users` | `visitors`, default `users`). `comunicados_visitors_email_only`: `status = 'draft' OR audience_kind = 'users' OR (send_email AND NOT send_push AND NOT essential)`. The autosave stores email on, push and essential off for a visitor draft; the participant `audience` is kept, so switching back finds the lists and people as they were.
+- `notification_campaign_contacts`: the frozen audience of one sent visitor comunicado, one row per address (`unique(campaign_id, email_key)`): `email` as mailed, `name` for the report (the oldest visitor row's first name, else the newest guest order's first word), `visitor_id` (SET NULL), `source` (`visitor` wins over `guest_buyer`; `staging_admin` outside production), `status` (`queued` | `skipped`, with the CHECK that a skip has a reason), `delivery_id` (the latest email row). The address is stored, so the report and the unsubscribe link outlive the visitor or order.
+- `notification_deliveries.campaign_id` (FK, CASCADE): set only on rows with no inbox item, CHECK `campaign_id IS NULL OR (notification_id IS NULL AND lane = 'bulk' AND channel = 'email')`, partial index. A participant row still reaches its campaign through `notifications`.
+- The summary (`audience_summary`) gains `audienceKind` and `contacts: {visitors, guestBuyers}`; one source of kind `contacts`. Older summaries parse as `users`.
+- The migration locks `comunicados`, `notification_campaigns`, `notification_deliveries`, `visitors`, `orders` up front in that order (a send locks its comunicado, then writes the campaign). `news` is used by runtime code only (A0); the whole set 0000–0306 was applied to an empty database in one transaction.
+
+### L3. Audience, snapshot and send (`app/lib/comunicados/contacts.ts`)
+
+- One SQL resolver (`judged` CTEs) for the composer's count, the confirm dialog and the snapshot, as B2–B4. Skip labels, first match: "Dirección no válida", "No aceptó recibir novedades", "Correo bloqueado por rebote o spam", "Se dio de baja de las novedades", then the preview's "Entorno de prueba: no se envía a visitantes".
+- **The audience is a source,** `all_contacts`, judged by rules that do not depend on where the address came from. A frozen copy of it, as B10 makes of participant audiences, would be one more source of addresses feeding the same `judged` CTE; nothing here builds it.
+- **Narrowing (B6):** outside production every contact is skipped with the staging label and the global admins (not banned, no pending deletion) are added as `staging_admin` contacts. The cap, "nobody eligible" and the typed count are judged before narrowing.
+- **Cap:** `COMUNICADO_VISITOR_MAX_RECIPIENTS` = 10,000 addresses (participants stay at 3,000). The typed confirmation still applies at 300.
+- `startComunicadoSend` branches on `audience_kind`: the content checks, email-only (`INVALID_AUDIENCE` "Un comunicado a visitantes va solo por correo…"), the base URL, the campaign, then the snapshot. There is **no fan-out step**: the snapshot writes the contacts and, in the same transaction, one bulk email row per queued contact (`template_key = 'comunicado_contact'`, `notification_id` and `user_id` NULL, `campaign_id`, payload `{comunicadoId, contactId}`, key `comunicado:{k}:contact:{id}:email`). No participant recipient and no inbox row exist for it.
+- Scheduling, release, the late and missed rules, editing after send (the email renders the current revision), duplicate (keeps the kind) and retraction work as for participants. Retraction also skips the pending rows that carry the campaign; completion also waits for them. "Reintentar fallidos" writes a new row per contact whose latest email failed with no possible landing (V7) and points the contact at it.
+
+### L4. The lane (`app/lib/comunicados/contact-delivery.ts`)
+
+- `bulk-email.ts` stays generic: a row's campaign is `coalesce(nd.campaign_id, notifications.campaign_id)` with `notifications` LEFT-joined, the quota step fails the campaign's never-batched rows by either link, and a renderer may name its own `retracted()` test for rows handed back outside the content lock.
+- `comunicado_contact` renderer: scope is this environment's campaigns (D9), the same content lock, then the pre-check (allowlist): retracted; the contact missing, not queued, of another campaign or with a different address → `not_eligible`; outside production only `staging_admin` rows whose address is still a non-banned admin's pass (`staging` otherwise), and in production a `staging_admin` row is never mailed; then `newsEmailExclusion` (`suppressed` | `unsubscribed`).
+- Each email: the current revision (no greeting, as every comunicado since #607), the footer note "Te escribimos porque te registraste para visitar un festival de Productora Glitter o compraste en nuestra tienda. Son nuestras novedades: podés darte de baja cuando quieras.", `unsubscribeLinks({ kind: "contact", id }, "news")`: deterministic, so a retried batch carries the same bytes. The token's new kind `c` resolves through `notification_campaign_contacts.email`, the address that was mailed.
+
+### L5. Admin UI
+
+- Composer: "¿Para quién es?" (Participantes · Visitantes y compradores). For visitors the Destinatarios and Canales cards give way to one card: the email-only notice, "Visitantes y compradores de merch" with "Pueden recibirlo hoy", the skip reasons, what a preview really reaches, and the consent rule.
+- Confirm dialog: rows "Por correo", "En la app: No: no tienen cuenta", "En el dispositivo: No", and the email-only callout.
+- List and scheduled page: "Visitantes y compradores de merch · solo correo". Report: badge "Visitantes · solo correo", no "Leídos en la app" KPI and no "No leídos" chip; rows by address, Origen "Visitante" / "Compra de merch" / "Admin de prueba", App "Solo correo" or "Omitido: …", Dispositivo "—".
+
+### L6. Tests
+
+`app/lib/comunicados/visitors.integration.test.ts` (dedupe, consent, opt-outs, the account holder, the snapshot rows, the lane's From/Reply-To/headers/token, an opt-out after the snapshot, the endpoint's resolution, the report, narrowing, a stray visitor row on a preview, the email-only refusal and CHECK, retry and retraction; no address ever reaches a logged query), the visitor registration test (the stored choice), and unit tests for the summary.
+
+### L7. Open for Dennis
+
+- The 10,000 cap is a default (about a fifth of the monthly Resend allowance every Glitter email shares): his call.
+- Guest orders of any status count as buyers; an abandoned order's address is a contact. Narrowing to paid orders is one predicate.
+- Whether a returning visitor (who skips the form) should be asked again, e.g. on the ticket page.
+
+---
 
 ## K. Open questions for Dennis, and risks
 

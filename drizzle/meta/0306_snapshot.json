@@ -1,5 +1,5 @@
 {
-  "id": "da0d5bb4-fe3b-44df-8e0e-ea29e814ad43",
+  "id": "0a183be2-1090-4c4c-96ad-9340ec6d1cda",
   "prevId": "010708f2-de1a-44d8-8da6-a36cb245c8ff",
   "version": "7",
   "dialect": "postgresql",
@@ -955,190 +955,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.comunicado_resends": {
-      "name": "comunicado_resends",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "comunicado_id": {
-          "name": "comunicado_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "request_key": {
-          "name": "request_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "includes_audience": {
-          "name": "includes_audience",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "people": {
-          "name": "people",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "send_email": {
-          "name": "send_email",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "send_push": {
-          "name": "send_push",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "essential": {
-          "name": "essential",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "essential_confirmed_by_user_id": {
-          "name": "essential_confirmed_by_user_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "summary": {
-          "name": "summary",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by_user_id": {
-          "name": "created_by_user_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "comunicado_resends_request_key_unique": {
-          "name": "comunicado_resends_request_key_unique",
-          "columns": [
-            {
-              "expression": "request_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "comunicado_resends_comunicado_idx": {
-          "name": "comunicado_resends_comunicado_idx",
-          "columns": [
-            {
-              "expression": "comunicado_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "comunicado_resends_comunicado_id_comunicados_id_fk": {
-          "name": "comunicado_resends_comunicado_id_comunicados_id_fk",
-          "tableFrom": "comunicado_resends",
-          "tableTo": "comunicados",
-          "columnsFrom": [
-            "comunicado_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "comunicado_resends_essential_confirmed_by_user_id_users_id_fk": {
-          "name": "comunicado_resends_essential_confirmed_by_user_id_users_id_fk",
-          "tableFrom": "comunicado_resends",
-          "tableTo": "users",
-          "columnsFrom": [
-            "essential_confirmed_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "comunicado_resends_created_by_user_id_users_id_fk": {
-          "name": "comunicado_resends_created_by_user_id_users_id_fk",
-          "tableFrom": "comunicado_resends",
-          "tableTo": "users",
-          "columnsFrom": [
-            "created_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "comunicado_resends_has_target": {
-          "name": "comunicado_resends_has_target",
-          "value": "\"comunicado_resends\".\"includes_audience\" OR jsonb_array_length(\"comunicado_resends\".\"people\") > 0"
-        },
-        "comunicado_resends_essential": {
-          "name": "comunicado_resends_essential",
-          "value": "NOT \"comunicado_resends\".\"essential\" OR (\"comunicado_resends\".\"send_email\" AND \"comunicado_resends\".\"includes_audience\" AND jsonb_array_length(\"comunicado_resends\".\"people\") = 0)"
-        },
-        "comunicado_resends_essential_confirmed": {
-          "name": "comunicado_resends_essential_confirmed",
-          "value": "\"comunicado_resends\".\"essential\" = (\"comunicado_resends\".\"essential_confirmed_by_user_id\" IS NOT NULL)"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.comunicado_revisions": {
       "name": "comunicado_revisions",
       "schema": "",
@@ -1345,6 +1161,14 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "audience_kind": {
+          "name": "audience_kind",
+          "type": "comunicado_audience_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'users'"
         },
         "audience": {
           "name": "audience",
@@ -1673,6 +1497,10 @@
         "comunicados_essential_recorded": {
           "name": "comunicados_essential_recorded",
           "value": "\"comunicados\".\"status\" <> 'sent' OR NOT \"comunicados\".\"essential\" OR \"comunicados\".\"essential_confirmed_at\" IS NOT NULL"
+        },
+        "comunicados_visitors_email_only": {
+          "name": "comunicados_visitors_email_only",
+          "value": "\"comunicados\".\"status\" = 'draft' OR \"comunicados\".\"audience_kind\" = 'users' OR (\"comunicados\".\"send_email\" AND NOT \"comunicados\".\"send_push\" AND NOT \"comunicados\".\"essential\")"
         },
         "comunicados_action_pair": {
           "name": "comunicados_action_pair",
@@ -8228,6 +8056,189 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.notification_campaign_contacts": {
+      "name": "notification_campaign_contacts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "campaign_id": {
+          "name": "campaign_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email_key": {
+          "name": "email_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "visitor_id": {
+          "name": "visitor_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "campaign_contact_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "campaign_contact_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "skipped_reason": {
+          "name": "skipped_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delivery_id": {
+          "name": "delivery_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "notification_campaign_contacts_campaign_email_unique": {
+          "name": "notification_campaign_contacts_campaign_email_unique",
+          "columns": [
+            {
+              "expression": "campaign_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "email_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "notification_campaign_contacts_delivery_unique": {
+          "name": "notification_campaign_contacts_delivery_unique",
+          "columns": [
+            {
+              "expression": "delivery_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "notification_campaign_contacts_visitor_idx": {
+          "name": "notification_campaign_contacts_visitor_idx",
+          "columns": [
+            {
+              "expression": "visitor_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "notification_campaign_contacts_campaign_id_notification_campaigns_id_fk": {
+          "name": "notification_campaign_contacts_campaign_id_notification_campaigns_id_fk",
+          "tableFrom": "notification_campaign_contacts",
+          "tableTo": "notification_campaigns",
+          "columnsFrom": [
+            "campaign_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "notification_campaign_contacts_visitor_id_visitors_id_fk": {
+          "name": "notification_campaign_contacts_visitor_id_visitors_id_fk",
+          "tableFrom": "notification_campaign_contacts",
+          "tableTo": "visitors",
+          "columnsFrom": [
+            "visitor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "notification_campaign_contacts_delivery_id_notification_deliveries_id_fk": {
+          "name": "notification_campaign_contacts_delivery_id_notification_deliveries_id_fk",
+          "tableFrom": "notification_campaign_contacts",
+          "tableTo": "notification_deliveries",
+          "columnsFrom": [
+            "delivery_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "notification_campaign_contacts_skip_reason": {
+          "name": "notification_campaign_contacts_skip_reason",
+          "value": "(\"notification_campaign_contacts\".\"status\" = 'skipped') = (\"notification_campaign_contacts\".\"skipped_reason\" IS NOT NULL)"
+        },
+        "notification_campaign_contacts_email_key_normalized": {
+          "name": "notification_campaign_contacts_email_key_normalized",
+          "value": "\"notification_campaign_contacts\".\"email_key\" = lower(trim(\"notification_campaign_contacts\".\"email_key\")) and \"notification_campaign_contacts\".\"email_key\" <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.notification_campaign_recipients": {
       "name": "notification_campaign_recipients",
       "schema": "",
@@ -8317,12 +8328,6 @@
           "name": "source",
           "type": "campaign_recipient_source",
           "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "resend_id": {
-          "name": "resend_id",
-          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
@@ -8465,19 +8470,6 @@
             "id"
           ],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "notification_campaign_recipients_resend_id_comunicado_resends_id_fk": {
-          "name": "notification_campaign_recipients_resend_id_comunicado_resends_id_fk",
-          "tableFrom": "notification_campaign_recipients",
-          "tableTo": "comunicado_resends",
-          "columnsFrom": [
-            "resend_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
           "onUpdate": "no action"
         }
       },
@@ -8792,6 +8784,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "campaign_id": {
+          "name": "campaign_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "updated_at": {
           "name": "updated_at",
           "type": "timestamp",
@@ -8926,6 +8924,22 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "notification_deliveries_campaign_idx": {
+          "name": "notification_deliveries_campaign_idx",
+          "columns": [
+            {
+              "expression": "campaign_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"notification_deliveries\".\"campaign_id\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -8981,6 +8995,19 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
+        "notification_deliveries_campaign_id_notification_campaigns_id_fk": {
+          "name": "notification_deliveries_campaign_id_notification_campaigns_id_fk",
+          "tableFrom": "notification_deliveries",
+          "tableTo": "notification_campaigns",
+          "columnsFrom": [
+            "campaign_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "notification_deliveries_resend_of_delivery_id_fk": {
           "name": "notification_deliveries_resend_of_delivery_id_fk",
           "tableFrom": "notification_deliveries",
@@ -9014,6 +9041,10 @@
         "notification_deliveries_revision_is_bulk": {
           "name": "notification_deliveries_revision_is_bulk",
           "value": "\"notification_deliveries\".\"content_revision\" IS NULL OR \"notification_deliveries\".\"lane\" = 'bulk'"
+        },
+        "notification_deliveries_campaign_without_inbox": {
+          "name": "notification_deliveries_campaign_without_inbox",
+          "value": "\"notification_deliveries\".\"campaign_id\" IS NULL OR (\"notification_deliveries\".\"notification_id\" IS NULL AND \"notification_deliveries\".\"lane\" = 'bulk' AND \"notification_deliveries\".\"channel\" = 'email')"
         }
       },
       "isRLSEnabled": false
@@ -10704,6 +10735,12 @@
         "guest_order_token": {
           "name": "guest_order_token",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "guest_news_opt_in": {
+          "name": "guest_news_opt_in",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": false
         },
@@ -21048,6 +21085,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "news_opt_in": {
+          "name": "news_opt_in",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "news_opt_in_at": {
+          "name": "news_opt_in_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "updated_at": {
           "name": "updated_at",
           "type": "timestamp",
@@ -21097,6 +21146,23 @@
         "manual_code"
       ]
     },
+    "public.campaign_contact_source": {
+      "name": "campaign_contact_source",
+      "schema": "public",
+      "values": [
+        "visitor",
+        "guest_buyer",
+        "staging_admin"
+      ]
+    },
+    "public.campaign_contact_status": {
+      "name": "campaign_contact_status",
+      "schema": "public",
+      "values": [
+        "queued",
+        "skipped"
+      ]
+    },
     "public.campaign_recipient_source": {
       "name": "campaign_recipient_source",
       "schema": "public",
@@ -21113,6 +21179,14 @@
         "hidden",
         "listed",
         "selectable"
+      ]
+    },
+    "public.comunicado_audience_kind": {
+      "name": "comunicado_audience_kind",
+      "schema": "public",
+      "values": [
+        "users",
+        "visitors"
       ]
     },
     "public.comunicado_status": {
@@ -21245,7 +21319,8 @@
         "visitor_invitations",
         "participant_invitations",
         "all",
-        "announcements"
+        "announcements",
+        "news"
       ]
     },
     "public.event_discovery": {

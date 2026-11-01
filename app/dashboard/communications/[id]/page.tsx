@@ -2,6 +2,8 @@ import { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 
+import { COMUNICADO_CONTACTS_SOURCE_LABEL } from "@/app/lib/comunicados/definitions";
+
 import ComunicadoComposer from "@/app/components/comunicados/admin/composer/composer";
 import type {
   ComposerDraft,
@@ -53,6 +55,7 @@ function draftOf(comunicado: ComposerComunicado): ComposerDraft {
     actionPath: comunicado.actionPath,
     sendEmail: comunicado.sendEmail,
     sendPush: comunicado.sendPush,
+    audienceKind: comunicado.audienceKind,
     audience: comunicado.audience,
     audienceUnreadable: comunicado.audienceUnreadable,
     essential: comunicado.essential,
@@ -90,6 +93,9 @@ function scheduledOf(comunicado: ComposerComunicado): ScheduledComunicadoData {
 
 /** "Para: Confirmados · Glitter Navidad 2026 y 3 personas", as the list says it. */
 function audienceLabelOf(comunicado: ComposerComunicado) {
+  if (comunicado.audienceKind === "visitors") {
+    return `${COMUNICADO_CONTACTS_SOURCE_LABEL} · solo correo`;
+  }
   return comunicadoAudienceLabel(comunicado.audience, {
     festivals: new Map(
       comunicado.sources.festivals.map((festival) => [

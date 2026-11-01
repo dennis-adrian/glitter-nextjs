@@ -99,6 +99,7 @@ function report(overrides: Partial<ComunicadoReport> = {}): ComunicadoReport {
     },
     retryCounts: { emails: 0, people: 0, maybeSentEmails: 0 },
     sentChannels: { email: true, push: false },
+    audienceKind: "users",
     resends: [],
     ...overrides,
   };

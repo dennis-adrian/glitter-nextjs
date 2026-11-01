@@ -198,6 +198,10 @@ export async function registerVisitor(input: {
           birthdate: birthdateForStorage(details.data.birthdate),
           phoneNumber: details.data.phoneNumber,
           gender: details.data.gender,
+          // Asked of every new visitor: false is a choice, not a missing
+          // answer, and keeps them out of the Novedades comunicados (§L).
+          newsOptIn: details.data.newsOptIn,
+          newsOptInAt: details.data.newsOptIn ? new Date() : null,
         })
         .onConflictDoNothing({ target: visitors.email })
         .returning({ id: visitors.id });

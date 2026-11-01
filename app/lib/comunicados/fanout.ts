@@ -601,6 +601,12 @@ export async function completeComunicadoIfDone(
         JOIN notifications n ON n.id = d.notification_id
         WHERE n.campaign_id = ${campaignId}::int AND d.channel = 'email'
           AND d.status IN ('pending', 'processing')
+      )
+      -- A visitor comunicado's emails, which have no inbox item (§L).
+      OR EXISTS (
+        SELECT 1 FROM notification_deliveries d
+        WHERE d.campaign_id = ${campaignId}::int
+          AND d.status IN ('pending', 'processing')
       ) AS open
   `);
   if (open[0]?.open !== false) return false;

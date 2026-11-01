@@ -775,6 +775,28 @@ describeDatabase("sending a comunicado to more people (G10)", () => {
       ).toBe("NOT_SENT");
     });
 
+    it("refuses a visitor comunicado (§L)", async () => {
+      const ana = await createUser();
+      const sent = await sendTo({ people: [ana] });
+      // Email on, push off and not essential, as the visitors CHECK asks.
+      await pool!.query(
+        "UPDATE comunicados SET audience_kind = 'visitors' WHERE id = $1",
+        [sent.comunicadoId],
+      );
+      expect(
+        (
+          await refusalOf(
+            resend(sent, { includeAudience: false, people: [ana] }),
+          )
+        ).code,
+      ).toBe("VISITORS");
+      const { rows } = await pool!.query(
+        "SELECT count(*)::int AS n FROM comunicado_resends WHERE comunicado_id = $1",
+        [sent.comunicadoId],
+      );
+      expect(rows[0]!.n).toBe(0);
+    });
+
     it("is one resend for a double submit", async () => {
       const [ana, beto] = [await createUser(), await createUser()];
       const list = await createFixedList([ana]);
