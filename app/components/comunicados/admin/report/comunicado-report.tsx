@@ -48,7 +48,13 @@ const COMUNICADOS_PATH = "/dashboard/communications";
 const fmt = formatAudienceCount;
 
 /** The KPI cards (G6). Email's only when it was ticked, push's likewise. */
-function ReportKpis({ report }: { report: ComunicadoReportData }) {
+function ReportKpis({
+  report,
+  className,
+}: {
+  report: ComunicadoReportData;
+  className?: string;
+}) {
   const { kpis } = report;
   const emailNotSent =
     kpis.emailUnsubscribed +
@@ -60,7 +66,12 @@ function ReportKpis({ report }: { report: ComunicadoReportData }) {
     report.campaignStatus === "processing" && report.retractedAt === null;
 
   return (
-    <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">
+    <div
+      className={cn(
+        "grid grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-4",
+        className,
+      )}
+    >
       <ReportKpi
         label="Destinatarios"
         value={fmt(kpis.recipients)}
@@ -230,44 +241,57 @@ export default function ComunicadoReport({
 
       <ComunicadoReportBanners report={report} env={env} />
 
-      <ReportKpis report={report} />
+      {/* Stacked below xl, in this order. From xl the message and its history
+          take a side column about an email's width, and the numbers and the
+          recipients the wide one; the second row takes the side column's
+          extra height, so a long message never stretches the KPIs. */}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px] xl:grid-rows-[auto_1fr] xl:items-start">
+        <ReportKpis report={report} className="xl:col-start-1 xl:row-start-1" />
 
-      <Card>
-        <CardContent className="space-y-2 pt-6">
-          <p className="text-xs font-medium text-muted-foreground">Mensaje</p>
-          <RichTextHtml html={report.html} className="text-base" />
-        </CardContent>
-      </Card>
+        <div className="w-full max-w-2xl space-y-4 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:max-w-none">
+          <Card>
+            <CardContent className="space-y-2 pt-6">
+              <p className="text-xs font-medium text-muted-foreground">
+                Mensaje
+              </p>
+              <RichTextHtml html={report.html} className="text-base" />
+            </CardContent>
+          </Card>
 
-      <RevisionHistory
-        comunicadoId={report.id}
-        revisions={revisions}
-        currentRevision={report.currentRevision}
-      />
-
-      <section aria-label="Destinatarios" className="space-y-3">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <RecipientsFilters
+          <RevisionHistory
             comunicadoId={report.id}
-            filter={filter}
-            query={query}
-          />
-          <RecipientsSearch
-            comunicadoId={report.id}
-            filter={filter}
-            query={query}
+            revisions={revisions}
+            currentRevision={report.currentRevision}
           />
         </div>
-        <RecipientsTable rows={recipients.rows} />
-        <RecipientsPagination
-          comunicadoId={report.id}
-          filter={filter}
-          query={query}
-          page={recipients.page}
-          pageCount={recipients.pageCount}
-          total={recipients.total}
-        />
-      </section>
+
+        <section
+          aria-label="Destinatarios"
+          className="min-w-0 space-y-3 xl:col-start-1 xl:row-start-2"
+        >
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <RecipientsFilters
+              comunicadoId={report.id}
+              filter={filter}
+              query={query}
+            />
+            <RecipientsSearch
+              comunicadoId={report.id}
+              filter={filter}
+              query={query}
+            />
+          </div>
+          <RecipientsTable rows={recipients.rows} />
+          <RecipientsPagination
+            comunicadoId={report.id}
+            filter={filter}
+            query={query}
+            page={recipients.page}
+            pageCount={recipients.pageCount}
+            total={recipients.total}
+          />
+        </section>
+      </div>
     </div>
   );
 }
