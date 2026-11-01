@@ -714,7 +714,13 @@ export function resolveScreen(
   pathname: string,
   ctx: ScreenContext,
 ): Screen | null {
-  if (!ctx.viewer || ctx.tabs.length === 0) return null;
+  if (!ctx.viewer) return null;
+  return placeScreen(pathname, ctx);
+}
+
+/** Where a screen sits, for anyone: the bar needs a session, breadcrumbs do not. */
+function placeScreen(pathname: string, ctx: ScreenContext): Screen | null {
+  if (ctx.tabs.length === 0) return null;
   const path = normalize(pathname);
   if (isTabRoot(path, ctx)) return null;
 
@@ -729,7 +735,7 @@ export function resolveScreen(
   }
 
   const { def, params } = found;
-  const role = ctx.viewer.role;
+  const role = ctx.viewer?.role;
   const parentTemplate = (role && def.parentFor?.[role]) ?? def.parent;
   let parentHref = resolveHref(parentTemplate, params, ctx);
   // A parent that would lead straight back here (a tab whose own page
@@ -742,4 +748,70 @@ export function resolveScreen(
     close: Boolean(def.close),
     toParent: Boolean(def.toParent),
   };
+}
+
+export type Crumb = { label: string; href: string };
+
+/** The name of a tab's own page, for the first crumb. */
+function rootLabel(path: string, ctx: ScreenContext): string {
+  for (const tab of ctx.tabs) {
+    if (normalize(tab.href) === path) return tab.label;
+    const child = tab.children?.find((item) => normalize(item.href) === path);
+    if (child) return child.label;
+  }
+  if (festivalTabLanding(ctx) === path) {
+    const festival = ctx.tabs.find((tab) =>
+      ["festival", "participations", "festivals"].includes(tab.key),
+    );
+    if (festival) return festival.label;
+  }
+  if (STAFF_STORE_ROOTS.includes(path)) {
+    return ctx.tabs.find((tab) => tab.key === "store")?.label ?? "Tienda";
+  }
+  return ctx.tabs.find((tab) => tab.key === "home")?.label ?? "Inicio";
+}
+
+/**
+ * The breadcrumb trail for a page, from its tab's own page down to the page
+ * itself, built from the same places as the installed app's top bar. Names
+ * that depend on data come in `labels` (by href); without one, a crumb takes
+ * its screen's generic title, and a crumb with no name at all is skipped.
+ * Empty on a tab's own page.
+ */
+export function breadcrumbTrail(
+  pathname: string,
+  ctx: ScreenContext,
+  {
+    labels = {},
+    current,
+  }: {
+    labels?: Record<string, string>;
+    /** The page's own name, when it names itself (ScreenTitle). */
+    current?: string;
+  } = {},
+): Crumb[] {
+  const path = normalize(pathname);
+  const here = placeScreen(path, ctx);
+  if (!here) return [];
+
+  const trail: Crumb[] = [
+    { label: current ?? labels[path] ?? here.title, href: path },
+  ];
+  const seen = new Set([path]);
+  let parentHref = here.parentHref;
+  // Short and acyclic in practice; the bound only guards a mistake in SCREENS.
+  for (let step = 0; step < 8; step++) {
+    const parentPath = normalize(parentHref);
+    if (seen.has(parentPath)) break;
+    seen.add(parentPath);
+    const parent = placeScreen(parentPath, ctx);
+    const label =
+      labels[parentHref] ??
+      labels[parentPath] ??
+      (parent ? parent.title : rootLabel(parentPath, ctx));
+    trail.unshift({ label, href: parentHref });
+    if (!parent) break;
+    parentHref = parent.parentHref;
+  }
+  return trail.filter((crumb) => crumb.label);
 }

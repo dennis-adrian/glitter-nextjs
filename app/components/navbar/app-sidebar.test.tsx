@@ -51,10 +51,7 @@ const profile = {
 const participant: NavViewer = { role: "user", status: "verified" };
 const admin: NavViewer = { role: "admin", status: "verified" };
 
-function renderSidebar(
-  viewer: NavViewer = participant,
-  suppliesOpen = false,
-) {
+function renderSidebar(viewer: NavViewer = participant, suppliesOpen = false) {
   return render(
     <AppSidebar
       groups={
@@ -94,7 +91,9 @@ describe("AppSidebar", () => {
         .getAttribute("aria-expanded"),
     ).toBe("true");
     expect(
-      screen.getByRole("link", { name: "Todos los festivales" }).getAttribute("href"),
+      screen
+        .getByRole("link", { name: "Todos los festivales" })
+        .getAttribute("href"),
     ).toBe("/dashboard/festivals");
   });
 
@@ -179,10 +178,14 @@ describe("AppSidebar", () => {
 
     const stores = screen.getByRole("list", { name: "Tiendita" });
     expect(
-      [...stores.querySelectorAll("a")].map((link) => link.getAttribute("href")),
+      [...stores.querySelectorAll("a")].map((link) =>
+        link.getAttribute("href"),
+      ),
     ).toEqual(["/merch", "/supplies"]);
     expect(
-      screen.getByRole("link", { name: "Mercadito de Insumos" }).getAttribute("aria-current"),
+      screen
+        .getByRole("link", { name: "Mercadito de Insumos" })
+        .getAttribute("aria-current"),
     ).toBe("page");
     expect(screen.queryByRole("link", { name: "Tiendita" })).toBeNull();
   });

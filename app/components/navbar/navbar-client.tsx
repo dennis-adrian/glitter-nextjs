@@ -11,6 +11,7 @@ import AppSidebar from "@/app/components/navbar/app-sidebar";
 import AppTabBar from "@/app/components/navbar/app-tab-bar";
 import {
   buildAppNavigation,
+  buildPublicNavigation,
   type StaffFestival,
   PORTAL_HREF,
   type NavViewer,
@@ -19,6 +20,7 @@ import NavbarNavigationMenu from "@/app/components/navbar/navigation-menu";
 import {
   AppScreenBar,
   ScreenHeaderBack,
+  usePublishScreenContext,
 } from "@/app/components/navbar/screen-bar";
 import { resolveScreen } from "@/app/components/navbar/screens";
 import SessionButtons from "@/app/components/navbar/session-buttons";
@@ -98,6 +100,15 @@ export default function NavbarClient({
   });
 
   const showShell = signedIn && !isNoNavigationPage(pathname);
+  // The page's breadcrumbs place it with the same tabs: the app's when signed
+  // in, the public site's otherwise.
+  usePublishScreenContext({
+    viewer: signedIn ? viewer : null,
+    tabs: signedIn
+      ? navigation.tabs
+      : buildPublicNavigation({ programsHref, blogEnabled }),
+    activeFestival,
+  });
   // Below a tab root, the installed app trades the header for a bar with
   // back and the screen's title (on desktop, both go inside the header).
   const screen = showShell

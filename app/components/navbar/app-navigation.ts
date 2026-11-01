@@ -545,7 +545,11 @@ function operationKeys(communicationsEnabled: boolean) {
 }
 
 /** The few pages a festival admin may open besides festivals and programs. */
-const FESTIVAL_ADMIN_KEYS = ["admin-infractions", "admin-banners", "admin-landing"];
+const FESTIVAL_ADMIN_KEYS = [
+  "admin-infractions",
+  "admin-banners",
+  "admin-landing",
+];
 
 /** The staff screens "Más" opens for a whole section. */
 export const STAFF_MENU_SECTIONS = {

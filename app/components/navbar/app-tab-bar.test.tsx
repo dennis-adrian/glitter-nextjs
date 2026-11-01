@@ -65,7 +65,9 @@ describe("AppTabBar", () => {
 
     const dialog = await screen.findByRole("dialog");
     expect(
-      [...dialog.querySelectorAll("a")].map((link) => link.getAttribute("href")),
+      [...dialog.querySelectorAll("a")].map((link) =>
+        link.getAttribute("href"),
+      ),
     ).toEqual(["/merch", "/supplies"]);
     expect(dialog.textContent).toContain("Insumos y alquileres para tu stand");
   });

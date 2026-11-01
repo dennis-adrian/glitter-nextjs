@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildAppNavigation,
+  buildPublicNavigation,
   type NavViewer,
 } from "@/app/components/navbar/app-navigation";
 import {
+  breadcrumbTrail,
   isTabRoot,
   resolveScreen,
   SCREENS,
@@ -192,5 +194,70 @@ describe("resolveScreen", () => {
       "Mis pedidos",
     );
     expect(isTabRoot("/menu/", ctx(verified))).toBe(true);
+  });
+});
+
+describe("breadcrumbTrail", () => {
+  const labelsOf = (trail: { label: string }[]) => trail.map((c) => c.label);
+
+  it("runs from the tab's own page down to the page", () => {
+    expect(breadcrumbTrail("/profiles/3/orders/1043", ctx(verified))).toEqual([
+      { label: "Más", href: "/menu" },
+      { label: "Mis pedidos", href: "/my_orders" },
+      { label: "Pedido", href: "/profiles/3/orders/1043" },
+    ]);
+  });
+
+  it("takes the names that depend on data, and the page's own", () => {
+    const trail = breadcrumbTrail(
+      "/dashboard/festivals/9/festival_activities/4/results",
+      ctx(admin, { id: 9 }),
+      {
+        labels: {
+          "/dashboard/festivals/9": "Festicker 2026",
+          "/dashboard/festivals/9/festival_activities/4": "Pasaporte",
+        },
+        current: "Resultados — Pasaporte",
+      },
+    );
+    expect(labelsOf(trail)).toEqual([
+      "Festicker 2026",
+      "Actividades",
+      "Pasaporte",
+      "Resultados — Pasaporte",
+    ]);
+    expect(trail[0].href).toBe("/dashboard/festivals/9");
+  });
+
+  it("follows each role's own way in", () => {
+    expect(
+      labelsOf(breadcrumbTrail("/dashboard/programs/check-in", ctx(admin))),
+    ).toEqual(["Más", "Programas", "Registrar ingresos"]);
+    expect(
+      labelsOf(
+        breadcrumbTrail("/dashboard/programs/check-in", ctx(festivalAdmin)),
+      ),
+    ).toEqual(["Programas", "Registrar ingresos"]);
+  });
+
+  it("works for someone signed out, from the public site's pages", () => {
+    const visitor: ScreenContext = {
+      viewer: null,
+      tabs: buildPublicNavigation({}),
+      activeFestival: null,
+    };
+    expect(
+      breadcrumbTrail("/festivals/9/map", visitor, {
+        labels: { "/festivals/9": "Festicker 2026" },
+      }),
+    ).toEqual([
+      { label: "Inicio", href: "/" },
+      { label: "Festicker 2026", href: "/festivals/9" },
+      { label: "Mapa", href: "/festivals/9/map" },
+    ]);
+  });
+
+  it("is empty on a tab's own page", () => {
+    expect(breadcrumbTrail("/my_participations", ctx(verified))).toEqual([]);
   });
 });

@@ -98,15 +98,19 @@ describe("buildAppNavigation groups", () => {
         viewer: { role: "user", status },
         creditsEnabled: true,
       });
-      expect(hrefs(group(nav, "mine")!.items)).toEqual(["/portal", "/my_orders"]);
+      expect(hrefs(group(nav, "mine")!.items)).toEqual([
+        "/portal",
+        "/my_orders",
+      ]);
     }
   });
 
   it("puts both stores under Tiendita only for verified participants while supplies are open", () => {
     const store = (viewer: typeof verified, suppliesOpen: boolean) =>
-      group(buildAppNavigation({ viewer, suppliesOpen }), "explore")!.items.find(
-        (item) => item.key === "store",
-      )!;
+      group(
+        buildAppNavigation({ viewer, suppliesOpen }),
+        "explore",
+      )!.items.find((item) => item.key === "store")!;
 
     expect(hrefs(store(verified, true).children ?? [])).toEqual([
       "/merch",
@@ -114,16 +118,22 @@ describe("buildAppNavigation groups", () => {
     ]);
     // No separate supplies entry next to Tiendita.
     expect(
-      hrefs(group(buildAppNavigation({ viewer: verified, suppliesOpen: true }), "explore")!.items),
+      hrefs(
+        group(
+          buildAppNavigation({ viewer: verified, suppliesOpen: true }),
+          "explore",
+        )!.items,
+      ),
     ).not.toContain("/supplies");
     expect(store(verified, false).children).toBeUndefined();
     expect(store(pending, true).children).toBeUndefined();
   });
 
   it("gives the Tiendita tab both stores too, so it can ask which one", () => {
-    const tab = buildAppNavigation({ viewer: verified, suppliesOpen: true }).tabs.find(
-      (entry) => entry.key === "store",
-    )!;
+    const tab = buildAppNavigation({
+      viewer: verified,
+      suppliesOpen: true,
+    }).tabs.find((entry) => entry.key === "store")!;
     expect(tab.children?.map((child) => child.label)).toEqual([
       "Merch",
       "Mercadito de Insumos",
@@ -186,7 +196,10 @@ describe("buildAppNavigation groups", () => {
       "Más secciones",
       "Mi cuenta",
     ]);
-    expect(hrefs(more[1].items)).toEqual(["/menu/programas", "/menu/configuracion"]);
+    expect(hrefs(more[1].items)).toEqual([
+      "/menu/programas",
+      "/menu/configuracion",
+    ]);
     expect(more.flatMap((entry) => entry.items).length).toBeLessThanOrEqual(9);
   });
 
@@ -272,15 +285,24 @@ describe("buildAppNavigation groups", () => {
 
   it("opens the staff section screens only for who may see them", () => {
     expect(
-      staffMenuSection({ role: "admin", status: "verified" }, "configuracion")?.label,
+      staffMenuSection({ role: "admin", status: "verified" }, "configuracion")
+        ?.label,
     ).toBe("Configuración");
     expect(
-      staffMenuSection({ role: "festival_admin", status: "verified" }, "configuracion"),
+      staffMenuSection(
+        { role: "festival_admin", status: "verified" },
+        "configuracion",
+      ),
     ).toBeNull();
     expect(
-      staffMenuSection({ role: "festival_admin", status: "verified" }, "programas")?.label,
+      staffMenuSection(
+        { role: "festival_admin", status: "verified" },
+        "programas",
+      )?.label,
     ).toBe("Programas");
-    expect(staffMenuSection({ role: "user", status: "verified" }, "programas")).toBeNull();
+    expect(
+      staffMenuSection({ role: "user", status: "verified" }, "programas"),
+    ).toBeNull();
   });
 
   it("lights staff Inicio only on its own page", () => {
@@ -387,12 +409,31 @@ describe("isFocusedFlowPage", () => {
 describe("mostSpecificActiveKey", () => {
   it("lights only the closest of nested entries", () => {
     const links = [
-      { key: "tickets", label: "Entradas", href: "/dashboard/festivals/9/tickets", icon: () => null },
-      { key: "verification", label: "Verificar entradas", href: "/dashboard/festivals/9/tickets/verification", icon: () => null },
+      {
+        key: "tickets",
+        label: "Entradas",
+        href: "/dashboard/festivals/9/tickets",
+        icon: () => null,
+      },
+      {
+        key: "verification",
+        label: "Verificar entradas",
+        href: "/dashboard/festivals/9/tickets/verification",
+        icon: () => null,
+      },
     ] as unknown as Parameters<typeof mostSpecificActiveKey>[0];
 
-    expect(mostSpecificActiveKey(links, "/dashboard/festivals/9/tickets/verification")).toBe("verification");
-    expect(mostSpecificActiveKey(links, "/dashboard/festivals/9/tickets")).toBe("tickets");
-    expect(mostSpecificActiveKey(links, "/dashboard/festivals/9/map")).toBeNull();
+    expect(
+      mostSpecificActiveKey(
+        links,
+        "/dashboard/festivals/9/tickets/verification",
+      ),
+    ).toBe("verification");
+    expect(mostSpecificActiveKey(links, "/dashboard/festivals/9/tickets")).toBe(
+      "tickets",
+    );
+    expect(
+      mostSpecificActiveKey(links, "/dashboard/festivals/9/map"),
+    ).toBeNull();
   });
 });

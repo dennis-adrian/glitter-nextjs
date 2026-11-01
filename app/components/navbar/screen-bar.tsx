@@ -14,7 +14,7 @@ import {
 
 import { ChevronLeftIcon, XIcon } from "lucide-react";
 
-import type { Screen } from "@/app/components/navbar/screens";
+import type { Screen, ScreenContext } from "@/app/components/navbar/screens";
 import { cn } from "@/app/lib/utils";
 
 /**
@@ -43,6 +43,12 @@ type Setter = <K extends keyof Overrides>(
 
 const OverridesContext = createContext<Overrides>({});
 const SetterContext = createContext<Setter>(() => {});
+/**
+ * Who is viewing and their tabs, as the navbar resolved them, for the
+ * breadcrumbs inside the page. Null until the navbar has streamed in.
+ */
+const NavContext = createContext<ScreenContext | null>(null);
+const NavSetterContext = createContext<(ctx: ScreenContext) => void>(() => {});
 
 const HISTORY_FLAG = "glitter:in-app-history";
 
@@ -67,6 +73,7 @@ function useInAppHistoryFlag() {
 /** Wraps the navbar and the page, so a page can speak to the bar above it. */
 export function ScreenBarProvider({ children }: { children: React.ReactNode }) {
   const [overrides, setOverrides] = useState<Overrides>({});
+  const [nav, setNav] = useState<ScreenContext | null>(null);
   const set = useCallback<Setter>((key, value, owner) => {
     setOverrides((current) => {
       if (current[key] === value) return current;
@@ -87,9 +94,11 @@ export function ScreenBarProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <SetterContext.Provider value={set}>
-      <OverridesContext.Provider value={overrides}>
-        {children}
-      </OverridesContext.Provider>
+      <NavSetterContext.Provider value={setNav}>
+        <OverridesContext.Provider value={overrides}>
+          <NavContext.Provider value={nav}>{children}</NavContext.Provider>
+        </OverridesContext.Provider>
+      </NavSetterContext.Provider>
     </SetterContext.Provider>
   );
 }
@@ -139,6 +148,35 @@ export function useScreenBack(handler: (() => void) | undefined) {
 export function ScreenAction({ children }: { children: React.ReactNode }) {
   useOverride("action", children);
   return null;
+}
+
+/** Shares the navbar's view of who is viewing with the page's breadcrumbs. */
+export function usePublishScreenContext(ctx: ScreenContext) {
+  const publish = useContext(NavSetterContext);
+  // Republished only when something that places a screen changes.
+  const key = JSON.stringify([
+    ctx.viewer,
+    ctx.tabs.map((tab) => [
+      tab.key,
+      tab.label,
+      tab.href,
+      tab.children?.map((child) => [child.label, child.href]),
+    ]),
+    ctx.activeFestival?.id ?? null,
+  ]);
+  const latest = useRef(ctx);
+  latest.current = ctx;
+  useEffect(() => {
+    publish(latest.current);
+  }, [key, publish]);
+}
+
+/** The navbar's view of who is viewing, and the page's own title, if set. */
+export function useScreenPlacement() {
+  const nav = useContext(NavContext);
+  const overrides = useContext(OverridesContext);
+  const path = usePathname() ?? "/";
+  return { nav, path, title: current(overrides.title, path) };
 }
 
 function current<T>(

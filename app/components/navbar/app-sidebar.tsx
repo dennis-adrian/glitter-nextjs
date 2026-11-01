@@ -198,7 +198,9 @@ function SidebarSection({
     isNavLinkActive(item, pathname),
   );
   const currentKey = mostSpecificActiveKey(section.items, pathname);
-  const [open, setOpen] = useState(containsActive || Boolean(section.defaultOpen));
+  const [open, setOpen] = useState(
+    containsActive || Boolean(section.defaultOpen),
+  );
   const Icon = section.icon;
 
   // A rail has no room for a sub-list: the section becomes one icon that
