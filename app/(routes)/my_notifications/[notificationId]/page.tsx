@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import MarkNotificationRead from "@/app/components/notifications/mark-notification-read";
 import NotificationDetail from "@/app/components/notifications/notification-detail";
+import ScrollToTopOnOpen from "@/app/components/notifications/scroll-to-top-on-open";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { MAX_SERIAL_ID } from "@/app/lib/notifications/definitions";
 import {
@@ -39,6 +40,7 @@ export default async function NotificationPage(props: {
         Volver a las notificaciones
       </Link>
       <NotificationDetail notification={notification} />
+      <ScrollToTopOnOpen id={notification.id} />
       <MarkNotificationRead
         id={notification.id}
         unread={notification.readAt == null}
