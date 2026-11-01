@@ -122,7 +122,7 @@ async function precheck(
       WHEN lower(btrim(d.recipient_email)) <> c.email_key THEN 'not_eligible'
       WHEN NOT coalesce(
            (c.source IN ('visitor', 'guest_buyer') AND ${sendingEnv}::text = 'production')
-        OR (c.source = 'staging_admin' AND EXISTS (
+        OR (c.source = 'staging_admin' AND ${sendingEnv}::text <> 'production' AND EXISTS (
               SELECT 1 FROM users u
               WHERE lower(btrim(u.email)) = c.email_key
                 AND u.role = 'admin' AND u.status <> 'banned')),

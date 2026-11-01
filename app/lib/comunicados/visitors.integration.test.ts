@@ -736,6 +736,46 @@ describeDatabase("comunicados to visitors and guest buyers", () => {
     expect(rows[0]?.last_error).toBe("staging");
   }, 60_000);
 
+  it("never mails an admin standing in for visitors from production, though they are still an admin", async () => {
+    const admin = await createUser("admin");
+    const visitor = address("prod-audience");
+    await createVisitor(visitor, true);
+    const draft = await createDraft(admin.id);
+    const started = await sendNow(draft.id, admin.id, draft.version);
+    if (started.kind !== "started") throw new Error("not started");
+    // A preview's row on a production campaign: its admin is a current,
+    // non-banned admin, so only the environment can keep it out.
+    await pool!.query(
+      `WITH c AS (
+         INSERT INTO notification_campaign_contacts
+           (campaign_id, email_key, email, source, status)
+         VALUES ($1, lower($2), $2, 'staging_admin', 'queued') RETURNING id
+       )
+       INSERT INTO notification_deliveries
+         (campaign_id, template_key, channel, lane, recipient_email, payload,
+          idempotency_key)
+       SELECT $1, 'comunicado_contact', 'email', 'bulk', $2,
+              jsonb_build_object('comunicadoId', $3::int, 'contactId', c.id),
+              'stray-admin:' || c.id
+       FROM c`,
+      [started.campaignId, admin.email, draft.id],
+    );
+    await runLane(started.campaignId);
+    expect(
+      batchEmails.some((email) =>
+        email.to.some((to) => to.toLowerCase() === admin.email.toLowerCase()),
+      ),
+    ).toBe(false);
+    const { rows } = await pool!.query<{ status: string; last_error: string }>(
+      `SELECT status, last_error FROM notification_deliveries
+       WHERE campaign_id = $1 AND recipient_email = $2`,
+      [started.campaignId, admin.email],
+    );
+    expect(rows[0]).toEqual({ status: "skipped", last_error: "not_eligible" });
+    // The visitors on the same campaign still get it.
+    emailTo(visitor);
+  }, 60_000);
+
   it("refuses a visitor comunicado with push or essential, and the CHECK backs it", async () => {
     const admin = await createUser("admin");
     const visitor = address("refused");
