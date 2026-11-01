@@ -45,6 +45,7 @@ function check(
     id,
     skip,
     overridden: false,
+    essential: false,
     ...overrides,
   };
 }

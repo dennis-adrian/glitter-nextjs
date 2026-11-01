@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, type SQL, sql } from "drizzle-orm";
+import { and, asc, eq, type SQL, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import type {
@@ -12,7 +12,9 @@ import {
   type ComunicadoAudienceKind,
   type ComunicadoAudienceSummary,
   type ComunicadoContactSource,
+  type ComunicadoResendSummary,
   parseComunicadoAudienceSummary,
+  parseComunicadoResendSummary,
 } from "@/app/lib/comunicados/definitions";
 import {
   COMUNICADO_REPORT_PAGE_SIZE,
@@ -36,6 +38,7 @@ import { userSearchCondition } from "@/app/lib/users/search-condition";
 import { getUserName } from "@/app/lib/users/utils";
 import { db } from "@/db";
 import {
+  comunicadoResends,
   comunicadoRevisions,
   comunicados,
   notificationCampaigns,
@@ -178,8 +181,12 @@ export type ComunicadoReport = {
   currentRevision: number;
   /** The current revision's HTML, sanitized at send. */
   html: string;
+  /** Any of its sends used email: the original or a resend (G10). */
   sendEmail: boolean;
+  /** Any of its sends used push. */
   sendPush: boolean;
+  /** The original send's channels, where "Enviar a más personas" starts. */
+  sentChannels: { email: boolean; push: boolean };
   /** Visitors: email only, no inbox, no push (§L). */
   audienceKind: ComunicadoAudienceKind;
   essential: boolean;
@@ -203,11 +210,67 @@ export type ComunicadoReport = {
   retractCounts: ComunicadoRetractCounts;
   /** What "Reintentar fallidos" would reach (G6, V7). */
   retryCounts: ComunicadoRetryCounts;
+  /** "Enviar a más personas", the first one first (G10). */
+  resends: ComunicadoResendEntry[];
 };
+
+/** One "Enviar a más personas", as the report's history shows it (G10). */
+export type ComunicadoResendEntry = {
+  id: number;
+  createdAt: Date;
+  byName: string | null;
+  /** The revision current when it was confirmed. */
+  revision: number;
+  includesAudience: boolean;
+  sendEmail: boolean;
+  sendPush: boolean;
+  essential: boolean;
+  /** Null when the stored summary no longer parses. */
+  summary: ComunicadoResendSummary | null;
+};
+
+/** Every resend of a comunicado, with who confirmed it. */
+async function fetchResends(
+  comunicadoId: number,
+): Promise<ComunicadoResendEntry[]> {
+  const rows = await db
+    .select({
+      id: comunicadoResends.id,
+      createdAt: comunicadoResends.createdAt,
+      revision: comunicadoResends.revision,
+      includesAudience: comunicadoResends.includesAudience,
+      sendEmail: comunicadoResends.sendEmail,
+      sendPush: comunicadoResends.sendPush,
+      essential: comunicadoResends.essential,
+      summary: comunicadoResends.summary,
+      by: {
+        id: resentBy.id,
+        displayName: resentBy.displayName,
+        firstName: resentBy.firstName,
+        lastName: resentBy.lastName,
+      },
+    })
+    .from(comunicadoResends)
+    .leftJoin(resentBy, eq(resentBy.id, comunicadoResends.createdByUserId))
+    .where(eq(comunicadoResends.comunicadoId, comunicadoId))
+    .orderBy(asc(comunicadoResends.id));
+  return rows.map((row) => ({
+    id: row.id,
+    createdAt: row.createdAt,
+    byName: personName(row.by),
+    revision: row.revision,
+    includesAudience: row.includesAudience,
+    sendEmail: row.sendEmail,
+    sendPush: row.sendPush,
+    essential: row.essential,
+    summary: parseComunicadoResendSummary(row.summary),
+  }));
+}
 
 const sentBy = alias(users, "sent_by");
 const confirmedBy = alias(users, "confirmed_by");
 const retractedBy = alias(users, "retracted_by");
+const resentBy = alias(users, "resent_by");
 
 type RecipientCountsRow = {
   recipients: number;
@@ -433,9 +496,10 @@ export async function fetchComunicadoReport(
     return null;
   }
 
-  const [counts, deliveries] = await Promise.all([
+  const [counts, deliveries, resends] = await Promise.all([
     recipientCounts(row.campaignId, row.audienceKind),
     deliveryCounts(row.campaignId),
+    fetchResends(row.id),
   ]);
   const kpis: ComunicadoReportKpis = {
     recipients: counts?.recipients ?? 0,
@@ -473,8 +537,11 @@ export async function fetchComunicadoReport(
     sentByName: personName(row.sentBy),
     currentRevision: row.currentRevision,
     html: row.html ?? "",
-    sendEmail: row.sendEmail,
-    sendPush: row.sendPush,
+    // Whether any of its sends used the channel: a resend may tick one the
+    // original did not (G10).
+    sendEmail: row.sendEmail || resends.some((resend) => resend.sendEmail),
+    sendPush: row.sendPush || resends.some((resend) => resend.sendPush),
+    sentChannels: { email: row.sendEmail, push: row.sendPush },
     audienceKind: row.audienceKind,
     essential: row.essential,
     essentialReason: row.essentialReason,
@@ -506,6 +573,7 @@ export async function fetchComunicadoReport(
       people: counts?.recipients_failed ?? 0,
       maybeSentEmails: counts?.email_failed_maybe_sent ?? 0,
     },
+    resends,
   };
 }
 
@@ -518,6 +586,8 @@ export type ComunicadoRecipientRow = {
   email: string;
   /** How they entered the audience; null on a row written without one. */
   source: ComunicadoRecipientSource | ComunicadoContactSource | null;
+  /** Added by "Enviar a más personas", after the send (G10). */
+  resent: boolean;
   app: string;
   emailLabel: string;
   device: string;
@@ -541,6 +611,10 @@ type RecipientRow = {
   unsubscribed_all: boolean;
   pushes: number;
   pushes_sent: number;
+  /** The row's own channels: the original send's, or its resend's (G10). */
+  row_send_email: boolean;
+  row_send_push: boolean;
+  resend_id: number | null;
 };
 
 /** The chips (G6): each one a predicate over the same joined rows. */
@@ -608,7 +682,8 @@ export async function fetchComunicadoRecipients(
   const search = userSearchCondition(opts.query.trim().slice(0, SEARCH_MAX));
   // `users` keeps its own name: the search and the order refer to it.
   const source = sql`${recipientsWithLatestEmailSql}
-    JOIN ${users} ON ${users.id} = r.user_id`;
+    JOIN ${users} ON ${users.id} = r.user_id
+    LEFT JOIN comunicado_resends rs ON rs.id = r.resend_id`;
   const where = sql`WHERE r.campaign_id = ${comunicado.campaignId}
     AND (${RECIPIENT_FILTER_SQL[opts.filter]})
     ${search ? sql`AND (${search})` : sql``}`;
@@ -638,7 +713,10 @@ export async function fetchComunicadoRecipients(
           AND eu.topic = 'all'
       ), false) AS unsubscribed_all,
       coalesce(p.total, 0)::int AS pushes,
-      coalesce(p.sent, 0)::int AS pushes_sent
+      coalesce(p.sent, 0)::int AS pushes_sent,
+      coalesce(rs.send_email, ${comunicado.sendEmail}::boolean) AS row_send_email,
+      coalesce(rs.send_push, ${comunicado.sendPush}::boolean) AS row_send_push,
+      r.resend_id
     FROM ${source}
     LEFT JOIN LATERAL (
       SELECT count(*) AS total,
@@ -651,7 +729,7 @@ export async function fetchComunicadoRecipients(
     LIMIT ${COMUNICADO_REPORT_PAGE_SIZE}
     OFFSET ${(page - 1) * COMUNICADO_REPORT_PAGE_SIZE}`);
 
-  const { sendEmail, sendPush, currentRevision } = comunicado;
+  const { currentRevision } = comunicado;
   return {
     rows: result.rows.map((row) => {
       const delivery: ComunicadoEmailDelivery | null = row.email_status
@@ -674,6 +752,7 @@ export async function fetchComunicadoRecipients(
           }) || row.email,
         email: row.email,
         source: row.source,
+        resent: row.resend_id !== null,
         app: comunicadoAppLabel({
           status: row.status,
           skippedReason: row.skipped_reason,
@@ -682,12 +761,12 @@ export async function fetchComunicadoRecipients(
         emailLabel: comunicadoEmailLabel({
           delivery,
           unsubscribedAll: row.unsubscribed_all,
-          sendEmail,
+          sendEmail: row.row_send_email === true,
           recipientStatus: row.status,
           currentRevision,
         }),
         device: comunicadoDeviceLabel({
-          sendPush,
+          sendPush: row.row_send_push === true,
           notified: row.status === "notified",
           pushes: row.pushes,
           pushesSent: row.pushes_sent,
@@ -773,6 +852,8 @@ async function fetchComunicadoContacts(opts: {
         name: row.name?.trim() || row.email,
         email: row.email,
         source: row.source,
+        // A visitor comunicado is never resent (G10).
+        resent: false,
         app:
           row.status === "skipped"
             ? `Omitido: ${row.skipped_reason ?? "—"}`

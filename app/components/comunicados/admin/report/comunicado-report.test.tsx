@@ -26,6 +26,11 @@ vi.mock("@/app/lib/comunicados/duplicate-actions", () => ({
 vi.mock("@/app/lib/comunicados/retry-actions", () => ({
   retryFailedComunicadoAction: vi.fn(),
 }));
+vi.mock("@/app/lib/comunicados/resend-actions", () => ({
+  loadComunicadoResendPreviewAction: vi.fn(),
+  resendComunicadoAction: vi.fn(),
+  searchComunicadoResendPeopleAction: vi.fn(),
+}));
 vi.mock("@/app/lib/comunicados/revision-actions", () => ({
   loadComunicadoRevisionAction: vi.fn(),
 }));
@@ -147,6 +152,9 @@ function reportOf(
       sentEmails: 1_180,
     },
     retryCounts: { emails: 0, people: 0, maybeSentEmails: 0 },
+    sentChannels: { email: true, push: true },
+    audienceKind: "users",
+    resends: [],
     ...overrides,
   };
 }
@@ -328,6 +336,7 @@ describe("ComunicadoReport", () => {
     ).toEqual([
       "Editar",
       "Duplicar",
+      "Enviar a más personas",
       "Reintentar fallidos (8)",
       "Retirar «Cambio de horario de armado»",
     ]);
@@ -344,9 +353,10 @@ describe("ComunicadoReport", () => {
       screen
         .getAllByRole("button")
         .map((button) => button.textContent)
-        .slice(0, 3),
+        .slice(0, 4),
     ).toEqual([
       "Duplicar",
+      "Enviar a más personas",
       "Reintentar fallidos (8)",
       "Retirar «Cambio de horario de armado»",
     ]);
@@ -401,6 +411,79 @@ describe("ComunicadoReport", () => {
       screen.queryByRole("button", { name: /^Reintentar fallidos/ }),
     ).toBeNull();
     expect(screen.queryByRole("button", { name: /^Retirar/ })).toBeNull();
+    // A retracted comunicado cannot be resent (G10).
+    expect(
+      screen.queryByRole("button", { name: "Enviar a más personas" }),
+    ).toBeNull();
+  });
+
+  it("offers Enviar a más personas only where the comunicado was sent from", () => {
+    const { unmount } = renderReport(reportOf(), { env: "development" });
+    expect(
+      screen.queryByRole("button", { name: "Enviar a más personas" }),
+    ).toBeNull();
+    unmount();
+
+    renderReport(reportOf());
+    expect(
+      screen.getByRole("button", { name: "Enviar a más personas" }),
+    ).toBeTruthy();
+  });
+
+  it("offers no Enviar a más personas on a visitor comunicado", () => {
+    renderReport(reportOf({ audienceKind: "visitors" }));
+    expect(
+      screen.queryByRole("button", { name: "Enviar a más personas" }),
+    ).toBeNull();
+  });
+
+  it("lists each resend under «Envíos a más personas»", () => {
+    const { unmount } = renderReport(reportOf());
+    expect(screen.queryByText("Envíos a más personas")).toBeNull();
+    unmount();
+
+    renderReport(
+      reportOf({
+        resends: [
+          {
+            id: 1,
+            createdAt: new Date("2026-10-25T14:12:00Z"),
+            byName: "Ana",
+            revision: 2,
+            includesAudience: true,
+            sendEmail: true,
+            sendPush: false,
+            essential: false,
+            summary: {
+              v: 1,
+              env: "production",
+              narrowed: false,
+              newcomers: 9,
+              pickedByName: 3,
+              eligible: 12,
+              willReceive: 12,
+              stagingAdmins: 0,
+              stagingSkipped: 0,
+              channels: { email: true, push: false },
+              email: {
+                sendTo: 12,
+                unsubscribedAnnouncements: 0,
+                unsubscribedAll: 0,
+                suppressed: 0,
+                invalid: 0,
+              },
+              essentialOverride: 0,
+              essentialNotOverridden: 0,
+            },
+          },
+        ],
+      }),
+    );
+    expect(
+      screen.getByText(
+        "Enviado a 12 personas más el dom, 25 oct, 10:12 AM por Ana · 9 nuevas en la audiencia · 3 por nombre · en la app y por correo",
+      ),
+    ).toBeTruthy();
   });
 
   it("shows every KPI G6 lists while it sends, with their subs", () => {

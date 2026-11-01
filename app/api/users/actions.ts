@@ -6,6 +6,7 @@ import { z } from "zod";
 import { hasPgErrorCode } from "@/app/lib/errors/postgres";
 import { db } from "@/db";
 import {
+  comunicadoResends,
   comunicados,
   creditLedgerEntries,
   infractionEvidence,
@@ -135,8 +136,16 @@ async function hasRestrictActorReferences(
     .from(comunicados)
     .where(eq(comunicados.essentialConfirmedByUserId, profileId))
     .limit(1);
+  if (essential) return true;
 
-  return Boolean(essential);
+  // So does who confirmed an essential "Enviar a más personas".
+  const [essentialResend] = await tx
+    .select({ id: comunicadoResends.id })
+    .from(comunicadoResends)
+    .where(eq(comunicadoResends.essentialConfirmedByUserId, profileId))
+    .limit(1);
+
+  return Boolean(essentialResend);
 }
 
 async function hasCreditLedgerEntries(

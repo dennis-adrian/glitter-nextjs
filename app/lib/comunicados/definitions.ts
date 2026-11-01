@@ -348,6 +348,20 @@ export const ComunicadoAudienceSummarySchema = z.object({
   /** Top level, as runbook query I4 #6 reads them. */
   essentialOverride: summaryCount,
   essentialNotOverridden: summaryCount,
+  /**
+   * Every "Enviar a más personas" since, added up (G10): the fields above
+   * stay the original send's, and these are the rows each resend wrote.
+   * Absent until the first one.
+   */
+  resends: z
+    .object({
+      count: summaryCount,
+      willReceive: summaryCount,
+      pickedByName: summaryCount,
+      essentialOverride: summaryCount,
+      essentialNotOverridden: summaryCount,
+    })
+    .optional(),
 });
 export type ComunicadoAudienceSummary = z.output<
   typeof ComunicadoAudienceSummarySchema
@@ -391,3 +405,46 @@ export const COMUNICADO_IMAGE_HELP =
   "JPG o PNG, hasta 4 MB. Se ve mejor a 1200 px de ancho.";
 export const COMUNICADO_FOREIGN_IMAGE_MESSAGE =
   "Esta imagen no está subida a Glitter: subila de nuevo.";
+
+/** "Enviar a más personas" (G10): people picked by name, at most, per resend. */
+export const COMUNICADO_RESEND_MAX_PEOPLE = COMUNICADO_MAX_PEOPLE;
+
+/**
+ * `comunicado_resends.summary`: who one resend reached when it was
+ * confirmed. `eligible` is counted before a preview narrows, as the send's.
+ */
+export const ComunicadoResendSummarySchema = z.object({
+  v: z.literal(1),
+  env: z.enum(["development", "preview", "production"]),
+  narrowed: z.boolean(),
+  /** New to the original audience who can receive it, before narrowing. */
+  newcomers: summaryCount,
+  /** Picked by name who can receive it. */
+  pickedByName: summaryCount,
+  eligible: summaryCount,
+  /** Recipient rows written `pending`. */
+  willReceive: summaryCount,
+  stagingAdmins: summaryCount,
+  /** List members a preview wrote skipped. */
+  stagingSkipped: summaryCount,
+  channels: z.object({ email: z.boolean(), push: z.boolean() }),
+  email: z.object({
+    sendTo: summaryCount,
+    unsubscribedAnnouncements: summaryCount,
+    unsubscribedAll: summaryCount,
+    suppressed: summaryCount,
+    invalid: summaryCount,
+  }),
+  essentialOverride: summaryCount,
+  essentialNotOverridden: summaryCount,
+});
+export type ComunicadoResendSummary = z.output<
+  typeof ComunicadoResendSummarySchema
+>;
+
+export function parseComunicadoResendSummary(
+  value: unknown,
+): ComunicadoResendSummary | null {
+  const parsed = ComunicadoResendSummarySchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}

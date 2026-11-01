@@ -7508,6 +7508,14 @@ export const notificationCampaignRecipients = pgTable(
      * check allows by it, so a row without one is never sent.
      */
     source: campaignRecipientSourceEnum("source"),
+    /**
+     * A comunicado's: the "Enviar a más personas" that added this row, whose
+     * channels and essential mark it is sent with; null for the original
+     * send's snapshot.
+     */
+    resendId: integer("resend_id").references(() => comunicadoResends.id, {
+      onDelete: "restrict",
+    }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
@@ -8008,6 +8016,67 @@ export const comunicadoRevisions = pgTable(
     check(
       "comunicado_revisions_edit_note_length",
       sql`${t.editNote} IS NULL OR char_length(${t.editNote}) <= 300`,
+    ),
+  ],
+);
+
+/**
+ * "Enviar a más personas" (docs/IMPLEMENTATION-comunicados.md G10): each
+ * time a sent comunicado was delivered to people who had not got it, with the
+ * channels and the essential mark those people's rows are sent with, and the
+ * counts at that moment. Its recipient rows point here (`resend_id`). Never
+ * updated; RESTRICT, like the revisions, so the record stays.
+ */
+export const comunicadoResends = pgTable(
+  "comunicado_resends",
+  {
+    id: serial("id").primaryKey(),
+    comunicadoId: integer("comunicado_id")
+      .notNull()
+      .references(() => comunicados.id, { onDelete: "restrict" }),
+    /** Minted when the dialog opens, so a double submit is one resend. */
+    requestKey: text("request_key").notNull(),
+    /** The original audience was re-resolved for people new to it. */
+    includesAudience: boolean("includes_audience").notNull(),
+    /** People picked by name for this resend. */
+    people: jsonb("people")
+      .$type<number[]>()
+      .default(sql`'[]'::jsonb`)
+      .notNull(),
+    sendEmail: boolean("send_email").notNull(),
+    sendPush: boolean("send_push").notNull(),
+    /**
+     * Its email lifts the Anuncios opt-out, as the original's did: only for
+     * the festival's newcomers, by email, inside the 7-day window (B7).
+     */
+    essential: boolean("essential").default(false).notNull(),
+    /** Permanent, as the send's: deleting this admin's profile is refused. */
+    essentialConfirmedByUserId: integer(
+      "essential_confirmed_by_user_id",
+    ).references(() => users.id, { onDelete: "restrict" }),
+    /** The revision current when it was confirmed; the fan-out sends the current one. */
+    revision: integer("revision").notNull(),
+    /** Counts at the resend (`ComunicadoResendSummary`). */
+    summary: jsonb("summary").$type<Record<string, unknown>>().notNull(),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("comunicado_resends_request_key_unique").on(t.requestKey),
+    index("comunicado_resends_comunicado_idx").on(t.comunicadoId, t.id),
+    check(
+      "comunicado_resends_has_target",
+      sql`${t.includesAudience} OR jsonb_array_length(${t.people}) > 0`,
+    ),
+    check(
+      "comunicado_resends_essential",
+      sql`NOT ${t.essential} OR (${t.sendEmail} AND ${t.includesAudience} AND jsonb_array_length(${t.people}) = 0)`,
+    ),
+    check(
+      "comunicado_resends_essential_confirmed",
+      sql`${t.essential} = (${t.essentialConfirmedByUserId} IS NOT NULL)`,
     ),
   ],
 );

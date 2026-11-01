@@ -654,14 +654,23 @@ export type ComunicadoPersonOption = {
  * "Agregar por nombre o correo": participants and global admins (K13), 8 at
  * most. Festival admins and other roles are not offered.
  */
+/** "Enviar a más personas" (G10): someone the campaign already has a row for. */
+export const ALREADY_IN_COMUNICADO_REASON = "Ya está en este comunicado";
+
 export async function searchComunicadoPeople(
   query: string,
+  opts: { campaignId?: number } = {},
 ): Promise<ComunicadoPersonOption[]> {
   const term = query.trim();
   if (term.length < 2 || term.length > 100) return [];
   if (!(await canRead())) return [];
-  const result = await db.execute<PersonRow>(sql`
-    SELECT ${personColumns}
+  const campaignId = opts.campaignId ?? null;
+  const result = await db.execute<PersonRow & { in_campaign: boolean }>(sql`
+    SELECT ${personColumns},
+      (${campaignId}::int IS NOT NULL AND EXISTS (
+        SELECT 1 FROM notification_campaign_recipients cr
+        WHERE cr.campaign_id = ${campaignId}::int AND cr.user_id = ${users.id}
+      )) AS in_campaign
     FROM ${users}
     WHERE ${users.role} IN ('user', 'admin') AND ${userSearchCondition(term)}
     ORDER BY ${nameOrder}
@@ -670,15 +679,21 @@ export async function searchComunicadoPeople(
   return result.rows.map((row) => {
     const person = toComposerPerson(row);
     const isAdmin = person.role === "admin";
+    // Whoever has a row got it, or was judged for it: a resend never repeats
+    // them (unique per campaign).
+    const skipReason =
+      row.in_campaign === true
+        ? ALREADY_IN_COMUNICADO_REASON
+        : person.skipReason;
     return {
       id: person.id,
       name: person.name,
       email: person.email,
       imageUrl: person.imageUrl,
       isAdmin,
-      skipReason: person.skipReason,
+      skipReason,
       // Someone who cannot receive it gets no mail either.
-      realEmailOnPreview: onPreview && !isAdmin && person.skipReason === null,
+      realEmailOnPreview: onPreview && !isAdmin && skipReason === null,
     };
   });
 }

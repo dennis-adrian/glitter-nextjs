@@ -152,6 +152,7 @@ describe("ComunicadoPage", () => {
         filter: "unread",
         query: "ana",
         env: "production",
+        pushLaunched: true,
       });
       expect(mocks.fetchRevisions).toHaveBeenCalledWith(7);
       expect(mocks.fetchRecipients).toHaveBeenCalledWith(7, {
