@@ -665,6 +665,17 @@ describeDatabase("comunicados to visitors and guest buyers", () => {
       page: 1,
     }))!;
     expect(skipped.rows[0]?.app).toBe(`Omitido: ${r.noConsent}`);
+
+    // The list row: email counts, but no read share, since nothing is read.
+    const { fetchComunicadoList } =
+      await import("@/app/lib/comunicados/queries");
+    const list = await fetchComunicadoList({ tab: "sent", page: 1 });
+    const listed = list.rows.find((row) => row.id === draft.id);
+    expect(listed?.audienceLabel).toBe(
+      "Visitantes y compradores de merch · solo correo",
+    );
+    expect(listed?.stats?.recipients).toBeGreaterThanOrEqual(5);
+    expect(listed?.stats?.readPercent).toBeNull();
   }, 60_000);
 
   it("outside production, skips every contact and mails the admins instead", async () => {

@@ -166,7 +166,10 @@ export type ComunicadoListStats = {
   recipients: number;
   /** Null when email was not ticked. */
   emailsSent: number | null;
-  /** Of the recipients, in whole percent; null when there is nobody. */
+  /**
+   * Of the recipients, in whole percent; null when there is nobody, or for a
+   * visitor comunicado, which nobody reads in the app.
+   */
   readPercent: number | null;
 };
 
@@ -258,6 +261,7 @@ function statsOf(
     status: ComunicadoStatus;
     campaignId: number | null;
     sendEmail: boolean;
+    audienceKind: "users" | "visitors";
   },
   counts: Map<number, CampaignCounts>,
 ): ComunicadoListStats | null {
@@ -267,8 +271,11 @@ function statsOf(
   return {
     recipients,
     emailsSent: row.sendEmail ? (found?.emailsSent ?? 0) : null,
+    // A visitor comunicado has no inbox item to read (§L): no share at all.
     readPercent:
-      recipients > 0 ? wholePercent(found?.read ?? 0, recipients) : null,
+      row.audienceKind === "users" && recipients > 0
+        ? wholePercent(found?.read ?? 0, recipients)
+        : null,
   };
 }
 
