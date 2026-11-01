@@ -1779,8 +1779,8 @@ It loads fresh numbers from the server when it opens:
 | Reply-To  | `soporte@productoraglitter.com`, the orders precedent (`order-emails.ts:64`). K3.                                                                                                                                                             |
 | Subject   | the title; prefixed with "[Prev]" or "[Dev]" outside production                                                                                                                                                                               |
 | Preheader | the excerpt, cut to 120 characters                                                                                                                                                                                                            |
-| Body      | `EmailHeader`; the title as a heading (no greeting); the rendered blocks (C3); the button, with an absolute URL                                                                                                                 |
-| Footer    | `EmailFooter`: "Enviado por el equipo Glitter / © 2026 \| Productora Glitter, Santa Cruz, Bolivia / ¿No querés recibir más correos como este? Darme de baja". Essential sends and staging sends add their note lines (D7).                    |
+| Body      | `EmailHeader`; the title as a heading (no greeting); the rendered blocks (C3); the button, with an absolute URL                                                                                                                               |
+| Footer    | `EmailFooter`: "Enviado por el equipo Glitter / © 2026 \| Productora Glitter, Santa Cruz, Bolivia / ¿No querés recibir más correos como este? Darme de baja". Essential sends add their note line (D7).                                       |
 | Headers   | `List-Unsubscribe` with one-click, topic `announcements`; left out only for an essential email to someone already unsubscribed from Anuncios (D7)                                                                                             |
 | Text part | the full text with URLs, the button as "Texto: https://…", then "Darme de baja: \<url\>"                                                                                                                                                      |
 
@@ -1866,7 +1866,7 @@ It loads fresh numbers from the server when it opens:
    - a button path with a tab is refused;
    - the four preview tabs match the real inbox, detail page and email, in dark mode too.
 5. **"Enviarme una prueba":**
-   - it arrives as "[Prev] [Prueba] …" from "Productora Glitter (prueba)", with the staging footer note;
+   - it arrives as "[Prev] [Prueba] …" from "Productora Glitter (prueba)";
    - Reply-To, the button and the footer are right, and the links point at the preview's https host, not localhost;
    - Gmail → "Mostrar original" shows `List-Unsubscribe` and `List-Unsubscribe-Post`;
    - the 6th try in 10 minutes is refused.
@@ -1882,7 +1882,7 @@ It loads fresh numbers from the server when it opens:
    - essential is disabled for an archived festival;
    - an address on the suppression list is not mailed.
 8. **One-click on a protected preview:**
-   - `curl -X POST "<preview>/api/email/unsubscribe?token=…"` without Vercel credentials. If it answers 401 (Vercel's login), that is expected on staging only, and the footer note covers it;
+   - `curl -X POST "<preview>/api/email/unsubscribe?token=…"` without Vercel credentials. If it answers 401 (Vercel's login), that is expected on staging only;
    - with the `x-vercel-protection-bypass` header it answers 200.
 9. **Edit after sending** ("Editar" on a sent comunicado):
    - the dialog's lines match the report's numbers;
@@ -2101,7 +2101,7 @@ Eight PRs. Groundwork ships first and alone, because it changes the transactiona
 **Scope:**
 
 - The `announcement` variant without images (schema, tags, toolbar).
-- `normalizeAnnouncementDoc` with stages. `announcementBlocksToText`, `announcementBlocksToEmail` and `app/emails/comunicado.tsx`, with the staging and essential note slots. `excerptOf`.
+- `normalizeAnnouncementDoc` with stages. `announcementBlocksToText`, `announcementBlocksToEmail` and `app/emails/comunicado.tsx`, with the essential note slot. `excerptOf`.
 - Kinds `comunicado` (`push: "per_send"`) and `comunicado_not_sent`; the `notificationPushes` option and `notify({ push })`.
 - `safeActionPath` with the whitespace rule.
 - The gift report's `status` narrowed to its literal union (`credit_gifts/queries.ts:377`), which 0303's `notified` label requires (A6).
