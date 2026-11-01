@@ -1,0 +1,283 @@
+# Implementation Plan: Entrar como participante
+
+**Product:** Glitter  
+**Feature area:** Admin tools, auth, app shell  
+**Status:** Proposed  
+**Last updated:** 2026-11-01  
+**Branch:** `feature/impersonation` from `feature/app-navigation` (PR 608) until that merges
+
+A global admin picks any participant, sees Glitter exactly as that person sees it, with a banner that never goes away, and returns to their own admin session with one tap. The feature is built in the app, on top of the admin's own Clerk session. No Clerk impersonation, actor tokens or multi-session handling are used: those are Pro-plan features, and the dev instance runs in single-session mode anyway.
+
+UI language calls it **Entrar como participante**; while it is on, the app is **viendo como {nombre}** and **solo lectura**.
+
+---
+
+## 1. Decisions locked
+
+| Topic | Decision |
+| --- | --- |
+| Mechanism | App-level. The admin keeps their own Clerk session. A row in a new `impersonation_sessions` table plus an httpOnly cookie with an opaque token turn every "current viewer" lookup into the participant. |
+| Who may use it | Role `admin` only. `festival_admin` and participants never see the entry points, and the server refuses them. |
+| Who can be entered | Role `user`, **any status** (verified, pending, paused, rejected, banned). Never an admin or festival admin, never yourself, never a profile with a pending deletion, never while already viewing as someone. |
+| Mode | **Read-only.** Every database write, email, push and upload is refused on the server while viewing as someone. Nothing is allowed through. |
+| Enforcement point | A write guard on the single `pg.Pool` in `db/index.ts`, plus explicit refusals at Resend, push and UploadThing. Hidden UI is a courtesy, the guard is the boundary. |
+| Duration | 60 minutes. The cookie and the row expire together. |
+| Exit | A route that checks the real Clerk session, closes the row, clears the cookie and returns the admin to where they started. It depends on no admin page. |
+| Expiry mid-browse | The next request renders as the admin again. The banner notices on the client and says the view ended. |
+| Audit | The `impersonation_sessions` table: who, whom, started, ended or expired, how many writes were blocked. No page views. Shown as "Recientes" on the picker page and on the person's admin page. |
+| Side effects | No push registration, no PostHog identify as the participant, no read-state writes, no emails, no uploads. There is no "last seen" in the codebase. |
+| Drift protection | ESLint `no-restricted-imports` keeps `currentUser` / `auth` from `@clerk/nextjs/server` inside the one viewer module. |
+
+---
+
+## 2. Glossary
+
+| Term | Meaning |
+| --- | --- |
+| Actor | The admin who is signed in to Clerk. Their Clerk user id is `auth().userId` on every request. |
+| Subject | The participant being viewed. Their `users` row is what every helper returns while the view is on. |
+| View session | One row of `impersonation_sessions`, from entering to exiting or expiring. |
+| View cookie | `glitter_view_as`: httpOnly, Secure, SameSite=Lax, path `/`, holding the random token whose SHA-256 is stored on the row. |
+| Viewer resolution | The one place that decides whose profile the request is for. |
+
+---
+
+## 3. How a request resolves its viewer
+
+```
+request
+  └─ auth() → actor Clerk id, actor Clerk session id        (Clerk, as today)
+       └─ view cookie present?
+            no  → viewer = actor's profile                   (unchanged)
+            yes → row by token hash, where
+                    ended_at is null
+                    and expires_at > now()
+                    and admin_clerk_session_id = actor's session id
+                    and actor's profile.role = 'admin'
+                  found → viewer = subject's profile, mode = viewing
+                  not found → cookie is cleared on the response, viewer = actor
+```
+
+Cached per request with React `cache`, so the row is read once. The binding to the Clerk session id means a stolen cookie is worthless in another browser, and signing out of Clerk ends the view by itself.
+
+The three facts the rest of the app needs come from one module, `app/lib/impersonation/viewer.ts`:
+
+- `getViewerClerkId()` — the subject's Clerk id while viewing, the actor's otherwise. Replaces every direct `auth().userId` / `currentUser().id`.
+- `getImpersonation()` — `null`, or `{ sessionId, actor: BaseProfile, subject: BaseProfile, expiresAt }`.
+- `isImpersonating()` — boolean, safe to call anywhere (returns `false` outside a request, including static renders, the way `getLayoutViewer` already guards).
+
+---
+
+## 4. Schema
+
+```ts
+export const impersonationEndReasonEnum = pgEnum("impersonation_end_reason", [
+  "exited",   // Salir
+  "signed_out", // the Clerk session behind it ended
+]);
+
+export const impersonationSessions = pgTable(
+  "impersonation_sessions",
+  {
+    id: serial("id").primaryKey(),
+    adminUserId: integer("admin_user_id").references(() => users.id, { onDelete: "set null" }),
+    subjectUserId: integer("subject_user_id").references(() => users.id, { onDelete: "set null" }),
+    /** Kept as text so the audit survives the profile rows. */
+    adminClerkId: text("admin_clerk_id").notNull(),
+    subjectClerkId: text("subject_clerk_id").notNull(),
+    /** The Clerk session the view is bound to; another session cannot use the cookie. */
+    adminClerkSessionId: text("admin_clerk_session_id").notNull(),
+    tokenHash: text("token_hash").unique().notNull(),
+    startedAt: timestamp("started_at").defaultNow().notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    endedAt: timestamp("ended_at"),
+    endReason: impersonationEndReasonEnum("end_reason"),
+    blockedWrites: integer("blocked_writes").default(0).notNull(),
+    /** Where Salir returns to: the admin page the view was started from. */
+    returnTo: text("return_to"),
+  },
+  (t) => [
+    index("impersonation_sessions_admin_started_idx").on(t.adminUserId, t.startedAt),
+    index("impersonation_sessions_subject_started_idx").on(t.subjectUserId, t.startedAt),
+  ],
+);
+```
+
+A row with `ended_at` null and `expires_at` in the past reads as **expirada**; nothing has to run to mark it. `blocked_writes` is bumped outside the guarded scope (see 6) so the audit can record the attempt.
+
+Migration: `pnpm generate` → `drizzle/0305_impersonation_sessions.sql`. Applied locally with `pnpm migrate` after confirming `POSTGRES_URL` points at `localhost`. Production applies it through `vercel-build` on deploy, which is Dennis's call as always.
+
+---
+
+## 5. Server flow
+
+### 5.1 Start — `startImpersonationAction(subjectId, returnTo)` in `app/lib/impersonation/actions.ts`
+
+1. `requireAdmin()` on the **real** viewer (`getImpersonation()` must be null; an admin already viewing as someone is refused).
+2. Load the subject: `role = 'user'`, `id !== admin.id`, no `pending_user_deletions` row for its `clerk_id` with `local_deleted_at` null. Otherwise `{ success: false, message }`.
+3. `randomBytes(32)` → token; store `sha256(token)`; `expires_at = now + 60 min`; `admin_clerk_session_id = auth().sessionId`; `return_to` only when it is a same-origin path under `/dashboard`.
+4. Set the cookie (`maxAge` 3600) and return `{ success: true, redirectTo: "/portal" }`. The client navigates with `router.push` and `router.refresh()`.
+5. PostHog: one server event `impersonation_started` with `subject_id`, attributed to the admin.
+
+### 5.2 While viewing
+
+- `getCurrentUserProfile`, `getCurrentBaseProfile`, `getCurrentNavbarProfile` call `getViewerClerkId()` instead of `getCurrentClerkUser().id`.
+- `app/api/users/navbar-profile/route.ts`, `app/page.tsx`, `app/lib/notifications/queries.ts` (`resolveInboxViewer`) and `app/launch/route.ts` use `getViewerClerkId()`.
+- `getCurrentClerkUser` stays for the places that need Clerk's user object itself, but is no longer how a profile is found.
+- Everything downstream is unchanged: `requireAdmin` is false, `/dashboard` redirects to `/`, `protectRoute` sees the subject's status, feature flags, navigation, Inicio and the hub resolve for the subject.
+
+### 5.3 Exit — `POST /api/impersonation/exit` (route handler)
+
+1. `auth()` must be signed in; the view row for the cookie must be bound to this Clerk session (an expired row still ends cleanly).
+2. Inside `allowImpersonationWrites()`: set `ended_at`, `end_reason = 'exited'`.
+3. Clear the cookie; respond with `{ returnTo }` (`return_to` or `/dashboard`). The banner's Salir button posts, then `router.replace(returnTo)` and `router.refresh()`.
+
+A route handler rather than a server action so it is callable from the banner on every page, including `force-static` ones, with no RSC round-trip and no dependency on the page it is on.
+
+### 5.4 Expiry
+
+- Cookie `maxAge` and `expires_at` coincide, so most expiries never reach the server.
+- A request that still carries the cookie past `expires_at` resolves as the admin and clears the cookie.
+- The banner is mounted with `expiresAt`; a client timer and a `visibilitychange` check flip it to the ended state at that time: "La vista como {nombre} terminó" with "Volver a mi cuenta" (`router.refresh()` → admin again).
+
+---
+
+## 6. Read-only enforcement
+
+### 6.1 Database guard — `db/index.ts` + `app/lib/impersonation/write-guard.ts`
+
+- `pool.query` and the `client.query` of every client handed out by `pool.connect` are wrapped. Drizzle's node-postgres driver funnels every statement through those two.
+- `classifyStatement(sql)` (pure, tested) returns `"read"` or `"write"`: the first keyword after comments, with CTEs looked through (`with … insert|update|delete|merge`). `insert`, `update`, `delete`, `merge`, `truncate`, `create`, `alter`, `drop`, `copy`, `call`, `refresh` are writes. `select … for update` is a read: it locks, it changes nothing, and the write that follows is caught.
+- For a write, the wrapper awaits `isImpersonating()`. Reads never ask, so they cost nothing.
+- When viewing: throw `ImpersonationReadOnlyError` (message `"Estás viendo la app como otra cuenta: solo lectura."`), and `after()`-style bump `blocked_writes` on the row through `allowImpersonationWrites`.
+- `allowImpersonationWrites(fn)` is an `AsyncLocalStorage` scope that lets the exit route and the blocked-write counter write. Only `app/lib/impersonation/*` imports it; the ESLint rule enforces that too.
+- `isImpersonating()` returns `false` when `auth()`/`cookies()` are unavailable (scripts, instrumentation, static renders, `migrate.ts`, cron handlers with no session), so nothing outside a viewing request is affected.
+
+### 6.2 Side-effect chokepoints
+
+| Where | Change |
+| --- | --- |
+| `app/vendors/resend.ts` | `sendEmail` / batch: `if (await isImpersonating()) throw ImpersonationReadOnlyError`. The DB guard already stops the actions that would send; this is for the few sends that happen before or without a write. |
+| `app/lib/notifications/push/send.ts` | Same refusal before any delivery. |
+| `app/lib/notifications/push/actions.ts` | `savePushDeviceAction` and friends return the read-only result before touching the DB, so the client gets a message rather than a thrown error. |
+| `app/components/notifications/use-push-device.ts` and the avisos control | Hidden / inert while viewing (`useImpersonation()` client hook from the banner's context). |
+| `proxy.ts` | `POST /api/uploadthing(.*)` answers 403 while the view cookie resolves to a live row. The middleware cannot read the DB cheaply, so it checks the cookie's presence plus a second, non-httpOnly marker cookie `glitter_view_as_marker` written and cleared together with the token; the route handler re-checks with `isImpersonating()`. |
+| `app/lib/notifications/read.ts` `markNotificationRead` | Returns without writing while viewing, so `/my_notifications/[id]/open` still renders. |
+| `app/components/providers/posthog-identify.tsx` | `useUser()` is still the admin, so identify is already right. No change beyond a comment; the client stays identified as the admin. |
+| Cart, reservations, profile edits, votes, uploads, terms acceptance | Caught by 6.1. Their forms show their usual error toast with the guard's message. |
+
+### 6.3 What the admin sees when something is blocked
+
+The banner already says **solo lectura**. A blocked action shows the action's own error path with the guard's message. No per-action UI changes.
+
+---
+
+## 7. Entry points and screens
+
+### 7.1 Navigation — `app/components/navbar/app-navigation.ts`
+
+In `buildStaffNavigation`, for `isAdmin` only, the `account` group gains:
+
+```ts
+{
+  key: "impersonate",
+  label: "Entrar como participante",
+  description: "ver la app como cualquier cuenta",
+  href: "/dashboard/impersonate",
+  icon: UserRoundSearchIcon,
+}
+```
+
+It appears in Más (`more`) and in the sidebar's "Mi cuenta" group. The desktop account menu (`app/components/ui/user-dropdown.tsx`) gets the same row for admins.
+
+### 7.2 Picker — `/dashboard/impersonate` (`app/dashboard/impersonate/page.tsx`)
+
+- `requireAdmin()` or `notFound()`.
+- Search field (name or email, `userSearchCondition`, `role = 'user'`, 20 results, debounced through a `"use server"` fetcher), each row: avatar, name, email, status badge, category.
+- "Recientes": the admin's last 10 view sessions with subject, when, how long, how it ended.
+- Tapping a row opens the confirmation: name, email, status; "Vas a ver Glitter como esta persona. Solo lectura: no se guarda nada, no se envían correos ni avisos. La vista termina sola a los 60 minutos." Buttons **Entrar** / **Cancelar**.
+
+### 7.3 Person's admin page — `/dashboard/users/[profileId]`
+
+`ProfileQuickActions` gains "Entrar como {nombre}" for admins when the profile is eligible; same confirmation; `returnTo` = that page. Below the profile, "Vistas recientes" lists this person's view sessions.
+
+### 7.4 Banner — `app/components/impersonation/impersonation-banner.tsx`
+
+- Server component in `navbar.tsx`, first child of the sticky `data-site-navbar` wrapper, above the announcement strip and the installed app's top bar; it is therefore above the header on desktop and above `AppScreenBar` in the installed app, and the tab bar is untouched.
+- Content: eye icon, "Estás viendo como **{nombre}**" (email on desktop), "solo lectura", and **Salir**. One line on the phone; the name truncates, Salir never does.
+- Publishes `--impersonation-banner-height` with a `ResizeObserver`, the way the announcement strip publishes its height. The offsets that subtract `--announcement-strip-height` (`globals.css`, `dashboard/layout.tsx`, store nav and subheader, data table, sonner, program agenda and session page) add this variable too.
+- `ImpersonationProvider` (client context) carries `{ subject, expiresAt }` so the banner, the avisos control and the quick actions can ask `useImpersonation()`.
+- `force-static` pages (`/programs/*`) render the layout without a request: there the client banner fetches `GET /api/impersonation` on mount and renders if a view is on. The same endpoint backs the expiry re-check.
+- Ended state (expired): "La vista como {nombre} terminó" + "Volver a mi cuenta".
+
+### 7.5 Design board T (canvas)
+
+Added to the "Glitter App Navigation Proposals" canvas beside R and S, following their conventions (normal case, no invented copy, banners drawn whole):
+
+1. Más (admin) with the new row under "Mi cuenta".
+2. Picker on the phone: search, results, Recientes.
+3. Confirmation sheet.
+4. Banner over the subject's Inicio: phone browser, installed app with the top bar on a deep screen, desktop with the sidebar.
+5. Salir → back on `/dashboard/users/{id}`.
+6. Expired state, and a blocked action's toast.
+
+---
+
+## 8. Files
+
+| Area | Files |
+| --- | --- |
+| Schema | `db/schema.ts`, `drizzle/0305_*.sql` (generated) |
+| Core | `app/lib/impersonation/viewer.ts`, `cookie.ts`, `queries.ts`, `actions.ts`, `write-guard.ts`, `eligibility.ts`, `definitions.ts` |
+| Viewer resolution | `app/lib/users/helpers.ts`, `app/lib/users/queries.ts`, `app/api/users/navbar-profile/route.ts`, `app/page.tsx`, `app/lib/notifications/queries.ts`, `app/launch/route.ts` |
+| Guard | `db/index.ts`, `app/vendors/resend.ts`, `app/lib/notifications/push/send.ts`, `app/lib/notifications/push/actions.ts`, `app/lib/notifications/read.ts`, `proxy.ts` |
+| Routes | `app/api/impersonation/route.ts` (GET state), `app/api/impersonation/exit/route.ts` |
+| Screens | `app/dashboard/impersonate/page.tsx` + components under `app/components/impersonation/` (picker, confirmation, recent list, banner, provider) |
+| Entry points | `app/components/navbar/app-navigation.ts`, `app/components/ui/user-dropdown.tsx`, `app/components/user_profile/public_profile/quick-actions.tsx`, `app/components/pages/dashboard/user/user.tsx` |
+| Shell | `app/components/navbar/navbar.tsx`, `app/components/navbar/screens.ts` (title "Entrar como participante", parent Más), `app/globals.css` and the sticky-offset consumers |
+| Client suppression | `app/components/notifications/use-push-device.ts` and the avisos control |
+| Lint | `eslint.config.mjs`: `no-restricted-imports` for `currentUser`/`auth` from `@clerk/nextjs/server` outside `app/lib/impersonation/viewer.ts` and `app/lib/users/queries.ts` |
+| Docs | this file; a short section in `AGENTS.md` pointing writers of new "current user" code at `getViewerClerkId` |
+
+---
+
+## 9. Tests
+
+Unit (vitest + @testing-library, no jest-dom):
+
+- `classifyStatement`: inserts, updates, deletes, CTE-wrapped writes, `select … for update`, comments before the keyword, `explain`.
+- Write guard: a write while viewing throws and counts; a write outside a request passes; `allowImpersonationWrites` lets the exit through.
+- Eligibility: admin / festival_admin / self / pending deletion refused; every participant status accepted.
+- Viewer resolution: cookie without row, row of another Clerk session, expired row, actor no longer admin → actor; live row → subject.
+- Start action: non-admin refused, already viewing refused, `returnTo` outside `/dashboard` dropped.
+- Exit route: closes the row, clears the cookie, answers `returnTo`; a foreign session is refused.
+- Navigation: the row exists for `admin`, not for `festival_admin`, not for participants; `/dashboard/impersonate` resolves its screen title and parent.
+- Banner: renders name and Salir; posts to exit and replaces the route; flips to the ended state at `expiresAt`.
+- `markNotificationRead` and `savePushDeviceAction` are no-ops while viewing.
+- Middleware rule for `/api/uploadthing`.
+
+Integration (added to `test:integration`): `app/lib/impersonation/sessions.integration.test.ts` — start, resolve, exit, expiry, blocked-write counter against the disposable Postgres.
+
+Manual, against the local database with the seed accounts (`admin+clerk_test@…`, OTP `424242`): enter as `illustration`, `pending` and a banned profile; browse Inicio, Participaciones, Tiendita, notifications; try adding to the cart and saving the profile (blocked with a toast); Salir from a deep installed-app screen; let a 1-minute test session expire; confirm `festival-admin` has no row and gets `notFound` on the picker.
+
+---
+
+## 10. Order of work
+
+1. Schema + migration, `definitions.ts`, `eligibility.ts`, `queries.ts` (with tests).
+2. `viewer.ts`, `cookie.ts`; reroute the six viewer-resolution call sites; ESLint rule. Typecheck.
+3. Write guard in `db/index.ts` and the chokepoints (with tests).
+4. Start action, exit route, state route.
+5. Banner, provider, CSS variable, offsets.
+6. Navigation row, account menu, quick actions, picker page, recent lists.
+7. Board T on the canvas.
+8. Local render and the manual pass; adversarial review; fix; open the PR into `feature/app-navigation` (or `develop` once 608 merges).
+
+---
+
+## 11. Out of scope
+
+- Acting as the participant (a "full" mode with a blocklist).
+- Recording page views.
+- Clerk-side impersonation, actor tokens, multi-session handling.
+- Entering as staff accounts.
