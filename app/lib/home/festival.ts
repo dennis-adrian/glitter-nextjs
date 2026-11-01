@@ -81,6 +81,10 @@ export function participationSentence({
       return `${stand} · ${categoryName}${shared}`;
     }
     case "rejected_reservation":
-      return "Tu reserva fue rechazada";
+      return standLabel
+        ? `Tu reserva del ${standLabel} fue cancelada`
+        : "Tu reserva fue cancelada";
+    case "reservations_blocked":
+      return "No podés reservar en esta edición";
   }
 }

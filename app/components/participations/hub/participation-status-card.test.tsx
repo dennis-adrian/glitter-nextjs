@@ -55,6 +55,9 @@ function hub(
     activities: [],
     sessions: [],
     activeParticipations: [],
+    closedReservation: null,
+    releasedReservation: null,
+    reservationBlock: null,
     ...overrides,
   } as unknown as ParticipationHub;
 }
@@ -84,7 +87,8 @@ describe("ParticipationStatusCard", () => {
     expect(href("Reservar stand")).toBe(
       "/profiles/3/festivals/9/reservations/new",
     );
-    expect(href("Mapa")).toBe("/festivals/9#mapa");
+    // The hero above the card is the one place the hub links the map from.
+    expect(screen.queryByRole("link", { name: /mapa/i })).toBeNull();
   });
 
   it("says the category ran out instead", () => {
@@ -154,7 +158,152 @@ describe("ParticipationStatusCard", () => {
     expect(
       screen.queryByRole("list", { name: "Pasos de tu participación" }),
     ).toBeNull();
-    expect(href("Reserva")).toBe("/profiles/3/festivals/9/reservations/41");
-    expect(href("Productos")).toBe("/my_participations/submit_products");
+    // The stand's pages moved to the shortcut grid; nothing pending, no button.
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
+  });
+
+  it("keeps one button for the first pending task of a confirmed stand and counts the rest", () => {
+    render(
+      <ParticipationStatusCard
+        hub={hub("confirmed_reservation", {
+          reservation: {
+            stand: { label: "B", standNumber: 12 },
+            participants: [],
+            collaborators: [],
+          } as unknown as ParticipationHub["reservation"],
+          pending: [
+            { key: "products", label: "Subir imágenes de tus productos", done: false, href: "/my_participations/submit_products" },
+            { key: "team", label: "Agregar a tu equipo", done: false, href: "/my_participations/team", meta: "0 de 4" },
+          ],
+        })}
+      />,
+    );
+
+    expect(href("Subir productos")).toBe("/my_participations/submit_products");
+    expect(screen.queryByRole("link", { name: "Agregar a tu equipo" })).toBeNull();
+    expect(href(/2 tareas pendientes · verlas en Inicio/)).toBe("/portal");
+  });
+
+  it("does not count a lone task the card's own button already does", () => {
+    render(
+      <ParticipationStatusCard
+        hub={hub("pending_enrollment", {
+          enrollment: null,
+          pending: [
+            { key: "enrollment", label: "Inscribirte al festival", done: false, href: "/profiles/3/festivals/9/terms" },
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.queryByText(/tareas? pendientes?/)).toBeNull();
+  });
+
+  it("says a reservation the team closed was cancelled, quotes the team and ends the steps", () => {
+    render(
+      <ParticipationStatusCard
+        hub={hub("rejected_reservation", {
+          closedReservation: {
+            reservationId: 41,
+            standLabel: "B12",
+            reason: "No se recibió el pago dentro del plazo de 5 días.",
+          },
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Tu reserva del stand B12 fue cancelada" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Reserva cancelada")).toBeTruthy();
+    expect(screen.queryByText(/rechazada/i)).toBeNull();
+    expect(
+      screen.getByText(/no vas a poder hacer otra reserva en Festicker 2026\.$/),
+    ).toBeTruthy();
+    expect(screen.getByText("Motivo del equipo")).toBeTruthy();
+    expect(
+      screen.getByText("No se recibió el pago dentro del plazo de 5 días."),
+    ).toBeTruthy();
+    expect(href("Escribinos")).toBe("mailto:soporte@productoraglitter.com");
+    expect(href("Ver detalle")).toBe("/profiles/3/festivals/9/reservations/41");
+    expect(
+      screen.queryByRole("list", { name: "Pasos de tu participación" }),
+    ).toBeNull();
+  });
+
+  it("does not add a period after a festival name that already ends a sentence", () => {
+    render(
+      <ParticipationStatusCard
+        hub={hub("rejected_reservation", {
+          festival: {
+            id: 9,
+            name: "Glitter ¡Feliz Cumple!",
+            reservationsStartDate: new Date("2026-01-01T00:00:00Z"),
+            festivalDates: [],
+          } as unknown as ParticipationHub["festival"],
+          closedReservation: { reservationId: 41, standLabel: "B12", reason: "x" },
+        })}
+      />,
+    );
+
+    expect(screen.getByText(/en Glitter ¡Feliz Cumple!$/)).toBeTruthy();
+  });
+
+  it("invites writing instead when the team left no reason", () => {
+    render(
+      <ParticipationStatusCard
+        hub={hub("rejected_reservation", {
+          closedReservation: { reservationId: 41, standLabel: "B12", reason: null },
+        })}
+      />,
+    );
+
+    expect(screen.getByText(/Si creés que hay un error, escribinos\./)).toBeTruthy();
+    expect(screen.queryByText("Motivo del equipo")).toBeNull();
+  });
+
+  it("says reserving is blocked, until when, and links the detail", () => {
+    render(
+      <ParticipationStatusCard
+        hub={hub("reservations_blocked", {
+          reservationBlock: {
+            reason: "reservation_delay",
+            eligibleAt: new Date("2026-11-10T16:00:00Z"),
+          },
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "No podés reservar en esta edición" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Reservas no disponibles")).toBeTruthy();
+    expect(screen.getByText(/hasta el 10 de noviembre de 2026/)).toBeTruthy();
+    expect(href("Ver detalle")).toBe("/profiles/3/infractions");
+    expect(screen.queryByRole("link", { name: "Reservar stand" })).toBeNull();
+  });
+
+  it("notes a stand released earlier and offers a new reservation", () => {
+    render(
+      <ParticipationStatusCard
+        hub={hub("approved_enrollment", {
+          releasedReservation: {
+            reservationId: 40,
+            standLabel: "B12",
+            releasedAt: new Date("2026-10-28T16:00:00Z"),
+          },
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Podés hacer una nueva reserva" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Liberaste el stand B12 el 28 oct. Los créditos que usaste no se devuelven.",
+      ),
+    ).toBeTruthy();
+    expect(href("Reservar stand")).toBe("/profiles/3/festivals/9/reservations/new");
   });
 });

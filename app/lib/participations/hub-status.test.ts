@@ -5,6 +5,7 @@ import {
   buildPendingItems,
   buildSteps,
   daysUntil,
+  isParticipationEnded,
   resolveHubStatus,
   type HubLinks,
 } from "@/app/lib/participations/hub-status";
@@ -66,6 +67,87 @@ describe("resolveHubStatus", () => {
           cardStatus,
           availableStands: 0,
           reservationsOpen: true,
+        }),
+      ).toBe(cardStatus);
+    }
+  });
+});
+
+describe("resolveHubStatus with closed reservations and sanctions", () => {
+  const now = new Date("2026-11-01T12:00:00Z");
+  const opensLater = new Date("2026-11-10T12:00:00Z");
+
+  it("ends the participation when the team closed a reservation, over any enrollment state", () => {
+    expect(
+      resolveHubStatus({
+        cardStatus: "approved_enrollment",
+        availableStands: 4,
+        reservationsOpen: true,
+        hasClosedReservation: true,
+      }),
+    ).toBe("rejected_reservation");
+    expect(isParticipationEnded("rejected_reservation")).toBe(true);
+  });
+
+  it("lets a live reservation decide even with a closed one behind it", () => {
+    expect(
+      resolveHubStatus({
+        cardStatus: "confirmed_reservation",
+        availableStands: 0,
+        reservationsOpen: true,
+        hasClosedReservation: true,
+      }),
+    ).toBe("confirmed_reservation");
+  });
+
+  it("blocks someone about to reserve during a ban, whatever the stands", () => {
+    expect(
+      resolveHubStatus({
+        cardStatus: "approved_enrollment",
+        availableStands: 0,
+        reservationsOpen: true,
+        reservationBlock: { eligibleAt: null },
+        now,
+      }),
+    ).toBe("reservations_blocked");
+  });
+
+  it("does not block when the delay ends before reservations open", () => {
+    expect(
+      resolveHubStatus({
+        cardStatus: "waiting_for_reservations",
+        availableStands: 4,
+        reservationsOpen: false,
+        reservationBlock: { eligibleAt: new Date("2026-11-05T12:00:00Z") },
+        reservationsStartDate: opensLater,
+        now,
+      }),
+    ).toBe("waiting_for_reservations");
+    expect(
+      resolveHubStatus({
+        cardStatus: "waiting_for_reservations",
+        availableStands: 4,
+        reservationsOpen: false,
+        reservationBlock: { eligibleAt: new Date("2026-11-15T12:00:00Z") },
+        reservationsStartDate: opensLater,
+        now,
+      }),
+    ).toBe("reservations_blocked");
+  });
+
+  it("leaves enrollment reviews and live reservations alone", () => {
+    for (const cardStatus of [
+      "enrollment_pending_approval",
+      "rejected_enrollment",
+      "pending_payment",
+    ] as const) {
+      expect(
+        resolveHubStatus({
+          cardStatus,
+          availableStands: 4,
+          reservationsOpen: true,
+          reservationBlock: { eligibleAt: null },
+          now,
         }),
       ).toBe(cardStatus);
     }
@@ -244,6 +326,48 @@ describe("buildPendingItems", () => {
         isConfirmed: false,
       }),
     ).toEqual([]);
+  });
+});
+
+describe("buildPendingItems once reserving is closed or blocked", () => {
+  const base = {
+    isGastronomy: false,
+    hasReservation: false,
+    isConfirmed: false,
+    shouldSubmitProducts: false,
+    teamCount: 0,
+    links,
+  };
+
+  it("has nothing left after the team closed a reservation", () => {
+    expect(
+      buildPendingItems({
+        ...base,
+        status: "rejected_reservation",
+        enrollmentStatus: "accepted",
+      }),
+    ).toEqual([]);
+  });
+
+  it("links neither enrolling nor reserving while blocked", () => {
+    const notEnrolled = buildPendingItems({
+      ...base,
+      status: "reservations_blocked",
+      enrollmentStatus: null,
+    });
+    expect(notEnrolled).toEqual([
+      { key: "enrollment", label: "Inscribirte al festival", done: false, meta: "no disponible" },
+    ]);
+
+    const enrolled = buildPendingItems({
+      ...base,
+      status: "reservations_blocked",
+      enrollmentStatus: "accepted",
+    });
+    expect(enrolled.find((item) => item.key === "reservation")).toMatchObject({
+      href: undefined,
+      meta: "no disponible",
+    });
   });
 });
 

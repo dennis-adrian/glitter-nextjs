@@ -3,66 +3,71 @@ import Link from "next/link";
 
 import { MapIcon } from "lucide-react";
 
-import { getFestivalDateLabel } from "@/app/helpers/next_event";
 import type { FullFestival } from "@/app/lib/festivals/definitions";
+import { formatDaysLeft, formatFestivalDays } from "@/app/lib/home/festival";
 import { daysUntil } from "@/app/lib/participations/hub-status";
 
 /**
- * The festival at the top of the hub: its poster under a dark wash, its name,
- * dates and venue, and the map — the one place the hub links it from.
+ * The festival at the top of the hub: its banner, shown whole and never
+ * covered (it carries its own title, dates and art), linking to the public
+ * page; under it a bar with the name, the countdown, the dates and venue, and
+ * the map, the one place the hub links it from.
  */
 export default function HubHero({
   festival,
   mapHref,
-  eyebrow,
   now = new Date(),
 }: {
   festival: FullFestival;
   mapHref: string;
-  /** The line above the name: "En curso", "Inscripciones abiertas"… */
-  eyebrow: string;
   now?: Date;
 }) {
-  const artwork = festival.posterUrl ?? festival.festivalBannerUrl;
-  const remaining = daysUntil(festival.festivalDates[0]?.startDate, now);
+  const sortedDates = [...festival.festivalDates].sort(
+    (a, b) => a.startDate.getTime() - b.startDate.getTime(),
+  );
+  const countdown = formatDaysLeft(daysUntil(sortedDates[0]?.startDate, now));
+  const line = [formatFestivalDays(festival.festivalDates), festival.locationLabel]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <div className="relative isolate flex min-h-44 flex-col justify-end overflow-hidden rounded-3xl bg-brand-deep p-5 text-white md:min-h-52 md:p-6">
-      {artwork ? (
-        <Image
-          src={artwork}
-          alt=""
-          fill
-          sizes="(min-width: 1024px) 720px, 100vw"
-          className="-z-20 object-cover"
-          priority
-        />
+    <div className="overflow-hidden rounded-3xl border border-brand-border bg-brand-card">
+      {festival.festivalBannerUrl ? (
+        <Link
+          href={`/festivals/${festival.id}`}
+          aria-label={`Ver ${festival.name}`}
+          className="block"
+        >
+          <Image
+            src={festival.festivalBannerUrl}
+            alt={`${festival.name}${line ? `, ${line}` : ""}`}
+            width={2000}
+            height={667}
+            sizes="(min-width: 1024px) 720px, 100vw"
+            className="h-auto w-full"
+            priority
+          />
+        </Link>
       ) : null}
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 -z-10 bg-linear-to-b from-brand-deep/20 via-brand-deep/60 to-brand-deep/95"
-      />
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-white/80">
-          {eyebrow}
-        </span>
-        {remaining ? (
-          <span className="rounded-full bg-brand-coral px-2.5 py-0.5 text-xs font-bold text-white">
-            {remaining === 1 ? "falta 1 día" : `faltan ${remaining} días`}
-          </span>
-        ) : null}
-      </div>
-      <h2 className="mt-1 font-display text-3xl font-bold leading-none md:text-4xl">
-        {festival.name}
-      </h2>
-      <p className="mt-1.5 text-sm text-white/85">
-        {getFestivalDateLabel(festival)}
-        {festival.locationLabel ? ` · ${festival.locationLabel}` : ""}
-      </p>
-      <div className="mt-3">
+      <div className="flex items-center justify-between gap-3 px-4 py-3">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="font-display text-xl font-bold leading-none text-brand-ink md:text-2xl">
+              {festival.name}
+            </h2>
+            {countdown ? (
+              <span className="rounded-full bg-brand-coral px-2 py-0.5 text-[11px] font-bold text-white">
+                {countdown}
+              </span>
+            ) : null}
+          </div>
+          {line ? (
+            <p className="text-xs text-brand-neutral md:text-sm">{line}</p>
+          ) : null}
+        </div>
         <Link
           href={mapHref}
-          className="inline-flex h-9 items-center gap-2 rounded-full bg-white px-4 text-sm font-semibold text-brand-deep hover:bg-white/90"
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-brand-border bg-brand-card px-3.5 text-sm font-semibold text-brand-ink hover:border-brand-primary hover:text-brand-primary"
         >
           <MapIcon className="size-4" aria-hidden="true" />
           Mapa

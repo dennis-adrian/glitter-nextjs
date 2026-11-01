@@ -124,7 +124,9 @@ function hubFestivalCard(hub: ParticipationHub, now: Date) {
         reservationsStartDate: hub.festival.reservationsStartDate,
         standLabel: reservation
           ? `stand ${reservationStandLabel(reservation)}`
-          : null,
+          : hub.closedReservation
+            ? `stand ${hub.closedReservation.standLabel}`
+            : null,
         categoryName: categoryName(hub.profile.category),
         partners,
       })}

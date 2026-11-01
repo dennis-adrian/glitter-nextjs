@@ -39,9 +39,20 @@ export const HUB_SECTIONS = {
 } as const;
 
 /**
- * The phone's way into the hub's longer sections, each opening a screen of
- * its own, so the hub itself stays short. On desktop the sections sit on the
- * page instead and this row is not shown.
+ * Four across or three, whichever leaves no tile alone on the last row: up to
+ * four fit one row, seven and eight take four columns, five and six take
+ * three.
+ */
+export function shortcutColumns(count: number): 3 | 4 {
+  if (count <= 3) return 3;
+  return count % 4 === 0 || count % 4 === 3 ? 4 : 3;
+}
+
+/**
+ * One grid of shortcuts: on the phone the hub's longer sections (each a screen
+ * of its own, so the hub stays short) and, once the stand is confirmed, the
+ * reservation's pages; on desktop only the reservation's pages, since the
+ * sections sit on the page there.
  */
 export default function HubQuickAccess({
   shortcuts,
@@ -55,10 +66,12 @@ export default function HubQuickAccess({
   return (
     <nav aria-label="Accesos directos" className={className}>
       <ul
-        className="grid gap-2"
-        style={{
-          gridTemplateColumns: `repeat(${shortcuts.length}, minmax(0, 1fr))`,
-        }}
+        className={cn(
+          "grid gap-x-1.5 gap-y-3",
+          shortcutColumns(shortcuts.length) === 4
+            ? "grid-cols-4"
+            : "grid-cols-3",
+        )}
       >
         {shortcuts.map((shortcut) => {
           const Icon = shortcut.icon;

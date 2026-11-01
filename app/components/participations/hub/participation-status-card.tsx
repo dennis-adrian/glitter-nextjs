@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { CheckIcon } from "lucide-react";
+import { CheckIcon, ClipboardListIcon, InfoIcon } from "lucide-react";
 
 import {
   getCardConfig,
@@ -13,9 +13,15 @@ import {
 } from "@/app/components/ui/avatar-radix";
 import { Badge } from "@/app/components/ui/badge";
 import { CATEGORY_LABELS } from "@/app/lib/festival-terms/copy";
-import { formatFullDate } from "@/app/lib/formatters";
+import { formatDisplayDate, formatFullDate } from "@/app/lib/formatters";
+import { PARTICIPANT_SUPPORT_EMAIL } from "@/app/lib/participants/helpers";
+import { participationTasks } from "@/app/lib/home/participation-tasks";
+import type { HomeTask } from "@/app/lib/home/tasks";
 import type { ParticipationHub } from "@/app/lib/participations/hub";
-import type { HubStatus } from "@/app/lib/participations/hub-status";
+import {
+  isParticipationEnded,
+  type HubStatus,
+} from "@/app/lib/participations/hub-status";
 import { cn } from "@/app/lib/utils";
 import { DateTime } from "luxon";
 
@@ -24,6 +30,10 @@ type Action = { label: string; href: string; primary?: boolean };
 type Copy = {
   title: string;
   body?: string;
+  /** The team's own words, quoted under the body. */
+  quote?: { label: string; text: string };
+  /** A short fact beside the state, like a stand released earlier. */
+  note?: string;
   actions: Action[];
 };
 
@@ -33,9 +43,28 @@ const NO_STANDS_BADGE = {
     "bg-amber-500/10 text-amber-800 border-amber-500/20 dark:text-amber-200",
 };
 
+const NEUTRAL_BADGE_STYLE =
+  "bg-slate-500/10 text-slate-700 border-slate-500/20 dark:text-slate-200";
+
+/**
+ * Participant copy says what happened without pointing at anyone: a
+ * reservation the team closed is "cancelada", never "rechazada".
+ */
+const CLOSED_BADGE = {
+  label: "Reserva cancelada",
+  badgeStyle: NEUTRAL_BADGE_STYLE,
+};
+
+const BLOCKED_BADGE = {
+  label: "Reservas no disponibles",
+  badgeStyle: NEUTRAL_BADGE_STYLE,
+};
+
 /** The participation's state as a badge; Inicio's festival card shows the same. */
 export function badgeFor(status: HubStatus) {
   if (status === "no_stands_available") return NO_STANDS_BADGE;
+  if (status === "rejected_reservation") return CLOSED_BADGE;
+  if (status === "reservations_blocked") return BLOCKED_BADGE;
   const { label, badgeStyle } = STATUS_CONFIG[status];
   return { label, badgeStyle };
 }
@@ -46,15 +75,38 @@ export function categoryName(category: string) {
   );
 }
 
+/** Closes a sentence on a name, without a second mark after "¡Feliz Cumple!". */
+function sentenceEnd(name: string) {
+  return /[.!?…]$/.test(name.trim()) ? name.trim() : `${name.trim()}.`;
+}
+
+/** A reservation's detail page, the same one the reservation shortcut opens. */
+function reservationHref(hub: ParticipationHub, reservationId: number) {
+  return `/profiles/${hub.profile.id}/festivals/${hub.festival.id}/reservations/${reservationId}`;
+}
+
+/** Short button labels for the tasks a confirmed card can point to. */
+const ACTION_LABELS: Record<string, string> = {
+  "festival-products": "Subir productos",
+  "festival-team": "Agregar a tu equipo",
+};
+
 /** What the card says, and offers, in each state of the participation. */
-function copyFor(hub: ParticipationHub): Copy {
+function copyFor(hub: ParticipationHub, tasks: HomeTask[]): Copy {
   const { status, festival, links, profile, isGastronomy } = hub;
   const opensOn = formatFullDate(
     festival.reservationsStartDate,
     DateTime.DATE_FULL,
   );
   const category = categoryName(profile.category);
-  const reservationOrInvoices = links.reservation ?? links.invoices;
+  const released = hub.releasedReservation;
+  const releasedNote = released
+    ? `Liberaste el stand ${released.standLabel}${
+        released.releasedAt
+          ? ` el ${formatDisplayDate(released.releasedAt, { day: "numeric", month: "short" })}`
+          : ""
+      }. Los créditos que usaste no se devuelven.`
+    : undefined;
 
   switch (status) {
     case "pending_enrollment":
@@ -83,18 +135,20 @@ function copyFor(hub: ParticipationHub): Copy {
       return {
         title: `Las reservas abren el ${opensOn}`,
         body: "Ya completaste tu inscripción. Te avisamos cuando puedas elegir tu espacio.",
-        actions: [{ label: "Ver el mapa", href: links.map }],
+        actions: [],
       };
     case "approved_enrollment":
       return {
-        title: "Ya podés reservar tu stand",
+        title: hub.releasedReservation
+          ? "Podés hacer una nueva reserva"
+          : "Ya podés reservar tu stand",
+        note: releasedNote,
         body:
           hub.availableStands === 1
             ? `Queda 1 espacio de ${category}.`
             : `Quedan ${hub.availableStands} espacios de ${category}.`,
         actions: [
           { label: "Reservar stand", href: links.reserve, primary: true },
-          { label: "Mapa", href: links.map },
         ],
       };
     case "no_stands_available": {
@@ -105,11 +159,8 @@ function copyFor(hub: ParticipationHub): Copy {
           ? "Las reservas sin pago vencen y a veces se libera un espacio. Revisá el mapa más adelante."
           : "Las reservas sin pago vencen y a veces se libera un espacio. Podés inscribirte igual para poder reservar si eso pasa.",
         actions: enrolled
-          ? [{ label: "Ver el mapa", href: links.map, primary: true }]
-          : [
-              { label: "Inscribirme", href: links.terms, primary: true },
-              { label: "Mapa", href: links.map },
-            ],
+          ? []
+          : [{ label: "Inscribirme", href: links.terms, primary: true }],
       };
     }
     case "pending_payment":
@@ -139,22 +190,48 @@ function copyFor(hub: ParticipationHub): Copy {
         ],
       };
     }
-    case "confirmed_reservation":
+    case "confirmed_reservation": {
+      // The stand's pages live in the shortcut grid; the card keeps one
+      // button, for the first thing still pending, and none once all is done.
+      const next = tasks[0];
       return {
         title: "",
+        actions: next
+          ? [{ label: ACTION_LABELS[next.key] ?? next.label, href: next.href, primary: true }]
+          : [],
+      };
+    }
+    case "rejected_reservation": {
+      const closed = hub.closedReservation;
+      const reason = closed?.reason ?? null;
+      return {
+        title: closed
+          ? `Tu reserva del stand ${closed.standLabel} fue cancelada`
+          : "Tu reserva fue cancelada",
+        body: `El espacio volvió a estar disponible y no vas a poder hacer otra reserva en ${sentenceEnd(festival.name)}${
+          reason ? "" : " Si creés que hay un error, escribinos."
+        }`,
+        quote: reason ? { label: "Motivo del equipo", text: reason } : undefined,
         actions: [
-          { label: "Reserva", href: reservationOrInvoices },
-          { label: "Pagos", href: links.invoices },
-          { label: "Términos", href: links.publicTerms },
-          { label: "Productos", href: links.products },
+          { label: "Escribinos", href: `mailto:${PARTICIPANT_SUPPORT_EMAIL}` },
+          ...(closed
+            ? [{ label: "Ver detalle", href: reservationHref(hub, closed.reservationId) }]
+            : []),
         ],
       };
-    case "rejected_reservation":
+    }
+    case "reservations_blocked": {
+      const until = hub.reservationBlock?.eligibleAt;
       return {
-        title: "Tu reserva fue rechazada",
-        body: "Si creés que es un error, escribinos y lo revisamos.",
-        actions: [],
+        title: "No podés reservar en esta edición",
+        body: until
+          ? `Tu cuenta tiene una restricción que no permite reservar en ${festival.name} hasta el ${formatFullDate(until, DateTime.DATE_FULL)}. En el detalle ves por qué.`
+          : `Tu cuenta tiene una restricción activa que no permite reservar en ${festival.name}. En el detalle ves por qué y hasta cuándo dura.`,
+        actions: [
+          { label: "Ver detalle", href: `/profiles/${profile.id}/infractions` },
+        ],
       };
+    }
   }
 }
 
@@ -235,6 +312,30 @@ function ConfirmedReservation({ hub }: { hub: ParticipationHub }) {
   );
 }
 
+/** A mail address opens the mail app; anything else navigates in the app. */
+function ActionLink({
+  href,
+  className,
+  children,
+}: {
+  href: string;
+  className: string;
+  children: React.ReactNode;
+}) {
+  if (href.startsWith("mailto:")) {
+    return (
+      <a href={href} className={className}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <Link href={href} className={className}>
+      {children}
+    </Link>
+  );
+}
+
 /**
  * The participation at a glance: where it stands, the steps done, and the one
  * thing to do next. Once the reservation is confirmed it becomes the stand
@@ -245,9 +346,16 @@ export default function ParticipationStatusCard({
 }: {
   hub: ParticipationHub;
 }) {
-  const copy = copyFor(hub);
+  const tasks = participationTasks(hub);
+  const copy = copyFor(hub, tasks);
   const badge = badgeFor(hub.status);
   const confirmed = hub.status === "confirmed_reservation";
+  const ended = isParticipationEnded(hub.status);
+  // The tasks are listed on Inicio; the card says how many. A lone task the
+  // card's own button already does is not counted again.
+  const primaryHref = copy.actions.find((action) => action.primary)?.href;
+  const counted =
+    tasks.length === 1 && tasks[0].href === primaryHref ? 0 : tasks.length;
 
   return (
     <div
@@ -259,7 +367,7 @@ export default function ParticipationStatusCard({
       )}
     >
       <div className="flex items-center justify-between gap-3">
-        <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-brand-primary">
+        <span className="text-xs font-semibold text-brand-primary">
           {confirmed ? "Tu reserva" : "Tu participación"}
         </span>
         <Badge className={cn("shrink-0", badge.badgeStyle)}>
@@ -267,7 +375,7 @@ export default function ParticipationStatusCard({
         </Badge>
       </div>
 
-      {confirmed ? null : <Steps steps={hub.steps} />}
+      {confirmed || ended ? null : <Steps steps={hub.steps} />}
 
       {confirmed ? (
         <ConfirmedReservation hub={hub} />
@@ -284,10 +392,29 @@ export default function ParticipationStatusCard({
         </div>
       )}
 
+      {copy.quote ? (
+        <figure className="rounded-xl bg-brand-lavender/40 px-3 py-2.5 text-sm leading-relaxed text-brand-ink">
+          <figcaption className="text-xs font-semibold text-brand-neutral">
+            {copy.quote.label}
+          </figcaption>
+          <blockquote>{copy.quote.text}</blockquote>
+        </figure>
+      ) : null}
+
+      {copy.note ? (
+        <p className="flex items-start gap-2 rounded-xl border border-brand-border bg-brand-lavender/20 px-3 py-2.5 text-sm text-brand-ink">
+          <InfoIcon
+            className="mt-0.5 size-4 shrink-0 text-brand-primary"
+            aria-hidden="true"
+          />
+          {copy.note}
+        </p>
+      ) : null}
+
       {copy.actions.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           {copy.actions.map((action) => (
-            <Link
+            <ActionLink
               key={action.label}
               href={action.href}
               className={cn(
@@ -299,9 +426,20 @@ export default function ParticipationStatusCard({
               )}
             >
               {action.label}
-            </Link>
+            </ActionLink>
           ))}
         </div>
+      ) : null}
+
+      {counted > 0 ? (
+        <Link
+          href="/portal"
+          className="inline-flex items-center gap-1.5 self-start text-xs font-semibold text-brand-primary hover:underline"
+        >
+          <ClipboardListIcon className="size-4" aria-hidden="true" />
+          {counted === 1 ? "1 tarea pendiente" : `${counted} tareas pendientes`}{" "}
+          · verlas en Inicio
+        </Link>
       ) : null}
     </div>
   );

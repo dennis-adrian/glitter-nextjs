@@ -3,10 +3,6 @@ import "server-only";
 import { and, eq, inArray, min, ne } from "drizzle-orm";
 
 import type { ProfileType } from "@/app/api/users/definitions";
-import {
-  getEnrolledConfig,
-  getEnrollmentInfo,
-} from "@/app/components/participant_dashboard/activity-card/utils";
 import { db } from "@/db";
 import {
   festivals,
@@ -23,25 +19,20 @@ import {
   type HistoryPartner,
   type HistorySummary,
 } from "@/app/lib/home/history";
+import { participationTasks } from "@/app/lib/home/participation-tasks";
 import {
-  activityTasks,
   creditTasks,
-  festivalTasks,
   orderTasks,
   profileTasks,
   sortHomeTasks,
-  type ActivityProofTask,
   type HomeTask,
 } from "@/app/lib/home/tasks";
 import type { ParticipationHub } from "@/app/lib/participations/hub";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import { fetchProducts } from "@/app/lib/products/queries";
 import { getProductEffectiveStock } from "@/app/lib/products/variants";
-import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import { resolveSectionClosure } from "@/app/lib/store_settings/closure";
 import { hasPlaceholderProfilePicture } from "@/app/lib/utils";
-
-const ACTIVITIES_HREF = "/my_participations/activities";
 
 /** The earliest deadline among the participant's unpaid invoices of a festival. */
 async function fetchInvoiceDueAt(userId: number, festivalId: number) {
@@ -67,27 +58,6 @@ async function fetchOrdersToPay(userId: number) {
     .select({ id: orders.id, paymentDueDate: orders.paymentDueDate })
     .from(orders)
     .where(and(eq(orders.userId, userId), eq(orders.status, "pending")));
-}
-
-function pendingActivityProofs(hub: ParticipationHub): ActivityProofTask[] {
-  const tasks: ActivityProofTask[] = [];
-  for (const activity of hub.activities) {
-    const info = getEnrollmentInfo(activity, hub.profile.id);
-    if (!info.isEnrolled || info.isRemoved) continue;
-    const config = getEnrolledConfig(
-      activity,
-      hub.profile.id,
-      info.proofDisplayState,
-    );
-    if (!config.isPending || config.isUploadExpired) continue;
-    tasks.push({
-      activityId: activity.id,
-      activityName: activity.name,
-      pendingLabel: config.pendingLabel,
-      deadline: config.deadlineDate,
-    });
-  }
-  return tasks;
 }
 
 /**
@@ -116,15 +86,7 @@ export async function loadVerifiedTasks({
 
   const tasks = [
     ...creditTasks(creditDebt),
-    ...(hub
-      ? festivalTasks(hub.pending, {
-          standLabel: hub.reservation
-            ? `stand ${reservationStandLabel(hub.reservation)}`
-            : null,
-          invoiceDueAt,
-        })
-      : []),
-    ...(hub ? activityTasks(pendingActivityProofs(hub), ACTIVITIES_HREF) : []),
+    ...(hub ? participationTasks(hub, { invoiceDueAt }) : []),
     ...orderTasks(ordersToPay),
   ];
   return sortHomeTasks(tasks, now);

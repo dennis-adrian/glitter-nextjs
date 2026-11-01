@@ -10,7 +10,10 @@ import type { CardStatus } from "@/app/components/participant_dashboard/reservat
  * left to reserve.
  */
 
-export type HubStatus = CardStatus | "no_stands_available";
+export type HubStatus =
+  | CardStatus
+  | "no_stands_available"
+  | "reservations_blocked";
 
 export type HubStatusInput = {
   cardStatus: CardStatus;
@@ -18,24 +21,77 @@ export type HubStatusInput = {
   availableStands: number;
   /** Whether self-service reservations have opened for the festival. */
   reservationsOpen: boolean;
+  /** The team rejected or cancelled a reservation of theirs in this festival. */
+  hasClosedReservation?: boolean;
+  /**
+   * An active sanction keeps them from reserving in this festival: a ban (no
+   * date), or a delay until `eligibleAt`.
+   */
+  reservationBlock?: { eligibleAt: Date | null } | null;
+  reservationsStartDate?: Date;
+  now?: Date;
 };
 
+const LIVE_RESERVATION_CARDS = new Set<CardStatus>([
+  "pending_payment",
+  "pending_payment_approval",
+  "confirmed_reservation",
+]);
+
+/** The states in which the participant is on their way to reserving. */
+const ABOUT_TO_RESERVE = new Set<CardStatus>([
+  "pending_enrollment",
+  "approved_enrollment",
+  "waiting_for_reservations",
+]);
+
 /**
- * Someone who could reserve right now, or who could enroll and then reserve,
- * but whose category has nothing left, is told so instead of being sent to an
- * empty map.
+ * Where the participation stands. A live reservation decides it. Without one,
+ * a reservation the team closed ends the participation in this festival (the
+ * rules refuse a new one), and an active sanction keeps someone about to
+ * reserve from doing it; telling them to reserve would only lead to an error
+ * on the map. Someone who could reserve right now, or enroll and then
+ * reserve, but whose category has nothing left, is told so instead of being
+ * sent to an empty map.
  */
 export function resolveHubStatus({
   cardStatus,
   availableStands,
   reservationsOpen,
+  hasClosedReservation = false,
+  reservationBlock = null,
+  reservationsStartDate,
+  now = new Date(),
 }: HubStatusInput): HubStatus {
+  if (LIVE_RESERVATION_CARDS.has(cardStatus)) return cardStatus;
+  if (hasClosedReservation) return "rejected_reservation";
+
+  if (reservationBlock && ABOUT_TO_RESERVE.has(cardStatus)) {
+    // A delay that ends before reservations even open does not block.
+    const opensAt =
+      reservationsStartDate && reservationsStartDate > now
+        ? reservationsStartDate
+        : now;
+    if (!reservationBlock.eligibleAt || reservationBlock.eligibleAt > opensAt) {
+      return "reservations_blocked";
+    }
+  }
+
   const couldReserve =
     cardStatus === "approved_enrollment" ||
     (cardStatus === "pending_enrollment" && reservationsOpen);
 
   if (couldReserve && availableStands === 0) return "no_stands_available";
   return cardStatus;
+}
+
+/**
+ * A participation with nothing left to do in this edition: the reservation was
+ * closed by the team and the festival allows no new one. The hub drops its
+ * steps, shortcuts and schedule.
+ */
+export function isParticipationEnded(status: HubStatus): boolean {
+  return status === "rejected_reservation";
 }
 
 export type EnrollmentStatus = "pending" | "accepted" | "rejected" | null;
@@ -133,16 +189,25 @@ export function buildPendingItems({
     enrollmentStatus === "accepted";
 
   if (enrollmentStatus === "rejected" && !hasReservation) return items;
+  if (isParticipationEnded(status)) return items;
 
   items.push(
     enrolled
       ? { key: "enrollment", label: "Inscripción", done: true, meta: "lista" }
-      : {
-          key: "enrollment",
-          label: "Inscribirte al festival",
-          done: false,
-          href: links.terms,
-        },
+      : status === "reservations_blocked"
+        ? // Enrolling would lead nowhere while reserving is blocked.
+          {
+            key: "enrollment",
+            label: "Inscribirte al festival",
+            done: false,
+            meta: "no disponible",
+          }
+        : {
+            key: "enrollment",
+            label: "Inscribirte al festival",
+            done: false,
+            href: links.terms,
+          },
   );
 
   if (isGastronomy && enrollmentStatus === "pending" && !hasReservation) {
@@ -168,7 +233,9 @@ export function buildPendingItems({
                 ? "aún no abre"
                 : status === "no_stands_available"
                   ? "sin espacios"
-                  : undefined,
+                  : status === "reservations_blocked"
+                    ? "no disponible"
+                    : undefined,
           },
     );
   }

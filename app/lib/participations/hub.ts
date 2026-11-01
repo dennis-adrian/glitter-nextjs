@@ -34,7 +34,13 @@ import {
 } from "@/app/lib/participations/hub-status";
 import { buildCatalogue } from "@/app/lib/programs/catalogue";
 import { fetchCatalogue } from "@/app/lib/programs/data";
+import {
+  fetchEndedReservations,
+  type ClosedReservation,
+  type ReleasedReservation,
+} from "@/app/lib/participations/ended-reservations";
 import { fetchActorReservationsByFestival } from "@/app/lib/reservations/queries";
+import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export type ParticipationHub = {
@@ -65,6 +71,15 @@ export type ParticipationHub = {
   sessions: UpcomingSession[];
   /** For the card's payment banner; the portal card reads the same field. */
   activeParticipations: ProfileType["participations"];
+  /** A reservation the team closed here; it ends the participation. */
+  closedReservation: ClosedReservation | null;
+  /** A reservation they released here; they can reserve again. */
+  releasedReservation: ReleasedReservation | null;
+  /** An active sanction that keeps them from reserving in this festival. */
+  reservationBlock: {
+    reason: "ban" | "reservation_delay";
+    eligibleAt: Date | null;
+  } | null;
 };
 
 type UpcomingSession = Awaited<
@@ -116,13 +131,27 @@ export const loadParticipationHub = cache(
     const festival = await getActiveFestival();
     if (!festival) return { kind: "no-festival", profile };
 
-    const [enrollmentRow, reservations, rawActivities, sessions] =
-      await Promise.all([
-        fetchProfileEnrollmentInFestival(profile.id, festival.id),
-        fetchActorReservationsByFestival(festival.id),
-        fetchFestivalActivitiesByFestivalId(festival.id),
-        fetchFestivalSessions(festival.id),
-      ]);
+    const [
+      enrollmentRow,
+      reservations,
+      rawActivities,
+      sessions,
+      endedReservations,
+      eligibility,
+    ] = await Promise.all([
+      fetchProfileEnrollmentInFestival(profile.id, festival.id),
+      fetchActorReservationsByFestival(festival.id),
+      fetchFestivalActivitiesByFestivalId(festival.id),
+      fetchFestivalSessions(festival.id),
+      fetchEndedReservations(profile.id, festival.id),
+      getReservationEligibility({ userId: profile.id, festivalId: festival.id }),
+    ]);
+    const reservationBlock = eligibility.eligible
+      ? null
+      : {
+          reason: eligibility.reason,
+          eligibleAt: eligibility.eligibleAt ?? null,
+        };
 
     const enrollment: UserRequestBase | null =
       enrollmentRow ??
@@ -157,10 +186,15 @@ export const loadParticipationHub = cache(
       festival,
       profile.category,
     ).length;
+    const now = new Date();
     const status = resolveHubStatus({
       cardStatus,
       availableStands,
-      reservationsOpen: new Date() >= festival.reservationsStartDate,
+      reservationsOpen: now >= festival.reservationsStartDate,
+      hasClosedReservation: endedReservations.closed != null,
+      reservationBlock,
+      reservationsStartDate: festival.reservationsStartDate,
+      now,
     });
 
     const liveReservations = reservations.filter((reservation) =>
@@ -231,6 +265,9 @@ export const loadParticipationHub = cache(
       ),
       sessions,
       activeParticipations,
+      closedReservation: hasReservation ? null : endedReservations.closed,
+      releasedReservation: hasReservation ? null : endedReservations.released,
+      reservationBlock,
     };
   },
 );
