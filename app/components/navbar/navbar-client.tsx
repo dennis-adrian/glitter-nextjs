@@ -71,7 +71,11 @@ export default function NavbarClient({
     programsHref,
     blogEnabled,
     creditsEnabled,
-    suppliesOpen,
+    // A static page renders without a viewer, so the server could not check
+    // the supplies market; a verified participant keeps both stores there,
+    // and the market itself says if it is closed.
+    suppliesOpen:
+      serverViewer == null && viewer?.status === "verified" ? true : suppliesOpen,
     activeFestival,
   });
 

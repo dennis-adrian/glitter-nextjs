@@ -3,6 +3,7 @@ import "server-only";
 import { and, count, eq, inArray } from "drizzle-orm";
 
 import { fetchCreditAttentionCounts } from "@/app/lib/credits/admin-queries";
+import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { fetchPendingVoucherCount } from "@/app/lib/orders/actions";
 import { reservationCoverageState } from "@/app/lib/payments/coverage";
 import { fetchReservationsByFestivalId } from "@/app/lib/reservations/actions";
@@ -82,7 +83,10 @@ export async function loadReviewQueues({
       activeFestivalId
         ? countReservationPayments(activeFestivalId)
         : Promise.resolve(null),
-      countProgramPayments(),
+      // Without paid programs the purchases page does not exist.
+      isFeatureEnabled("paid_programs").then((on) =>
+        on ? countProgramPayments() : null,
+      ),
       countPendingInfractions(),
       isAdmin
         ? fetchUsersAggregates({
@@ -118,7 +122,9 @@ export async function loadReviewQueues({
     orders != null
       ? { key: "orders", count: orders, href: "/dashboard/store/payments" }
       : null,
-    { key: "programs", count: programs, href: "/dashboard/programs/purchases" },
+    programs != null
+      ? { key: "programs", count: programs, href: "/dashboard/programs/purchases" }
+      : null,
     {
       key: "infractions",
       count: pendingInfractions,

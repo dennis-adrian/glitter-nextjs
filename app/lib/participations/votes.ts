@@ -18,7 +18,11 @@ export function countVotesReceived(
   const ownEntryIds = new Set(
     activity.details.flatMap((detail) =>
       detail.participants
-        .filter((participant) => participant.userId === profileId)
+        // Someone removed from the activity is no longer in it.
+        .filter(
+          (participant) =>
+            participant.userId === profileId && participant.removedAt == null,
+        )
         .map((participant) => participant.id),
     ),
   );

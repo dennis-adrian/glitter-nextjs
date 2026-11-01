@@ -12,6 +12,7 @@ import { ThemeSegmentedControl } from "@/app/components/mode-toggle";
 import {
   buildAppNavigation,
   buildPublicNavigation,
+  mostSpecificActiveKey,
   type StaffFestival,
   isNavLinkActive,
   PORTAL_HREF,
@@ -30,8 +31,17 @@ import {
 } from "@/app/components/ui/sheet";
 import { cn, isNoNavigationPage } from "@/app/lib/utils";
 
-function SheetLink({ link, pathname }: { link: NavLink; pathname: string }) {
-  const active = isNavLinkActive(link, pathname);
+function SheetLink({
+  link,
+  pathname,
+  active: activeOverride,
+}: {
+  link: NavLink;
+  pathname: string;
+  /** Set when a sibling decides which one entry is current. */
+  active?: boolean;
+}) {
+  const active = activeOverride ?? isNavLinkActive(link, pathname);
   const Icon = link.icon;
 
   return (
@@ -204,6 +214,10 @@ const MobileSidebar = ({
                           key={item.key}
                           link={item}
                           pathname={pathname}
+                          active={
+                            item.key ===
+                            mostSpecificActiveKey(section.items, pathname)
+                          }
                         />
                       ))}
                     </ul>

@@ -79,6 +79,11 @@ export type NavSection = {
   items: NavLink[];
   /** Open from the start, like the festival in progress for staff. */
   defaultOpen?: boolean;
+  /**
+   * Where the collapsed rail's single icon leads; its first page otherwise.
+   * The festival's icon opens the festival, not the list of all festivals.
+   */
+  href?: string;
 };
 
 export type NavGroup = {
@@ -539,6 +544,7 @@ function staffFestivalGroup(festival: StaffFestival | null): NavGroup {
         label: festival.name,
         icon: CalendarIcon,
         defaultOpen: true,
+        href: `/dashboard/festivals/${festival.id}`,
         items: [
           allFestivals,
           ...visibleFestivalSections(festival.status).map((section) => ({
@@ -615,6 +621,19 @@ function buildStaffNavigation(
     },
   ];
 
+  const account: NavGroup = {
+    key: "account",
+    label: "Mi cuenta",
+    items: [
+      {
+        key: "orders",
+        label: "Mis pedidos",
+        href: "/my_orders",
+        icon: ShoppingBagIcon,
+      },
+    ],
+  };
+
   const groups: NavGroup[] = [
     { key: "home", label: "", items: [home] },
     staffFestivalGroup(activeFestival),
@@ -631,6 +650,8 @@ function buildStaffNavigation(
           items: FESTIVAL_ADMIN_KEYS.map(adminLink),
           sections: [PROGRAMS_ADMIN],
         },
+    // Their own pages stay reachable where there is no "Más" tab.
+    account,
   ];
 
   const programsRow: NavLink = {
@@ -647,18 +668,6 @@ function buildStaffNavigation(
       "Categorías, términos, etiquetas, códigos, QR, presentaciones, funcionalidades, correos, blog, carrusel y contenido de inicio",
     href: "/menu/configuracion",
     icon: ToggleLeftIcon,
-  };
-  const account: NavGroup = {
-    key: "account",
-    label: "Mi cuenta",
-    items: [
-      {
-        key: "orders",
-        label: "Mis pedidos",
-        href: "/my_orders",
-        icon: ShoppingBagIcon,
-      },
-    ],
   };
 
   const more: NavGroup[] = isAdmin
@@ -811,6 +820,24 @@ export function isNavLinkActive(link: NavLink, pathname: string): boolean {
     const base = prefix.endsWith("/") ? prefix : `${prefix}/`;
     return pathname.startsWith(base);
   });
+}
+
+/**
+ * The one entry of a list to light: of those that match the page, the most
+ * specific. Festival sections nest ("Entradas" and "Verificar entradas"), and
+ * only the closer one is the current page.
+ */
+export function mostSpecificActiveKey(
+  links: readonly NavLink[],
+  pathname: string,
+): string | null {
+  let best: { key: string; length: number } | null = null;
+  for (const link of links) {
+    if (!isNavLinkActive(link, pathname)) continue;
+    const length = link.href.split("?")[0].length;
+    if (!best || length > best.length) best = { key: link.key, length };
+  }
+  return best?.key ?? null;
 }
 
 /**

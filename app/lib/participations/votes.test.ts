@@ -59,4 +59,22 @@ describe("countVotesReceived", () => {
       ),
     ).toBe(0);
   });
+
+  it("says nothing to someone removed from the activity", () => {
+    expect(
+      countVotesReceived(
+        activity({
+          details: [
+            {
+              participants: [{ id: 10, userId: 3, removedAt: new Date("2026-11-01") }],
+              votes: [{ voterId: 50, participantId: 10, votableType: "participant", standId: null }],
+            },
+          ] as unknown as FestivalActivityWithDetailsAndParticipants["details"],
+        }),
+        3,
+        new Set(),
+        CLOSED,
+      ),
+    ).toBeNull();
+  });
 });

@@ -70,7 +70,12 @@ const QUEUE_COPY: Record<
 export default async function AdminHomePage() {
   const profile = await getCurrentUserProfile();
   if (!profile) redirect("/sign_in");
-  const role = profile.role === "admin" ? "admin" : "festival_admin";
+  // The dashboard layout checks this too, but a layout does not run again on
+  // a client navigation inside it: the counts are staff's only.
+  if (profile.role !== "admin" && profile.role !== "festival_admin") {
+    redirect("/portal");
+  }
+  const role = profile.role;
 
   const festival = await getActiveFestivalBase();
   const [queues, counts] = await Promise.all([

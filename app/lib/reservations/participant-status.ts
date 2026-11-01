@@ -56,7 +56,7 @@ const COPY: Record<ParticipantReservationStatus, ParticipantStatusCopy> = {
   rejected: {
     label: "Cancelada",
     description:
-      "Esta reserva se cerró y el espacio volvió a estar disponible para otras personas.",
+      "Esta reserva se canceló y el espacio volvió a estar disponible para otras personas.",
     // Stated plainly rather than softened: someone who does not know they are
     // blocked will keep trying and hit a wall with no explanation.
     whatNext:
@@ -69,7 +69,7 @@ const COPY: Record<ParticipantReservationStatus, ParticipantStatusCopy> = {
   cancelled: {
     label: "Cancelada",
     description:
-      "Esta reserva se cerró y el espacio volvió a estar disponible para otras personas.",
+      "Esta reserva se canceló y el espacio volvió a estar disponible para otras personas.",
     whatNext:
       "No vas a poder hacer otra reserva en este festival. Si creés que hay un error, escribinos.",
     tone: "closed",

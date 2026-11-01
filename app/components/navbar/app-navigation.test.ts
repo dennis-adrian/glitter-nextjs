@@ -6,6 +6,7 @@ import {
   buildPublicNavigation,
   isFocusedFlowPage,
   isNavLinkActive,
+  mostSpecificActiveKey,
   type NavViewer,
   staffMenuSection,
 } from "@/app/components/navbar/app-navigation";
@@ -151,10 +152,15 @@ describe("buildAppNavigation groups", () => {
       "",
       "Festival en curso",
       "Operación",
+      "Mi cuenta",
     ]);
+    // Their own orders stay reachable where there is no "Más" tab.
+    expect(hrefs(group(nav, "account")!.items)).toEqual(["/my_orders"]);
     const festival = group(nav, "festival")!.sections![0];
     expect(festival.label).toBe("Festicker 2026");
     expect(festival.defaultOpen).toBe(true);
+    // The rail's single festival icon opens the festival, not the list.
+    expect(festival.href).toBe("/dashboard/festivals/9");
     expect(hrefs(festival.items).slice(0, 2)).toEqual([
       "/dashboard/festivals",
       "/dashboard/festivals/9/tickets",
@@ -320,4 +326,17 @@ describe("isFocusedFlowPage", () => {
       expect(isFocusedFlowPage(pathname)).toBe(false);
     },
   );
+});
+
+describe("mostSpecificActiveKey", () => {
+  it("lights only the closest of nested entries", () => {
+    const links = [
+      { key: "tickets", label: "Entradas", href: "/dashboard/festivals/9/tickets", icon: () => null },
+      { key: "verification", label: "Verificar entradas", href: "/dashboard/festivals/9/tickets/verification", icon: () => null },
+    ] as unknown as Parameters<typeof mostSpecificActiveKey>[0];
+
+    expect(mostSpecificActiveKey(links, "/dashboard/festivals/9/tickets/verification")).toBe("verification");
+    expect(mostSpecificActiveKey(links, "/dashboard/festivals/9/tickets")).toBe("tickets");
+    expect(mostSpecificActiveKey(links, "/dashboard/festivals/9/map")).toBeNull();
+  });
 });

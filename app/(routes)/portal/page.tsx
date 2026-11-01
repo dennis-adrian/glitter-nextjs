@@ -45,6 +45,7 @@ import {
 import { daysUntil } from "@/app/lib/participations/hub-status";
 import { canAuthorPosts } from "@/app/lib/posts/eligibility";
 import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export const dynamic = "force-dynamic";
 
@@ -260,13 +261,16 @@ async function UnverifiedHome({ profile }: { profile: ProfileType }) {
 }
 
 export default async function HomePage() {
+  // Staff have an Inicio of their own, made for their work; they leave
+  // before the participant hub is loaded for nothing.
+  const viewer = await getCurrentUserProfile();
+  if (viewer?.role === "admin" || viewer?.role === "festival_admin") {
+    redirect("/dashboard");
+  }
+
   const hub = await loadParticipationHub();
 
   if (hub.kind === "signed-out") redirect("/");
-  // Staff have an Inicio of their own, made for their work.
-  if (hub.profile.role === "admin" || hub.profile.role === "festival_admin") {
-    redirect("/dashboard");
-  }
 
   if (hub.kind === "not-verified") {
     const { profile } = hub;

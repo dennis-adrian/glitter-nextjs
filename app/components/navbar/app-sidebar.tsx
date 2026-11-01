@@ -22,6 +22,7 @@ import {
 } from "@/app/components/mode-toggle";
 import {
   isNavLinkActive,
+  mostSpecificActiveKey,
   PORTAL_HREF,
   type NavGroup,
   type NavLink,
@@ -196,6 +197,7 @@ function SidebarSection({
   const containsActive = section.items.some((item) =>
     isNavLinkActive(item, pathname),
   );
+  const currentKey = mostSpecificActiveKey(section.items, pathname);
   const [open, setOpen] = useState(containsActive || Boolean(section.defaultOpen));
   const Icon = section.icon;
 
@@ -205,7 +207,12 @@ function SidebarSection({
     const first = section.items[0];
     return (
       <SidebarLink
-        link={{ ...first, label: section.label, icon: section.icon }}
+        link={{
+          ...first,
+          href: section.href ?? first.href,
+          label: section.label,
+          icon: section.icon,
+        }}
         pathname={pathname}
         collapsed
         active={containsActive}
@@ -243,6 +250,7 @@ function SidebarSection({
             link={item}
             pathname={pathname}
             collapsed={false}
+            active={item.key === currentKey}
           />
         ))}
       </ul>
