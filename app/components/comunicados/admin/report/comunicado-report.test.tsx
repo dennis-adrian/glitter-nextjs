@@ -171,6 +171,7 @@ function rowOf(
   overrides: Partial<ComunicadoRecipientRow> = {},
 ): ComunicadoRecipientRow {
   return {
+    key: `user:${overrides.userId ?? 11}`,
     userId: 11,
     name: "Ana Pérez",
     email: "ana@example.test",

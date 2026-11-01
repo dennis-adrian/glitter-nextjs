@@ -36,6 +36,8 @@ export type ComunicadoEmailProps = {
   unsubscribeUrl: string;
   /** An essential send's festival: adds the note that explains it (D7). */
   essentialFestivalName?: string | null;
+  /** A comunicado to visitors and guest buyers: says why they get it (§L). */
+  visitors?: boolean;
   /** Origin the Glitter paths are joined to, from `publicBaseUrl()`. */
   baseUrl: string;
 };
@@ -44,15 +46,22 @@ export function comunicadoEssentialNote(festivalName: string) {
   return `Es un correo esencial sobre tu participación en ${festivalName}: llega también a quienes se dieron de baja de los anuncios.`;
 }
 
+/** Why someone without an account gets a comunicado (§L). */
+export const COMUNICADO_VISITOR_NOTE =
+  "Te escribimos porque te registraste para visitar un festival de Productora Glitter o compraste en nuestra tienda. Son nuestras novedades: podés darte de baja cuando quieras.";
+
 /**
- * The footer's small print: only an essential send's note. Staging mail is
- * marked by its From name and subject alone.
+ * The footer's small print: why a visitor gets it (§L), and an essential
+ * send's note. Staging mail is marked by its From name and subject alone.
  */
 export function comunicadoFooterNotes(opts: {
   essentialFestivalName?: string | null;
+  visitors?: boolean;
 }): string[] {
+  const notes: string[] = opts.visitors ? [COMUNICADO_VISITOR_NOTE] : [];
   const festival = opts.essentialFestivalName?.trim();
-  return festival ? [comunicadoEssentialNote(festival)] : [];
+  if (festival) notes.push(comunicadoEssentialNote(festival));
+  return notes;
 }
 
 /** The excerpt cut on a word boundary, "…" included, to fit 120. */
@@ -91,6 +100,7 @@ export default function ComunicadoEmail({
   actionPath,
   unsubscribeUrl,
   essentialFestivalName,
+  visitors = false,
   baseUrl,
 }: ComunicadoEmailProps) {
   const label = actionLabel?.trim();
@@ -123,7 +133,7 @@ export default function ComunicadoEmail({
         </Container>
         <EmailFooter
           unsubscribeUrl={unsubscribeUrl}
-          notes={comunicadoFooterNotes({ essentialFestivalName })}
+          notes={comunicadoFooterNotes({ essentialFestivalName, visitors })}
         />
       </Body>
     </Html>

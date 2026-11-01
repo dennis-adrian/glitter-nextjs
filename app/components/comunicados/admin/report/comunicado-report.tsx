@@ -79,10 +79,12 @@ function ReportKpis({
           kpis.notReceived > 0 ? notReceivedText(kpis.notReceived) : undefined
         }
       />
-      <ReportKpi
-        label="Leídos en la app"
-        value={readKpiValue(kpis.read, kpis.recipients)}
-      />
+      {report.audienceKind !== "visitors" && (
+        <ReportKpi
+          label="Leídos en la app"
+          value={readKpiValue(kpis.read, kpis.recipients)}
+        />
+      )}
       {report.sendEmail && (
         <>
           <ReportKpi
@@ -184,6 +186,9 @@ export default function ComunicadoReport({
             {/* As its row in the list tags it (G3). */}
             {edited && <Badge variant="outline">Editado</Badge>}
             {report.essential && <Badge variant="orange">Esencial</Badge>}
+            {report.audienceKind === "visitors" && (
+              <Badge variant="outline">Visitantes · solo correo</Badge>
+            )}
           </div>
           <p className="text-sm text-muted-foreground">
             {sentByText(momentLabel(report.sentAt), report.sentByName)}
@@ -275,6 +280,7 @@ export default function ComunicadoReport({
               comunicadoId={report.id}
               filter={filter}
               query={query}
+              emailOnly={report.audienceKind === "visitors"}
             />
             <RecipientsSearch
               comunicadoId={report.id}

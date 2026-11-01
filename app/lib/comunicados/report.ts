@@ -8,7 +8,10 @@ import type {
   ComunicadoRetryCounts,
 } from "@/app/lib/comunicados/contracts";
 import {
+  COMUNICADO_CONTACT_SKIP_REASONS,
+  type ComunicadoAudienceKind,
   type ComunicadoAudienceSummary,
+  type ComunicadoContactSource,
   parseComunicadoAudienceSummary,
 } from "@/app/lib/comunicados/definitions";
 import {
@@ -94,6 +97,42 @@ export const recipientsWithLatestEmailSql = sql`notification_campaign_recipients
     LIMIT 1
   ) d ON true`;
 
+/**
+ * A visitor comunicado's contacts (§L) under the same names, so every count
+ * and filter reads them as recipients: `queued` is `notified` (its email row
+ * was written), there is no inbox item to read, and `d` is the contact's
+ * latest email row.
+ */
+export const contactsWithLatestEmailSql = sql`(
+    SELECT c.id, c.campaign_id,
+      (CASE c.status WHEN 'queued' THEN 'notified' ELSE 'skipped' END) AS status,
+      c.skipped_reason, c.delivery_id, c.source::text AS source,
+      c.email, c.name, c.email_key
+    FROM notification_campaign_contacts c
+  ) r
+  CROSS JOIN LATERAL (
+    SELECT NULL::timestamp AS read_at, NULL::timestamp AS retracted_at
+  ) n
+  LEFT JOIN LATERAL (
+    SELECT d.status, d.last_error, d.maybe_sent_at, d.sent_at,
+           d.content_revision, d.recipient_email, d.updated_at
+    FROM notification_deliveries d
+    WHERE d.id = r.delivery_id
+  ) d ON true`;
+
+function recipientsSourceSql(kind: ComunicadoAudienceKind) {
+  return kind === "visitors"
+    ? contactsWithLatestEmailSql
+    : recipientsWithLatestEmailSql;
+}
+
+/** The skip label the preview narrowing writes, per audience kind. */
+function stagingSkipLabel(kind: ComunicadoAudienceKind) {
+  return kind === "visitors"
+    ? COMUNICADO_CONTACT_SKIP_REASONS.staging
+    : COMUNICADO_SKIP_REASONS.staging;
+}
+
 /** "Destinatarios": whose inbox it reached or is about to (D-21). */
 export const receivingRecipientSql = sql`r.status IN ('notified', 'pending')`;
 
@@ -141,6 +180,8 @@ export type ComunicadoReport = {
   html: string;
   sendEmail: boolean;
   sendPush: boolean;
+  /** Visitors: email only, no inbox, no push (§L). */
+  audienceKind: ComunicadoAudienceKind;
   essential: boolean;
   essentialReason: string | null;
   essentialConfirmedByName: string | null;
@@ -191,8 +232,11 @@ type RecipientCountsRow = {
 };
 
 /** One aggregate over the recipients and each one's latest email (G6). */
-async function recipientCounts(campaignId: number) {
-  const staging = COMUNICADO_SKIP_REASONS.staging;
+async function recipientCounts(
+  campaignId: number,
+  kind: ComunicadoAudienceKind,
+) {
+  const staging = stagingSkipLabel(kind);
   const quota = sql.param([...RESEND_QUOTA_ERRORS]);
   const result = await db.execute<RecipientCountsRow>(sql`
     WITH counts AS (
@@ -245,7 +289,7 @@ async function recipientCounts(campaignId: number) {
         max(d.updated_at) FILTER (
           WHERE d.status IN ('sent', 'failed', 'skipped')
         ) AS last_settled_at
-      FROM ${recipientsWithLatestEmailSql}
+      FROM ${recipientsSourceSql(kind)}
       WHERE r.campaign_id = ${campaignId}
     )
     SELECT counts.*,
@@ -275,7 +319,17 @@ type DeliveryCountsRow = {
  * `email_key` index.
  */
 async function deliveryCounts(campaignId: number) {
+  // A participant comunicado's rows hang off its inbox items; a visitor
+  // comunicado's carry the campaign themselves (§L).
   const result = await db.execute<DeliveryCountsRow>(sql`
+    WITH ds AS (
+      SELECT d.* FROM notifications n
+      JOIN notification_deliveries d ON d.notification_id = n.id
+      WHERE n.campaign_id = ${campaignId}
+      UNION ALL
+      SELECT d.* FROM notification_deliveries d
+      WHERE d.campaign_id = ${campaignId}
+    )
     SELECT
       count(DISTINCT s.id)::int AS bounces,
       count(*) FILTER (
@@ -287,21 +341,16 @@ async function deliveryCounts(campaignId: number) {
         WHERE d.channel = 'push' AND d.status = 'sent'
       )::int AS push_sent,
       (
-        SELECT p.last_error
-        FROM notification_deliveries p
-        JOIN notifications pn ON pn.id = p.notification_id
-        WHERE pn.campaign_id = ${campaignId}
-          AND p.lane = 'bulk' AND p.channel = 'email' AND p.status = 'pending'
+        SELECT p.last_error FROM ds p
+        WHERE p.lane = 'bulk' AND p.channel = 'email' AND p.status = 'pending'
         ORDER BY p.id
         LIMIT 1
       ) AS oldest_pending_error
-    FROM notifications n
-    JOIN notification_deliveries d ON d.notification_id = n.id
+    FROM ds d
     LEFT JOIN email_suppressions s
       ON d.channel = 'email'
      AND s.email_key = lower(btrim(d.recipient_email))
-     AND s.resend_email_id = d.provider_message_id
-    WHERE n.campaign_id = ${campaignId}`);
+     AND s.resend_email_id = d.provider_message_id`);
   return result.rows[0];
 }
 
@@ -325,6 +374,7 @@ export async function fetchComunicadoReport(
       currentRevision: comunicados.currentRevision,
       sendEmail: comunicados.sendEmail,
       sendPush: comunicados.sendPush,
+      audienceKind: comunicados.audienceKind,
       essential: comunicados.essential,
       essentialReason: comunicados.essentialReason,
       essentialConfirmedAt: comunicados.essentialConfirmedAt,
@@ -384,7 +434,7 @@ export async function fetchComunicadoReport(
   }
 
   const [counts, deliveries] = await Promise.all([
-    recipientCounts(row.campaignId),
+    recipientCounts(row.campaignId, row.audienceKind),
     deliveryCounts(row.campaignId),
   ]);
   const kpis: ComunicadoReportKpis = {
@@ -425,6 +475,7 @@ export async function fetchComunicadoReport(
     html: row.html ?? "",
     sendEmail: row.sendEmail,
     sendPush: row.sendPush,
+    audienceKind: row.audienceKind,
     essential: row.essential,
     essentialReason: row.essentialReason,
     essentialConfirmedByName: personName(row.confirmedBy),
@@ -459,11 +510,14 @@ export async function fetchComunicadoReport(
 }
 
 export type ComunicadoRecipientRow = {
-  userId: number;
+  /** Unique in the table: `user:{id}` or `contact:{id}`. */
+  key: string;
+  /** Null for a visitor comunicado's contact. */
+  userId: number | null;
   name: string;
   email: string;
   /** How they entered the audience; null on a row written without one. */
-  source: ComunicadoRecipientSource | null;
+  source: ComunicadoRecipientSource | ComunicadoContactSource | null;
   app: string;
   emailLabel: string;
   device: string;
@@ -528,6 +582,7 @@ export async function fetchComunicadoRecipients(
       campaignId: comunicados.campaignId,
       sendEmail: comunicados.sendEmail,
       sendPush: comunicados.sendPush,
+      audienceKind: comunicados.audienceKind,
       currentRevision: comunicados.currentRevision,
     })
     .from(comunicados)
@@ -541,6 +596,13 @@ export async function fetchComunicadoRecipients(
     comunicado.currentRevision === null
   ) {
     return null;
+  }
+  if (comunicado.audienceKind === "visitors") {
+    return fetchComunicadoContacts({
+      campaignId: comunicado.campaignId,
+      currentRevision: comunicado.currentRevision,
+      ...opts,
+    });
   }
 
   const search = userSearchCondition(opts.query.trim().slice(0, SEARCH_MAX));
@@ -602,6 +664,7 @@ export async function fetchComunicadoRecipients(
           }
         : null;
       return {
+        key: `user:${row.user_id}`,
         userId: Number(row.user_id),
         name:
           getUserName({
@@ -629,6 +692,99 @@ export async function fetchComunicadoRecipients(
           pushes: row.pushes,
           pushesSent: row.pushes_sent,
         }),
+      };
+    }),
+    total,
+    page,
+    pageCount: pageCountOf(total),
+  };
+}
+
+type ContactRow = {
+  id: number;
+  name: string | null;
+  email: string;
+  source: ComunicadoContactSource;
+  status: ComunicadoRecipientStatus;
+  skipped_reason: string | null;
+  email_status: ComunicadoEmailDelivery["status"] | null;
+  email_error: string | null;
+  email_maybe_sent: boolean | null;
+  email_sent_at: string | Date | null;
+  email_revision: number | null;
+  unsubscribed_all: boolean;
+};
+
+/**
+ * The recipients table of a visitor comunicado (§L): one row per address,
+ * email only, so the App and Dispositivo columns read "Solo correo" and "—".
+ * Searched by name or address; ordered by address.
+ */
+async function fetchComunicadoContacts(opts: {
+  campaignId: number;
+  currentRevision: number;
+  filter: ComunicadoRecipientFilter;
+  query: string;
+  page: number;
+}): Promise<Paged<ComunicadoRecipientRow>> {
+  const term = opts.query.trim().slice(0, SEARCH_MAX).toLowerCase();
+  const like = `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const where = sql`WHERE r.campaign_id = ${opts.campaignId}
+    AND (${RECIPIENT_FILTER_SQL[opts.filter]})
+    ${term ? sql`AND (r.email_key LIKE ${like} OR lower(coalesce(r.name, '')) LIKE ${like})` : sql``}`;
+
+  const totalResult = await db.execute<{ total: number }>(
+    sql`SELECT count(*)::int AS total FROM ${contactsWithLatestEmailSql} ${where}`,
+  );
+  const total = totalResult.rows[0]?.total ?? 0;
+  const page = Math.min(pageOf(opts.page), pageCountOf(total));
+
+  const result = await db.execute<ContactRow>(sql`
+    SELECT r.id, r.name, r.email, r.source, r.status, r.skipped_reason,
+      d.status AS email_status,
+      d.last_error AS email_error,
+      d.maybe_sent_at IS NOT NULL AS email_maybe_sent,
+      d.sent_at AS email_sent_at,
+      d.content_revision AS email_revision,
+      coalesce(d.last_error = 'unsubscribed' AND EXISTS (
+        SELECT 1 FROM email_unsubscribes eu
+        WHERE eu.email_key = r.email_key AND eu.topic = 'all'
+      ), false) AS unsubscribed_all
+    FROM ${contactsWithLatestEmailSql}
+    ${where}
+    ORDER BY r.email_key, r.id
+    LIMIT ${COMUNICADO_REPORT_PAGE_SIZE}
+    OFFSET ${(page - 1) * COMUNICADO_REPORT_PAGE_SIZE}`);
+
+  return {
+    rows: result.rows.map((row) => {
+      const delivery: ComunicadoEmailDelivery | null = row.email_status
+        ? {
+            status: row.email_status,
+            lastError: row.email_error,
+            maybeSent: row.email_maybe_sent === true,
+            sentAt: parseTimestamp(row.email_sent_at),
+            contentRevision: row.email_revision,
+          }
+        : null;
+      return {
+        key: `contact:${row.id}`,
+        userId: null,
+        name: row.name?.trim() || row.email,
+        email: row.email,
+        source: row.source,
+        app:
+          row.status === "skipped"
+            ? `Omitido: ${row.skipped_reason ?? "—"}`
+            : "Solo correo",
+        emailLabel: comunicadoEmailLabel({
+          delivery,
+          unsubscribedAll: row.unsubscribed_all,
+          sendEmail: true,
+          recipientStatus: row.status,
+          currentRevision: opts.currentRevision,
+        }),
+        device: "—",
       };
     }),
     total,

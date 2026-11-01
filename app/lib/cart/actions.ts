@@ -1871,6 +1871,8 @@ export async function checkoutGuestCart(
   guestEmail: string,
   guestPhone: string,
   bundles: GuestBundleInput[] = [],
+  /** "Quiero recibir novedades" (§L); unticked when left out. */
+  consent: { newsOptIn?: unknown } = {},
 ): Promise<{
   success: boolean;
   message: string;
@@ -1962,6 +1964,7 @@ export async function checkoutGuestCart(
           quantity: bundle.quantity,
           selections: bundle.selections,
         })),
+        { newsOptIn: consent?.newsOptIn === true },
       ),
     );
 

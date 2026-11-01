@@ -9,6 +9,9 @@ vi.mock("@/app/vendors/resend", () => ({ sendBatchEmails: vi.fn() }));
 vi.mock("@/app/lib/comunicados/delivery", () => ({
   comunicadoBatchRenderer: {},
 }));
+vi.mock("@/app/lib/comunicados/contact-delivery", () => ({
+  comunicadoContactBatchRenderer: {},
+}));
 
 import {
   BULK_TIMING,

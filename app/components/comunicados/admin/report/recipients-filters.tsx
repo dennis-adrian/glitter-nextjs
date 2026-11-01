@@ -16,18 +16,24 @@ export default function RecipientsFilters({
   comunicadoId,
   filter,
   query,
+  emailOnly = false,
 }: {
   comunicadoId: number;
   filter: ComunicadoRecipientFilter;
   query: string;
+  /** A visitor comunicado (§L): nothing is read in the app. */
+  emailOnly?: boolean;
 }) {
+  const filters = emailOnly
+    ? COMUNICADO_RECIPIENT_FILTERS.filter((value) => value !== "unread")
+    : COMUNICADO_RECIPIENT_FILTERS;
   return (
     <nav
       aria-label="Filtrar destinatarios"
       className="-mx-1 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden"
     >
       <ul className="flex w-max gap-2">
-        {COMUNICADO_RECIPIENT_FILTERS.map((value) => (
+        {filters.map((value) => (
           <li key={value}>
             <Link
               href={comunicadoReportHref(comunicadoId, {

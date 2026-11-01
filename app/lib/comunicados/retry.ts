@@ -142,6 +142,33 @@ async function retryInTransaction(
     RETURNING id
   `);
 
+  // A visitor comunicado's contacts (§L): a new row to the address frozen at
+  // the send, under the same V7 rule, and the contact points at it.
+  const { rows: contactEmails } = await tx.execute<{ id: number }>(sql`
+    WITH written AS (
+      INSERT INTO notification_deliveries
+        (campaign_id, template_key, channel, lane, recipient_email, payload,
+         idempotency_key, resend_of_delivery_id, requested_by_user_id)
+      SELECT c.campaign_id, d.template_key,
+        'email'::notification_delivery_channel,
+        'bulk'::notification_delivery_lane,
+        c.email, d.payload,
+        'comunicado:' || ${comunicadoId}::int || ':contact:' || c.id
+          || ':email:retry:' || ${retryKey}::text,
+        d.id, ${by}::int
+      FROM notification_campaign_contacts c
+      JOIN notification_deliveries d ON d.id = c.delivery_id
+      WHERE c.campaign_id = ${campaignId}::int AND c.status = 'queued'
+        AND d.status = 'failed' AND d.maybe_sent_at IS NULL
+      ORDER BY c.id
+      RETURNING id, (payload->>'contactId')::int AS contact_id
+    )
+    UPDATE notification_campaign_contacts c SET delivery_id = w.id
+    FROM written w WHERE c.id = w.contact_id
+    RETURNING w.id
+  `);
+  emails.push(...contactEmails);
+
   // Both wrote nothing: the campaign stays as it is, completed or not.
   if (people.length + emails.length === 0) return refusal("NOTHING");
 

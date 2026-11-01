@@ -192,6 +192,8 @@ function summaryFor(
 ): ComunicadoAudienceSummary {
   return {
     v: 1,
+    audienceKind: "users",
+    contacts: null,
     env,
     narrowed: env !== "production",
     sources: [],

@@ -1,5 +1,8 @@
 import type { DraftFields } from "@/app/components/comunicados/admin/composer/use-autosave";
-import type { ComunicadoAudience } from "@/app/lib/comunicados/definitions";
+import type {
+  ComunicadoAudience,
+  ComunicadoAudienceKind,
+} from "@/app/lib/comunicados/definitions";
 import type {
   AudienceCount,
   DistributionListKind,
@@ -55,6 +58,8 @@ export type ComposerDraft = {
   actionPath: string | null;
   sendEmail: boolean;
   sendPush: boolean;
+  /** Participants or visitors (§L). */
+  audienceKind: ComunicadoAudienceKind;
   audience: ComunicadoAudience;
   /** The stored audience no longer parsed: it opens empty. */
   audienceUnreadable: boolean;
@@ -75,6 +80,7 @@ export type ComposerFields = {
   actionPath: string;
   sendEmail: boolean;
   sendPush: boolean;
+  audienceKind: ComunicadoAudienceKind;
   audience: ComunicadoAudience;
   essential: boolean;
   essentialReason: string;
@@ -90,6 +96,7 @@ export function draftFieldsOf(fields: ComposerFields): DraftFields {
     actionPath: fields.actionEnabled ? fields.actionPath : null,
     sendEmail: fields.sendEmail,
     sendPush: fields.sendPush,
+    audienceKind: fields.audienceKind,
     audience: fields.audience,
     essential: fields.essential,
     essentialReason: fields.essential ? fields.essentialReason : null,
@@ -105,6 +112,7 @@ export function composerFieldsOf(draft: ComposerDraft): ComposerFields {
     actionPath: draft.actionPath ?? "",
     sendEmail: draft.sendEmail,
     sendPush: draft.sendPush,
+    audienceKind: draft.audienceKind,
     audience: draft.audience,
     essential: draft.essential,
     essentialReason: draft.essentialReason ?? "",

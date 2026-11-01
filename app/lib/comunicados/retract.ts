@@ -109,7 +109,7 @@ async function retractInTransaction(
   // attempt holding it, whose settle checks only its lease and would
   // overwrite this: a batch meets `retracted` in its pre-check, or its claim
   // is handed back as skipped; a push is delivered, or skips as retracted.
-  const { rows: deliveries } = await tx.execute<{ id: number }>(sql`
+  const { rows: inboxDeliveries } = await tx.execute<{ id: number }>(sql`
     UPDATE notification_deliveries d
     SET status = 'skipped', last_error = 'retracted', updated_at = now()
     FROM notifications n
@@ -117,6 +117,14 @@ async function retractInTransaction(
       AND d.status = 'pending'
     RETURNING d.id
   `);
+  // A visitor comunicado's emails have no inbox item (§L).
+  const { rows: contactDeliveries } = await tx.execute<{ id: number }>(sql`
+    UPDATE notification_deliveries
+    SET status = 'skipped', last_error = 'retracted', updated_at = now()
+    WHERE campaign_id = ${campaignId}::int AND status = 'pending'
+    RETURNING id
+  `);
+  const deliveries = [...inboxDeliveries, ...contactDeliveries];
 
   // Later chunks see `retracted_at` under the shared lock and stop.
   const { rows: recipients } = await tx.execute<{ id: number }>(sql`
