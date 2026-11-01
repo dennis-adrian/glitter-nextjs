@@ -798,12 +798,18 @@ export function breadcrumbTrail(
     labels = {},
     current,
     parentHref: parentOverride,
+    parents = {},
   }: {
     labels?: Record<string, string>;
     /** The page's own name, when it names itself (ScreenTitle). */
     current?: string;
     /** The page's own parent, when the path cannot give it (ScreenTitle). */
     parentHref?: string;
+    /**
+     * Where a level above sits, by its href, when the path cannot give it
+     * (an occurrence belongs to its session, which its path does not say).
+     */
+    parents?: Record<string, string>;
   } = {},
 ): Crumb[] {
   const path = normalize(pathname);
@@ -827,7 +833,8 @@ export function breadcrumbTrail(
       (parent ? parent.title : rootLabel(parentPath, ctx));
     trail.unshift({ label, href: parentHref });
     if (!parent) break;
-    parentHref = parent.parentHref;
+    parentHref =
+      parents[parentHref] ?? parents[parentPath] ?? parent.parentHref;
   }
   // Trails start at the section, not at Más: on a desktop, Más is no page
   // of the sidebar, and on a phone it is the tab bar's, not the page's.

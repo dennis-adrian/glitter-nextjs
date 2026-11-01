@@ -278,6 +278,33 @@ describe("breadcrumbTrail", () => {
     ).toEqual(["Festicker 2026", "Reservas y cobros", "Editar reserva"]);
   });
 
+  it("follows where a level above sits when its path cannot say", () => {
+    expect(
+      breadcrumbTrail(
+        "/dashboard/programs/occurrences/12/check-in",
+        ctx(festivalAdmin),
+        {
+          current: "Registrar ingresos",
+          parents: {
+            "/dashboard/programs/occurrences/12":
+              "/dashboard/programs/3/sessions/8",
+          },
+          labels: {
+            "/dashboard/programs/occurrences/12": "14 nov 2026, 10:00",
+            "/dashboard/programs/3/sessions/8": "Taller de risografía",
+            "/dashboard/programs/3": "Glitter Week",
+          },
+        },
+      ).map((c) => c.label),
+    ).toEqual([
+      "Programas",
+      "Glitter Week",
+      "Taller de risografía",
+      "14 nov 2026, 10:00",
+      "Registrar ingresos",
+    ]);
+  });
+
   it("is empty on a tab's own page", () => {
     expect(breadcrumbTrail("/my_participations", ctx(verified))).toEqual([]);
   });

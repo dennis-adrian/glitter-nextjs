@@ -21,10 +21,13 @@ import { cn } from "@/app/lib/utils";
  */
 export default function PageBreadcrumbs({
   labels,
+  parents,
   current,
   className,
 }: {
   labels?: Record<string, string>;
+  /** Where a level above sits, by its href, when its path cannot say. */
+  parents?: Record<string, string>;
   /** The page's own crumb, when it should differ from the bar's title. */
   current?: string;
   className?: string;
@@ -33,6 +36,7 @@ export default function PageBreadcrumbs({
   const trail = nav
     ? breadcrumbTrail(path, nav, {
         labels,
+        parents,
         current: current ?? title,
         parentHref,
       })
