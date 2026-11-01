@@ -164,11 +164,13 @@ export function usePublishScreenContext(ctx: ScreenContext) {
     ]),
     ctx.activeFestival?.id ?? null,
   ]);
-  const latest = useRef(ctx);
-  latest.current = ctx;
+  const published = useRef<string | null>(null);
+  // Runs after every render but publishes only when the key changed.
   useEffect(() => {
-    publish(latest.current);
-  }, [key, publish]);
+    if (published.current === key) return;
+    published.current = key;
+    publish(ctx);
+  });
 }
 
 /** The navbar's view of who is viewing, and the page's own title, if set. */
