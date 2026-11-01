@@ -55,13 +55,15 @@ export default function PullToRefresh() {
     let frame = 0;
 
     const main = () => document.querySelector<HTMLElement>("body > main");
+    // Moved with relative positioning, not a transform: a transform would
+    // become the box of every fixed element inside the page (payment bars,
+    // checkout actions) and send them off-screen while pulling.
     const move = (value: number, animate: boolean) => {
       const element = main();
       if (!element) return;
-      element.style.transition = animate ? "transform 200ms ease-out" : "";
-      // No transform at rest, so fixed elements inside the page keep the
-      // viewport as their box.
-      element.style.transform = value ? `translateY(${value}px)` : "";
+      element.style.transition = animate ? "top 200ms ease-out" : "";
+      element.style.position = value || animate ? "relative" : "";
+      element.style.top = value ? `${value}px` : "";
     };
 
     const reset = () => {
@@ -74,10 +76,21 @@ export default function PullToRefresh() {
       move(0, true);
     };
 
+    const zoomed = () => {
+      const visual = window.visualViewport;
+      return Boolean(visual && (visual.scale > 1.01 || visual.offsetTop > 0));
+    };
+
     const onStart = (event: TouchEvent) => {
-      if (phaseRef.current === "refreshing" || event.touches.length !== 1)
+      // A second finger is a pinch: whatever was pulling lets go.
+      if (event.touches.length !== 1) {
+        if (startY !== null) reset();
         return;
-      if (window.scrollY > 0 || !canStartPull(event.target, document)) return;
+      }
+      if (phaseRef.current === "refreshing") return;
+      // A zoomed-in page pans with drags, even at its top.
+      if (window.scrollY > 0 || zoomed()) return;
+      if (!canStartPull(event.target, document)) return;
       startY = event.touches[0].clientY;
       startX = event.touches[0].clientX;
       const chrome = document.querySelector("[data-site-navbar]");
@@ -85,22 +98,28 @@ export default function PullToRefresh() {
     };
 
     const onMove = (event: TouchEvent) => {
-      if (startY === null) return;
+      if (startY === null || event.touches.length !== 1) return;
       const dy = event.touches[0].clientY - startY;
       const dx = event.touches[0].clientX - startX;
       if (!pulling) {
-        // An upward or sideways drag is a scroll or a swipe, not a pull.
-        if (dy < 0 || Math.abs(dx) > Math.abs(dy)) {
-          startY = null;
-          return;
-        }
-        if (dy < PULL_SLOP) return;
-        if (window.scrollY > 0) {
+        const downward = dy > 0 && Math.abs(dy) >= Math.abs(dx);
+        // Claim a downward drag at the top from its first move, so the
+        // browser never starts its own overscroll in its place.
+        if (downward && event.cancelable) event.preventDefault();
+        // The direction is decided once the finger has really moved: a
+        // finger lands with a pixel or two of wobble either way.
+        if (Math.hypot(dx, dy) < PULL_SLOP) return;
+        if (!downward || window.scrollY > 0 || zoomed()) {
           startY = null;
           return;
         }
         pulling = true;
         setPhase("pulling");
+      }
+      // Back above where it started: the pull is off and scrolling is back.
+      if (dy <= 0) {
+        reset();
+        return;
       }
       // The page is ours while pulling: no rubber band, no browser refresh.
       if (event.cancelable) event.preventDefault();
@@ -112,8 +131,10 @@ export default function PullToRefresh() {
       });
     };
 
-    const onEnd = () => {
+    const onEnd = (event: TouchEvent) => {
       if (startY === null) return;
+      // Only the last finger lifting ends the gesture.
+      if (event.touches && event.touches.length > 0) return;
       if (pulling && isReadyToRefresh(current)) {
         startY = null;
         pulling = false;
@@ -150,8 +171,12 @@ export default function PullToRefresh() {
       setDistance(0);
       const element = document.querySelector<HTMLElement>("body > main");
       if (element) {
-        element.style.transition = "transform 200ms ease-out";
-        element.style.transform = "";
+        element.style.transition = "top 200ms ease-out";
+        element.style.top = "";
+        // Back to static once it has settled, as the page was.
+        window.setTimeout(() => {
+          if (!element.style.top) element.style.position = "";
+        }, 220);
       }
     }, wait);
     return () => window.clearTimeout(timer);

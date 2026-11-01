@@ -39,9 +39,14 @@ export function canStartPull(
   doc: Document,
 ): boolean {
   if (!(target instanceof Element)) return false;
-  // Something modal is open: the pull belongs to it, or to nothing.
+  // Something modal is open (a dialog, a confirmation, a sheet, a menu or a
+  // select): the pull belongs to it, or to nothing.
   if (
-    doc.querySelector('[role="dialog"][data-state="open"], [aria-modal="true"]')
+    doc.querySelector(
+      '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [aria-modal="true"], [data-radix-popper-content-wrapper]',
+    ) ||
+    doc.body.hasAttribute("data-scroll-locked") ||
+    doc.body.style.pointerEvents === "none"
   ) {
     return false;
   }
@@ -54,7 +59,8 @@ export function canStartPull(
     if (node.hasAttribute("data-no-pull-refresh")) return false;
     // Pinch-zoom viewers (maps, vouchers) keep their drags.
     if (node.classList.contains("react-transform-wrapper")) return false;
-    if (node.getAttribute("role") === "dialog") return false;
+    const role = node.getAttribute("role");
+    if (role === "dialog" || role === "alertdialog") return false;
     if (!view) continue;
     const style = view.getComputedStyle(node);
     // An element that keeps vertical drags for itself (maps, zoomable art).

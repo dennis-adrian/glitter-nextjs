@@ -47,6 +47,22 @@ describe("canStartPull", () => {
     expect(canStartPull(target, document)).toBe(false);
   });
 
+  it("never starts behind a confirmation, a menu or a locked page", () => {
+    const target = () => document.getElementById("target");
+    place(
+      '<p id="target">Hola</p><div role="alertdialog" data-state="open"></div>',
+    );
+    expect(canStartPull(target(), document)).toBe(false);
+    place(
+      '<p id="target">Hola</p><div data-radix-popper-content-wrapper></div>',
+    );
+    expect(canStartPull(target(), document)).toBe(false);
+    place('<p id="target">Hola</p>');
+    document.body.setAttribute("data-scroll-locked", "1");
+    expect(canStartPull(target(), document)).toBe(false);
+    document.body.removeAttribute("data-scroll-locked");
+  });
+
   it("never starts on a map or a pinch-zoom viewer", () => {
     expect(
       canStartPull(

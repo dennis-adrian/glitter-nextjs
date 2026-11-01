@@ -76,7 +76,59 @@ describe("PullToRefresh", () => {
     pull(60);
 
     expect(refreshMock).not.toHaveBeenCalled();
-    expect(document.querySelector("main")!.style.transform).toBe("");
+    expect(document.querySelector("main")!.style.top).toBe("");
+  });
+
+  it("moves the page without a transform, so fixed bars inside it stay put", () => {
+    installed(true);
+    render(<PullToRefresh />);
+    touch("touchstart", [{ clientX: 100, clientY: 100 }]);
+    touch("touchmove", [{ clientX: 100, clientY: 200 }]);
+    act(() => {
+      vi.runOnlyPendingTimers();
+    });
+    const main = document.querySelector("main")!;
+    expect(main.style.transform).toBe("");
+    expect(main.style.position).toBe("relative");
+    expect(main.style.top).not.toBe("");
+  });
+
+  it("is not thrown off by the wobble of a finger landing", () => {
+    installed(true);
+    render(<PullToRefresh />);
+    touch("touchstart", [{ clientX: 100, clientY: 100 }]);
+    touch("touchmove", [{ clientX: 102, clientY: 99 }]);
+    touch("touchmove", [{ clientX: 101, clientY: 100 }]);
+    touch("touchmove", [{ clientX: 101, clientY: 300 }]);
+    act(() => {
+      vi.runOnlyPendingTimers();
+    });
+    touch("touchend", []);
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets go when the finger comes back above where it started", () => {
+    installed(true);
+    render(<PullToRefresh />);
+    touch("touchstart", [{ clientX: 100, clientY: 100 }]);
+    touch("touchmove", [{ clientX: 100, clientY: 300 }]);
+    touch("touchmove", [{ clientX: 100, clientY: 80 }]);
+    touch("touchend", []);
+    expect(refreshMock).not.toHaveBeenCalled();
+  });
+
+  it("lets go when a second finger lands (a pinch)", () => {
+    installed(true);
+    render(<PullToRefresh />);
+    touch("touchstart", [{ clientX: 100, clientY: 100 }]);
+    touch("touchmove", [{ clientX: 100, clientY: 300 }]);
+    touch("touchstart", [
+      { clientX: 100, clientY: 300 },
+      { clientX: 200, clientY: 300 },
+    ]);
+    touch("touchend", [{ clientX: 100, clientY: 300 }]);
+    touch("touchend", []);
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 
   it("does nothing in a browser tab, which reloads on pull by itself", () => {
