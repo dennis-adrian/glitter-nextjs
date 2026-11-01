@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import ArchiveListDialog from "@/app/components/communications/admin/archive-list-dialog";
+import DuplicateListDialog from "@/app/components/communications/admin/duplicate-list-dialog";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -35,6 +36,8 @@ export default function SavedListsTable({
   const [archiving, setArchiving] = useState<DistributionListSummary | null>(
     null,
   );
+  const [duplicating, setDuplicating] =
+    useState<DistributionListSummary | null>(null);
 
   if (lists.length === 0) {
     return (
@@ -68,6 +71,11 @@ export default function SavedListsTable({
                   >
                     {list.name}
                   </Link>
+                  {list.origin && (
+                    <p className="text-xs text-muted-foreground">
+                      Copia de «{list.origin.name}»
+                    </p>
+                  )}
                   {list.description && (
                     <p className="line-clamp-2 text-xs text-muted-foreground">
                       {list.description}
@@ -111,6 +119,9 @@ export default function SavedListsTable({
                           Editar
                         </Link>
                       </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setDuplicating(list)}>
+                        Duplicar
+                      </DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => setArchiving(list)}>
                         Archivar
                       </DropdownMenuItem>
@@ -122,6 +133,17 @@ export default function SavedListsTable({
           </TableBody>
         </Table>
       </div>
+      <DuplicateListDialog
+        list={
+          duplicating && {
+            source: { kind: "list", listId: duplicating.id },
+            name: duplicating.name,
+            dynamic: duplicating.kind === "filter",
+          }
+        }
+        open={duplicating !== null}
+        onOpenChange={(open) => !open && setDuplicating(null)}
+      />
       <ArchiveListDialog
         list={archiving}
         open={archiving !== null}
