@@ -2,7 +2,7 @@ import AnnouncementStrip from "@/app/components/navbar/announcement-strip";
 import NavbarClient from "@/app/components/navbar/navbar-client";
 import {
   resolveNavFlags,
-  resolveStaffFestival,
+  resolveActiveFestival,
   resolveSuppliesOpen,
 } from "@/app/components/navbar/nav-flags";
 import {
@@ -46,7 +46,7 @@ export default async function Navbar() {
     : null;
   const [suppliesOpen, activeFestival] = await Promise.all([
     resolveSuppliesOpen(viewer?.status),
-    resolveStaffFestival(viewer?.role),
+    resolveActiveFestival(viewer?.role),
   ]);
 
   return (

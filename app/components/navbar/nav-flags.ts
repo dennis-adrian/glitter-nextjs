@@ -57,24 +57,27 @@ export async function resolveSuppliesOpen(
   if (viewerStatus !== "verified") return false;
   // Loaded here, not at the top: the store settings bring the database
   // client, which a navbar for anyone else never needs.
-  const { resolveSectionClosure } = await import(
-    "@/app/lib/store_settings/closure"
-  );
+  const { resolveSectionClosure } =
+    await import("@/app/lib/store_settings/closure");
   const closure = await resolveSectionClosure("supplies").catch(() => null);
   return closure ? !closure.closed : false;
 }
 
 /**
- * For staff: the festival in progress, whose sections lead their sidebar.
- * Read for staff only, and loaded lazily for the same reason as above.
+ * The festival in progress, for anyone signed in: its sections lead staff's
+ * sidebar, and its page is the Festival tab's own page, where the installed
+ * app's top bar does not show. Nobody signed out reads it (the navbar also
+ * renders on static pages), and it is loaded lazily for the reason above.
  */
-export async function resolveStaffFestival(
+export async function resolveActiveFestival(
   viewerRole: string | null | undefined,
-): Promise<{ id: number; name: string; status: "draft" | "published" | "active" | "archived" } | null> {
-  if (viewerRole !== "admin" && viewerRole !== "festival_admin") return null;
-  const { getActiveFestivalBase } = await import(
-    "@/app/lib/festivals/helpers"
-  );
+): Promise<{
+  id: number;
+  name: string;
+  status: "draft" | "published" | "active" | "archived";
+} | null> {
+  if (!viewerRole) return null;
+  const { getActiveFestivalBase } = await import("@/app/lib/festivals/helpers");
   const festival = await getActiveFestivalBase().catch(() => null);
   return festival
     ? { id: festival.id, name: festival.name, status: festival.status }

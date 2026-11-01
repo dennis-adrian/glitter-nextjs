@@ -14,6 +14,7 @@ import { figtree, gabarito } from "@/ui/fonts";
 import CreditGiftCelebration from "@/app/components/credit_gifts/credit-gift-celebration";
 import InstalledAppHead from "@/app/components/installed-app-head";
 import Navbar from "@/app/components/navbar/navbar";
+import { ScreenBarProvider } from "@/app/components/navbar/screen-bar";
 import ServiceWorkerMessages from "@/app/components/notifications/service-worker-messages";
 import FooterServer from "@/app/components/footer-server";
 
@@ -81,18 +82,21 @@ export default function RootLayout({
                 elements: { headerTitle: "font-display" },
               }}
             >
-              <Suspense fallback={<div className="h-[76px] lg:h-[84px]" />}>
-                <Navbar />
-              </Suspense>
-              <Suspense fallback={null}>
-                <CreditGiftCelebration />
-              </Suspense>
-              <main className="min-h-[calc(100vh-76px-180px)] md:min-h-[calc(100vh-76px-290px)] lg:min-h-[calc(100vh-84px-290px)]">
-                {children}
-              </main>
-              <Suspense fallback={<div className="h-[180px] md:h-[290px]" />}>
-                <FooterServer />
-              </Suspense>
+              {/* Lets a page give the installed app's top bar its title. */}
+              <ScreenBarProvider>
+                <Suspense fallback={<div className="h-[76px] lg:h-[84px]" />}>
+                  <Navbar />
+                </Suspense>
+                <Suspense fallback={null}>
+                  <CreditGiftCelebration />
+                </Suspense>
+                <main className="min-h-[calc(100vh-76px-180px)] md:min-h-[calc(100vh-76px-290px)] lg:min-h-[calc(100vh-84px-290px)]">
+                  {children}
+                </main>
+                <Suspense fallback={<div className="h-[180px] md:h-[290px]" />}>
+                  <FooterServer />
+                </Suspense>
+              </ScreenBarProvider>
               <PostHogAuthIdentify />
               <Toaster richColors />
               <Analytics />

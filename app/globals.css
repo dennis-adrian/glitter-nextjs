@@ -864,6 +864,35 @@
   }
 }
 
+/* The installed app's top bar ([data-screen-bar]) is on screen below a tab
+ * root. There it is the one way back and the one title, so the page's own
+ * back links and breadcrumbs step aside ([data-installed-hidden]) and a
+ * heading that repeats the title stays for screen readers only
+ * ([data-installed-title]). In a browser tab none of this applies. */
+@media (display-mode: standalone) {
+  body:has([data-screen-bar]) [data-installed-hidden] {
+    display: none !important;
+  }
+
+  body:has([data-screen-bar]) [data-installed-title] {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+@media (display-mode: standalone) and (width < 64rem) {
+  body:has([data-screen-bar]) [data-announcement-strip] {
+    display: none;
+  }
+}
+
 /* With `viewport-fit=cover` the page reaches under a landscape notch; keep
  * the content itself clear of it. */
 body {

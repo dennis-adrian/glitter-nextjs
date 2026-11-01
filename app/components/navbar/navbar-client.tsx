@@ -16,6 +16,11 @@ import {
   type NavViewer,
 } from "@/app/components/navbar/app-navigation";
 import NavbarNavigationMenu from "@/app/components/navbar/navigation-menu";
+import {
+  AppScreenBar,
+  ScreenHeaderBack,
+} from "@/app/components/navbar/screen-bar";
+import { resolveScreen } from "@/app/components/navbar/screens";
 import SessionButtons from "@/app/components/navbar/session-buttons";
 import { useAppViewer } from "@/app/components/navbar/use-app-viewer";
 import { useNavbarProfile } from "@/app/components/navbar/use-navbar-profile";
@@ -86,15 +91,32 @@ export default function NavbarClient({
     // the supplies market; a verified participant keeps both stores there,
     // and the market itself says if it is closed.
     suppliesOpen:
-      serverViewer == null && viewer?.status === "verified" ? true : suppliesOpen,
+      serverViewer == null && viewer?.status === "verified"
+        ? true
+        : suppliesOpen,
     activeFestival,
   });
 
   const showShell = signedIn && !isNoNavigationPage(pathname);
+  // Below a tab root, the installed app trades the header for a bar with
+  // back and the screen's title (on desktop, both go inside the header).
+  const screen = showShell
+    ? resolveScreen(pathname, {
+        viewer,
+        tabs: navigation.tabs,
+        activeFestival,
+      })
+    : null;
 
   return (
     <>
-      <header className="border-b border-brand-border bg-brand-elevated/95 backdrop-blur">
+      {screen ? <AppScreenBar screen={screen} /> : null}
+      <header
+        className={cn(
+          "border-b border-brand-border bg-brand-elevated/95 backdrop-blur",
+          screen && "standalone:max-lg:hidden",
+        )}
+      >
         <nav className="mx-auto flex h-[76px] w-full max-w-[1440px] items-center gap-4 px-5 sm:px-8 lg:h-[84px] lg:px-12 xl:px-20">
           <ul
             className={cn(
@@ -103,6 +125,7 @@ export default function NavbarClient({
             )}
           >
             <li className="flex min-w-0 items-center gap-2">
+              {screen ? <ScreenHeaderBack screen={screen} /> : null}
               {/* Signed in, the sidebar takes over from the desktop
                   breakpoint and the tab bar's "Más" in the installed app. */}
               <div
