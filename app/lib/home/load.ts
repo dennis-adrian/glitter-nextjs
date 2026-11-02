@@ -93,7 +93,10 @@ export async function loadVerifiedTasks({
 }
 
 /** A profile under review or rejected: what the review will look at. */
-export function profileReviewTasks(profile: ProfileType): HomeTask[] {
+export function profileReviewTasks(
+  profile: ProfileType,
+  { reasonShown = false }: { reasonShown?: boolean } = {},
+): HomeTask[] {
   // The same fields `isProfileComplete` requires, split the way a person
   // fixes them: the picture, the bio, the socials, and the rest of the data.
   const details =
@@ -115,7 +118,7 @@ export function profileReviewTasks(profile: ProfileType): HomeTask[] {
       socials: !profile.userSocials.some((social) => !!social.username),
       details,
     },
-    { rejected: profile.status === "rejected" },
+    { rejected: profile.status === "rejected", reasonShown },
   );
 }
 

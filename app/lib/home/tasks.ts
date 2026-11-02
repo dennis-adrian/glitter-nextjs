@@ -117,11 +117,19 @@ export type ProfileGaps = {
 
 /**
  * What the profile review will look at and is still missing, own photo first.
- * A rejected profile also has to correct what the team pointed out.
+ * A rejected profile also has to correct what the team pointed out; the note
+ * points to the email only when the reason is not shown beside the tasks.
  */
 export function profileTasks(
   gaps: ProfileGaps,
-  { rejected = false }: { rejected?: boolean } = {},
+  {
+    rejected = false,
+    reasonShown = false,
+  }: {
+    rejected?: boolean;
+    /** The rejection reason is on screen, so the email need not be. */
+    reasonShown?: boolean;
+  } = {},
 ): HomeTask[] {
   const href = "/my_profile";
   const tasks: HomeTask[] = [];
@@ -130,7 +138,9 @@ export function profileTasks(
       key: "profile-fix",
       label: "Corregir lo que señaló el equipo",
       href,
-      note: "El motivo está en el correo que te enviamos",
+      ...(reasonShown
+        ? {}
+        : { note: "El motivo está en el correo que te enviamos" }),
     });
   }
   if (gaps.photo) {

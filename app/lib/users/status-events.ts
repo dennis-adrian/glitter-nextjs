@@ -100,7 +100,7 @@ export async function updateUserStatusWithAudit(
  * was never rejected or the admin left none.
  */
 export async function latestRejectionReason(
-  tx: StatusEventTx,
+  tx: StatusEventTx | typeof db,
   userId: number,
 ): Promise<string | null> {
   const [event] = await tx

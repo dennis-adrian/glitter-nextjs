@@ -62,6 +62,27 @@ describe("RejectedProfileCard", () => {
     ).toBeTruthy();
   });
 
+  it("quotes the team's reason when it was stored", () => {
+    render(
+      <RejectedProfileCard
+        profile={COMPLETE_PROFILE as never}
+        rejectionReason="Faltan fotos de tus productos."
+      />,
+    );
+
+    expect(screen.getByText("Motivo del equipo")).toBeTruthy();
+    expect(screen.getByText("Faltan fotos de tus productos.")).toBeTruthy();
+    expect(screen.queryByText(/correo que te enviamos/)).toBeNull();
+    expect(requestButton()).toBeTruthy();
+  });
+
+  it("points to the email for a rejection without a stored reason", () => {
+    render(<RejectedProfileCard profile={COMPLETE_PROFILE as never} />);
+
+    expect(screen.getByText(/Revisá el motivo en el correo/)).toBeTruthy();
+    expect(screen.queryByText("Motivo del equipo")).toBeNull();
+  });
+
   it("shows no button where it is rendered without a profile, as for admins", () => {
     render(<RejectedProfileCard />);
 

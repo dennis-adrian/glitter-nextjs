@@ -7,16 +7,30 @@ import { z } from "zod";
 const FormSchema = z.object({
   profileId: z.coerce.number(),
 });
+const HistoryPageSchema = z.coerce.number().int().min(1).catch(1);
+
 export default async function Page(props: {
   params: Promise<{ profileId: string }>;
+  searchParams: Promise<{ historial?: string | string[] }>;
 }) {
-  const params = await props.params;
+  const [params, searchParams] = await Promise.all([
+    props.params,
+    props.searchParams,
+  ]);
   const validatedParams = FormSchema.safeParse(params);
   if (!validatedParams.success) return notFound();
+  const historyPage = HistoryPageSchema.parse(
+    Array.isArray(searchParams.historial)
+      ? searchParams.historial[0]
+      : (searchParams.historial ?? 1),
+  );
 
   return (
     <Suspense fallback={<Loader />}>
-      <DashboardUserPage profileId={validatedParams.data.profileId} />
+      <DashboardUserPage
+        profileId={validatedParams.data.profileId}
+        historyPage={historyPage}
+      />
     </Suspense>
   );
 }

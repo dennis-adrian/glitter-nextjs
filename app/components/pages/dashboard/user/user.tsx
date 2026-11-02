@@ -10,9 +10,12 @@ import { fetchPendingInvoicesByProfile } from "@/app/data/invoices/actions";
 import { fetchParticipantActivitySummary } from "@/app/lib/participants/actions";
 import { isParticipantStatus } from "@/app/lib/participants/definitions";
 import { getUserName } from "@/app/lib/users/utils";
+import StatusHistorySection from "@/app/components/users/status-history/status-history-section";
 
 type DashboardUserPageProps = {
   profileId: number;
+  /** The page of the status history, from `?historial=`. */
+  historyPage?: number;
 };
 export default async function DashboardUserPage(props: DashboardUserPageProps) {
   const forProfile = await fetchUserProfileById(props.profileId);
@@ -79,6 +82,10 @@ export default async function DashboardUserPage(props: DashboardUserPageProps) {
           />
         )}
         <PrivateProfile profile={forProfile} />
+        <StatusHistorySection
+          userId={forProfile.id}
+          page={props.historyPage ?? 1}
+        />
       </div>
     </div>
   );

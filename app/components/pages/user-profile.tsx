@@ -7,6 +7,7 @@ import CompleteProfileModal from "@/app/components/user_profile/complete-profile
 import PrivateProfileOverview from "@/app/components/user_profile/private_profile/overview";
 import PublicProfile from "@/app/components/user_profile/public_profile/profile";
 import { fetchSelectableCategories } from "@/app/lib/categories/queries";
+import { loadRejectionReason } from "@/app/lib/users/rejection-reason";
 import { isProfileComplete } from "@/app/lib/utils";
 import { ArrowRightIcon } from "lucide-react";
 import Link from "next/link";
@@ -17,6 +18,7 @@ type UserProfileProps = {
 
 export default async function UserProfile({ profile }: UserProfileProps) {
   const subcategories = fetchSelectableCategories();
+  const rejectionReason = await loadRejectionReason(profile);
 
   return (
     <div className="container p-3 md:p-6 flex flex-col gap-2">
@@ -40,7 +42,10 @@ export default async function UserProfile({ profile }: UserProfileProps) {
       {/* The rejection email's button lands here, so the request lives here
           too; a request turns the profile pending and shows the next card. */}
       {profile.status === "rejected" && (
-        <RejectedProfileCard profile={profile} />
+        <RejectedProfileCard
+          profile={profile}
+          rejectionReason={rejectionReason}
+        />
       )}
       {profile.status === "pending" && isProfileComplete(profile) && (
         <PendingVerificationCard />

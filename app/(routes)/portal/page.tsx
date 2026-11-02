@@ -46,6 +46,7 @@ import { daysUntil } from "@/app/lib/participations/hub-status";
 import { canAuthorPosts } from "@/app/lib/posts/eligibility";
 import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { loadRejectionReason } from "@/app/lib/users/rejection-reason";
 
 export const dynamic = "force-dynamic";
 
@@ -225,13 +226,16 @@ async function VerifiedHome({
  */
 async function UnverifiedHome({ profile }: { profile: ProfileType }) {
   const now = new Date();
-  const [active, notifications, store] = await Promise.all([
+  const [active, notifications, store, rejectionReason] = await Promise.all([
     getActiveFestivalBase(),
     loadNotifications(),
     loadHomeStore("merch"),
+    loadRejectionReason(profile),
   ]);
   const festival = active ?? (await loadUpcomingFestival());
-  const tasks = profileReviewTasks(profile);
+  const tasks = profileReviewTasks(profile, {
+    reasonShown: !!rejectionReason,
+  });
 
   return (
     <HomeLayout
@@ -239,7 +243,11 @@ async function UnverifiedHome({ profile }: { profile: ProfileType }) {
       always={
         <>
           <HomeTasks tasks={tasks} now={now} />
-          <HomeReviewNote profile={profile} hasTasks={tasks.length > 0} />
+          <HomeReviewNote
+            profile={profile}
+            hasTasks={tasks.length > 0}
+            rejectionReason={rejectionReason}
+          />
         </>
       }
       main={

@@ -11,6 +11,7 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/app/components/ui/avatar-radix";
+import TeamQuote from "@/app/components/molecules/team-quote";
 import { Badge } from "@/app/components/ui/badge";
 import { CATEGORY_LABELS } from "@/app/lib/festival-terms/copy";
 import { formatDisplayDate, formatFullDate } from "@/app/lib/formatters";
@@ -446,12 +447,7 @@ export default function ParticipationStatusCard({
       )}
 
       {copy.quote ? (
-        <figure className="rounded-xl bg-brand-lavender/40 px-3 py-2.5 text-sm leading-relaxed text-brand-ink">
-          <figcaption className="text-xs font-semibold text-brand-neutral">
-            {copy.quote.label}
-          </figcaption>
-          <blockquote>{copy.quote.text}</blockquote>
-        </figure>
+        <TeamQuote label={copy.quote.label} text={copy.quote.text} />
       ) : null}
 
 

@@ -102,6 +102,18 @@ describe("the other sources", () => {
       profileTasks({ photo: false, bio: false, socials: false, details: false }),
     ).toEqual([]);
   });
+
+  it("points the correction to the email only while the reason is not on screen", () => {
+    const none = { photo: false, bio: false, socials: false, details: false };
+
+    const [fallback] = profileTasks(none, { rejected: true });
+    expect(fallback.label).toBe("Corregir lo que señaló el equipo");
+    expect(fallback.note).toBe("El motivo está en el correo que te enviamos");
+
+    const [shown] = profileTasks(none, { rejected: true, reasonShown: true });
+    expect(shown.label).toBe("Corregir lo que señaló el equipo");
+    expect(shown.note).toBeUndefined();
+  });
 });
 
 describe("sortHomeTasks", () => {
