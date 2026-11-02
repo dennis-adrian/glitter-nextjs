@@ -18,6 +18,7 @@ import { useComunicadoImageUpload } from "@/app/components/comunicados/admin/use
 import {
   COMUNICADO_ACTION_LABEL_MAX,
   COMUNICADO_FOREIGN_IMAGE_MESSAGE,
+  COMUNICADO_PREVIEW_TEXT_MAX,
   COMUNICADO_TEXT_MAX,
   COMUNICADO_TITLE_MAX,
   comunicadoActionPathProblem,
@@ -35,6 +36,9 @@ type MessageCardProps = {
   onDocChange: (doc: unknown[]) => void;
   /** Plain-text length, as the server limits it. */
   textLength: number;
+  /** "Resumen": the push body and the email preheader; empty means none. */
+  previewText: string;
+  onPreviewTextChange: (previewText: string) => void;
   /** The server refused the text on the last save (C2). */
   contentError: string | null;
   action: ActionFields;
@@ -68,6 +72,8 @@ export default function MessageCard({
   initialDoc,
   onDocChange,
   textLength,
+  previewText,
+  onPreviewTextChange,
   contentError,
   action,
   onActionChange,
@@ -213,6 +219,34 @@ export default function MessageCard({
               {contentError} El resto del borrador se guardó.
             </p>
           )}
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-baseline justify-between gap-2">
+            <Label htmlFor="comunicado-preview-text">Resumen (opcional)</Label>
+            <CreditGiftLengthCounter
+              length={previewText.length}
+              max={COMUNICADO_PREVIEW_TEXT_MAX}
+            />
+          </div>
+          <Input
+            id="comunicado-preview-text"
+            value={previewText}
+            maxLength={COMUNICADO_PREVIEW_TEXT_MAX}
+            placeholder="Por ejemplo: El armado del sábado empieza a las 7:00."
+            onChange={(event) => onPreviewTextChange(event.target.value)}
+            disabled={disabled}
+            aria-describedby="comunicado-preview-text-hint"
+          />
+          <p
+            id="comunicado-preview-text-hint"
+            className="text-xs text-muted-foreground"
+          >
+            Se ve en la pantalla bloqueada y junto al asunto del correo. Si lo
+            dejás vacío, la notificación dice «Tocá para ver el detalle.» y el
+            correo muestra el comienzo del texto. Ya enviado, no se puede
+            cambiar en los dispositivos que lo recibieron.
+          </p>
         </div>
 
         <fieldset className="space-y-3" disabled={disabled}>

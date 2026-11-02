@@ -14,6 +14,7 @@ import {
   notificationCategory,
   notificationCreditDelta,
   notificationOpensDetail,
+  notificationPushBody,
   notificationPushes,
   notificationStartsRead,
   parseNotificationData,
@@ -341,6 +342,29 @@ describe("every kind", () => {
         { push: true },
       ),
     ).toBe(false);
+  });
+
+  it("pushes a comunicado's summary, and nothing for one without it", () => {
+    expect(notificationPushBody("comunicado", FIXTURES.comunicado)).toBeNull();
+    expect(
+      notificationPushBody("comunicado", {
+        ...FIXTURES.comunicado,
+        preview: " El armado empieza a las 7:00. ",
+      }),
+    ).toBe("El armado empieza a las 7:00.");
+    expect(
+      notificationPushBody("comunicado", {
+        ...FIXTURES.comunicado,
+        preview: "",
+      }),
+    ).toBeNull();
+    // A kind with no line of its own keeps the fixed one.
+    expect(
+      notificationPushBody(
+        "credit_gift_completed",
+        FIXTURES.credit_gift_completed,
+      ),
+    ).toBeNull();
   });
 
   it("opens a comunicado on its own page and words a missed schedule", () => {

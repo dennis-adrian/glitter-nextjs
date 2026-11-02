@@ -27,6 +27,7 @@ import {
   TabsTrigger,
 } from "@/app/components/ui/tabs";
 import { COMUNICADO_UNTITLED } from "@/app/lib/comunicados/definitions";
+import { WRITTEN_TEXT_PUSH_BODY } from "@/app/lib/notifications/push/payload";
 import { renderComunicadoPreviewAction } from "@/app/lib/comunicados/preview-actions";
 import { formatDateWithTime } from "@/app/lib/formatters";
 import {
@@ -43,6 +44,8 @@ export type PreviewInput = {
   doc: unknown[];
   actionLabel: string | null;
   actionPath: string | null;
+  /** The sender's line for the lock screen and the preheader. */
+  previewText: string | null;
   /** The festival an essential email names, when it applies. */
   essentialFestivalName: string | null;
 };
@@ -196,6 +199,14 @@ export default function PreviewPanel({
                         {ready.email.subject}
                       </dd>
                     </div>
+                    <div className="flex gap-2">
+                      <dt className="w-14 shrink-0 text-muted-foreground">
+                        Resumen
+                      </dt>
+                      <dd className="min-w-0 break-words text-muted-foreground">
+                        {ready.email.preheader || "—"}
+                      </dd>
+                    </div>
                   </dl>
                   <iframe
                     title={`Vista previa del correo: ${ready.email.subject}`}
@@ -212,7 +223,10 @@ export default function PreviewPanel({
 
               {sendPush && (
                 <TabsContent value="device">
-                  <DevicePreview title={title} />
+                  <DevicePreview
+                    title={title}
+                    body={input.previewText?.trim() || WRITTEN_TEXT_PUSH_BODY}
+                  />
                 </TabsContent>
               )}
             </div>
@@ -270,7 +284,7 @@ function DetailPreview({
 }
 
 /** A lock screen with the push as it arrives (H4). */
-function DevicePreview({ title }: { title: string }) {
+function DevicePreview({ title, body }: { title: string; body: string }) {
   return (
     <div className="rounded-2xl bg-gradient-to-b from-slate-800 to-slate-950 p-4 pb-10">
       <p
@@ -292,9 +306,7 @@ function DevicePreview({ title }: { title: string }) {
           <span className="ml-auto">ahora</span>
         </div>
         <p className="mt-1.5 text-sm font-semibold leading-snug">{title}</p>
-        <p className="text-sm leading-snug text-slate-700">
-          Tocá para ver el detalle.
-        </p>
+        <p className="text-sm leading-snug text-slate-700">{body}</p>
       </div>
     </div>
   );

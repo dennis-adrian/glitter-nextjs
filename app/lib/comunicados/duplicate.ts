@@ -21,12 +21,14 @@ export async function duplicateComunicado(
 ): Promise<number | null> {
   const { rows } = await db.execute<{ id: number }>(sql`
     INSERT INTO comunicados
-      (title, doc, action_label, action_path, send_email, send_push,
+      (title, doc, action_label, action_path, preview_text, send_email,
+       send_push,
        audience_kind, audience, essential, created_by_user_id,
        updated_by_user_id)
     SELECT coalesce(rv.title, k.title), coalesce(rv.doc, k.doc),
       CASE WHEN rv.revision IS NULL THEN k.action_label ELSE rv.action_label END,
       CASE WHEN rv.revision IS NULL THEN k.action_path ELSE rv.action_path END,
+      CASE WHEN rv.revision IS NULL THEN k.preview_text ELSE rv.preview_text END,
       k.send_email, false, k.audience_kind, k.audience, false, ${by}::int,
       ${by}::int
     FROM comunicados k

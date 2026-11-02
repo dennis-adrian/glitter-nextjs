@@ -68,6 +68,8 @@ export function buildPushPayload(item: {
   sensitive: boolean;
   /** The item opens its own page because it carries written text. */
   writtenText: boolean;
+  /** What its sender wrote for the lock screen, in place of the fixed line. */
+  writtenTextBody?: string | null;
   /** Where a tap lands (`notificationTapHref`). */
   href: string;
 }): string {
@@ -88,7 +90,9 @@ export function buildPushPayload(item: {
 
   // Only the first paragraph: later ones hold notes and reasons.
   const body = item.writtenText
-    ? WRITTEN_TEXT_PUSH_BODY
+    ? item.writtenTextBody
+      ? truncate(item.writtenTextBody, MAX_PUSH_BODY_LENGTH)
+      : WRITTEN_TEXT_PUSH_BODY
     : truncate(item.body.split(/\n\s*\n/)[0] ?? "", MAX_PUSH_BODY_LENGTH);
   return JSON.stringify({
     ...base,

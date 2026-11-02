@@ -7853,6 +7853,11 @@ export const comunicados = pgTable(
       .notNull(),
     actionLabel: text("action_label"),
     actionPath: text("action_path"),
+    /**
+     * Optional line for the lock screen and the email preheader; without it
+     * the push says "Tocá para ver el detalle." and the preheader is the text.
+     */
+    previewText: text("preview_text"),
     sendEmail: boolean("send_email").default(true).notNull(),
     sendPush: boolean("send_push").default(false).notNull(),
     /** Users or visitors; a visitor comunicado is email only. */
@@ -7988,6 +7993,8 @@ export const comunicadoRevisions = pgTable(
     text: text("text").notNull(),
     actionLabel: text("action_label"),
     actionPath: text("action_path"),
+    /** Trimmed, one line; null when the sender wrote none. */
+    previewText: text("preview_text"),
     /** Internal. Null on revision 1; required on an essential edit. */
     editNote: text("edit_note"),
     createdByUserId: integer("created_by_user_id").references(() => users.id, {
@@ -8012,6 +8019,10 @@ export const comunicadoRevisions = pgTable(
     check(
       "comunicado_revisions_action_path_safe",
       sql`${t.actionPath} IS NULL OR ${comunicadoActionPathSafe(t.actionPath)}`,
+    ),
+    check(
+      "comunicado_revisions_preview_text_length",
+      sql`${t.previewText} IS NULL OR char_length(${t.previewText}) BETWEEN 1 AND 120`,
     ),
     check(
       "comunicado_revisions_edit_note_length",

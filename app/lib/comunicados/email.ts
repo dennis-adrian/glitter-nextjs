@@ -46,6 +46,8 @@ export type ComunicadoEmailInput = {
   blocks: AnnouncementBlock[];
   actionLabel: string | null;
   actionPath: string | null;
+  /** The sender's preview line: the preheader, in place of the text's start. */
+  previewText?: string | null;
   unsubscribeUrl: string;
   /** Set on an essential send only. */
   essentialFestivalName?: string | null;
@@ -101,6 +103,7 @@ export async function renderComunicadoEmail(
       blocks: input.blocks,
       actionLabel: input.actionLabel,
       actionPath: input.actionPath,
+      previewText: input.previewText,
       unsubscribeUrl: input.unsubscribeUrl,
       essentialFestivalName: input.essentialFestivalName,
       visitors: input.visitors === true,

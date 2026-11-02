@@ -123,6 +123,7 @@ export type EditComunicadoInput = {
   doc: unknown[];
   actionLabel: string | null;
   actionPath: string | null;
+  previewText: string | null;
   editNote: string | null;
 };
 export type EditRefusalCode =
@@ -149,6 +150,7 @@ export type ComunicadoRevisionView = {
   html: string;
   actionLabel: string | null;
   actionPath: string | null;
+  previewText: string | null;
   editNote: string | null;
   /** ISO. */
   createdAt: string;

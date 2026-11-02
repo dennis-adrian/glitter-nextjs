@@ -45,6 +45,7 @@ export async function loadComunicadoRevisionAction(
         html: found.html,
         actionLabel: found.actionLabel,
         actionPath: found.actionPath,
+        previewText: found.previewText,
         editNote: found.editNote,
         createdAt: found.createdAt.toISOString(),
         createdByName: found.createdByName,

@@ -32,6 +32,8 @@ export type ComunicadoEmailProps = {
   /** The optional button; shown only with both and a Glitter path. */
   actionLabel: string | null;
   actionPath: string | null;
+  /** The sender's preview line; without it the preheader is the text's start. */
+  previewText?: string | null;
   /** The footer link to the unsubscribe page, for the topic Anuncios. */
   unsubscribeUrl: string;
   /** An essential send's festival: adds the note that explains it (D7). */
@@ -79,6 +81,17 @@ export function comunicadoPreheader(text: string) {
   return `${cut.replace(/[\s,;:.\-–—…]+$/, "")}…`;
 }
 
+/** The inbox line under the subject: the sender's own, or the text's start. */
+export function comunicadoPreheaderOf(
+  previewText: string | null | undefined,
+  blocks: AnnouncementBlock[],
+) {
+  return (
+    previewText?.trim() ||
+    comunicadoPreheader(announcementBlocksToText(blocks, { withUrls: false }))
+  );
+}
+
 const bodyStyle = { ...styles.sectionWithBanner, textAlign: "left" as const };
 
 const titleStyle = {
@@ -98,6 +111,7 @@ export default function ComunicadoEmail({
   blocks,
   actionLabel,
   actionPath,
+  previewText,
   unsubscribeUrl,
   essentialFestivalName,
   visitors = false,
@@ -109,11 +123,7 @@ export default function ComunicadoEmail({
   return (
     <Html lang="es">
       <Head />
-      <Preview>
-        {comunicadoPreheader(
-          announcementBlocksToText(blocks, { withUrls: false }),
-        )}
-      </Preview>
+      <Preview>{comunicadoPreheaderOf(previewText, blocks)}</Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
           <EmailHeader />

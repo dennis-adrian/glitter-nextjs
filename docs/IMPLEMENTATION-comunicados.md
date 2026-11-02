@@ -757,7 +757,9 @@ export const announcementEditorSchema = BlockNoteSchema.create({
 
 **Excerpt:** `excerptOf(text)` collapses whitespace and cuts at 280 characters on a word boundary, adding "…" when it cuts. It becomes `notifications.body`.
 
-**Push:** the title, then "Tocá para ver el detalle.". The kind `opensDetail`, so `buildPushPayload` already does this (`push/payload.ts:89-97`). The text itself never sits on a lock screen.
+**Push:** the title, then the comunicado's "Resumen" when the admin wrote one, else "Tocá para ver el detalle.". The kind `opensDetail`, so `buildPushPayload` keeps the text off the lock screen; its `pushBody` hands over the summary (`data.preview`), which the admin wrote to be seen there. The text itself never sits on a lock screen.
+
+**Resumen (`preview_text`):** optional, one line, at most 120 characters, trimmed; blank is none. Stored on the working copy and on each revision (CHECK 1–120), so an edit can change it and the history keeps it. It is the push body and the email preheader; the inbox item keeps the excerpt. A push already delivered keeps the summary it arrived with, which the field's hint says.
 
 ### C4. Images (PR 8, separable; K11)
 
@@ -1434,7 +1436,7 @@ One transaction, with `SET LOCAL lock_timeout = '20s'`; a 40P01 retries once:
 **What cannot be undone:**
 
 - emails already handed to Resend (recorded `sent`);
-- pushes already delivered. Their text is only the title and "Tocá para ver el detalle.";
+- pushes already delivered. Their text is only the title and the summary, or "Tocá para ver el detalle.";
 - images in emails already sent (PR 8). The manual lever is in I4.
 
 ### F4. Concurrency matrix
@@ -1596,7 +1598,7 @@ One transaction, with `SET LOCAL lock_timeout = '20s'`; a 40P01 retries once:
   - the real template, rendered on the server, with the subject above it, including the staging marks outside production;
   - the unsubscribe link is `?token=preview`, which the server refuses (`invitations.ts:483-485`);
   - it is shown in an iframe sandboxed without `allow-scripts` or `allow-same-origin` (`invitation-email-preview.tsx:113-115`).
-- **Dispositivo:** a lock-screen card with "Glitter", the title and "Tocá para ver el detalle."
+- **Dispositivo:** a lock-screen card with "Glitter", the title and the summary, or "Tocá para ver el detalle." without one.
 
 **Right column, "Enviar":**
 
@@ -1928,7 +1930,7 @@ Toast: "Se lo estamos enviando a 15 personas más."
 | From      | `COMUNICADOS_FROM = "Productora Glitter <anuncios@productoraglitter.com>"`: the verified domain, a new local part, no DNS change; the name follows PRD §4 decision 9. Outside production, "Productora Glitter (prueba) <anuncios@…>". K3, K4. |
 | Reply-To  | `soporte@productoraglitter.com`, the orders precedent (`order-emails.ts:64`). K3.                                                                                                                                                             |
 | Subject   | the title; prefixed with "[Prev]" or "[Dev]" outside production                                                                                                                                                                               |
-| Preheader | the excerpt, cut to 120 characters                                                                                                                                                                                                            |
+| Preheader | the summary, else the excerpt cut to 120 characters                                                                                                                                                                                           |
 | Body      | `EmailHeader`; the title as a heading (no greeting); the rendered blocks (C3); the button, with an absolute URL                                                                                                                               |
 | Footer    | `EmailFooter`: "Enviado por el equipo Glitter / © 2026 \| Productora Glitter, Santa Cruz, Bolivia / ¿No querés recibir más correos como este? Darme de baja". Essential sends add their note line (D7).                                       |
 | Headers   | `List-Unsubscribe` with one-click, topic `announcements`; left out only for an essential email to someone already unsubscribed from Anuncios (D7)                                                                                             |
@@ -1936,7 +1938,7 @@ Toast: "Se lo estamos enviando a 15 personas más."
 
 ### H4. Push (only when the admin ticked it)
 
-- **Text:** the title (≤ 80), then "Tocá para ver el detalle.".
+- **Text:** the title (≤ 80), then the summary (≤ 120) or "Tocá para ver el detalle.".
 - **Tap:** `/my_notifications/{id}/open` marks it read and opens its page (PRD §10, P2b). A retracted item lands in the inbox.
 - **Who receives it:** both `notifications` and `push_notifications` must be visible for the recipient's role at send time (`push/send.ts:201-202`). Until they are public, participants get no push even when it is ticked; the composer says so (G4).
 
