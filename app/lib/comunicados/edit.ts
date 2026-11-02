@@ -69,6 +69,8 @@ type EditContent = Extract<ComunicadoSendCheck, { ok: true }> & {
   html: string;
   excerpt: string;
   note: string | null;
+  /** The edit left the summary out: the current revision's stays. */
+  keepPreviewText: boolean;
 };
 
 /**
@@ -129,6 +131,9 @@ async function editInTransaction(
   `);
   const before = previous[0];
   if (!before) throw new Error("comunicado_revision_missing");
+  const previewText = content.keepPreviewText
+    ? before.preview_text
+    : content.previewText;
   const visibleChange =
     before.title !== content.title ||
     before.html !== content.html ||
@@ -137,7 +142,7 @@ async function editInTransaction(
     before.action_path !== content.actionPath;
   // The summary alone is a revision too (pushes not yet sent, the preheader),
   // but the inbox and the page show nothing new: no "Editado" for it.
-  if (!visibleChange && before.preview_text === content.previewText) {
+  if (!visibleChange && before.preview_text === previewText) {
     return refusal("NO_CHANGES");
   }
 
@@ -152,7 +157,7 @@ async function editInTransaction(
     text: content.text,
     actionLabel: content.actionLabel,
     actionPath: content.actionPath,
-    previewText: content.previewText,
+    previewText,
     editNote: content.note,
     createdByUserId: by,
   });
@@ -185,7 +190,7 @@ async function editInTransaction(
     excerpt: content.excerpt,
     actionPath: content.actionPath,
     actionLabel: content.actionLabel,
-    preview: content.previewText,
+    preview: previewText,
   });
   if (!data) throw new Error("notification_data_invalid:comunicado");
   const copy = buildInAppCopy("comunicado", data);
@@ -229,7 +234,8 @@ export async function editSentComunicado(
     doc: unknown;
     actionLabel: string | null;
     actionPath: string | null;
-    previewText: string | null;
+    /** Left out keeps the current one; null clears it. */
+    previewText?: string | null;
     editNote?: string | null;
   },
   by: number,
@@ -261,7 +267,7 @@ export async function editSentComunicado(
     doc: i.doc,
     actionLabel: i.actionLabel,
     actionPath: i.actionPath,
-    previewText: i.previewText,
+    previewText: i.previewText ?? null,
     essential: row.essential,
     essentialReason: row.essentialReason,
     sendEmail: row.sendEmail,
@@ -274,6 +280,7 @@ export async function editSentComunicado(
     html: await blocksToSanitizedHtml(checked.blocks, "announcement"),
     excerpt: excerptOf(checked.text),
     note,
+    keepPreviewText: i.previewText === undefined,
   };
 
   const attempt = () =>

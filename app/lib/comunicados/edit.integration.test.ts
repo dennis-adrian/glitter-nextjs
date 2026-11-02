@@ -982,6 +982,64 @@ describeDatabase("editing a sent comunicado", () => {
       ]);
     });
 
+    it("keeps the summary when an edit leaves it out, and clears it on null", async () => {
+      const [person] = await createPeople(1);
+      const sent = await insertSent({ people: [person!] });
+      await fanOut(sent);
+      const summary = "El armado empieza a las 8:00.";
+      const withoutSummary = {
+        title: NEW_TITLE,
+        doc: doc(NEW_TEXT),
+        actionLabel: NEW_LABEL,
+        actionPath: NEW_PATH,
+      };
+
+      await edit(sent, {
+        title: TITLE,
+        doc: doc(TEXT),
+        actionLabel: null,
+        actionPath: null,
+        previewText: summary,
+      });
+      // An older tab: no summary field at all. Only the title changes.
+      expect(
+        await editMod.editSentComunicado(
+          sent.comunicadoId,
+          { expectedRevision: 2, ...withoutSummary },
+          sent.authorId,
+        ),
+      ).toMatchObject({ ok: true, revision: 3 });
+      expect(
+        await editMod.editSentComunicado(
+          sent.comunicadoId,
+          { expectedRevision: 3, ...withoutSummary },
+          sent.authorId,
+        ),
+      ).toMatchObject({ ok: false, code: "NO_CHANGES" });
+      expect(
+        await editMod.editSentComunicado(
+          sent.comunicadoId,
+          { expectedRevision: 3, ...NEW_CONTENT, previewText: null },
+          sent.authorId,
+        ),
+      ).toMatchObject({ ok: true, revision: 4 });
+
+      const { rows } = await pool!.query<{ preview_text: string | null }>(
+        "SELECT preview_text FROM comunicado_revisions WHERE comunicado_id = $1 ORDER BY revision",
+        [sent.comunicadoId],
+      );
+      expect(rows.map((row) => row.preview_text)).toEqual([
+        null,
+        summary,
+        summary,
+        null,
+      ]);
+      expect((await itemOf(sent.campaignId, person!)).data).toMatchObject({
+        revision: 4,
+        preview: null,
+      });
+    });
+
     it("shows the new text on the detail page at once, marked Editado, and Editado in the list (H2, F2)", async () => {
       const [person] = await createPeople(1);
       const sent = await insertSent({ people: [person!] });
