@@ -187,13 +187,16 @@ export default function ImpersonationBanner({
         <EyeIcon aria-hidden="true" className="size-5 shrink-0" />
         <p className="min-w-0 flex-1 text-sm" aria-live="polite">
           {ended ? (
-            <span className="block truncate">
+            <span className="line-clamp-2 [overflow-wrap:anywhere] sm:line-clamp-none sm:truncate">
               La vista como <strong className="font-semibold">{name}</strong>{" "}
               terminó
             </span>
           ) : (
-            <span className="flex min-w-0 items-baseline gap-x-2">
-              <span className="truncate">
+            // On a phone the name must show whole: whose app this is matters
+            // more than one line, so it wraps (two lines at most) and the
+            // pill goes below. From `sm` up it all fits on one line.
+            <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 sm:flex-nowrap">
+              <span className="line-clamp-2 min-w-0 [overflow-wrap:anywhere] sm:line-clamp-none sm:truncate">
                 Estás viendo como{" "}
                 <strong className="font-semibold">{name}</strong>
                 <span className="hidden text-brand-ink/70 lg:inline">
