@@ -32,6 +32,7 @@ vi.mock("@/app/lib/users/queries", () => ({
   fetchAdminUsers: fetchAdminUsersMock,
   fetchUserProfileById: fetchUserProfileByIdMock,
   getCurrentClerkUser: clerkUserMock,
+  getCurrentClerkUserDetails: clerkUserMock,
 }));
 
 vi.mock("@/db", () => ({

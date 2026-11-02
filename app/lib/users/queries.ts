@@ -1,6 +1,6 @@
 import "server-only";
 
-import { currentUser } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
 import { cache } from "react";
 
@@ -13,7 +13,29 @@ import { users } from "@/db/schema";
 // there, any visitor could fetch a full profile row by id or Clerk id. Callers
 // pass the session's own Clerk id, or authorize before they ask.
 
-export const getCurrentClerkUser = cache(async () => await currentUser());
+/**
+ * Who is signed in, as Clerk knows them: only the user id, read from the
+ * session token `clerkMiddleware` has already verified. No network call.
+ *
+ * `currentUser()` fetches the whole user from Clerk's Backend API instead,
+ * about 100 ms warm and several hundred cold, and every page and action that
+ * resolves the profile used to pay it for the id alone.
+ */
+export const getCurrentClerkUser = cache(
+  async (): Promise<{ id: string } | null> => {
+    const { userId } = await auth();
+    return userId ? { id: userId } : null;
+  },
+);
+
+/**
+ * The whole Clerk user (email addresses, names, image): one Backend API call.
+ * Only for the callers that read those fields; everyone else needs only
+ * `getCurrentClerkUser`.
+ */
+export const getCurrentClerkUserDetails = cache(
+  async () => await currentUser(),
+);
 
 export const fetchUserProfileByClerkId = async (
   clerkId: string,

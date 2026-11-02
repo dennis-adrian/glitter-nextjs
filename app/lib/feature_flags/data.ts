@@ -1,6 +1,7 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
+import { unstable_rethrow } from "next/navigation";
 import { cache } from "react";
 
 import type {
@@ -127,6 +128,8 @@ export async function fetchFeatureFlagRule(
       targetedUserIds: flag.targets.map((target) => target.userId),
     };
   } catch (error) {
+    // Only a failed read falls back: Next's own control-flow errors pass.
+    unstable_rethrow(error);
     console.error(
       `fetchFeatureFlagRule("${key}"): could not read the flag, falling back ` +
         `to its registry default (${FEATURE_FLAGS[key].defaultVisibility}).`,

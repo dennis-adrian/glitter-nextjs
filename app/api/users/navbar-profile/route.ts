@@ -1,8 +1,8 @@
 import { cachedFetchNavbarProfileByClerkId } from "@/app/lib/users/navbar-profile";
-import { currentUser } from "@clerk/nextjs/server";
+import { getCurrentClerkUser } from "@/app/lib/users/queries";
 
 export async function GET() {
-  const user = await currentUser();
+  const user = await getCurrentClerkUser();
 
   if (!user) {
     return Response.json(null);

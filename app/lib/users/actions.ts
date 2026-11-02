@@ -32,7 +32,7 @@ import { profileReviewBlocker } from "@/app/lib/users/profile-review";
 import {
   fetchAdminUsers,
   fetchUserProfileById,
-  getCurrentClerkUser,
+  getCurrentClerkUserDetails,
 } from "@/app/lib/users/queries";
 import {
   latestRejectionReason,
@@ -63,7 +63,7 @@ import { revalidatePath } from "next/cache";
  * create a row under another Clerk id or pick their own role or status.
  */
 export async function createUserProfile() {
-  const clerkUser = await getCurrentClerkUser();
+  const clerkUser = await getCurrentClerkUserDetails();
   const email = clerkUser?.emailAddresses[0]?.emailAddress;
   if (!clerkUser || !email) {
     return { success: false, message: "No autorizado" };
