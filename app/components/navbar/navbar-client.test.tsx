@@ -3,9 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import NavbarClient from "@/app/components/navbar/navbar-client";
 
-const { userMock, pathnameMock } = vi.hoisted(() => ({
+const { userMock, pathnameMock, profileMock } = vi.hoisted(() => ({
   userMock: vi.fn(),
   pathnameMock: vi.fn(),
+  profileMock: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs", () => ({
@@ -24,10 +25,16 @@ vi.mock("@/app/lib/notifications/push/actions", () => ({
 }));
 // The profile fetch and the session controls have their own suites.
 vi.mock("@/app/components/navbar/use-navbar-profile", () => ({
-  useNavbarProfile: () => ({ profile: null, isLoading: false }),
+  useNavbarProfile: () => ({ profile: profileMock(), isLoading: false }),
 }));
 vi.mock("@/app/components/navbar/session-buttons", () => ({
   default: () => <span data-testid="session-buttons" />,
+}));
+// Records what the mobile menu is given, to compare with the other menus.
+vi.mock("@/app/components/organisms/mobile-sidebar", () => ({
+  default: ({ suppliesOpen }: { suppliesOpen?: boolean }) => (
+    <span data-testid="mobile-sidebar" data-supplies={String(suppliesOpen)} />
+  ),
 }));
 vi.mock("@/app/components/navbar/navigation-menu", () => ({
   default: () => <span data-testid="public-navigation" />,
@@ -42,6 +49,7 @@ const props = {
 
 beforeEach(() => {
   pathnameMock.mockReturnValue("/portal");
+  profileMock.mockReturnValue(null);
 });
 
 afterEach(cleanup);
@@ -106,5 +114,17 @@ describe("NavbarClient", () => {
     );
 
     expect(screen.getByTestId("session-buttons")).toBeTruthy();
+  });
+
+  it("gives the mobile menu the same stores as the tab bar on a static page", () => {
+    // A static page has no server viewer; the verified participant Clerk
+    // reports keeps both stores in every menu, the mobile one included.
+    userMock.mockReturnValue({ isLoaded: true, isSignedIn: true });
+    profileMock.mockReturnValue({ id: 3, role: "user", status: "verified" });
+    render(<NavbarClient {...props} viewer={null} suppliesOpen={false} />);
+
+    expect(
+      screen.getByTestId("mobile-sidebar").getAttribute("data-supplies"),
+    ).toBe("true");
   });
 });

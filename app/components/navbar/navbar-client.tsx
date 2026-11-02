@@ -84,6 +84,12 @@ export default function NavbarClient({
   const pathname = usePathname() ?? "/";
   const { signedIn, viewer } = useAppViewer(serverViewer, profile);
 
+  // A static page renders without a viewer, so the server could not check
+  // the supplies market; a verified participant keeps both stores there, and
+  // the market itself says if it is closed. Every menu uses this one value.
+  const effectiveSuppliesOpen =
+    serverViewer == null && viewer?.status === "verified" ? true : suppliesOpen;
+
   const navigation = buildAppNavigation({
     viewer,
     programsHref,
@@ -91,13 +97,7 @@ export default function NavbarClient({
     creditsEnabled,
     communicationsEnabled,
     paidProgramsEnabled,
-    // A static page renders without a viewer, so the server could not check
-    // the supplies market; a verified participant keeps both stores there,
-    // and the market itself says if it is closed.
-    suppliesOpen:
-      serverViewer == null && viewer?.status === "verified"
-        ? true
-        : suppliesOpen,
+    suppliesOpen: effectiveSuppliesOpen,
     activeFestival,
   });
 
@@ -159,7 +159,7 @@ export default function NavbarClient({
                   creditsEnabled={creditsEnabled}
                   communicationsEnabled={communicationsEnabled}
                   paidProgramsEnabled={paidProgramsEnabled}
-                  suppliesOpen={suppliesOpen}
+                  suppliesOpen={effectiveSuppliesOpen}
                   activeFestival={activeFestival}
                 >
                   <MenuIcon className="h-5 w-5" />

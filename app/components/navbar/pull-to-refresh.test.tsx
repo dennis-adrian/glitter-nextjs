@@ -131,6 +131,31 @@ describe("PullToRefresh", () => {
     expect(refreshMock).not.toHaveBeenCalled();
   });
 
+  it("puts the page back to static once a pull has settled", () => {
+    installed(true);
+    render(<PullToRefresh />);
+    pull(60);
+    const main = document.querySelector("main")!;
+    expect(main.style.position).toBe("relative");
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(main.style.position).toBe("");
+    expect(main.style.transition).toBe("");
+  });
+
+  it("leaves the page alone on a touch that never pulled", () => {
+    installed(true);
+    render(<PullToRefresh />);
+    touch("touchstart", [{ clientX: 100, clientY: 100 }]);
+    touch("touchcancel", []);
+    touch("touchstart", [{ clientX: 100, clientY: 100 }]);
+    touch("touchend", []);
+    const main = document.querySelector("main")!;
+    expect(main.style.position).toBe("");
+    expect(main.style.transition).toBe("");
+  });
+
   it("does nothing in a browser tab, which reloads on pull by itself", () => {
     installed(false);
     render(<PullToRefresh />);

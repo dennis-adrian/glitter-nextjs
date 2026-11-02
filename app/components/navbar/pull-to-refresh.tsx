@@ -55,22 +55,37 @@ export default function PullToRefresh() {
     let frame = 0;
 
     const main = () => document.querySelector<HTMLElement>("body > main");
+    let settle = 0;
     // Moved with relative positioning, not a transform: a transform would
     // become the box of every fixed element inside the page (payment bars,
     // checkout actions) and send them off-screen while pulling.
     const move = (value: number, animate: boolean) => {
       const element = main();
       if (!element) return;
+      window.clearTimeout(settle);
       element.style.transition = animate ? "top 200ms ease-out" : "";
       element.style.position = value || animate ? "relative" : "";
       element.style.top = value ? `${value}px` : "";
+      if (!value && animate) {
+        // Back to static once it has settled, as the page was, unless a new
+        // pull has moved it again meanwhile.
+        settle = window.setTimeout(() => {
+          if (element.style.top) return;
+          element.style.position = "";
+          element.style.transition = "";
+        }, 220);
+      }
     };
 
     const reset = () => {
+      // Only a pull that moved the page has anything to put back: a touch
+      // that never pulled (a tap, a cancelled scroll) leaves it alone.
+      const moved = pulling || current > 0;
       startY = null;
       pulling = false;
       current = 0;
       cancelAnimationFrame(frame);
+      if (!moved) return;
       setDistance(0);
       if (phaseRef.current === "pulling") setPhase("idle");
       move(0, true);
@@ -158,6 +173,7 @@ export default function PullToRefresh() {
       document.removeEventListener("touchend", onEnd);
       document.removeEventListener("touchcancel", reset);
       cancelAnimationFrame(frame);
+      window.clearTimeout(settle);
       move(0, false);
     };
   }, []);
