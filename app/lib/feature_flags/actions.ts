@@ -4,6 +4,10 @@ import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import {
+  expireSharedCache,
+  SHARED_CACHE_TAGS,
+} from "@/app/lib/cache/shared";
 import { fetchFeatureFlag } from "@/app/lib/feature_flags/data";
 import {
   type AddFeatureFlagTargetInput,
@@ -48,6 +52,7 @@ async function requireAdmin() {
  * are rare and deliberate, which makes the blunt version the right one.
  */
 function revalidateEverything() {
+  expireSharedCache(SHARED_CACHE_TAGS.featureFlags);
   revalidatePath("/", "layout");
 }
 
