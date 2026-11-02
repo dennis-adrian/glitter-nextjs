@@ -227,6 +227,15 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
       if (existingPending) {
         // Before Clerk goes, the retry checks what would block the local
         // delete: a reference added since the first try keeps the account.
+        if (existingPending.clerkDeletedAt === null) {
+          const existingInfraction = await tx.query.infractions.findFirst({
+            where: eq(infractions.userId, profileId),
+            columns: { id: true },
+          });
+          if (existingInfraction) {
+            return { ok: false as const, reason: "has_infractions" as const };
+          }
+        }
         if (
           existingPending.clerkDeletedAt === null &&
           (await hasRestrictActorReferences(tx, profileId))
