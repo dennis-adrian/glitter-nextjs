@@ -59,6 +59,32 @@ describe("buildHistorySummary", () => {
     ).toBeNull();
   });
 
+  it("leaves out a festival still to come, with or without one in progress", () => {
+    // An accepted reservation staff added by hand for an upcoming edition is
+    // not history yet: only archived festivals are.
+    const upcoming = participation({ festivalId: 7, name: "Próximo", start: "2027-04-10", stand: "A2" });
+    const past = participation({ festivalId: 2, name: "Festicker", start: "2026-04-26", stand: "C3" });
+
+    expect(
+      buildHistorySummary({
+        participations: [upcoming],
+        activeFestivalId: null,
+        pastFestivalIds: [2],
+        partnersByReservation: empty,
+      }),
+    ).toBeNull();
+
+    const summary = buildHistorySummary({
+      participations: [upcoming, past],
+      activeFestivalId: null,
+      pastFestivalIds: [2],
+      partnersByReservation: empty,
+    });
+    expect(summary?.festivalCount).toBe(1);
+    expect(summary?.first.name).toBe("Festicker");
+    expect(summary?.stands).toEqual(["C3"]);
+  });
+
   it("counts festivals, not stands, and orders first and last by date", () => {
     const summary = buildHistorySummary({
       participations: [
