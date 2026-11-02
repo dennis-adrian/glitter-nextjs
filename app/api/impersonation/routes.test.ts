@@ -1,8 +1,12 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { exitMock, getImpersonationMock, store } = vi.hoisted(() => ({
-  exitMock: vi.fn(async () => ({ returnTo: "/dashboard/users/2", ended: true })),
+const { exitMock, getImpersonationMock, startMock, store } = vi.hoisted(() => ({
+  startMock: vi.fn(async () => ({ success: true, redirectTo: "/portal" })),
+  exitMock: vi.fn(async () => ({
+    returnTo: "/dashboard/users/2",
+    ended: true,
+  })),
   getImpersonationMock: vi.fn(),
   store: { get: vi.fn(), set: vi.fn() },
 }));
@@ -11,12 +15,16 @@ vi.mock("next/headers", () => ({ cookies: async () => store }));
 vi.mock("@/app/lib/impersonation/exit", () => ({
   exitImpersonation: exitMock,
 }));
+vi.mock("@/app/lib/impersonation/start", () => ({
+  startImpersonation: startMock,
+}));
 vi.mock("@/app/lib/impersonation/viewer", () => ({
   getImpersonation: getImpersonationMock,
 }));
 
 import { GET as viewState } from "@/app/api/impersonation/route";
 import { POST as exitPost } from "@/app/api/impersonation/exit/route";
+import { POST as startPost } from "@/app/api/impersonation/start/route";
 
 const ORIGIN = "https://www.glitter.com.bo";
 
@@ -33,6 +41,7 @@ function post(body?: unknown, origin: string | null = ORIGIN) {
 }
 
 beforeEach(() => {
+  startMock.mockClear();
   exitMock.mockClear();
   getImpersonationMock.mockReset();
 });
@@ -111,5 +120,65 @@ describe("GET /api/impersonation", () => {
         imageUrl: null,
       },
     });
+  });
+});
+
+describe("POST /api/impersonation/start", () => {
+  function start(
+    body: unknown,
+    headers: Record<string, string> = { origin: ORIGIN },
+  ) {
+    return startPost(
+      new Request(`${ORIGIN}/api/impersonation/start`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body: JSON.stringify(body),
+      }),
+    );
+  }
+
+  it("starts the view and answers where to load, never cached", async () => {
+    const response = await start({ subjectId: 2, returnTo: "/dashboard" });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      success: true,
+      redirectTo: "/portal",
+    });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(startMock).toHaveBeenCalledWith(
+      { subjectId: 2, returnTo: "/dashboard" },
+      store,
+    );
+  });
+
+  it("answers a refusal with its message", async () => {
+    startMock.mockResolvedValueOnce({
+      success: false,
+      message: "No tenés permiso para entrar como otra cuenta.",
+    } as never);
+    const response = await start({ subjectId: 2 });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ success: false });
+  });
+
+  it.each([
+    ["another site's origin", { origin: "https://evil.example" }],
+    ["a cross-site fetch", { "sec-fetch-site": "cross-site" }],
+  ])("refuses %s, and starts nothing", async (_, headers) => {
+    const response = await start({ subjectId: 2 }, headers);
+    expect(response.status).toBe(403);
+    expect(startMock).not.toHaveBeenCalled();
+  });
+
+  it("validates a body that is not JSON like any other bad input", async () => {
+    const response = await startPost(
+      new Request(`${ORIGIN}/api/impersonation/start`, {
+        method: "POST",
+        headers: { origin: ORIGIN },
+        body: "not json",
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(startMock).toHaveBeenCalledWith(null, store);
   });
 });

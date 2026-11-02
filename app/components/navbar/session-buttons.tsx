@@ -7,6 +7,7 @@ import { useUser } from "@clerk/nextjs";
 import { InfoIcon, LogInIcon, UserPlusIcon } from "lucide-react";
 
 import { NavbarProfile } from "@/app/api/users/definitions";
+import { useViewState } from "@/app/components/impersonation/view-state";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -50,7 +51,11 @@ export default function SessionButtons({
   const router = useRouter();
   const pathname = usePathname();
   const { isLoaded, isSignedIn } = useUser();
-  useReleaseForeignPushDevice(isSignedIn && profile ? profile.id : null);
+  // Not during a view: this browser's devices are the admin's, not theirs.
+  const view = useViewState();
+  useReleaseForeignPushDevice(
+    isSignedIn && profile && !view ? profile.id : null,
+  );
 
   if (isNoNavigationPage(pathname)) {
     return null;

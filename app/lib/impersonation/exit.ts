@@ -47,24 +47,30 @@ export async function exitImpersonation(
   let returnTo = session ? EXIT_FALLBACK : "/";
   let ended = false;
 
-  if (session && isWellFormedImpersonationToken(value)) {
-    const row = await findOpenImpersonationSession(
-      hashImpersonationToken(value),
-    );
-    if (
-      row &&
-      row.adminClerkSessionId === session.sessionId &&
-      row.adminClerkId === session.userId
-    ) {
-      // The request still carries the view's cookie, so the guard would
-      // refuse this write without the scope.
-      ended = await allowImpersonationWrites(() =>
-        endImpersonationSession({ id: row.id, reason }),
+  try {
+    if (session && isWellFormedImpersonationToken(value)) {
+      const row = await findOpenImpersonationSession(
+        hashImpersonationToken(value),
       );
-      returnTo = sanitizeImpersonationReturnTo(row.returnTo) ?? EXIT_FALLBACK;
+      if (
+        row &&
+        row.adminClerkSessionId === session.sessionId &&
+        row.adminClerkId === session.userId
+      ) {
+        // The request still carries the view's cookie, so the guard would
+        // refuse this write without the scope.
+        ended = await allowImpersonationWrites(() =>
+          endImpersonationSession({ id: row.id, reason }),
+        );
+        returnTo = sanitizeImpersonationReturnTo(row.returnTo) ?? EXIT_FALLBACK;
+      }
     }
+  } catch (error) {
+    // The admin still gets out: the cookie goes whatever the database said,
+    // and an unended row reads as expired within the hour.
+    console.error("Could not end a view as a participant", error);
+  } finally {
+    clearImpersonationCookie(store);
   }
-
-  clearImpersonationCookie(store);
   return { returnTo, ended };
 }

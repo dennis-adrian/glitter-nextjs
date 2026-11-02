@@ -18,7 +18,7 @@ import {
   PORTAL_HREF,
   type NavLink,
 } from "@/app/components/navbar/app-navigation";
-import { forgetThisBrowserForPush } from "@/app/components/notifications/use-push-device";
+import { prepareSignOut } from "@/app/components/impersonation/view-state";
 import { Button } from "@/app/components/ui/button";
 import { Separator } from "@/app/components/ui/separator";
 import {
@@ -135,8 +135,7 @@ const MobileSidebar = ({
         paidProgramsEnabled,
         suppliesOpen,
         activeFestival,
-      })
-        .groups
+      }).groups
     : null;
   const publicLinks = groups
     ? []
@@ -177,7 +176,9 @@ const MobileSidebar = ({
           {groups ? (
             groups.map((group) => (
               <div key={group.key}>
-                {group.label ? <GroupHeading>{group.label}</GroupHeading> : null}
+                {group.label ? (
+                  <GroupHeading>{group.label}</GroupHeading>
+                ) : null}
                 <ul className="flex flex-col">
                   {group.items.map((item) =>
                     item.children?.length ? (
@@ -203,7 +204,11 @@ const MobileSidebar = ({
                         </ul>
                       </li>
                     ) : (
-                      <SheetLink key={item.key} link={item} pathname={pathname} />
+                      <SheetLink
+                        key={item.key}
+                        link={item}
+                        pathname={pathname}
+                      />
                     ),
                   )}
                 </ul>
@@ -247,7 +252,9 @@ const MobileSidebar = ({
                 <Button
                   className="justify-start p-2"
                   onClick={async () => {
-                    await forgetThisBrowserForPush();
+                    // Ends a view of the app as someone else first, then forgets this
+                    // browser's avisos for whoever is really signed in.
+                    await prepareSignOut();
                     await signOut(() => router.push("/"));
                   }}
                   variant="ghost"

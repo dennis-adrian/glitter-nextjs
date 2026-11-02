@@ -13,6 +13,7 @@ import {
   usePushDevice,
   usePushSupport,
 } from "@/app/components/notifications/use-push-device";
+import { useViewState } from "@/app/components/impersonation/view-state";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { Skeleton } from "@/app/components/ui/skeleton";
@@ -72,7 +73,7 @@ function report(result: PushDeviceResult, success: string) {
  * device receives avisos it shrinks to one line, so the inbox below is not
  * pushed down on every visit.
  */
-export function PushControl({
+function PushControlInner({
   publicKey,
   devices,
 }: {
@@ -246,7 +247,7 @@ export function PushControl({
  * `showBlocked`, for the bell: a desktop browser that blocked avisos says so
  * in a line that leads to the explanation, rather than showing nothing.
  */
-export function PushOffer({
+function PushOfferInner({
   publicKey,
   prompt,
   className,
@@ -320,4 +321,18 @@ export function PushOffer({
   if (!content) return null;
 
   return <div className={cn("text-sm", className)}>{content}</div>;
+}
+
+/**
+ * This browser's avisos belong to whoever is really signed in. While an
+ * admin views the app as a participant, neither control is shown: turning
+ * avisos on would subscribe the admin's device for the participant, and the
+ * server refuses it anyway (docs/PLAN-impersonation.md §6.2).
+ */
+export function PushControl(props: Parameters<typeof PushControlInner>[0]) {
+  return useViewState() ? null : <PushControlInner {...props} />;
+}
+
+export function PushOffer(props: Parameters<typeof PushOfferInner>[0]) {
+  return useViewState() ? null : <PushOfferInner {...props} />;
 }

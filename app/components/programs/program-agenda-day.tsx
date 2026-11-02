@@ -29,7 +29,7 @@ export default function ProgramAgendaDay({
       id={id}
       tabIndex={-1}
       // Clears the navbar, the announcement strip and the sticky day nav.
-      className="scroll-mt-[calc(10rem+var(--announcement-strip-height,0px))] overflow-hidden rounded-2xl border border-brand-ink/10 bg-brand-card"
+      className="scroll-mt-[calc(10rem+var(--top-chrome-extra,0px))] overflow-hidden rounded-2xl border border-brand-ink/10 bg-brand-card"
     >
       <div className="flex items-center gap-4 border-b border-brand-border px-6 py-5 sm:px-8">
         <ProgramDateStamp start={date} size="md" />

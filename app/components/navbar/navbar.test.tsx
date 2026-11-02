@@ -8,11 +8,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * reads are faked.
  */
 
-const { headersMock, currentProfileMock, fetchRuleMock } = vi.hoisted(() => ({
-  headersMock: vi.fn(),
-  currentProfileMock: vi.fn(),
-  fetchRuleMock: vi.fn(),
-}));
+const { headersMock, currentProfileMock, fetchRuleMock, impersonationMock } =
+  vi.hoisted(() => ({
+    headersMock: vi.fn(),
+    currentProfileMock: vi.fn(),
+    fetchRuleMock: vi.fn(),
+    impersonationMock: vi.fn(),
+  }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => ({ headers: headersMock }));
@@ -45,9 +47,23 @@ vi.mock("@/app/components/navbar/navbar-client", () => ({
 vi.mock("@/app/components/navbar/announcement-strip", () => ({
   default: () => null,
 }));
+vi.mock("@/app/components/impersonation/impersonation-banner", () => ({
+  default: () => null,
+}));
+vi.mock("@/app/lib/impersonation/viewer", () => ({
+  getImpersonation: impersonationMock,
+}));
 
+import ImpersonationBanner from "@/app/components/impersonation/impersonation-banner";
 import Navbar from "@/app/components/navbar/navbar";
 import NavbarClient from "@/app/components/navbar/navbar-client";
+
+async function bannerProps() {
+  const element = await Navbar();
+  const children: { type: unknown; props: Record<string, unknown> }[] =
+    element.props.children;
+  return children.find((child) => child.type === ImpersonationBanner)?.props;
+}
 
 async function navbarClientProps() {
   const element = await Navbar();
@@ -62,6 +78,8 @@ describe("Navbar", () => {
     headersMock.mockReset();
     currentProfileMock.mockReset();
     fetchRuleMock.mockReset();
+    impersonationMock.mockReset();
+    impersonationMock.mockResolvedValue(null);
     fetchRuleMock.mockResolvedValue({
       visibility: "admin_only",
       targetedUserIds: [],
@@ -105,6 +123,67 @@ describe("Navbar", () => {
     expect(await navbarClientProps()).toMatchObject({
       notificationsEnabled: true,
       pushPublicKey: null,
+    });
+  });
+
+  describe("the view banner", () => {
+    it("comes first, above the strip and the header", async () => {
+      headersMock.mockResolvedValue(new Headers({ host: "localhost:3000" }));
+      const element = await Navbar();
+      const children: { type: unknown }[] = element.props.children;
+      expect(children[0]?.type).toBe(ImpersonationBanner);
+    });
+
+    it("is handed the view, with only the participant's name, email and photo", async () => {
+      headersMock.mockResolvedValue(new Headers({ host: "localhost:3000" }));
+      currentProfileMock.mockResolvedValue({ id: 2, role: "user" });
+      impersonationMock.mockResolvedValue({
+        sessionId: 41,
+        secondsLeft: 900,
+        returnTo: null,
+        actor: { id: 1 },
+        subject: {
+          id: 2,
+          clerkId: "user_subject",
+          displayName: "Ana",
+          firstName: "Ana",
+          lastName: "Pérez",
+          email: "ana@example.com",
+          imageUrl: null,
+          phoneNumber: "+591 700 00000",
+        },
+      });
+      expect(await bannerProps()).toEqual({
+        probe: false,
+        initial: {
+          secondsLeft: 900,
+          subject: {
+            id: 2,
+            displayName: "Ana",
+            firstName: "Ana",
+            lastName: "Pérez",
+            email: "ana@example.com",
+            imageUrl: null,
+          },
+        },
+      });
+    });
+
+    it("has nothing to say outside a view", async () => {
+      headersMock.mockResolvedValue(new Headers({ host: "localhost:3000" }));
+      expect(await bannerProps()).toEqual({ initial: null, probe: false });
+    });
+
+    it("asks from the browser on a page rendered without a request", async () => {
+      headersMock.mockResolvedValue(new Headers());
+      expect(await bannerProps()).toEqual({ initial: null, probe: true });
+      expect(impersonationMock).not.toHaveBeenCalled();
+    });
+
+    it("stays out of the way when the view cannot be read", async () => {
+      headersMock.mockResolvedValue(new Headers({ host: "localhost:3000" }));
+      impersonationMock.mockRejectedValue(new Error("database down"));
+      expect(await bannerProps()).toEqual({ initial: null, probe: false });
     });
   });
 });

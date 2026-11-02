@@ -4,10 +4,22 @@ import { randomUUID } from "crypto";
 import { eq, inArray, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import * as schema from "@/db/schema";
-import { impersonationSessions, pendingUserDeletions, users } from "@/db/schema";
+import {
+  impersonationSessions,
+  pendingUserDeletions,
+  users,
+} from "@/db/schema";
 
 /**
  * "Entrar como participante" from start to Salir against a real database
@@ -74,12 +86,12 @@ const pool = testDatabaseUrl
 const testDb = pool ? drizzle(pool, { schema }) : null;
 const describeDatabase = testDb ? describe : describe.skip;
 
-type Actions = typeof import("@/app/lib/impersonation/actions");
+type Start = typeof import("@/app/lib/impersonation/start");
 type Exit = typeof import("@/app/lib/impersonation/exit");
 type Viewer = typeof import("@/app/lib/impersonation/viewer");
 type Helpers = typeof import("@/app/lib/users/helpers");
 type AppDb = (typeof import("@/db"))["db"];
-let actions: Actions;
+let start: Start;
 let exit: Exit;
 let viewer: Viewer;
 let helpers: Helpers;
@@ -126,7 +138,7 @@ describeDatabase("a view from start to Salir", () => {
     process.env.CLERK_SECRET_KEY ??= "integration-test";
     process.env.RESEND_API_KEY ??= "integration-test";
     process.env.UPLOADTHING_TOKEN ??= "integration-test";
-    actions = await import("@/app/lib/impersonation/actions");
+    start = await import("@/app/lib/impersonation/start");
     exit = await import("@/app/lib/impersonation/exit");
     viewer = await import("@/app/lib/impersonation/viewer");
     helpers = await import("@/app/lib/users/helpers");
@@ -167,10 +179,13 @@ describeDatabase("a view from start to Salir", () => {
   it("enters, sees the app as the participant read-only, and leaves", async () => {
     const sessionId = signIn(admin.clerkId);
 
-    const started = await actions.startImpersonationAction({
-      subjectId: participant.id,
-      returnTo: `/dashboard/users/${participant.id}`,
-    });
+    const started = await start.startImpersonation(
+      {
+        subjectId: participant.id,
+        returnTo: `/dashboard/users/${participant.id}`,
+      },
+      store,
+    );
     expect(started).toEqual({ success: true, redirectTo: "/portal" });
     expect(posthog.capture).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -227,11 +242,11 @@ describeDatabase("a view from start to Salir", () => {
 
   it("refuses to start from inside a view", async () => {
     signIn(admin.clerkId);
-    await actions.startImpersonationAction({ subjectId: participant.id });
+    await start.startImpersonation({ subjectId: participant.id }, store);
     request();
     const other = await createUser();
     await expect(
-      actions.startImpersonationAction({ subjectId: other.id }),
+      start.startImpersonation({ subjectId: other.id }, store),
     ).resolves.toEqual({
       success: false,
       message: "Ya estás viendo la app como otra cuenta. Salí primero.",
@@ -245,7 +260,7 @@ describeDatabase("a view from start to Salir", () => {
     const actor = await createUser({ role });
     signIn(actor.clerkId);
     await expect(
-      actions.startImpersonationAction({ subjectId: participant.id }),
+      start.startImpersonation({ subjectId: participant.id }, store),
     ).resolves.toEqual({
       success: false,
       message: "No tenés permiso para entrar como otra cuenta.",
@@ -256,20 +271,32 @@ describeDatabase("a view from start to Salir", () => {
 
   it("refuses a signed-out request", async () => {
     await expect(
-      actions.startImpersonationAction({ subjectId: participant.id }),
+      start.startImpersonation({ subjectId: participant.id }, store),
     ).resolves.toMatchObject({ success: false });
     expect(jar.size).toBe(0);
   });
 
   it.each([
-    ["a staff account", { role: "festival_admin" as const }, "No se puede entrar como una cuenta de administración."],
-    ["another global admin", { role: "admin" as const }, "No se puede entrar como una cuenta de administración."],
+    [
+      "a staff account",
+      { role: "festival_admin" as const },
+      "No se puede entrar como una cuenta de administración.",
+    ],
+    [
+      "another global admin",
+      { role: "admin" as const },
+      "No se puede entrar como una cuenta de administración.",
+    ],
   ])("refuses to view %s", async (_, values, message) => {
     const staff = await createUser(values);
     signIn(admin.clerkId);
     await expect(
-      actions.startImpersonationAction({ subjectId: staff.id }),
+      start.startImpersonation({ subjectId: staff.id }, store),
     ).resolves.toEqual({ success: false, message });
+    expect(
+      (await sessionsOf(admin.id)).filter((r) => r.subjectUserId === staff.id),
+    ).toHaveLength(0);
+    expect(jar.size).toBe(0);
   });
 
   it("refuses an account being deleted", async () => {
@@ -279,20 +306,46 @@ describeDatabase("a view from start to Salir", () => {
       .values({ userId: leaving.id, clerkId: leaving.clerkId });
     signIn(admin.clerkId);
     await expect(
-      actions.startImpersonationAction({ subjectId: leaving.id }),
+      start.startImpersonation({ subjectId: leaving.id }, store),
     ).resolves.toEqual({
       success: false,
       message: "Esta cuenta se está eliminando.",
     });
+    expect(
+      (await sessionsOf(admin.id)).filter(
+        (r) => r.subjectUserId === leaving.id,
+      ),
+    ).toHaveLength(0);
+    expect(jar.size).toBe(0);
+  });
+
+  it("never ends a view for a different person on the same session id", async () => {
+    const sessionId = signIn(admin.clerkId);
+    const person = await createUser();
+    await start.startImpersonation({ subjectId: person.id }, store);
+    request();
+    const someoneElse = await createUser({ role: "admin" });
+    signIn(someoneElse.clerkId, sessionId);
+    await expect(exit.exitImpersonation(store, "exited")).resolves.toEqual({
+      returnTo: "/dashboard",
+      ended: false,
+    });
+    const [row] = (await sessionsOf(admin.id)).filter(
+      (r) => r.subjectUserId === person.id,
+    );
+    expect(row?.endedAt).toBeNull();
   });
 
   it("keeps a return path only when it is an admin page", async () => {
     signIn(admin.clerkId);
     const person = await createUser();
-    await actions.startImpersonationAction({
-      subjectId: person.id,
-      returnTo: "https://evil.example/",
-    });
+    await start.startImpersonation(
+      {
+        subjectId: person.id,
+        returnTo: "https://evil.example/",
+      },
+      store,
+    );
     const [row] = (await sessionsOf(admin.id)).filter(
       (s) => s.subjectUserId === person.id,
     );
@@ -307,7 +360,7 @@ describeDatabase("a view from start to Salir", () => {
   it("never ends another Clerk session's view, and still clears the cookie", async () => {
     signIn(admin.clerkId, "sess_first");
     const person = await createUser();
-    await actions.startImpersonationAction({ subjectId: person.id });
+    await start.startImpersonation({ subjectId: person.id }, store);
     // Same cookie, a new sign-in: the old view opens nothing here.
     request();
     signIn(admin.clerkId, "sess_second");
@@ -326,7 +379,7 @@ describeDatabase("a view from start to Salir", () => {
   it("records a sign-out from inside a view", async () => {
     signIn(admin.clerkId);
     const person = await createUser();
-    await actions.startImpersonationAction({ subjectId: person.id });
+    await start.startImpersonation({ subjectId: person.id }, store);
     request();
     await exit.exitImpersonation(store, "signed_out");
     const [row] = (await sessionsOf(admin.id)).filter(
@@ -338,7 +391,7 @@ describeDatabase("a view from start to Salir", () => {
   it("leaves a view that ran out reading as expired, and lets the admin out", async () => {
     signIn(admin.clerkId);
     const person = await createUser();
-    await actions.startImpersonationAction({ subjectId: person.id });
+    await start.startImpersonation({ subjectId: person.id }, store);
     const [row] = (await sessionsOf(admin.id)).filter(
       (s) => s.subjectUserId === person.id,
     );
@@ -352,7 +405,9 @@ describeDatabase("a view from start to Salir", () => {
     request();
     // The cookie opens nothing any more: the admin is themself.
     expect((await helpers.getCurrentUserProfile())?.id).toBe(admin.id);
-    await expect(exit.exitImpersonation(store, "exited")).resolves.toMatchObject({
+    await expect(
+      exit.exitImpersonation(store, "exited"),
+    ).resolves.toMatchObject({
       ended: false,
     });
     expect(jar.size).toBe(0);

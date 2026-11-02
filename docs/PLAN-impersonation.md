@@ -111,7 +111,10 @@ Migration: `pnpm generate` → `drizzle/0305_impersonation_sessions.sql`. Applie
 
 ## 5. Server flow
 
-### 5.1 Start — `startImpersonationAction({ subjectId, returnTo })` in `app/lib/impersonation/actions.ts` (done in step 4)
+### 5.1 Start — `POST /api/impersonation/start`, logic in `startImpersonation` (`app/lib/impersonation/start.ts`) (done in steps 4–5)
+
+A route handler, not a Server Action: an action that sets a cookie makes Next render the current page again in the same response, and that render would already be the participant's, on an admin page whose layout redirects them. Same-origin only (`Origin`, `Sec-Fetch-Site`), like Salir.
+
 
 1. The actor is the signed-in person themself: the Clerk session (`getClerkSession`) and, since no view is on, `getCurrentUserProfile`. Starting from inside a view answers "Ya estás viendo la app como otra cuenta. Salí primero."
 2. `loadImpersonationTarget` loads the subject and any pending deletion. `impersonationRefusal` then decides, with its message from `IMPERSONATION_REFUSAL_MESSAGES`. A refusal writes nothing and sets no cookie.
@@ -228,14 +231,20 @@ It appears in Más (`more`) and in the sidebar's "Mi cuenta" group. The desktop 
 
 `ProfileQuickActions` gains "Entrar como {nombre}" for admins when the profile is eligible; same confirmation; `returnTo` = that page. Below the profile, "Vistas recientes" lists this person's view sessions.
 
-### 7.4 Banner — `app/components/impersonation/impersonation-banner.tsx`
+### 7.4 Banner — `app/components/impersonation/impersonation-banner.tsx` (done in step 5)
 
-- Server component in `navbar.tsx`, first child of the sticky `data-site-navbar` wrapper, above the announcement strip and the installed app's top bar; it is therefore above the header on desktop and above `AppScreenBar` in the installed app, and the tab bar is untouched.
-- Content: eye icon, "Estás viendo como **{nombre}**" (email on desktop), "solo lectura", and **Salir**. One line on the phone; the name truncates, Salir never does.
-- Publishes `--impersonation-banner-height` with a `ResizeObserver`, the way the announcement strip publishes its height. The offsets that subtract `--announcement-strip-height` (`globals.css`, `dashboard/layout.tsx`, store nav and subheader, data table, sonner, program agenda and session page) add this variable too.
-- `ImpersonationProvider` (client context) carries `{ subject, expiresAt }` so the banner, the avisos control and the quick actions can ask `useImpersonation()`.
-- `force-static` pages (`/programs/*`) render the layout without a request: there the client banner fetches `GET /api/impersonation` on mount and renders if a view is on. The same endpoint backs the expiry re-check.
-- Ended state (expired): "La vista como {nombre} terminó" + "Volver a mi cuenta".
+- **Placement:** rendered by `navbar.tsx` as the first child of the sticky `data-site-navbar` wrapper. It sits above the announcement strip, above the installed app's top bar (`AppScreenBar`) on a phone, and above the header on desktop. The tab bar is untouched. It never scrolls away.
+- **Content:** an eye icon, "Estás viendo como **{nombre}**" (the email too on desktop, the name truncating on a phone), a "solo lectura" pill, and **Salir**, a 44 px button that never truncates.
+  - Colours: `brand-coral-soft` with `brand-ink` text, distinct from the strip's `brand-deep`, and legible in both themes.
+- **First HTML:** the server hands the view (`initial`: the participant's name, email and photo, and the seconds left) to the banner, so it is in the first HTML.
+- **Pages rendered without a request:** `force-static` program pages pass `probe`. The banner then asks `GET /api/impersonation` once, and only for someone signed in.
+- **Salir** posts to the exit route and loads `returnTo` with `window.location.replace`. If the post fails it stays and says "No se pudo salir. Intentá de nuevo."
+- **Ended:** when the hour runs out (a client timer from `secondsLeft`), or when the tab comes back to find the view ended (`visibilitychange`/`focus` re-check, e.g. Salir in another tab), it reads "La vista como {nombre} terminó" with "Volver a mi cuenta", which does the same as Salir.
+- **Offsets:** the banner publishes `--impersonation-banner-height`. `globals.css` sums it with the strip's into `--top-chrome-extra`, which every sticky offset below the navbar now uses (store subheader, program tabs and agenda, session aside, section scroll margins, the dashboard frame).
+  - In the installed app the banner takes the top safe area, and the top bar stops padding for it a second time.
+- **Client state:** `app/components/impersonation/view-state.ts` holds the view on the client (`useViewState`).
+  - The avisos controls (`PushControl`, `PushOffer`) render nothing during a view, and the foreign-device release check is skipped.
+  - Every sign-out (account menu, Más, mobile menu, the profile retry) calls `prepareSignOut()`. It ends the view first as `signed_out`, then forgets this browser's avisos, now for the admin who is really signed in. It always asks the server, which knows of a view before the banner has loaded, and a failure never holds the sign-out up.
 
 ### 7.5 Design board T (canvas)
 
@@ -255,10 +264,10 @@ Added to the "Glitter App Navigation Proposals" canvas beside R and S, following
 | Area | Files |
 | --- | --- |
 | Schema | `db/schema.ts`, `drizzle/0305_*.sql` (generated) |
-| Core | `app/lib/impersonation/viewer.ts`, `cookie.ts`, `queries.ts`, `actions.ts`, `housekeeping.ts`, `eligibility.ts`, `definitions.ts`; `db/write-guard.ts`, `db/statement-kind.ts` |
+| Core | `app/lib/impersonation/viewer.ts`, `cookie.ts`, `queries.ts`, `start.ts`, `exit.ts`, `housekeeping.ts`, `eligibility.ts`, `definitions.ts`; `db/write-guard.ts`, `db/statement-kind.ts` |
 | Viewer resolution | `app/lib/users/helpers.ts`, `app/lib/users/queries.ts`, `app/api/users/navbar-profile/route.ts`, `app/page.tsx`, `app/lib/notifications/queries.ts`, `app/launch/route.ts` |
 | Guard | `db/index.ts`, `app/vendors/resend.ts`, `app/lib/notifications/push/actions.ts`, `app/lib/notifications/read.ts`, `app/lib/notifications/actions.ts`, `app/lib/rate-limit.ts`, `app/lib/store_settings/data.ts`, `app/lib/programs/data.ts`, `app/lib/feature_flags/data.ts`, `app/api/uploadthing/route.ts` |
-| Routes | `app/api/impersonation/route.ts` (GET state), `app/api/impersonation/exit/route.ts` |
+| Routes | `app/api/impersonation/route.ts` (GET state), `app/api/impersonation/start/route.ts`, `app/api/impersonation/exit/route.ts` |
 | Screens | `app/dashboard/impersonate/page.tsx` + components under `app/components/impersonation/` (picker, confirmation, recent list, banner, provider) |
 | Entry points | `app/components/navbar/app-navigation.ts`, `app/components/ui/user-dropdown.tsx`, `app/components/user_profile/public_profile/quick-actions.tsx`, `app/components/pages/dashboard/user/user.tsx` |
 | Shell | `app/components/navbar/navbar.tsx`, `app/components/navbar/screens.ts` (title "Entrar como participante", parent Más), `app/globals.css` and the sticky-offset consumers |

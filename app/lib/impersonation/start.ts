@@ -1,6 +1,5 @@
-"use server";
+import "server-only";
 
-import { cookies } from "next/headers";
 import { z } from "zod";
 
 import {
@@ -41,9 +40,16 @@ const inputSchema = z.object({
 /** Where a view opens: the participant's own Inicio. */
 const VIEW_HOME = "/portal";
 
+type CookieWriter = Parameters<typeof setImpersonationCookie>[0];
+
 /**
  * "Entrar como participante" (docs/PLAN-impersonation.md §5.1): a global
  * admin starts viewing the app as `subjectId`, read-only, for an hour.
+ *
+ * Served by `POST /api/impersonation/start`, not a Server Action: an action
+ * that sets a cookie makes Next render the current page again in the same
+ * response, and that render would already be the participant's, on an admin
+ * page whose layout redirects them away.
  *
  * Everything is checked here, on the server, against the signed-in person
  * themself: only a global admin, not from inside another view, never
@@ -51,8 +57,9 @@ const VIEW_HOME = "/portal";
  * then loads `redirectTo` as a whole new document (`window.location`), so no
  * cache keyed on the admin's Clerk id outlives the switch.
  */
-export async function startImpersonationAction(
+export async function startImpersonation(
   input: unknown,
+  store: CookieWriter,
 ): Promise<StartImpersonationResult> {
   const parsed = inputSchema.safeParse(input);
   if (!parsed.success) return { success: false, message: "Datos inválidos." };
@@ -101,7 +108,7 @@ export async function startImpersonationAction(
   if (!created) {
     return { success: false, message: "No se pudo entrar. Intentá de nuevo." };
   }
-  setImpersonationCookie(await cookies(), token);
+  setImpersonationCookie(store, token);
 
   try {
     const posthog = getPostHogClient();
@@ -113,7 +120,7 @@ export async function startImpersonationAction(
     await posthog.shutdown(POSTHOG_SHUTDOWN_TIMEOUT_MS);
   } catch (telemetryError) {
     console.error(
-      "PostHog telemetry failed (startImpersonationAction)",
+      "PostHog telemetry failed (startImpersonation)",
       telemetryError,
     );
   }

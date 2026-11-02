@@ -210,7 +210,7 @@
 }
 
 .scroll-mt-20 {
-  scroll-margin-top: calc(5rem + var(--announcement-strip-height, 0px));
+  scroll-margin-top: calc(5rem + var(--top-chrome-extra, 0px));
 }
 
 @utility no-scrollbar {
@@ -844,6 +844,13 @@
  * it is in the document, so the layout never needs to know who is signed in. */
 :root {
   --app-sidebar-width: 16.5rem;
+  /* What sits above the header inside the sticky navbar besides itself: the
+   * announcement strip and, during a view as a participant, its banner. Each
+   * publishes its own height on <html>. */
+  --top-chrome-extra: calc(
+    var(--announcement-strip-height, 0px) +
+      var(--impersonation-banner-height, 0px)
+  );
 }
 
 @media (width >= 64rem) {
@@ -890,6 +897,15 @@
 @media (display-mode: standalone) and (width < 64rem) {
   body:has([data-screen-bar]) [data-announcement-strip] {
     display: none;
+  }
+}
+
+/* During a view, the banner sits above the installed app's top bar and takes
+ * the safe area itself; the bar must not pad for it a second time. */
+@media (display-mode: standalone) {
+  body:has([data-impersonation-banner]) [data-screen-bar] {
+    height: 76px;
+    padding-top: 0;
   }
 }
 
