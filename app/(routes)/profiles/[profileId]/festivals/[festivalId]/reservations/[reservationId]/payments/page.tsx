@@ -5,6 +5,7 @@ import {
   fetchInvoicesByReservation,
 } from "@/app/data/invoices/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
+import { started } from "@/app/lib/started";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import QRCodeDetails from "@/app/components/payments/qrcode-details";
@@ -30,14 +31,19 @@ export default async function Page(props: {
   const validatedParams = ParamsSchema.safeParse(params);
   if (!validatedParams.success) redirect("/");
 
-  const profile = await getCurrentUserProfile();
-  const festival = await fetchBaseFestival(validatedParams.data.festivalId);
+  // One round trip instead of three. The invoice query checks the caller
+  // itself, and nothing is used before the route check.
+  const invoicesPromise = started(
+    fetchInvoicesByReservation(validatedParams.data.reservationId),
+  );
+  const [profile, festival] = await Promise.all([
+    getCurrentUserProfile(),
+    fetchBaseFestival(validatedParams.data.festivalId),
+  ]);
   if (!festival || !profile) notFound();
   await protectRoute(profile, validatedParams.data.profileId);
 
-  const invoices = await fetchInvoicesByReservation(
-    validatedParams.data.reservationId,
-  );
+  const invoices = await invoicesPromise;
   if (invoices.length === 0) notFound();
 
   const ownerInvoices = invoices.filter(

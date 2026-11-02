@@ -28,6 +28,7 @@ import {
 } from "@/app/lib/rentals/status";
 import { getProductVariantImageUrl } from "@/app/lib/products/variants";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
+import { started } from "@/app/lib/started";
 
 const ParamsSchema = z.object({
   profileId: z.coerce.number(),
@@ -44,10 +45,13 @@ export default async function UserOrderPage(props: {
     return notFound();
   }
 
+  // Started with the profile lookup: `fetchOrder` checks the caller itself,
+  // and nothing is used before the route check.
+  const orderPromise = started(fetchOrder(validatedParams.data.orderId));
   const currentUser = await getCurrentUserProfile();
   await protectRoute(currentUser || undefined, validatedParams.data.profileId);
 
-  const order = await fetchOrder(validatedParams.data.orderId);
+  const order = await orderPromise;
 
   // The route names the profile, so its order must belong to that profile.
   if (!order || order.userId !== validatedParams.data.profileId) {
