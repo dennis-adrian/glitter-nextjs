@@ -15,7 +15,9 @@ export default async function FeatureFlagsPage() {
   return (
     <div className="container mx-auto space-y-6 p-3 md:p-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold">Funcionalidades</h1>
+        <h1 className="text-2xl font-bold" data-installed-title="">
+          Funcionalidades
+        </h1>
         <p className="text-sm text-muted-foreground">
           Controla qué funcionalidades ya construidas son visibles y para quién.
           Los cambios se aplican de inmediato, sin necesidad de un nuevo

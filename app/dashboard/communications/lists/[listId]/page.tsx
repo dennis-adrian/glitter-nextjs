@@ -1,5 +1,4 @@
 import { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
@@ -9,6 +8,8 @@ import ListDuplicateButton from "@/app/components/communications/admin/list-dupl
 import ListFilterEditor from "@/app/components/communications/admin/list-filter-editor";
 import ListMembersPagination from "@/app/components/communications/admin/list-members-pagination";
 import ListOriginCard from "@/app/components/communications/admin/list-origin-card";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { Badge } from "@/app/components/ui/badge";
 import { Banner } from "@/app/components/ui/banner";
 import { requireCommunicationsAdmin } from "@/app/lib/communications/access";
@@ -58,16 +59,14 @@ export default async function DistributionListPage(props: {
 
   return (
     <div className="space-y-4 overflow-y-auto pb-6">
-      <Link
-        href="/dashboard/communications/lists"
-        className="text-sm text-muted-foreground hover:underline"
-      >
-        Volver a las listas
-      </Link>
+      <ScreenTitle title={list.name} />
+      <PageBreadcrumbs />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold">{list.name}</h2>
+            <h2 className="text-lg font-semibold" data-installed-title="">
+              {list.name}
+            </h2>
             <Badge variant={list.kind === "filter" ? "secondary" : "outline"}>
               {DISTRIBUTION_LIST_KIND_LABELS[list.kind]}
             </Badge>

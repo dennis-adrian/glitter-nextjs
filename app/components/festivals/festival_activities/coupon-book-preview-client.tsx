@@ -468,15 +468,20 @@ export default function CouponBookPreviewClient({
     <div className="container flex flex-col">
       <header className="flex items-center gap-3 px-4 py-3 border-b flex-wrap">
         <div className="flex items-center gap-3 min-w-0 flex-1">
+          {/* The installed app's top bar carries back and the title. */}
           <Link
             href={backUrl}
+            data-installed-hidden=""
             className="shrink-0 rounded-sm p-1 hover:bg-muted transition-colors"
           >
             <ChevronLeft className="h-5 w-5" />
             <span className="sr-only">Volver</span>
           </Link>
           <div className="min-w-0">
-            <h1 className="font-bold text-base md:text-lg leading-tight truncate">
+            <h1
+              className="font-bold text-base md:text-lg leading-tight truncate"
+              data-installed-title=""
+            >
               Preview Couponbook
             </h1>
             <p className="text-xs text-muted-foreground truncate">

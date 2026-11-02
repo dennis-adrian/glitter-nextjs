@@ -3,6 +3,7 @@
 import { BellIcon } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 
+import { onAppRefresh } from "@/app/components/navbar/pull-refresh";
 import {
   announceNotificationsChanged,
   onNotificationsChanged,
@@ -153,11 +154,14 @@ export default function NotificationInbox({
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
     const unsubscribe = onNotificationsChanged(() => refresh(true));
+    // Pulling to refresh in the installed app loads the list again too.
+    const unsubscribeRefresh = onAppRefresh(() => refresh(true));
     return () => {
       current = false;
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
       unsubscribe();
+      unsubscribeRefresh();
     };
   }, [filter]);
 

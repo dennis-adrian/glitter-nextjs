@@ -7,6 +7,7 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import ActivityProofsTable from "@/app/components/festivals/festival_activities/activity-proofs-table";
 import ExportProofsButton from "@/app/components/festivals/festival_activities/export-proofs-button";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 
 const ParamsSchema = z.object({
   id: z.coerce.number(),
@@ -58,11 +59,15 @@ export default async function Page({ params }: ReviewPageProps) {
         })
     : [];
 
+  const title = `Revisión de ${materialLabel} — ${activity.name}`;
+
   return (
     <div className="container p-3 md:p-6 space-y-4">
+      {/* The installed app's top bar carries the title. */}
+      <ScreenTitle title={title} />
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="text-lg md:text-xl font-bold">
-          Revisión de {materialLabel} — {activity.name}
+        <h1 className="text-lg md:text-xl font-bold" data-installed-title="">
+          {title}
         </h1>
         {showExport && (
           <div className="flex gap-2">

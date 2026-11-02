@@ -61,7 +61,10 @@ export default async function Page(props: {
 
   return (
     <div className="container mx-auto min-h-full p-3 md:p-6">
-      <h1 className="mb-2 text-2xl font-bold md:text-3xl">
+      <h1
+        className="mb-2 text-2xl font-bold md:text-3xl"
+        data-installed-title=""
+      >
         Solicitudes de perfil
       </h1>
       <p className="mb-4 text-sm text-muted-foreground">

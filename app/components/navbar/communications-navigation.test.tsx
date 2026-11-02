@@ -2,7 +2,9 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { NavbarProfile } from "@/app/api/users/definitions";
-import NavbarNavigationMenu from "@/app/components/navbar/navigation-menu";
+import { buildAppNavigation } from "@/app/components/navbar/app-navigation";
+import AppSidebar from "@/app/components/navbar/app-sidebar";
+import MoreMenu from "@/app/components/navbar/more-menu";
 import MobileSidebar from "@/app/components/organisms/mobile-sidebar";
 
 // Server actions: the sign-out path and the bell reach them.
@@ -24,7 +26,7 @@ vi.mock("@clerk/nextjs", () => ({
 }));
 
 beforeAll(() => {
-  // Radix's navigation menu measures its viewport; jsdom has no observer.
+  // Radix measures its popovers; jsdom has no observer.
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -37,7 +39,9 @@ beforeAll(() => {
 
 afterEach(cleanup);
 
-function profile(role: NavbarProfile["role"]) {
+type Role = NavbarProfile["role"];
+
+function profile(role: Role) {
   return {
     id: 1,
     role,
@@ -55,10 +59,7 @@ function communicationsLinks() {
     );
 }
 
-function openMobileMenu(
-  role: NavbarProfile["role"],
-  communicationsEnabled: boolean,
-) {
+function openMobileMenu(role: Role, communicationsEnabled: boolean) {
   render(
     <MobileSidebar
       profile={profile(role)}
@@ -72,45 +73,56 @@ function openMobileMenu(
   );
 }
 
-function openDesktopMenu(
-  role: NavbarProfile["role"],
-  communicationsEnabled: boolean,
-) {
+/** The desktop sidebar with every section opened. */
+function openSidebar(role: Role, communicationsEnabled: boolean) {
+  const viewer = { role, status: "verified" as const };
   render(
-    <NavbarNavigationMenu
+    <AppSidebar
+      groups={buildAppNavigation({ viewer, communicationsEnabled }).groups}
       profile={profile(role)}
+      viewer={viewer}
+    />,
+  );
+  for (const button of screen.queryAllByRole("button", { expanded: false })) {
+    fireEvent.click(button);
+  }
+}
+
+function openMore(role: Role, communicationsEnabled: boolean) {
+  render(
+    <MoreMenu
+      viewer={{ role, status: "verified" }}
+      account={{ name: "Camila Rojas", imageUrl: null }}
+      programsHref={null}
+      blogEnabled={false}
+      creditsEnabled={false}
       communicationsEnabled={communicationsEnabled}
     />,
   );
-  const trigger = screen.queryByRole("button", { name: /Dashboard/ });
-  if (trigger) fireEvent.click(trigger);
 }
 
+const MENUS = [
+  ["mobile menu", openMobileMenu],
+  ["desktop sidebar", openSidebar],
+  ["Más", openMore],
+] as const;
+
 describe("Comunicaciones link", () => {
-  it("is in the admin's mobile menu when the flag is on", () => {
-    openMobileMenu("admin", true);
-    expect(communicationsLinks()).toHaveLength(1);
-  });
+  for (const [name, open] of MENUS) {
+    it(`is in the admin's ${name} when the flag is on`, () => {
+      open("admin", true);
+      expect(communicationsLinks()).toHaveLength(1);
+      expect(screen.getByText("Comunicaciones")).toBeTruthy();
+    });
 
-  it("is in the admin's desktop Dashboard menu when the flag is on", () => {
-    openDesktopMenu("admin", true);
-    expect(communicationsLinks()).toHaveLength(1);
-    expect(screen.getByText("Comunicaciones")).toBeTruthy();
-  });
+    it(`is not in the admin's ${name} while the flag is off`, () => {
+      open("admin", false);
+      expect(communicationsLinks()).toHaveLength(0);
+    });
 
-  it("is not there for an admin while the flag is off", () => {
-    openMobileMenu("admin", false);
-    expect(communicationsLinks()).toHaveLength(0);
-    cleanup();
-    openDesktopMenu("admin", false);
-    expect(communicationsLinks()).toHaveLength(0);
-  });
-
-  it("is never offered to festival admins, even with the flag on", () => {
-    openMobileMenu("festival_admin", true);
-    expect(communicationsLinks()).toHaveLength(0);
-    cleanup();
-    openDesktopMenu("festival_admin", true);
-    expect(communicationsLinks()).toHaveLength(0);
-  });
+    it(`is never in a festival admin's ${name}, even with the flag on`, () => {
+      open("festival_admin", true);
+      expect(communicationsLinks()).toHaveLength(0);
+    });
+  }
 });

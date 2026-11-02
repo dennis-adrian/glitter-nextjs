@@ -19,6 +19,9 @@ const MapCanvas = forwardRef<SVGSVGElement, MapCanvasProps>(
 
     return (
       <svg
+        // Maps pan and zoom with drags: the installed app's pull to refresh
+        // never starts on one.
+        data-no-pull-refresh=""
         ref={ref}
         viewBox={`${minX} ${minY} ${width} ${height}`}
         preserveAspectRatio="xMidYMid meet"

@@ -19,6 +19,8 @@ export default function StepIndicator({
   backHref,
   onBack,
 }: StepIndicatorProps) {
+  // The installed app's top bar carries back, so the in-page one steps aside
+  // there; the step count stays.
   const showBack = backLabel && (backHref || onBack);
 
   return (
@@ -32,6 +34,7 @@ export default function StepIndicator({
                 onClick={onBack}
                 className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
                 aria-label={backLabel}
+                data-installed-hidden=""
               >
                 <ArrowLeftIcon className="h-3.5 w-3.5" />
                 <span>{backLabel}</span>
@@ -41,6 +44,7 @@ export default function StepIndicator({
                 href={backHref}
                 className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
                 aria-label={backLabel}
+                data-installed-hidden=""
               >
                 <ArrowLeftIcon className="h-3.5 w-3.5" />
                 <span>{backLabel}</span>

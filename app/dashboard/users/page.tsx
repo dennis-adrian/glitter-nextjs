@@ -60,7 +60,10 @@ export default async function Page(props: {
 
   return (
     <div className="container mx-auto min-h-full min-w-0 overflow-x-hidden p-3 md:p-6">
-      <h1 className="mb-2 text-xl font-bold sm:text-2xl md:text-3xl">
+      <h1
+        className="mb-2 text-xl font-bold sm:text-2xl md:text-3xl"
+        data-installed-title=""
+      >
         Participantes
       </h1>
       <div className="flex min-w-0 flex-col gap-3 sm:gap-4 group">

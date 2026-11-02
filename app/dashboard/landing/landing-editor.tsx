@@ -1031,7 +1031,10 @@ function LandingEditorForm({
       </AlertDialog>
       <div className="sticky top-[76px] z-20 -mx-4 mb-6 flex flex-wrap items-center gap-3 border-b bg-background/95 px-4 py-3 backdrop-blur md:-mx-6 md:px-6 lg:top-[84px]">
         <div className="mr-auto">
-          <h1 className="font-display text-2xl font-bold">
+          <h1
+            className="font-display text-2xl font-bold"
+            data-installed-title=""
+          >
             Contenido de inicio
           </h1>
           <p className="text-sm text-muted-foreground">

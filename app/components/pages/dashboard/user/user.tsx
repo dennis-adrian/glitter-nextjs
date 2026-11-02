@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import PrivateProfile from "@/app/components/user_profile/private_profile/overview";
 import PublicProfile from "@/app/components/user_profile/public_profile/profile";
 import AnnouncementCard from "@/components/user_profile/announcements_cards/card";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import ProfileQuickActions from "@/app/components/user_profile/public_profile/quick-actions";
 import { fetchPendingInvoicesByProfile } from "@/app/data/invoices/actions";
 import { fetchParticipantActivitySummary } from "@/app/lib/participants/actions";
@@ -56,6 +57,7 @@ export default async function DashboardUserPage(props: DashboardUserPageProps) {
 
   return (
     <div className="mx-auto max-w-5xl p-3 md:p-6">
+      <ScreenTitle title={getUserName(forProfile) || forProfile.email} />
       <div className="flex flex-col gap-4">
         {forProfile.status !== "banned" && (
           <AnnouncementCard profile={forProfile} />

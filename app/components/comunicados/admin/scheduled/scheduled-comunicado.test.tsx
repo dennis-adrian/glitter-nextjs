@@ -55,6 +55,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: mocks.refresh, push: mocks.push }),
+  usePathname: () => "/dashboard/communications/7",
 }));
 vi.mock("sonner", () => ({
   toast: { success: mocks.success, error: mocks.error },
@@ -241,9 +242,6 @@ describe("ScheduledComunicado", () => {
         "Programado para el sábado, 31 de octubre, 9:00 AM (hora de Bolivia) · lo programó Dennis",
       ),
     ).toBeTruthy();
-    expect(
-      screen.getByRole("link", { name: "Comunicados" }).getAttribute("href"),
-    ).toBe("/dashboard/communications");
     // No editor and no field: nothing here saves (G1).
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.queryByRole("checkbox")).toBeNull();

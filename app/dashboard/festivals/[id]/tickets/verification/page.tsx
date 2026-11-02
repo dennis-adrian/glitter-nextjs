@@ -14,7 +14,10 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
 
   return (
     <div className="container px-4 md:px-6">
-      <h1 className="text-xl md:text-2xl font-semibold mb-4">
+      <h1
+        className="text-xl md:text-2xl font-semibold mb-4"
+        data-installed-title=""
+      >
         Verificar Entradas
       </h1>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">

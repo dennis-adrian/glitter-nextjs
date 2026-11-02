@@ -1,9 +1,9 @@
-import Link from "next/link";
-
 import OccurrenceForm from "@/app/components/dashboard/programs/occurrence-form";
 import OccurrenceRow from "@/app/components/dashboard/programs/occurrence-row";
 import PublicUrlField from "@/app/components/dashboard/programs/public-url-field";
 import PublicationButtons from "@/app/components/dashboard/programs/publication-buttons";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import SessionForm from "@/app/components/dashboard/programs/session-form";
 import SessionSpeakersPanel from "@/app/components/dashboard/programs/session-speakers-panel";
 import { Badge } from "@/app/components/ui/badge";
@@ -46,8 +46,9 @@ type Props = {
 
 /**
  * The admin page for one session, program or standalone. Both routes render
- * this, so the two can only differ where the session itself does: the back
- * link, the public URL, and the festival picker a standalone session carries.
+ * this, so the two can only differ where the session itself does: the
+ * breadcrumb, the public URL, and the festival picker a standalone session
+ * carries.
  *
  * Loads its own lists once the route has resolved the session, so an unknown
  * or misrouted id costs no roster query.
@@ -88,18 +89,22 @@ export default async function SessionDetailView({
 
   return (
     <div className="container p-3 md:p-6 flex flex-col gap-6">
+      <ScreenTitle title={session.title} />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-2">
-          <Link
-            href={
+          <PageBreadcrumbs
+            labels={
               program
-                ? `/dashboard/programs/${program.id}`
-                : "/dashboard/programs"
+                ? { [`/dashboard/programs/${program.id}`]: program.name }
+                : undefined
             }
-            className="text-sm text-muted-foreground hover:underline"
-          >
-            ← {program ? program.name : "Programas"}
-          </Link>
+          />
+          {/* Where the breadcrumb steps aside, the program is still named. */}
+          {program ? (
+            <p className="hidden text-sm text-muted-foreground standalone:block">
+              {program.name}
+            </p>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             <Badge
               variant={session.status === "published" ? "green" : "outline"}
@@ -114,7 +119,9 @@ export default async function SessionDetailView({
               <Badge variant="secondary">{session.festival.name}</Badge>
             ) : null}
           </div>
-          <h1 className="text-2xl font-bold">{session.title}</h1>
+          <h1 className="text-2xl font-bold" data-installed-title="">
+            {session.title}
+          </h1>
           {/* A session is the thing people actually share, so its own URL
               matters more than the program's. Draft either way hides it. */}
           <PublicUrlField

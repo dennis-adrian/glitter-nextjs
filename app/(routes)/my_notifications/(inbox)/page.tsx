@@ -43,7 +43,7 @@ export default async function MyNotificationsPage(props: {
   return (
     <div className="container max-w-2xl p-3 md:p-6">
       <div className="mb-4">
-        <Title>Notificaciones</Title>
+        <Title data-installed-title="">Notificaciones</Title>
       </div>
       {/* Outside the keyed inbox, so changing filter keeps its state. */}
       {pushEnabled && (

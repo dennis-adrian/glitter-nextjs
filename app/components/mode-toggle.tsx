@@ -2,6 +2,7 @@
 
 import { MonitorIcon, MoonIcon, SunIcon, type LucideIcon } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useSyncExternalStore } from "react";
 
 import {
   DropdownMenu,
@@ -58,16 +59,30 @@ export function ModeToggle({ className }: { className?: string }) {
   );
 }
 
+function subscribeToNothing() {
+  return () => {};
+}
+
+/** True once hydrated; false on the server and during hydration. */
+function useHydrated() {
+  return useSyncExternalStore(
+    subscribeToNothing,
+    () => true,
+    () => false,
+  );
+}
+
 /**
  * The same three choices laid out as a segmented control, for places with
- * room to show them all at once (the mobile menu).
+ * room to show them all at once (the mobile menu, the desktop sidebar, the
+ * installed app's "Más" page).
  *
- * Only render it client-side after mount, e.g. inside a sheet or dialog:
- * the stored theme is unknown on the server, so the pressed state would not
- * match the server HTML.
+ * The stored theme is unknown on the server, so no option is pressed until
+ * the control has hydrated; it is then safe to render on the server too.
  */
 export function ThemeSegmentedControl({ className }: { className?: string }) {
-  const { theme, setTheme } = useTheme();
+  const { theme: storedTheme, setTheme } = useTheme();
+  const theme = useHydrated() ? storedTheme : undefined;
 
   return (
     <div

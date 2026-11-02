@@ -1,6 +1,8 @@
 import EditSanctionForm from "@/app/components/sanctions/edit-form";
 import FestivalCountingAction from "@/app/components/sanctions/festival-counting-action";
 import RevokeSanctionActions from "@/app/components/sanctions/revoke-actions";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { SanctionStatusBadge } from "@/app/components/sanctions/status-badge";
 import {
   InfractionSeverityBadge,
@@ -16,7 +18,6 @@ import {
   sanctionTypeLabel,
 } from "@/app/lib/sanctions/mappers";
 import { fetchSanctionDetail } from "@/app/lib/sanctions/queries";
-import { ArrowLeftIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -108,19 +109,19 @@ export default async function SanctionDetailPage({
 
   const sanction = await fetchSanctionDetail(sanctionId);
   if (!sanction) notFound();
+  const historyHref = `/dashboard/infractions?userId=${sanction.userId}&limit=25&offset=0`;
 
   return (
     <div className="container mx-auto space-y-6 p-3 md:p-6">
       <div className="space-y-2">
-        <Link
-          href={`/dashboard/infractions?userId=${sanction.userId}&limit=25&offset=0`}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeftIcon className="w-4 h-4" />
-          Historial del participante
-        </Link>
+        <PageBreadcrumbs
+          labels={{ [historyHref]: "Historial del participante" }}
+        />
+        <ScreenTitle title={`Sanción #${sanction.id}`} backHref={historyHref} />
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-bold">Sanción #{sanction.id}</h1>
+          <h1 className="text-2xl font-bold" data-installed-title="">
+            Sanción #{sanction.id}
+          </h1>
           <SanctionStatusBadge status={sanction.status} />
         </div>
       </div>

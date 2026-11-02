@@ -2,7 +2,8 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { NavbarProfile } from "@/app/api/users/definitions";
-import NavbarNavigationMenu from "@/app/components/navbar/navigation-menu";
+import { buildAppNavigation } from "@/app/components/navbar/app-navigation";
+import AppSidebar from "@/app/components/navbar/app-sidebar";
 import MobileSidebar from "@/app/components/organisms/mobile-sidebar";
 
 // Server actions: the sign-out path and the bell reach them.
@@ -24,7 +25,7 @@ vi.mock("@clerk/nextjs", () => ({
 }));
 
 beforeAll(() => {
-  // Radix's navigation menu measures its viewport; jsdom has no observer.
+  // Radix measures its popovers; jsdom has no observer.
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -53,6 +54,21 @@ function blockedEmailsLinks() {
     .filter((link) => link.getAttribute("href") === "/dashboard/emails");
 }
 
+/** The desktop sidebar with every admin section opened. */
+function openSidebar(role: NavbarProfile["role"]) {
+  const viewer = { role, status: "verified" as const };
+  render(
+    <AppSidebar
+      groups={buildAppNavigation({ viewer }).groups}
+      profile={profile(role)}
+      viewer={viewer}
+    />,
+  );
+  for (const button of screen.queryAllByRole("button", { expanded: false })) {
+    fireEvent.click(button);
+  }
+}
+
 function openMobileMenu(role: NavbarProfile["role"]) {
   render(
     <MobileSidebar profile={profile(role)}>
@@ -70,9 +86,8 @@ describe("Correos bloqueados link", () => {
     expect(blockedEmailsLinks()).toHaveLength(1);
   });
 
-  it("is in the admin's desktop Dashboard menu", () => {
-    render(<NavbarNavigationMenu profile={profile("admin")} />);
-    fireEvent.click(screen.getByRole("button", { name: /Dashboard/ }));
+  it("is in the admin's desktop sidebar, under Dashboard", () => {
+    openSidebar("admin");
     expect(blockedEmailsLinks()).toHaveLength(1);
   });
 
@@ -80,7 +95,7 @@ describe("Correos bloqueados link", () => {
     openMobileMenu("festival_admin");
     expect(blockedEmailsLinks()).toHaveLength(0);
     cleanup();
-    render(<NavbarNavigationMenu profile={profile("festival_admin")} />);
+    openSidebar("festival_admin");
     expect(blockedEmailsLinks()).toHaveLength(0);
   });
 });

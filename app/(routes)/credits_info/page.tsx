@@ -33,7 +33,7 @@ export default async function CreditsInfoPage() {
   return (
     <div className="container p-3 md:p-6">
       <div className="mb-4 flex flex-col gap-1 md:gap-2">
-        <Title>Cómo funcionan los créditos</Title>
+        <Title data-installed-title="">Cómo funcionan los créditos</Title>
         <p className="text-sm leading-tight text-muted-foreground md:text-base">
           Todo lo que conviene saber antes de comprar tu primer crédito.
         </p>

@@ -12,7 +12,7 @@ export default function Loading() {
   return (
     <div className="container max-w-2xl p-3 md:p-6">
       <div className="mb-4">
-        <Title>Notificaciones</Title>
+        <Title data-installed-title="">Notificaciones</Title>
       </div>
       <div className="space-y-4" aria-busy="true">
         <div className="flex gap-2">

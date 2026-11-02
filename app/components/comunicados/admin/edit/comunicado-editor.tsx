@@ -1,7 +1,6 @@
 "use client";
 
-import { ArrowLeftIcon, RotateCwIcon, SaveIcon } from "lucide-react";
-import Link from "next/link";
+import { RotateCwIcon, SaveIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
@@ -18,14 +17,14 @@ import PreviewPanel, {
 } from "@/app/components/comunicados/admin/composer/preview-panel";
 import EditConfirmDialog from "@/app/components/comunicados/admin/edit/edit-confirm-dialog";
 import {
-  EDIT_BACK_LABEL,
   EDIT_BANNER_TEXT,
   EDIT_NOTE_REQUIRED_TEXT,
   editNoteLabel,
 } from "@/app/components/comunicados/admin/edit/edit-copy";
 import CreditGiftLengthCounter from "@/app/components/credit_gifts/admin/credit-gift-length-counter";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { Banner } from "@/app/components/ui/banner";
-import { Button, buttonVariants } from "@/app/components/ui/button";
+import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Label } from "@/app/components/ui/label";
 import { Textarea } from "@/app/components/ui/textarea";
@@ -36,7 +35,6 @@ import type {
 } from "@/app/lib/comunicados/contracts";
 import { COMUNICADO_EDIT_NOTE_MAX } from "@/app/lib/comunicados/definitions";
 import { announcementBlocksToText } from "@/app/lib/comunicados/text";
-import { cn } from "@/app/lib/utils";
 
 type Refusal = Extract<EditComunicadoResult, { success: false }>;
 
@@ -215,16 +213,7 @@ export default function ComunicadoEditor({
 
   return (
     <div className="space-y-4 overflow-y-auto pb-6">
-      <Link
-        href={itemPath}
-        className={cn(
-          buttonVariants({ variant: "ghost", size: "sm" }),
-          "-ml-3",
-        )}
-      >
-        <ArrowLeftIcon className="mr-1 h-4 w-4" aria-hidden />
-        {EDIT_BACK_LABEL}
-      </Link>
+      <PageBreadcrumbs labels={{ [itemPath]: seed.title }} />
 
       <Banner variant="info">{EDIT_BANNER_TEXT}</Banner>
 

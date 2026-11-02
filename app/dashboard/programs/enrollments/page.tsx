@@ -45,7 +45,9 @@ export default async function EnrollmentSearchPage({ searchParams }: Props) {
   return (
     <div className="container mx-auto max-w-3xl space-y-6 p-3 md:p-6">
       <header className="space-y-1">
-        <h1 className="text-2xl font-bold">Inscripciones</h1>
+        <h1 className="text-2xl font-bold" data-installed-title="">
+          Inscripciones
+        </h1>
         <p className="text-sm text-muted-foreground">
           Busca a una persona y abre su inscripción para aprobar, reenviar el
           enlace o cancelar.

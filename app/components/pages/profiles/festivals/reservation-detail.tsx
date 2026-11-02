@@ -195,7 +195,7 @@ export default async function ReservationDetailPage({
   return (
     <div className="container max-w-[640px] space-y-4 p-4 md:p-6">
       <div className="flex flex-col gap-1">
-        <Title>Tu reserva</Title>
+        <Title data-installed-title="">Tu reserva</Title>
         <p className="text-sm text-muted-foreground">
           {reservation.festival.name}
         </p>

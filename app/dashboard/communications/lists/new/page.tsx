@@ -1,9 +1,9 @@
 import { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { NewFixedListEditor } from "@/app/components/communications/admin/fixed-list-editor";
 import ListFilterEditor from "@/app/components/communications/admin/list-filter-editor";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { requireCommunicationsAdmin } from "@/app/lib/communications/access";
 import {
   DISTRIBUTION_LIST_KIND_DESCRIPTIONS,
@@ -27,19 +27,16 @@ export default async function NewDistributionListPage(props: {
 
   return (
     <div className="space-y-4 overflow-y-auto pb-6">
+      <PageBreadcrumbs />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold">Nueva lista</h2>
+          <h2 className="text-lg font-semibold" data-installed-title="">
+            Nueva lista
+          </h2>
           <p className="text-sm text-muted-foreground">
             {DISTRIBUTION_LIST_KIND_DESCRIPTIONS[kind]}
           </p>
         </div>
-        <Link
-          href="/dashboard/communications/lists"
-          className="text-sm text-muted-foreground hover:underline"
-        >
-          Volver a las listas
-        </Link>
       </div>
       {kind === "filter" && options ? (
         <ListFilterEditor

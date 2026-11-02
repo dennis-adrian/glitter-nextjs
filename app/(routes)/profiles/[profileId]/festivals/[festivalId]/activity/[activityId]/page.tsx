@@ -1,6 +1,7 @@
 import { fetchUserProfileById } from "@/app/lib/users/queries";
 import { BaseProfile } from "@/app/api/users/definitions";
 import EnrollRedirectButton from "@/app/components/festivals/festival_activities/enroll-redirect-button";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import BestStandActivityPage from "@/app/components/pages/festival_activities/best-stand-activity";
 import BestStandActivitySkeleton from "@/app/components/pages/festival_activities/best-stand-activity-skeleton";
 import CouponBookActivityPage from "@/app/components/pages/festival_activities/coupon-book-activity";
@@ -60,6 +61,7 @@ export default async function ParticipantsActivityPage({
 
   return (
     <>
+      <ScreenTitle title={activity.name} />
       {!isEnrolled && (
         <UpcomingRegistrationNotice
           startDate={activity.registrationStartDate}
@@ -151,7 +153,9 @@ function ActivityContent({
 
   return (
     <div className="container p-3 md:p-6">
-      <h1 className="text-2xl font-bold my-3">Sticker-Print</h1>
+      <h1 className="text-2xl font-bold my-3" data-installed-title="">
+        Sticker-Print
+      </h1>
       <div className="flex flex-col gap-3 mt-6">
         <h2 className="text-lg font-bold">¿Qué es el Sticker-Print?</h2>
         <p>

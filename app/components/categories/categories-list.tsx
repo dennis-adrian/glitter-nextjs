@@ -326,7 +326,11 @@ export default function CategoriesList({ categories }: CategoriesListProps) {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <Heading level={1} className="text-2xl md:text-3xl lg:text-4xl">
+          <Heading
+            level={1}
+            className="text-2xl md:text-3xl lg:text-4xl"
+            data-installed-title=""
+          >
             Categorías
           </Heading>
           <p className="text-sm text-muted-foreground">

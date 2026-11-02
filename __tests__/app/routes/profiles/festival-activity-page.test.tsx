@@ -21,6 +21,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("next/navigation", () => ({
+  // The page names itself in the installed app's top bar (ScreenTitle).
+  usePathname: () => "/profiles/1/festivals/1/activity/1",
   notFound: vi.fn(() => {
     throw new Error("notFound");
   }),

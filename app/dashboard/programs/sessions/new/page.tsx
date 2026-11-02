@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import SessionForm from "@/app/components/dashboard/programs/session-form";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { fetchFestivals } from "@/app/lib/festivals/actions";
 import { fetchSessionTopics, fetchVenues } from "@/app/lib/programs/data";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
@@ -19,13 +19,10 @@ export default async function NewStandaloneSessionPage() {
   return (
     <div className="container max-w-2xl p-3 md:p-6 flex flex-col gap-6">
       <div className="space-y-1">
-        <Link
-          href="/dashboard/programs"
-          className="text-sm text-muted-foreground hover:underline"
-        >
-          ← Programas
-        </Link>
-        <h1 className="text-2xl font-bold">Nueva charla o taller suelto</h1>
+        <PageBreadcrumbs />
+        <h1 className="text-2xl font-bold" data-installed-title="">
+          Nueva charla o taller suelto
+        </h1>
         <p className="text-sm text-muted-foreground">
           Una sesión que no pertenece a ningún programa. Se vende por su cuenta
           y no acepta códigos promocionales.

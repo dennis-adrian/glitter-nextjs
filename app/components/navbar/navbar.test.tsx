@@ -31,6 +31,14 @@ vi.mock("@/app/lib/programs/data", () => ({
 vi.mock("@/app/lib/notifications/push/config", () => ({
   pushPublicKey: () => "vapid-public-key",
 }));
+// Staff and verified viewers read the active festival and the store settings;
+// those reads are data, faked like the rest.
+vi.mock("@/app/lib/festivals/helpers", () => ({
+  getActiveFestivalBase: vi.fn(async () => null),
+}));
+vi.mock("@/app/lib/store_settings/closure", () => ({
+  resolveSectionClosure: vi.fn(async () => ({ closed: false })),
+}));
 vi.mock("@/app/components/navbar/navbar-client", () => ({
   default: () => null,
 }));
