@@ -12,6 +12,7 @@ import {
   parseStoredComunicadoAudience,
 } from "@/app/lib/comunicados/definitions";
 import { renderComunicadoEmail } from "@/app/lib/comunicados/email";
+import { SEND_MESSAGES } from "@/app/lib/comunicados/send";
 import { validateComunicadoForSend } from "@/app/lib/comunicados/validate";
 import { isSuppressed } from "@/app/lib/emails/suppressions";
 import { unsubscribeLinks } from "@/app/lib/emails/unsubscribe-links";
@@ -114,7 +115,10 @@ export async function sendComunicadoTestAction(
         actionLabel: comunicados.actionLabel,
         actionPath: comunicados.actionPath,
         previewText: comunicados.previewText,
+        audienceKind: comunicados.audienceKind,
         audience: comunicados.audience,
+        sendEmail: comunicados.sendEmail,
+        sendPush: comunicados.sendPush,
         essential: comunicados.essential,
         essentialReason: comunicados.essentialReason,
       })
@@ -129,6 +133,10 @@ export async function sendComunicadoTestAction(
       );
     }
 
+    // To visitors and guest buyers (§L) it is checked and rendered as their
+    // send does it: email only, never essential.
+    const visitors = row.audienceKind === "visitors";
+
     // The test is the email, whatever the channels say.
     const checked = await validateComunicadoForSend({
       title: row.title,
@@ -136,11 +144,14 @@ export async function sendComunicadoTestAction(
       actionLabel: row.actionLabel,
       actionPath: row.actionPath,
       previewText: row.previewText,
-      essential: row.essential,
-      essentialReason: row.essentialReason,
+      essential: visitors ? false : row.essential,
+      essentialReason: visitors ? null : row.essentialReason,
       sendEmail: true,
     });
     if (!checked.ok) return notSent(checked.message);
+    if (visitors && (!row.sendEmail || row.sendPush || row.essential)) {
+      return notSent(SEND_MESSAGES.visitorsEmailOnly);
+    }
 
     const env = serverEnv.VERCEL_ENV;
     const baseUrl = publicBaseUrl();
@@ -168,7 +179,7 @@ export async function sendComunicadoTestAction(
 
     const links = unsubscribeLinks(
       { kind: "user", id: actor.id },
-      "announcements",
+      visitors ? "news" : "announcements",
     );
     const email = await renderComunicadoEmail({
       title: checked.title,
@@ -177,11 +188,13 @@ export async function sendComunicadoTestAction(
       actionPath: checked.actionPath,
       previewText: checked.previewText,
       unsubscribeUrl: links.pageUrl,
-      essentialFestivalName: row.essential
-        ? await essentialFestivalName(row.audience)
-        : null,
+      essentialFestivalName:
+        !visitors && row.essential
+          ? await essentialFestivalName(row.audience)
+          : null,
       staging: env !== "production",
       test: true,
+      visitors,
       baseUrl,
     });
 

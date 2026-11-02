@@ -197,6 +197,7 @@ export async function releaseDueComunicados({
           code: error.code,
           message: error.message,
           eligible: error.eligible,
+          max: error.max,
         },
       });
       // A change of date or a send in between won: nothing to record.
@@ -245,7 +246,13 @@ export async function recordScheduleMiss({
   comunicadoId: number;
   version: number;
   scheduledAt: Date;
-  refusal: { code: SendRefusalCode; message: string; eligible: number | null };
+  refusal: {
+    code: SendRefusalCode;
+    message: string;
+    eligible: number | null;
+    /** `AUDIENCE_TOO_LARGE`'s cap; a visitor comunicado's is larger (§L). */
+    max?: number | null;
+  };
 }): Promise<{ recorded: boolean; notifiedUserIds: number[] }> {
   const reason = missedReasonOf(refusal.code);
   if (reason === null) {
