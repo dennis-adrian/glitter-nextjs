@@ -1,8 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
 
 import { ChevronRightIcon } from "lucide-react";
 
+import FestivalBanner from "@/app/components/festivals/festival-banner";
 import { HubSection } from "@/app/components/participations/hub/hub-section";
 import { Badge } from "@/app/components/ui/badge";
 import type { FestivalWithDates } from "@/app/lib/festivals/definitions";
@@ -26,7 +26,12 @@ export default function HomeFestivalCard({
   title: string;
   festival: Pick<
     FestivalWithDates,
-    "id" | "name" | "festivalBannerUrl" | "locationLabel" | "festivalDates"
+    | "id"
+    | "name"
+    | "festivalBannerUrl"
+    | "festivalBannerMobileUrl"
+    | "locationLabel"
+    | "festivalDates"
   >;
   href: string;
   daysLeft: number | null;
@@ -48,17 +53,12 @@ export default function HomeFestivalCard({
         href={href}
         className="group flex flex-col overflow-hidden rounded-2xl border border-brand-border bg-brand-card shadow-sm transition-colors hover:border-brand-primary"
       >
-        {festival.festivalBannerUrl ? (
-          <Image
-            src={festival.festivalBannerUrl}
-            alt={`${festival.name}${line ? `, ${line}` : ""}`}
-            width={2000}
-            height={667}
-            sizes="(min-width: 1024px) 640px, 100vw"
-            className="h-auto w-full"
-            priority
-          />
-        ) : null}
+        <FestivalBanner
+          festival={festival}
+          alt={`${festival.name}${line ? `, ${line}` : ""}`}
+          sizes="(min-width: 1024px) 640px, 100vw"
+          highPriority
+        />
         <div className="flex flex-col gap-1.5 p-4">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="font-display text-xl font-bold leading-tight text-brand-ink md:text-2xl">

@@ -37,6 +37,7 @@ import SectorImageUpload from "../sectors/sector-image-upload";
 import { Card, CardContent } from "@/components/ui/card";
 import { useEffect, useRef, useState, useTransition } from "react";
 import FestivalPosterUpload from "@/app/components/festivals/festival-poster-upload";
+import FestivalBannerUpload from "@/app/components/festivals/festival-banner-upload";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -109,6 +110,7 @@ const FormSchema = z.object({
   entrepreneurshipStandUrl: z.string().optional(),
   festivalCode: z.string().optional(),
   festivalBannerUrl: z.string().optional(),
+  festivalBannerMobileUrl: z.string().optional(),
   posterUrl: z.string().optional(),
   festivalSectors: z
     .array(
@@ -200,7 +202,19 @@ export default function UpdateFestivalForm({
   const deletedSectorIdsRef = useRef<number[]>([]);
   const datesSectionRef = useRef<HTMLDivElement>(null);
   const [isPending, startTransition] = useTransition();
-  const [isPosterUploading, setIsPosterUploading] = useState(false);
+  // Each artwork field reports its own upload, so one finishing does not
+  // unblock saving while another is still going.
+  const [uploadingArtwork, setUploadingArtwork] = useState<
+    Record<"poster" | "banner" | "bannerMobile", boolean>
+  >({ poster: false, banner: false, bannerMobile: false });
+  const isArtworkUploading = Object.values(uploadingArtwork).some(Boolean);
+  const trackArtworkUpload =
+    (key: keyof typeof uploadingArtwork) => (isUploading: boolean) =>
+      setUploadingArtwork((current) =>
+        current[key] === isUploading
+          ? current
+          : { ...current, [key]: isUploading },
+      );
   const [pendingSectorRemoval, setPendingSectorRemoval] = useState<{
     index: number;
     standsCount: number;
@@ -235,6 +249,7 @@ export default function UpdateFestivalForm({
       entrepreneurshipStandUrl: festival.entrepreneurshipStandUrl || "",
       festivalCode: festival.festivalCode || "",
       festivalBannerUrl: festival.festivalBannerUrl || "",
+      festivalBannerMobileUrl: festival.festivalBannerMobileUrl || "",
       posterUrl: festival.posterUrl || "",
       dates: festival.festivalDates.map((date) => ({
         id: date.id,
@@ -488,11 +503,14 @@ export default function UpdateFestivalForm({
                 <div className="space-y-1">
                   <h3 className="flex items-center gap-2 text-xl font-semibold">
                     <ImageIcon className="size-5" aria-hidden="true" />
-                    Imagen del festival
+                    Imágenes del festival
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    Este póster aparece en la página pública y en las tarjetas
-                    del festival.
+                    El póster aparece en las tarjetas del festival y en las
+                    invitaciones. El banner encabeza la página pública y el
+                    portal de participantes: el ancho se muestra en pantallas
+                    grandes y el de teléfonos en pantallas chicas. Si falta
+                    uno, se usa el otro en su lugar.
                   </p>
                 </div>
 
@@ -504,7 +522,41 @@ export default function UpdateFestivalForm({
                       <FestivalPosterUpload
                         value={field.value || null}
                         onChange={(imageUrl) => field.onChange(imageUrl || "")}
-                        onUploadingChange={setIsPosterUploading}
+                        onUploadingChange={trackArtworkUpload("poster")}
+                        disabled={isSubmitting || isPending}
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="festivalBannerUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FestivalBannerUpload
+                        variant="wide"
+                        value={field.value || null}
+                        onChange={(imageUrl) => field.onChange(imageUrl || "")}
+                        onUploadingChange={trackArtworkUpload("banner")}
+                        disabled={isSubmitting || isPending}
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="festivalBannerMobileUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FestivalBannerUpload
+                        variant="mobile"
+                        value={field.value || null}
+                        onChange={(imageUrl) => field.onChange(imageUrl || "")}
+                        onUploadingChange={trackArtworkUpload("bannerMobile")}
                         disabled={isSubmitting || isPending}
                       />
                       <FormMessage />
@@ -741,7 +793,7 @@ export default function UpdateFestivalForm({
                 disabled={
                   isSubmitting ||
                   isPending ||
-                  isPosterUploading ||
+                  isArtworkUploading ||
                   !form.formState.isDirty
                 }
               >

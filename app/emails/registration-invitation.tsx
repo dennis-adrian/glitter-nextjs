@@ -284,6 +284,7 @@ RegistrationInvitationEmailTemplate.PreviewProps = {
     festivalType: "glitter",
     posterUrl: "/img/landing-festivals/glitter-characters.png",
     festivalBannerUrl: null,
+    festivalBannerMobileUrl: null,
     thumbnailUrl: null,
     locationLabel: "Centro de Convenciones Fexpocruz",
     address: "Av. Roca y Coronado, Santa Cruz de la Sierra",

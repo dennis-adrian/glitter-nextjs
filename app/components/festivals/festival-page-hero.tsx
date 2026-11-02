@@ -1,7 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import FestivalBanner from "@/app/components/festivals/festival-banner";
 import { Button } from "@/app/components/ui/button";
+import { hasFestivalBanner } from "@/app/lib/festivals/banner";
 import type { PublicFestivalPage } from "@/app/lib/festivals/definitions";
 import { formatDisplayDate, formatTime } from "@/app/lib/formatters";
 import { formatDaysLeft, formatFestivalDays } from "@/app/lib/home/festival";
@@ -78,7 +80,7 @@ export default function FestivalPageHero({
     .filter(Boolean)
     .join(" · ");
   // Without a banner, the poster keeps the festival's art on the page.
-  const poster = festival.festivalBannerUrl
+  const poster = hasFestivalBanner(festival)
     ? null
     : (festival.posterUrl ?? festival.thumbnailUrl);
 
@@ -88,17 +90,12 @@ export default function FestivalPageHero({
       className="container mx-auto flex max-w-7xl flex-col gap-3 px-4 pt-5 sm:px-6 sm:pt-7 lg:px-8"
     >
       <div className="overflow-hidden rounded-3xl border border-brand-border bg-brand-card">
-        {festival.festivalBannerUrl ? (
-          <Image
-            src={festival.festivalBannerUrl}
-            alt={`${festival.name}${line ? `, ${line}` : ""}`}
-            width={2000}
-            height={667}
-            priority
-            sizes="(min-width: 1280px) 1216px, 100vw"
-            className="h-auto w-full"
-          />
-        ) : null}
+        <FestivalBanner
+          festival={festival}
+          alt={`${festival.name}${line ? `, ${line}` : ""}`}
+          sizes="(min-width: 1280px) 1216px, 100vw"
+          highPriority
+        />
         <div className="flex items-center gap-4 p-4 sm:p-5">
           {poster ? (
             <span className="relative block aspect-3/4 w-16 shrink-0 overflow-hidden rounded-xl bg-brand-lavender/40 shadow-sm sm:w-20">

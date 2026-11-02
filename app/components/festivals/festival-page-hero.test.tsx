@@ -23,6 +23,7 @@ function festival(overrides: Partial<PublicFestivalPage> = {}): PublicFestivalPa
     publicRegistration: true,
     locationLabel: "Casa de la Cultura",
     festivalBannerUrl: "/banner.webp",
+    festivalBannerMobileUrl: null,
     posterUrl: "/poster.webp",
     thumbnailUrl: null,
     festivalDates: [
@@ -66,6 +67,25 @@ describe("FestivalPageHero", () => {
     expect(screen.getByRole("img", { name: "Afiche de Festicker 2026" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Obtener entrada" })).toBeNull();
     expect(screen.getByText("No hay entradas habilitadas")).toBeTruthy();
+  });
+});
+
+describe("FestivalPageHero with only a phone banner", () => {
+  it("shows the phone banner rather than falling back to the poster", () => {
+    render(
+      <FestivalPageHero
+        festival={festival({
+          festivalBannerUrl: null,
+          festivalBannerMobileUrl: "/banner-phone.webp",
+        })}
+        hasFastPass={false}
+        now={NOW}
+      />,
+    );
+
+    const images = screen.getAllByRole("img");
+    expect(images).toHaveLength(1);
+    expect(images[0].getAttribute("src")).toBe("/banner-phone.webp");
   });
 });
 
