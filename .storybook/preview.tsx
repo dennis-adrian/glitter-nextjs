@@ -8,6 +8,7 @@ import "../app/globals.css";
 sb.mock("../app/lib/festival_activites/actions.ts");
 sb.mock("../app/lib/festival_activites/admin-actions.ts");
 sb.mock("../app/lib/discount_codes/actions.ts");
+sb.mock("../app/lib/notifications/push/actions.ts");
 
 const preview: Preview = {
   globalTypes: {
