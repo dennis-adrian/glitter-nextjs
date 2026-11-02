@@ -1,7 +1,7 @@
 "use client";
 
 import { EyeIcon, LoaderCircleIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { announceViewChange } from "@/app/components/impersonation/view-state";
 import { IMPERSONATION_DURATION_MINUTES } from "@/app/lib/impersonation/definitions";
@@ -52,6 +52,18 @@ export default function EnterAsButton({
   const [entering, setEntering] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  // Back to this page from the participant's app (the back/forward cache
+  // restores it as it was left): the dialog must not stay stuck entering.
+  useEffect(() => {
+    const restore = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      setEntering(false);
+      setOpen(false);
+    };
+    window.addEventListener("pageshow", restore);
+    return () => window.removeEventListener("pageshow", restore);
+  }, []);
+
   async function enter() {
     setEntering(true);
     setMessage(null);
@@ -89,8 +101,8 @@ export default function EnterAsButton({
     >
       <AlertDialogTrigger asChild>
         <Button variant={variant} size={size} className={className}>
-          <EyeIcon aria-hidden="true" className="size-4" />
-          {label}
+          <EyeIcon aria-hidden="true" className="size-4 shrink-0" />
+          <span className="min-w-0 truncate">{label}</span>
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>

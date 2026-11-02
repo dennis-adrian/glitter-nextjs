@@ -208,7 +208,7 @@ The banner already says **solo lectura**. Most actions catch their own errors an
 
 - `buildStaffNavigation` adds `IMPERSONATE_LINK` to the "Mi cuenta" group **for global admins only**: "Entrar como participante", described as "ver la app como cualquier cuenta", leading to `/dashboard/impersonate`. It shows in Más and in the sidebar.
 - Festival admins, participants and visitors never get it in any tab, group or Más list (tested).
-- The desktop account menu (`user-dropdown.tsx`) shows the same row when its profile is a global admin. During a view that profile is the participant's, so the row is gone with the rest of the admin's entries.
+- The desktop account menu (the sidebar's account card, `app-sidebar.tsx`) and the header menu below `lg` (`user-dropdown.tsx`) show the same row for a global admin. During a view that profile is the participant's, so the row is gone with the rest of the admin's entries.
 - `screens.ts` names the page "Entrar como participante", with Más as its parent.
 
 ### 7.2 Picker — `/dashboard/impersonate` (done in step 6)
