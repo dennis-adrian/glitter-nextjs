@@ -8,6 +8,8 @@ import { db } from "@/db";
 import { userStatusEvents } from "@/db/schema";
 
 export const STATUS_HISTORY_PAGE_SIZE = 20;
+/** Far past any real history; keeps the offset a safe integer. */
+const MAX_PAGE = 10_000;
 
 export type StatusHistoryEvent = {
   id: number;
@@ -41,7 +43,8 @@ export async function fetchUserStatusHistory(
 ): Promise<StatusHistoryPage | null> {
   if (!(await requireAdmin())) return null;
 
-  const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+  const safePage =
+    Number.isInteger(page) && page > 0 ? Math.min(page, MAX_PAGE) : 1;
   const rows = await db.query.userStatusEvents.findMany({
     where: eq(userStatusEvents.userId, userId),
     orderBy: [desc(userStatusEvents.createdAt), desc(userStatusEvents.id)],

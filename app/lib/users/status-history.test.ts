@@ -1,3 +1,5 @@
+import { PgDialect } from "drizzle-orm/pg-core";
+import type { SQL } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
@@ -45,6 +47,38 @@ describe("fetchUserStatusHistory", () => {
       limit: STATUS_HISTORY_PAGE_SIZE + 1,
       offset: STATUS_HISTORY_PAGE_SIZE,
     });
+  });
+
+  it("reads only that user's rows, newest first", async () => {
+    requireAdminMock.mockResolvedValue({ id: 1, role: "admin" });
+    findManyMock.mockResolvedValue([]);
+
+    await fetchUserStatusHistory(7);
+
+    const { where, orderBy } = findManyMock.mock.calls[0][0] as {
+      where: SQL;
+      orderBy: SQL[];
+    };
+    const dialect = new PgDialect();
+    const whereSql = dialect.sqlToQuery(where);
+    expect(whereSql.sql).toBe('"user_status_events"."user_id" = $1');
+    expect(whereSql.params).toEqual([7]);
+    expect(orderBy.map((part) => dialect.sqlToQuery(part).sql)).toEqual([
+      '"user_status_events"."created_at" desc',
+      '"user_status_events"."id" desc',
+    ]);
+  });
+
+  it("caps a huge page so the offset stays a safe integer", async () => {
+    requireAdminMock.mockResolvedValue({ id: 1, role: "admin" });
+    findManyMock.mockResolvedValue([]);
+
+    const result = await fetchUserStatusHistory(7, 1e20);
+
+    expect(result?.page).toBe(10_000);
+    expect(
+      Number.isSafeInteger(findManyMock.mock.calls[0][0].offset),
+    ).toBe(true);
   });
 
   it("treats a nonsense page as the first", async () => {

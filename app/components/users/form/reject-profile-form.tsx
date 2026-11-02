@@ -43,7 +43,7 @@ export default function RejectProfileForm(props: RejectProfileFormProps) {
             label="Razón de rechazo"
             name="reason"
             placeholder="Ingresa una razón para rechazar el perfil"
-            description="Le llega por correo y también lo ve en la app, en su inicio y en su perfil."
+            description="Le llega por correo y también la ve en la app, en su inicio y en su perfil."
             maxLength={1000}
           />
           <SubmitButton
