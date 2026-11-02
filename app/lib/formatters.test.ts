@@ -74,6 +74,28 @@ describe("date with time", () => {
     ).toBe("25 de octubre de 2026, 10:12 AM");
   });
 
+  it("keeps a shared calendar on the date half of date and time styles", () => {
+    expect(
+      formatDisplayDate(edited, {
+        dateStyle: "long",
+        timeStyle: "short",
+        calendar: "buddhist",
+      }),
+    ).toMatch(/^25 de octubre de 2569 .*, 10:12 AM$/);
+  });
+
+  it("gives a shared numbering system to both halves of date fields", () => {
+    const formatted = formatDisplayDate(edited, {
+      day: "numeric",
+      month: "long",
+      hour: "numeric",
+      minute: "2-digit",
+      numberingSystem: "arab",
+    });
+
+    expect(formatted).toMatch(/^٢٥ de octubre, ١٠:١٢ AM$/);
+  });
+
   it("leaves a date alone, and a time alone", () => {
     expect(formatDisplayDate(edited, { day: "numeric", month: "long" })).toBe(
       "25 de octubre",

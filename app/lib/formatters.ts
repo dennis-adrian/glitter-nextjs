@@ -51,37 +51,48 @@ const TIME_FIELDS = [
   "dayPeriod",
 ] as const;
 
+/** Settings that only shape a time; every other non-field setting is shared. */
+const TIME_ONLY_SETTINGS = ["hourCycle", "hour12", "timeZoneName"] as const;
+
 /**
  * The date half and the time half of `options`, when it asks for both;
- * otherwise nulls, and the options are used as they are. Settings that are
- * neither (time zone name, hour cycle) go with the time.
+ * otherwise nulls, and the options are used as they are. Settings that shape
+ * both halves (calendar, numbering system) go to each; those that only shape
+ * a time go with the time.
  */
 function splitDateTimeOptions(options: Intl.DateTimeFormatOptions): {
   date: Intl.DateTimeFormatOptions | null;
   time: Intl.DateTimeFormatOptions | null;
 } {
-  const { dateStyle, timeStyle, ...fields } = options;
-  if (dateStyle || timeStyle) {
-    return dateStyle && timeStyle
-      ? { date: { dateStyle }, time: { ...fields, timeStyle } }
-      : { date: null, time: null };
-  }
-
-  const date: Record<string, unknown> = {};
-  const time: Record<string, unknown> = { ...fields };
-  for (const key of DATE_FIELDS) {
-    if (fields[key] !== undefined) {
-      date[key] = fields[key];
-      delete time[key];
+  const shared: Record<string, unknown> = {};
+  const dateOnly: Record<string, unknown> = {};
+  const timeOnly: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(options)) {
+    if (value === undefined) continue;
+    if (key === "dateStyle" || (DATE_FIELDS as readonly string[]).includes(key)) {
+      dateOnly[key] = value;
+    } else if (
+      key === "timeStyle" ||
+      (TIME_FIELDS as readonly string[]).includes(key) ||
+      (TIME_ONLY_SETTINGS as readonly string[]).includes(key)
+    ) {
+      timeOnly[key] = value;
+    } else {
+      shared[key] = value;
     }
   }
-  const hasTime = TIME_FIELDS.some((key) => fields[key] !== undefined);
-  return Object.keys(date).length > 0 && hasTime
-    ? {
-        date: date as Intl.DateTimeFormatOptions,
-        time: time as Intl.DateTimeFormatOptions,
-      }
-    : { date: null, time: null };
+
+  const hasDate = Object.keys(dateOnly).length > 0;
+  const hasTime = Object.keys(timeOnly).some(
+    (key) =>
+      key === "timeStyle" || (TIME_FIELDS as readonly string[]).includes(key),
+  );
+  if (!hasDate || !hasTime) return { date: null, time: null };
+
+  return {
+    date: { ...shared, ...dateOnly } as Intl.DateTimeFormatOptions,
+    time: { ...shared, ...timeOnly } as Intl.DateTimeFormatOptions,
+  };
 }
 
 export function formatDateTime(
