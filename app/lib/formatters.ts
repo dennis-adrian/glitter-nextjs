@@ -15,6 +15,20 @@ export function formatDisplayDate(
     : formatDate(value);
   if (!date.isValid) return "—";
 
+  // A date and a time are formatted apart and joined with a comma. Asked for
+  // together, ICU picks the joiner from its locale data, and that changes
+  // between versions and month widths: newer data writes "25 de octubre a
+  // las 10:12 AM" where older data writes "25 de octubre, 10:12 AM". The
+  // server's Node and each browser carry their own data, so the same date
+  // could render two ways, and differ between server and hydration.
+  const { date: dateOptions, time: timeOptions } = splitDateTimeOptions(options);
+  if (dateOptions && timeOptions) {
+    return `${formatParts(date, dateOptions)}, ${formatParts(date, timeOptions)}`;
+  }
+  return formatParts(date, options);
+}
+
+function formatParts(date: DateTime, options: Intl.DateTimeFormatOptions) {
   return new Intl.DateTimeFormat("es", {
     ...options,
     timeZone: STORE_TIMEZONE,
@@ -26,6 +40,48 @@ export function formatDisplayDate(
       return part.value.replace(/[\u00a0\u202f]/g, " ");
     })
     .join("");
+}
+
+const DATE_FIELDS = ["weekday", "era", "year", "month", "day"] as const;
+const TIME_FIELDS = [
+  "hour",
+  "minute",
+  "second",
+  "fractionalSecondDigits",
+  "dayPeriod",
+] as const;
+
+/**
+ * The date half and the time half of `options`, when it asks for both;
+ * otherwise nulls, and the options are used as they are. Settings that are
+ * neither (time zone name, hour cycle) go with the time.
+ */
+function splitDateTimeOptions(options: Intl.DateTimeFormatOptions): {
+  date: Intl.DateTimeFormatOptions | null;
+  time: Intl.DateTimeFormatOptions | null;
+} {
+  const { dateStyle, timeStyle, ...fields } = options;
+  if (dateStyle || timeStyle) {
+    return dateStyle && timeStyle
+      ? { date: { dateStyle }, time: { ...fields, timeStyle } }
+      : { date: null, time: null };
+  }
+
+  const date: Record<string, unknown> = {};
+  const time: Record<string, unknown> = { ...fields };
+  for (const key of DATE_FIELDS) {
+    if (fields[key] !== undefined) {
+      date[key] = fields[key];
+      delete time[key];
+    }
+  }
+  const hasTime = TIME_FIELDS.some((key) => fields[key] !== undefined);
+  return Object.keys(date).length > 0 && hasTime
+    ? {
+        date: date as Intl.DateTimeFormatOptions,
+        time: time as Intl.DateTimeFormatOptions,
+      }
+    : { date: null, time: null };
 }
 
 export function formatDateTime(
