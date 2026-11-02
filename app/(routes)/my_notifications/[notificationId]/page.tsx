@@ -4,7 +4,6 @@ import { z } from "zod";
 import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import MarkNotificationRead from "@/app/components/notifications/mark-notification-read";
 import NotificationDetail from "@/app/components/notifications/notification-detail";
-import ScrollToTopOnOpen from "@/app/components/notifications/scroll-to-top-on-open";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { MAX_SERIAL_ID } from "@/app/lib/notifications/definitions";
 import {
@@ -35,7 +34,6 @@ export default async function NotificationPage(props: {
     <div className="container max-w-2xl space-y-3 p-3 md:p-6">
       <PageBreadcrumbs />
       <NotificationDetail notification={notification} />
-      <ScrollToTopOnOpen id={notification.id} />
       <MarkNotificationRead
         id={notification.id}
         unread={notification.readAt == null}
