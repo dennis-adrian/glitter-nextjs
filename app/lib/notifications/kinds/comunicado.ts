@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   COMUNICADO_EXCERPT_MAX,
   COMUNICADO_MISSED_REASONS,
+  COMUNICADO_PREVIEW_TEXT_MAX,
   COMUNICADO_TITLE_MAX,
 } from "@/app/lib/comunicados/definitions";
 import { formatDisplayDate } from "@/app/lib/formatters";
@@ -24,6 +25,11 @@ const comunicadoSchema = z.object({
   excerpt: z.string().max(COMUNICADO_EXCERPT_MAX + 1),
   actionPath: z.string().nullable(),
   actionLabel: z.string().nullable(),
+  /**
+   * The sender's preview line, the push body. Absent from items written
+   * before it existed.
+   */
+  preview: z.string().max(COMUNICADO_PREVIEW_TEXT_MAX).nullable().optional(),
 });
 
 const comunicadoNotSentSchema = z.object({
@@ -86,6 +92,8 @@ export const comunicadoKinds = {
     }),
     // Text someone wrote: the item opens its own page to be read whole.
     opensDetail: () => true,
+    // Written for the lock screen by the sender, so it may show there.
+    pushBody: (data) => data.preview ?? null,
     push: "per_send",
   } satisfies KindDefinition<z.infer<typeof comunicadoSchema>>,
 

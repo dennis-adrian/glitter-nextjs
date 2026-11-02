@@ -15,6 +15,10 @@ import {
   previewSkippedPeople,
 } from "@/app/lib/comunicados/audience";
 import {
+  contactAudiencePreview,
+  countContactAudience,
+} from "@/app/lib/comunicados/contacts";
+import {
   ComunicadoAudienceSchema,
   ComunicadoDraftSchema,
 } from "@/app/lib/comunicados/definitions";
@@ -28,6 +32,7 @@ import {
   type ComunicadoPersonOption,
   searchComunicadoPeople,
 } from "@/app/lib/comunicados/queries";
+import { db } from "@/db";
 import { serverEnv } from "@/env";
 
 const COMUNICADOS_PATH = "/dashboard/communications";
@@ -182,6 +187,29 @@ export async function previewComunicadoAudienceAction(
     return { success: true, preview };
   } catch (error) {
     logComunicadosFailure("Error previewing a comunicado audience", error);
+    return {
+      success: false,
+      message: "No pudimos contar los destinatarios. Probá de nuevo.",
+    };
+  }
+}
+
+/**
+ * The composer's live summary for a comunicado to visitors and guest buyers
+ * (§L): every contact, counted as the send would, in the same shape as the
+ * participant summary. Reads only.
+ */
+export async function previewVisitorAudienceAction(): Promise<
+  { success: true; preview: ComunicadoAudiencePreview } | ComunicadosFailure
+> {
+  const { blocked } = await comunicadosActor();
+  if (blocked) return blocked;
+  try {
+    const narrow = narrowsAudience();
+    const counts = await countContactAudience(db, { narrow });
+    return { success: true, preview: contactAudiencePreview(counts, narrow) };
+  } catch (error) {
+    logComunicadosFailure("Error previewing a visitor audience", error);
     return {
       success: false,
       message: "No pudimos contar los destinatarios. Probá de nuevo.",

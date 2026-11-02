@@ -1431,6 +1431,62 @@ describeDatabase("starting a comunicado send", () => {
         constraint: "comunicados_essential_confirmed_by_user_id_users_id_fk",
       });
     });
+
+    it("keeps the Clerk account when a pending deletion is retried after it", async () => {
+      const festival = await festivalWith([await createUser()]);
+      const id = await essentialDraft({ festivals: [festival.id] });
+      await started(id, { typedCount: 1 });
+      // An earlier try that never reached Clerk.
+      await markDeleting(sender);
+
+      state.viewer = { id: await createUser({ role: "admin" }), role: "admin" };
+      expect(
+        await userActions.deleteProfile(sender, {
+          success: false,
+          message: "",
+        }),
+      ).toEqual({
+        success: false,
+        message:
+          "No se puede eliminar un perfil con registros administrativos vinculados.",
+      });
+      expect(deleteClerkUser).not.toHaveBeenCalled();
+    });
+
+    it("keeps the Clerk account when an infraction came after a pending deletion", async () => {
+      const person = await createUser();
+      const admin = await createUser({ role: "admin" });
+      // An earlier try that never reached Clerk.
+      await markDeleting(person);
+      const { rows } = await pool!.query<{ id: number }>(
+        `INSERT INTO infractions
+           (user_id, type_id, description, status, created_by_user_id, idempotency_key)
+         SELECT $1, id, 'Registrada después del primer intento', 'pending', $2, $3
+         FROM infraction_types ORDER BY id LIMIT 1
+         RETURNING id`,
+        [person, admin, randomUUID()],
+      );
+      expect(rows).toHaveLength(1);
+
+      try {
+        state.viewer = { id: admin, role: "admin" };
+        expect(
+          await userActions.deleteProfile(person, {
+            success: false,
+            message: "",
+          }),
+        ).toEqual({
+          success: false,
+          message:
+            "No se puede eliminar un perfil con historial de infracciones.",
+        });
+        expect(deleteClerkUser).not.toHaveBeenCalled();
+      } finally {
+        await pool!.query("DELETE FROM infractions WHERE id = $1", [
+          rows[0]!.id,
+        ]);
+      }
+    });
   });
 
   describe("a profile deletion racing the snapshot (B4, F4)", () => {
@@ -1773,6 +1829,7 @@ describeDatabase("starting a comunicado send", () => {
       );
       expect(result.confirmation).toEqual({
         comunicadoId: id,
+        audienceKind: "users",
         version: 1,
         title: "Cambio de horario de armado",
         sendEmail: true,

@@ -69,6 +69,8 @@ type EditContent = Extract<ComunicadoSendCheck, { ok: true }> & {
   html: string;
   excerpt: string;
   note: string | null;
+  /** The edit left the summary out: the current revision's stays. */
+  keepPreviewText: boolean;
 };
 
 /**
@@ -121,20 +123,26 @@ async function editInTransaction(
     text: string;
     action_label: string | null;
     action_path: string | null;
+    preview_text: string | null;
   }>(sql`
-    SELECT title, html, text, action_label, action_path
+    SELECT title, html, text, action_label, action_path, preview_text
     FROM comunicado_revisions
     WHERE comunicado_id = ${comunicadoId}::int AND revision = ${current}::int
   `);
   const before = previous[0];
   if (!before) throw new Error("comunicado_revision_missing");
-  if (
-    before.title === content.title &&
-    before.html === content.html &&
-    before.text === content.text &&
-    before.action_label === content.actionLabel &&
-    before.action_path === content.actionPath
-  ) {
+  const previewText = content.keepPreviewText
+    ? before.preview_text
+    : content.previewText;
+  const visibleChange =
+    before.title !== content.title ||
+    before.html !== content.html ||
+    before.text !== content.text ||
+    before.action_label !== content.actionLabel ||
+    before.action_path !== content.actionPath;
+  // The summary alone is a revision too (pushes not yet sent, the preheader),
+  // but the inbox and the page show nothing new: no "Editado" for it.
+  if (!visibleChange && before.preview_text === previewText) {
     return refusal("NO_CHANGES");
   }
 
@@ -149,6 +157,7 @@ async function editInTransaction(
     text: content.text,
     actionLabel: content.actionLabel,
     actionPath: content.actionPath,
+    previewText,
     editNote: content.note,
     createdByUserId: by,
   });
@@ -181,6 +190,7 @@ async function editInTransaction(
     excerpt: content.excerpt,
     actionPath: content.actionPath,
     actionLabel: content.actionLabel,
+    preview: previewText,
   });
   if (!data) throw new Error("notification_data_invalid:comunicado");
   const copy = buildInAppCopy("comunicado", data);
@@ -189,16 +199,17 @@ async function editInTransaction(
     SET title = ${copy.title}::text, body = ${copy.body}::text,
       action_path = ${safeActionPath(copy.actionPath)}::text,
       action_label = ${copy.actionLabel}::text,
-      edited_at = (
+      edited_at = CASE WHEN ${visibleChange}::boolean THEN (
         SELECT created_at FROM comunicado_revisions
         WHERE comunicado_id = ${comunicadoId}::int
           AND revision = ${revision}::int
-      ),
+      ) ELSE edited_at END,
       data = data || jsonb_build_object(
         'revision', ${data.revision}::int, 'title', ${data.title}::text,
         'excerpt', ${data.excerpt}::text,
         'actionPath', ${data.actionPath}::text,
-        'actionLabel', ${data.actionLabel}::text)
+        'actionLabel', ${data.actionLabel}::text,
+        'preview', ${data.preview ?? null}::text)
     WHERE campaign_id = ${campaignId}::int AND kind = 'comunicado'
       AND retracted_at IS NULL
     RETURNING id
@@ -223,6 +234,8 @@ export async function editSentComunicado(
     doc: unknown;
     actionLabel: string | null;
     actionPath: string | null;
+    /** Left out keeps the current one; null clears it. */
+    previewText?: string | null;
     editNote?: string | null;
   },
   by: number,
@@ -254,6 +267,7 @@ export async function editSentComunicado(
     doc: i.doc,
     actionLabel: i.actionLabel,
     actionPath: i.actionPath,
+    previewText: i.previewText ?? null,
     essential: row.essential,
     essentialReason: row.essentialReason,
     sendEmail: row.sendEmail,
@@ -266,6 +280,7 @@ export async function editSentComunicado(
     html: await blocksToSanitizedHtml(checked.blocks, "announcement"),
     excerpt: excerptOf(checked.text),
     note,
+    keepPreviewText: i.previewText === undefined,
   };
 
   const attempt = () =>

@@ -4,6 +4,8 @@ import type { NavbarProfile } from "@/app/api/users/definitions";
 import { useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 
+import { onAppRefresh } from "@/app/components/navbar/pull-refresh";
+
 export function useNavbarProfile() {
   const { isLoaded, isSignedIn, user } = useUser();
   const [profile, setProfile] = useState<NavbarProfile | null>(null);
@@ -72,6 +74,26 @@ export function useNavbarProfile() {
       window.removeEventListener("pagehide", onLeave);
     };
   }, [isLoaded, isSignedIn, user?.id, profileUserId]);
+
+  // Pulling to refresh in the installed app fetches the profile again, in
+  // place: a status that changed (a profile verified) shows in navigation.
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !user?.id) return;
+    const userId = user.id;
+    return onAppRefresh(() => {
+      fetch("/api/users/navbar-profile", { cache: "no-store" })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((data: NavbarProfile | null) => {
+          if (data) {
+            setProfile(data);
+            setProfileUserId(userId);
+          }
+        })
+        .catch(() => {
+          // The profile already on screen stays; the next load retries.
+        });
+    });
+  }, [isLoaded, isSignedIn, user?.id]);
 
   return {
     profile: isSignedIn && profileUserId === user?.id ? profile : null,

@@ -4,6 +4,7 @@ import { and, count, desc, eq, inArray, max, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import {
+  COMUNICADO_CONTACTS_SOURCE_LABEL,
   type ComunicadoAudience,
   type ComunicadoMissedReason,
   type ComunicadoStatus,
@@ -13,6 +14,7 @@ import {
 import {
   readRecipientSql,
   receivingRecipientSql,
+  contactsWithLatestEmailSql,
   recipientsWithLatestEmailSql,
 } from "@/app/lib/comunicados/report";
 import { wholePercent } from "@/app/lib/comunicados/report-labels";
@@ -164,7 +166,10 @@ export type ComunicadoListStats = {
   recipients: number;
   /** Null when email was not ticked. */
   emailsSent: number | null;
-  /** Of the recipients, in whole percent; null when there is nobody. */
+  /**
+   * Of the recipients, in whole percent; null when there is nobody, or for a
+   * visitor comunicado, which nobody reads in the app.
+   */
   readPercent: number | null;
 };
 
@@ -229,6 +234,15 @@ async function campaignCounts(
       count(*) FILTER (WHERE d.status = 'sent')::int AS emails_sent
     FROM ${recipientsWithLatestEmailSql}
     WHERE r.campaign_id = ANY(${sql.param(campaignIds)}::int[])
+    GROUP BY r.campaign_id
+    UNION ALL
+    -- A visitor comunicado's contacts (§L): nothing is read in the app.
+    SELECT r.campaign_id,
+      count(*) FILTER (WHERE ${receivingRecipientSql})::int AS recipients,
+      0 AS read,
+      count(*) FILTER (WHERE d.status = 'sent')::int AS emails_sent
+    FROM ${contactsWithLatestEmailSql}
+    WHERE r.campaign_id = ANY(${sql.param(campaignIds)}::int[])
     GROUP BY r.campaign_id`);
   return new Map(
     result.rows.map((row) => [
@@ -247,6 +261,7 @@ function statsOf(
     status: ComunicadoStatus;
     campaignId: number | null;
     sendEmail: boolean;
+    audienceKind: "users" | "visitors";
   },
   counts: Map<number, CampaignCounts>,
 ): ComunicadoListStats | null {
@@ -256,8 +271,11 @@ function statsOf(
   return {
     recipients,
     emailsSent: row.sendEmail ? (found?.emailsSent ?? 0) : null,
+    // A visitor comunicado has no inbox item to read (§L): no share at all.
     readPercent:
-      recipients > 0 ? wholePercent(found?.read ?? 0, recipients) : null,
+      row.audienceKind === "users" && recipients > 0
+        ? wholePercent(found?.read ?? 0, recipients)
+        : null,
   };
 }
 
@@ -292,6 +310,7 @@ export async function fetchComunicadoList(input: {
       retractedAt: comunicados.retractedAt,
       updatedAt: comunicados.updatedAt,
       audience: comunicados.audience,
+      audienceKind: comunicados.audienceKind,
       campaignId: comunicados.campaignId,
       sendEmail: comunicados.sendEmail,
       campaignStatus: notificationCampaigns.status,
@@ -362,7 +381,10 @@ export async function fetchComunicadoList(input: {
       retractedAt: row.retractedAt,
       editedAt: row.editedAt,
       updatedAt: row.updatedAt,
-      audienceLabel: comunicadoAudienceLabel(audiences[index]!, names),
+      audienceLabel:
+        row.audienceKind === "visitors"
+          ? `${COMUNICADO_CONTACTS_SOURCE_LABEL} · solo correo`
+          : comunicadoAudienceLabel(audiences[index]!, names),
       createdByName: personName(row.createdBy),
       updatedByName: personName(row.updatedBy),
       sentByName: personName(row.sentBy),
@@ -392,8 +414,11 @@ export type ComposerComunicado = {
   doc: unknown[];
   actionLabel: string | null;
   actionPath: string | null;
+  previewText: string | null;
   sendEmail: boolean;
   sendPush: boolean;
+  /** Participants or visitors (§L). */
+  audienceKind: "users" | "visitors";
   /** Empty when the stored audience no longer parses (`audienceUnreadable`). */
   audience: ComunicadoAudience;
   audienceUnreadable: boolean;
@@ -535,10 +560,13 @@ export async function fetchComunicadoForComposer(
     doc: Array.isArray(row.doc) ? row.doc : [],
     actionLabel: row.actionLabel,
     actionPath: row.actionPath,
+    previewText: row.previewText,
     sendEmail: row.sendEmail,
     sendPush: row.sendPush,
+    audienceKind: row.audienceKind,
     audience,
-    audienceUnreadable: parsed === null,
+    // A visitor comunicado does not read it, so it cannot be in the way.
+    audienceUnreadable: parsed === null && row.audienceKind === "users",
     essential: row.essential,
     essentialReason: row.essentialReason,
     scheduledAt: row.scheduledAt,
@@ -628,14 +656,23 @@ export type ComunicadoPersonOption = {
  * "Agregar por nombre o correo": participants and global admins (K13), 8 at
  * most. Festival admins and other roles are not offered.
  */
+/** "Enviar a más personas" (G10): someone the campaign already has a row for. */
+export const ALREADY_IN_COMUNICADO_REASON = "Ya está en este comunicado";
+
 export async function searchComunicadoPeople(
   query: string,
+  opts: { campaignId?: number } = {},
 ): Promise<ComunicadoPersonOption[]> {
   const term = query.trim();
   if (term.length < 2 || term.length > 100) return [];
   if (!(await canRead())) return [];
-  const result = await db.execute<PersonRow>(sql`
-    SELECT ${personColumns}
+  const campaignId = opts.campaignId ?? null;
+  const result = await db.execute<PersonRow & { in_campaign: boolean }>(sql`
+    SELECT ${personColumns},
+      (${campaignId}::int IS NOT NULL AND EXISTS (
+        SELECT 1 FROM notification_campaign_recipients cr
+        WHERE cr.campaign_id = ${campaignId}::int AND cr.user_id = ${users.id}
+      )) AS in_campaign
     FROM ${users}
     WHERE ${users.role} IN ('user', 'admin') AND ${userSearchCondition(term)}
     ORDER BY ${nameOrder}
@@ -644,15 +681,21 @@ export async function searchComunicadoPeople(
   return result.rows.map((row) => {
     const person = toComposerPerson(row);
     const isAdmin = person.role === "admin";
+    // Whoever has a row got it, or was judged for it: a resend never repeats
+    // them (unique per campaign).
+    const skipReason =
+      row.in_campaign === true
+        ? ALREADY_IN_COMUNICADO_REASON
+        : person.skipReason;
     return {
       id: person.id,
       name: person.name,
       email: person.email,
       imageUrl: person.imageUrl,
       isAdmin,
-      skipReason: person.skipReason,
+      skipReason,
       // Someone who cannot receive it gets no mail either.
-      realEmailOnPreview: onPreview && !isAdmin && person.skipReason === null,
+      realEmailOnPreview: onPreview && !isAdmin && skipReason === null,
     };
   });
 }

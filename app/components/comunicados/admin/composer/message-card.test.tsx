@@ -56,6 +56,7 @@ function Harness({
   disabled?: boolean;
 }) {
   const [action, setAction] = useState(initialAction);
+  const [previewText, setPreviewText] = useState("");
   return (
     <MessageCard
       title=""
@@ -63,6 +64,8 @@ function Harness({
       initialDoc={initialDoc}
       onDocChange={onDocChange}
       textLength={1204}
+      previewText={previewText}
+      onPreviewTextChange={setPreviewText}
       contentError={null}
       action={action}
       onActionChange={setAction}
@@ -89,6 +92,17 @@ describe("MessageCard", () => {
   it("counts the text in the server's measure, es-BO grouped", () => {
     render(<Harness />);
     expect(screen.getByText("1.204/5.000")).toBeTruthy();
+  });
+
+  it("takes an optional one-line summary, counted against 120", () => {
+    render(<Harness />);
+    const field = screen.getByLabelText(
+      "Resumen (opcional)",
+    ) as HTMLInputElement;
+    expect(field.maxLength).toBe(120);
+    fireEvent.change(field, { target: { value: "El armado es a las 7" } });
+    expect(field.value).toBe("El armado es a las 7");
+    expect(screen.getByText("20/120")).toBeTruthy();
   });
 
   it("refuses a page with spaces and asks for a Glitter path", () => {

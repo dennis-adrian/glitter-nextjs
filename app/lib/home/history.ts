@@ -41,8 +41,9 @@ function firstDay(festival: Participation["reservation"]["festival"]) {
 }
 
 /**
- * Past participations only: accepted reservations of festivals other than the
- * active one, whose own card is already on the page.
+ * Past participations only: accepted reservations of archived festivals (the
+ * same festivals as `pastFestivalIds`), never the active one, whose own card
+ * is already on the page, nor one still to come.
  *
  * `pastFestivalIds` is every archived festival, newest first, for the streak.
  * `partnersByReservation` holds the other participants of each reservation.
@@ -58,10 +59,12 @@ export function buildHistorySummary({
   pastFestivalIds: readonly number[];
   partnersByReservation: ReadonlyMap<number, readonly HistoryPartner[]>;
 }): HistorySummary | null {
+  const archived = new Set(pastFestivalIds);
   const past = participations.filter(
     (participation) =>
       participation.reservation.status === "accepted" &&
-      participation.reservation.festivalId !== activeFestivalId,
+      participation.reservation.festivalId !== activeFestivalId &&
+      archived.has(participation.reservation.festivalId),
   );
   if (past.length === 0) return null;
 

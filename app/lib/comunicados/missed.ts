@@ -73,16 +73,19 @@ export function missedDetailOf({
   code,
   message,
   eligible,
+  max = null,
 }: {
   code: SendRefusalCode;
   message: string;
   eligible: number | null;
+  /** The cap that refused it; a visitor comunicado's is larger (§L). */
+  max?: number | null;
 }): string | null {
   switch (code) {
     case "AUDIENCE_TOO_LARGE":
       return eligible === null
         ? null
-        : `la audiencia sumaba ${formatAudienceCount(eligible)} personas y el máximo es ${formatAudienceCount(COMUNICADO_MAX_RECIPIENTS)}`;
+        : `la audiencia sumaba ${formatAudienceCount(eligible)} personas y el máximo es ${formatAudienceCount(max ?? COMUNICADO_MAX_RECIPIENTS)}`;
     case "ESSENTIAL_NOT_ALLOWED":
       // A scheduled comunicado is frozen: only its festival can have changed.
       return "el festival ya terminó y no puede ser esencial";

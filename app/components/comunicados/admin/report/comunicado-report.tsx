@@ -11,6 +11,8 @@ import RecipientsPagination from "@/app/components/comunicados/admin/report/reci
 import RecipientsSearch from "@/app/components/comunicados/admin/report/recipients-search";
 import RecipientsTable from "@/app/components/comunicados/admin/report/recipients-table";
 import ComunicadoReportBanners from "@/app/components/comunicados/admin/report/report-banners";
+import { resendHistoryLine } from "@/app/components/comunicados/admin/report/resend-copy";
+import ResendComunicadoButton from "@/app/components/comunicados/admin/report/resend-dialog";
 import ReportKpi from "@/app/components/comunicados/admin/report/report-kpi";
 import RetryFailedButton from "@/app/components/comunicados/admin/report/retry-failed-dialog";
 import RevisionHistory from "@/app/components/comunicados/admin/report/revision-history";
@@ -43,13 +45,20 @@ import {
   formatAudienceCount,
   type Paged,
 } from "@/app/lib/distribution_lists/definitions";
+import { cn } from "@/app/lib/utils";
 
 const COMUNICADOS_PATH = "/dashboard/communications";
 
 const fmt = formatAudienceCount;
 
 /** The KPI cards (G6). Email's only when it was ticked, push's likewise. */
-function ReportKpis({ report }: { report: ComunicadoReportData }) {
+function ReportKpis({
+  report,
+  className,
+}: {
+  report: ComunicadoReportData;
+  className?: string;
+}) {
   const { kpis } = report;
   const emailNotSent =
     kpis.emailUnsubscribed +
@@ -61,7 +70,12 @@ function ReportKpis({ report }: { report: ComunicadoReportData }) {
     report.campaignStatus === "processing" && report.retractedAt === null;
 
   return (
-    <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">
+    <div
+      className={cn(
+        "grid grid-cols-2 gap-2 xl:grid-cols-3 2xl:grid-cols-4",
+        className,
+      )}
+    >
       <ReportKpi
         label="Destinatarios"
         value={fmt(kpis.recipients)}
@@ -69,10 +83,12 @@ function ReportKpis({ report }: { report: ComunicadoReportData }) {
           kpis.notReceived > 0 ? notReceivedText(kpis.notReceived) : undefined
         }
       />
-      <ReportKpi
-        label="Leídos en la app"
-        value={readKpiValue(kpis.read, kpis.recipients)}
-      />
+      {report.audienceKind !== "visitors" && (
+        <ReportKpi
+          label="Leídos en la app"
+          value={readKpiValue(kpis.read, kpis.recipients)}
+        />
+      )}
       {report.sendEmail && (
         <>
           <ReportKpi
@@ -126,6 +142,7 @@ export default function ComunicadoReport({
   filter,
   query,
   env,
+  pushLaunched = true,
 }: {
   report: ComunicadoReportData;
   /** "Historial", the first version first. */
@@ -134,6 +151,8 @@ export default function ComunicadoReport({
   filter: ComunicadoRecipientFilter;
   query: string;
   env: VercelEnvironment;
+  /** Whether `push_notifications` is public, for the resend's push line. */
+  pushLaunched?: boolean;
 }) {
   const badge = comunicadoBadge({
     status: "sent",
@@ -169,6 +188,9 @@ export default function ComunicadoReport({
             {/* As its row in the list tags it (G3). */}
             {edited && <Badge variant="outline">Editado</Badge>}
             {report.essential && <Badge variant="orange">Esencial</Badge>}
+            {report.audienceKind === "visitors" && (
+              <Badge variant="outline">Visitantes · solo correo</Badge>
+            )}
           </div>
           <p className="text-sm text-muted-foreground">
             {sentByText(momentLabel(report.sentAt), report.sentByName)}
@@ -205,13 +227,26 @@ export default function ComunicadoReport({
           <DuplicateComunicadoButton comunicadoId={report.id} />
           {report.retractedAt === null && (
             <>
-              {/* Shows itself only when something can be retried; from
-                  another environment the retry would only be refused (D9). */}
+              {/* From another environment both would only be refused (D9). */}
               {report.summary?.env === env && (
-                <RetryFailedButton
-                  comunicadoId={report.id}
-                  counts={report.retryCounts}
-                />
+                <>
+                  {/* Participants only: a visitor comunicado has contacts,
+                      not recipient rows (§L). */}
+                  {report.audienceKind === "users" && (
+                    <ResendComunicadoButton
+                      comunicadoId={report.id}
+                      title={title}
+                      sentChannels={report.sentChannels}
+                      essential={report.essential}
+                      pushLaunched={pushLaunched}
+                    />
+                  )}
+                  {/* Shows itself only when something can be retried. */}
+                  <RetryFailedButton
+                    comunicadoId={report.id}
+                    counts={report.retryCounts}
+                  />
+                </>
               )}
               <RetractComunicadoMenu
                 comunicadoId={report.id}
@@ -226,44 +261,83 @@ export default function ComunicadoReport({
 
       <ComunicadoReportBanners report={report} env={env} />
 
-      <ReportKpis report={report} />
+      {/* Stacked on phones, in this order. From md the message and its
+          history take a side column, up to about an email's width, and the
+          numbers and the recipients the wide one; the second row takes the
+          side column's extra height, so a long message never stretches the
+          KPIs. */}
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_300px] md:grid-rows-[auto_1fr] md:items-start lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_420px]">
+        <ReportKpis report={report} className="md:col-start-1 md:row-start-1" />
 
-      <Card>
-        <CardContent className="space-y-2 pt-6">
-          <p className="text-xs font-medium text-muted-foreground">Mensaje</p>
-          <RichTextHtml html={report.html} className="text-base" />
-        </CardContent>
-      </Card>
+        <div className="w-full space-y-4 md:col-start-2 md:row-span-2 md:row-start-1">
+          <Card>
+            <CardContent className="space-y-2 pt-6">
+              <p className="text-xs font-medium text-muted-foreground">
+                Mensaje
+              </p>
+              <RichTextHtml html={report.html} className="text-base" />
+            </CardContent>
+          </Card>
 
-      <RevisionHistory
-        comunicadoId={report.id}
-        revisions={revisions}
-        currentRevision={report.currentRevision}
-      />
-
-      <section aria-label="Destinatarios" className="space-y-3">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <RecipientsFilters
+          <RevisionHistory
             comunicadoId={report.id}
-            filter={filter}
-            query={query}
+            revisions={revisions}
+            currentRevision={report.currentRevision}
           />
-          <RecipientsSearch
-            comunicadoId={report.id}
-            filter={filter}
-            query={query}
-          />
+
+          {report.resends.length > 0 && (
+            <Card>
+              <CardContent className="space-y-2 pt-6">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Envíos a más personas
+                </p>
+                <ul className="space-y-1.5 text-sm">
+                  {report.resends.map((resend) => (
+                    <li key={resend.id} className="break-words">
+                      {resendHistoryLine({
+                        moment: momentLabel(resend.createdAt),
+                        byName: resend.byName,
+                        sendEmail: resend.sendEmail,
+                        sendPush: resend.sendPush,
+                        essential: resend.essential,
+                        summary: resend.summary,
+                      })}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
         </div>
-        <RecipientsTable rows={recipients.rows} />
-        <RecipientsPagination
-          comunicadoId={report.id}
-          filter={filter}
-          query={query}
-          page={recipients.page}
-          pageCount={recipients.pageCount}
-          total={recipients.total}
-        />
-      </section>
+
+        <section
+          aria-label="Destinatarios"
+          className="min-w-0 space-y-3 md:col-start-1 md:row-start-2"
+        >
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <RecipientsFilters
+              comunicadoId={report.id}
+              filter={filter}
+              query={query}
+              emailOnly={report.audienceKind === "visitors"}
+            />
+            <RecipientsSearch
+              comunicadoId={report.id}
+              filter={filter}
+              query={query}
+            />
+          </div>
+          <RecipientsTable rows={recipients.rows} />
+          <RecipientsPagination
+            comunicadoId={report.id}
+            filter={filter}
+            query={query}
+            page={recipients.page}
+            pageCount={recipients.pageCount}
+            total={recipients.total}
+          />
+        </section>
+      </div>
     </div>
   );
 }

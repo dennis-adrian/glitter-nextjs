@@ -41,6 +41,7 @@ const LISTS: CreditGiftListOptions = {
       kind: "fixed",
       count: { eligible: 4, skipped: 0 },
       updatedAt: new Date(),
+      origin: null,
     },
   ],
 };

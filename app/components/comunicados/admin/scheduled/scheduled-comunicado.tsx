@@ -88,6 +88,7 @@ export type ScheduledComunicadoData = {
   doc: unknown[];
   actionLabel: string | null;
   actionPath: string | null;
+  previewText: string | null;
   sendEmail: boolean;
   sendPush: boolean;
   essential: boolean;
@@ -301,6 +302,7 @@ export default function ScheduledComunicado({
               doc: comunicado.doc,
               actionLabel: comunicado.actionLabel,
               actionPath: comunicado.actionPath,
+              previewText: comunicado.previewText,
               essentialFestivalName: comunicado.essentialFestivalName,
             }}
             sendPush={comunicado.sendPush}

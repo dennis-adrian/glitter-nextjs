@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 
 import FestivalStatusBadge from "@/app/components/atoms/festival-status-badge";
+import ListDuplicateButton from "@/app/components/communications/admin/list-duplicate-button";
 import ListMemberCell from "@/app/components/communications/admin/list-member-cell";
 import ListMembersPagination from "@/app/components/communications/admin/list-members-pagination";
 import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
@@ -51,21 +52,30 @@ export default async function ConfirmadosListPage(props: {
     <div className="space-y-4 overflow-y-auto pb-6">
       <ScreenTitle title={festival.listName} />
       <PageBreadcrumbs />
-      <div className="space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-semibold" data-installed-title="">
-            {festival.listName}
-          </h2>
-          <FestivalStatusBadge
-            status={festival.festivalStatus as FestivalBase["status"]}
-          />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-semibold" data-installed-title="">
+              {festival.listName}
+            </h2>
+            <FestivalStatusBadge
+              status={festival.festivalStatus as FestivalBase["status"]}
+            />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {CONFIRMADOS_LIST_EXPLANATION}
+          </p>
+          <p className="text-sm font-medium tabular-nums">
+            {audienceCountLine(festival.count)}
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          {CONFIRMADOS_LIST_EXPLANATION}
-        </p>
-        <p className="text-sm font-medium tabular-nums">
-          {audienceCountLine(festival.count)}
-        </p>
+        <ListDuplicateButton
+          list={{
+            source: { kind: "festival", festivalId: festival.festivalId },
+            name: festival.listName,
+            dynamic: true,
+          }}
+        />
       </div>
 
       {members.total === 0 ? (

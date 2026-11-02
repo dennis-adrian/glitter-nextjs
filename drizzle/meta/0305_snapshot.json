@@ -1,5 +1,5 @@
 {
-  "id": "984ecd7e-f0c8-491b-a6e9-e7dc03a4309d",
+  "id": "010708f2-de1a-44d8-8da6-a36cb245c8ff",
   "prevId": "4c662ef9-ee36-49bb-a7c8-36d4d18b012a",
   "version": "7",
   "dialect": "postgresql",
@@ -2796,6 +2796,108 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.distribution_list_removals": {
+      "name": "distribution_list_removals",
+      "schema": "",
+      "columns": {
+        "list_id": {
+          "name": "list_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "removed_by_user_id": {
+          "name": "removed_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "removed_at": {
+          "name": "removed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "distribution_list_removals_user_idx": {
+          "name": "distribution_list_removals_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "distribution_list_removals_list_id_distribution_lists_id_fk": {
+          "name": "distribution_list_removals_list_id_distribution_lists_id_fk",
+          "tableFrom": "distribution_list_removals",
+          "tableTo": "distribution_lists",
+          "columnsFrom": [
+            "list_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "distribution_list_removals_user_id_users_id_fk": {
+          "name": "distribution_list_removals_user_id_users_id_fk",
+          "tableFrom": "distribution_list_removals",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "distribution_list_removals_removed_by_user_id_users_id_fk": {
+          "name": "distribution_list_removals_removed_by_user_id_users_id_fk",
+          "tableFrom": "distribution_list_removals",
+          "tableTo": "users",
+          "columnsFrom": [
+            "removed_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "distribution_list_removals_list_id_user_id_pk": {
+          "name": "distribution_list_removals_list_id_user_id_pk",
+          "columns": [
+            "list_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.distribution_lists": {
       "name": "distribution_lists",
       "schema": "",
@@ -2845,6 +2947,36 @@
         },
         "archived_at": {
           "name": "archived_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "origin_festival_id": {
+          "name": "origin_festival_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "origin_list_id": {
+          "name": "origin_list_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "origin_name": {
+          "name": "origin_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "copied_at": {
+          "name": "copied_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_pulled_at": {
+          "name": "last_pulled_at",
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
@@ -2908,6 +3040,32 @@
           ],
           "onDelete": "set null",
           "onUpdate": "no action"
+        },
+        "distribution_lists_origin_festival_id_festivals_id_fk": {
+          "name": "distribution_lists_origin_festival_id_festivals_id_fk",
+          "tableFrom": "distribution_lists",
+          "tableTo": "festivals",
+          "columnsFrom": [
+            "origin_festival_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "distribution_lists_origin_list_id_distribution_lists_id_fk": {
+          "name": "distribution_lists_origin_list_id_distribution_lists_id_fk",
+          "tableFrom": "distribution_lists",
+          "tableTo": "distribution_lists",
+          "columnsFrom": [
+            "origin_list_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -2925,6 +3083,10 @@
         "distribution_lists_description_length": {
           "name": "distribution_lists_description_length",
           "value": "\"distribution_lists\".\"description\" IS NULL OR char_length(\"distribution_lists\".\"description\") <= 200"
+        },
+        "distribution_lists_origin": {
+          "name": "distribution_lists_origin",
+          "value": "num_nonnulls(\"distribution_lists\".\"origin_festival_id\", \"distribution_lists\".\"origin_list_id\") <= 1\n        AND (\"distribution_lists\".\"origin_name\" IS NULL) = (\"distribution_lists\".\"copied_at\" IS NULL)\n        AND (\"distribution_lists\".\"origin_name\" IS NOT NULL OR (\"distribution_lists\".\"origin_festival_id\" IS NULL AND \"distribution_lists\".\"origin_list_id\" IS NULL AND \"distribution_lists\".\"last_pulled_at\" IS NULL))\n        AND (\"distribution_lists\".\"origin_name\" IS NULL OR \"distribution_lists\".\"kind\" = 'fixed')"
         }
       },
       "isRLSEnabled": false
@@ -5351,199 +5513,6 @@
         "festivals_reservation_hold_minutes_range": {
           "name": "festivals_reservation_hold_minutes_range",
           "value": "\"festivals\".\"reservation_hold_minutes\" >= 1 AND \"festivals\".\"reservation_hold_minutes\" <= 30"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.impersonation_sessions": {
-      "name": "impersonation_sessions",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "admin_user_id": {
-          "name": "admin_user_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "subject_user_id": {
-          "name": "subject_user_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "admin_clerk_id": {
-          "name": "admin_clerk_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "subject_clerk_id": {
-          "name": "subject_clerk_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "admin_clerk_session_id": {
-          "name": "admin_clerk_session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "token_hash": {
-          "name": "token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ended_at": {
-          "name": "ended_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "end_reason": {
-          "name": "end_reason",
-          "type": "impersonation_end_reason",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "blocked_writes": {
-          "name": "blocked_writes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "return_to": {
-          "name": "return_to",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "impersonation_sessions_admin_started_idx": {
-          "name": "impersonation_sessions_admin_started_idx",
-          "columns": [
-            {
-              "expression": "admin_user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "started_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "impersonation_sessions_subject_started_idx": {
-          "name": "impersonation_sessions_subject_started_idx",
-          "columns": [
-            {
-              "expression": "subject_user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "started_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "impersonation_sessions_admin_user_id_users_id_fk": {
-          "name": "impersonation_sessions_admin_user_id_users_id_fk",
-          "tableFrom": "impersonation_sessions",
-          "tableTo": "users",
-          "columnsFrom": [
-            "admin_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "impersonation_sessions_subject_user_id_users_id_fk": {
-          "name": "impersonation_sessions_subject_user_id_users_id_fk",
-          "tableFrom": "impersonation_sessions",
-          "tableTo": "users",
-          "columnsFrom": [
-            "subject_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "impersonation_sessions_token_hash_unique": {
-          "name": "impersonation_sessions_token_hash_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "token_hash"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "impersonation_sessions_end_pair": {
-          "name": "impersonation_sessions_end_pair",
-          "value": "(\"impersonation_sessions\".\"ended_at\" IS NULL) = (\"impersonation_sessions\".\"end_reason\" IS NULL)"
-        },
-        "impersonation_sessions_expires_after_start": {
-          "name": "impersonation_sessions_expires_after_start",
-          "value": "\"impersonation_sessions\".\"expires_at\" > \"impersonation_sessions\".\"started_at\""
-        },
-        "impersonation_sessions_not_self": {
-          "name": "impersonation_sessions_not_self",
-          "value": "\"impersonation_sessions\".\"admin_clerk_id\" <> \"impersonation_sessions\".\"subject_clerk_id\""
-        },
-        "impersonation_sessions_blocked_writes_nonnegative": {
-          "name": "impersonation_sessions_blocked_writes_nonnegative",
-          "value": "\"impersonation_sessions\".\"blocked_writes\" >= 0"
-        },
-        "impersonation_sessions_return_to_dashboard": {
-          "name": "impersonation_sessions_return_to_dashboard",
-          "value": "\"impersonation_sessions\".\"return_to\" IS NULL OR (\"impersonation_sessions\".\"return_to\" LIKE '/dashboard%' AND \"impersonation_sessions\".\"return_to\" NOT LIKE '//%')"
         }
       },
       "isRLSEnabled": false
@@ -21197,14 +21166,6 @@
         "non_binary",
         "other",
         "undisclosed"
-      ]
-    },
-    "public.impersonation_end_reason": {
-      "name": "impersonation_end_reason",
-      "schema": "public",
-      "values": [
-        "exited",
-        "signed_out"
       ]
     },
     "public.infraction_event_type": {

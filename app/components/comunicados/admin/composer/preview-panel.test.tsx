@@ -25,6 +25,7 @@ function input(overrides: Partial<PreviewInput> = {}): PreviewInput {
     doc: [],
     actionLabel: null,
     actionPath: null,
+    previewText: null,
     essentialFestivalName: null,
     ...overrides,
   };

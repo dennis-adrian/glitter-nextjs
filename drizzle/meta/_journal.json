@@ -2133,8 +2133,36 @@
     {
       "idx": 305,
       "version": "7",
-      "when": 1793569534929,
-      "tag": "0305_impersonation_sessions",
+      "when": 1793565224307,
+      "tag": "0305_distribution_list_copies",
+      "breakpoints": true
+    },
+    {
+      "idx": 306,
+      "version": "7",
+      "when": 1793567955153,
+      "tag": "0306_comunicados_visitors",
+      "breakpoints": true
+    },
+    {
+      "idx": 307,
+      "version": "7",
+      "when": 1793569921479,
+      "tag": "0307_comunicado_resends",
+      "breakpoints": true
+    },
+    {
+      "idx": 308,
+      "version": "7",
+      "when": 1793574941880,
+      "tag": "0308_comunicado_preview_text",
+      "breakpoints": true
+    },
+    {
+      "idx": 309,
+      "version": "7",
+      "when": 1793590074771,
+      "tag": "0309_impersonation_sessions",
       "breakpoints": true
     }
   ]

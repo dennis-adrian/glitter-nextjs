@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import {
+  AudienceKindCard,
+  VisitorAudienceCard,
+} from "@/app/components/comunicados/admin/composer/audience-kind-card";
 import ChannelsCard from "@/app/components/comunicados/admin/composer/channels-card";
 import {
   type ComposerEnv,
@@ -38,6 +42,7 @@ import { Button } from "@/app/components/ui/button";
 import {
   discardComunicadoDraftAction,
   previewComunicadoAudienceAction,
+  previewVisitorAudienceAction,
   saveComunicadoDraftAction,
 } from "@/app/lib/comunicados/actions";
 import {
@@ -54,14 +59,23 @@ import { announcementBlocksToText } from "@/app/lib/comunicados/text";
 /** How long the live counts wait after the audience or a channel changes. */
 const AUDIENCE_PREVIEW_DEBOUNCE_MS = 600;
 
-type AudiencePreviewInput = {
-  audience: ComunicadoAudience;
-  essential: boolean;
-  sendEmail: boolean;
-};
+type AudiencePreviewInput =
+  | {
+      kind: "users";
+      audience: ComunicadoAudience;
+      essential: boolean;
+      sendEmail: boolean;
+    }
+  /** Every visitor and guest buyer (§L): nothing to pick, only to count. */
+  | { kind: "visitors" };
 
 function loadAudiencePreview(input: AudiencePreviewInput) {
-  return previewComunicadoAudienceAction(input);
+  if (input.kind === "visitors") return previewVisitorAudienceAction();
+  return previewComunicadoAudienceAction({
+    audience: input.audience,
+    essential: input.essential,
+    sendEmail: input.sendEmail,
+  });
 }
 
 /** Every refusal of a count is worth asking again: the input is valid. */
@@ -156,16 +170,27 @@ export default function ComunicadoComposer({
     }));
 
   const text = announcementBlocksToText(fields.doc, { withUrls: false });
-  const audienceEmpty = isEmptyComunicadoAudience(fields.audience);
+  // A comunicado to visitors is email only, never essential (§L).
+  const visitors = fields.audienceKind === "visitors";
+  const sendEmail = visitors ? true : fields.sendEmail;
+  const sendPush = visitors ? false : fields.sendPush;
+  const essential = visitors ? false : fields.essential;
+  const audienceEmpty = !visitors && isEmptyComunicadoAudience(fields.audience);
 
-  const audienceAnswer = useLiveResult({
-    input: audienceEmpty
-      ? null
-      : {
-          audience: fields.audience,
-          essential: fields.essential,
-          sendEmail: fields.sendEmail,
-        },
+  const audienceAnswer = useLiveResult<
+    AudiencePreviewInput,
+    Awaited<ReturnType<typeof loadAudiencePreview>>
+  >({
+    input: visitors
+      ? { kind: "visitors" }
+      : audienceEmpty
+        ? null
+        : {
+            kind: "users",
+            audience: fields.audience,
+            essential: fields.essential,
+            sendEmail: fields.sendEmail,
+          },
     load: loadAudiencePreview,
     delayMs: AUDIENCE_PREVIEW_DEBOUNCE_MS,
     failedWhen: audiencePreviewFailed,
@@ -180,7 +205,7 @@ export default function ComunicadoComposer({
       : "No pudimos contar los destinatarios. Probá de nuevo.";
 
   const essentialFestival =
-    fields.essential && fields.sendEmail && preview?.essentialAllowed.ok
+    essential && sendEmail && preview?.essentialAllowed.ok
       ? (preview.essentialAllowed.festival?.name ?? null)
       : null;
   const previewInput: PreviewInput = {
@@ -188,6 +213,7 @@ export default function ComunicadoComposer({
     doc: fields.doc,
     actionLabel: fields.actionEnabled ? fields.actionLabel : null,
     actionPath: fields.actionEnabled ? fields.actionPath : null,
+    previewText: fields.previewText.trim() || null,
     essentialFestivalName: essentialFestival,
   };
 
@@ -200,7 +226,7 @@ export default function ComunicadoComposer({
       label: fields.actionLabel,
       path: fields.actionPath,
     },
-    essential: { on: fields.essential, reason: fields.essentialReason },
+    essential: { on: essential, reason: fields.essentialReason },
   });
 
   // Leaving the tab saves at once; closing it with something unsaved asks.
@@ -384,6 +410,8 @@ export default function ComunicadoComposer({
             initialDoc={draft.doc}
             onDocChange={(doc) => update({ doc })}
             textLength={text.length}
+            previewText={fields.previewText}
+            onPreviewTextChange={(previewText) => update({ previewText })}
             contentError={autosave.contentError}
             action={{
               enabled: fields.actionEnabled,
@@ -400,61 +428,77 @@ export default function ComunicadoComposer({
             onUploadingChange={onUploadingChange}
             disabled={locked}
           />
-          <RecipientsCard
-            audience={fields.audience}
-            names={names}
-            festivals={festivals}
-            lists={lists}
-            preview={preview}
-            previewStale={audienceAnswer.stale}
-            previewError={previewError}
-            onRetryPreview={audienceAnswer.retry}
-            env={env}
-            onAddFestival={(festivalId) =>
-              updateAudience((audience) =>
-                audience.festivals.includes(festivalId)
-                  ? audience
-                  : {
-                      ...audience,
-                      festivals: [...audience.festivals, festivalId],
-                    },
-              )
-            }
-            onAddList={(listId) =>
-              updateAudience((audience) =>
-                audience.lists.includes(listId)
-                  ? audience
-                  : { ...audience, lists: [...audience.lists, listId] },
-              )
-            }
-            onAddPerson={addPerson}
-            onRemove={removeSource}
+          <AudienceKindCard
+            kind={fields.audienceKind}
+            onChange={(audienceKind) => update({ audienceKind })}
             disabled={locked}
           />
-          <ChannelsCard
-            sendEmail={fields.sendEmail}
-            onSendEmailChange={(sendEmail) => update({ sendEmail })}
-            sendPush={fields.sendPush}
-            onSendPushChange={(sendPush) => update({ sendPush })}
-            essential={fields.essential}
-            onEssentialChange={(essential) => update({ essential })}
-            essentialReason={fields.essentialReason}
-            onEssentialReasonChange={(essentialReason) =>
-              update({ essentialReason })
-            }
-            preview={preview}
-            pushLaunched={pushLaunched}
-            disabled={locked}
-          />
+          {visitors ? (
+            <VisitorAudienceCard
+              preview={preview}
+              previewError={previewError}
+              onRetryPreview={audienceAnswer.retry}
+              env={env}
+            />
+          ) : (
+            <>
+              <RecipientsCard
+                audience={fields.audience}
+                names={names}
+                festivals={festivals}
+                lists={lists}
+                preview={preview}
+                previewStale={audienceAnswer.stale}
+                previewError={previewError}
+                onRetryPreview={audienceAnswer.retry}
+                env={env}
+                onAddFestival={(festivalId) =>
+                  updateAudience((audience) =>
+                    audience.festivals.includes(festivalId)
+                      ? audience
+                      : {
+                          ...audience,
+                          festivals: [...audience.festivals, festivalId],
+                        },
+                  )
+                }
+                onAddList={(listId) =>
+                  updateAudience((audience) =>
+                    audience.lists.includes(listId)
+                      ? audience
+                      : { ...audience, lists: [...audience.lists, listId] },
+                  )
+                }
+                onAddPerson={addPerson}
+                onRemove={removeSource}
+                disabled={locked}
+              />
+              <ChannelsCard
+                sendEmail={fields.sendEmail}
+                onSendEmailChange={(sendEmail) => update({ sendEmail })}
+                sendPush={fields.sendPush}
+                onSendPushChange={(sendPush) => update({ sendPush })}
+                essential={fields.essential}
+                onEssentialChange={(essential) => update({ essential })}
+                essentialReason={fields.essentialReason}
+                onEssentialReasonChange={(essentialReason) =>
+                  update({ essentialReason })
+                }
+                preview={preview}
+                pushLaunched={pushLaunched}
+                disabled={locked}
+              />
+            </>
+          )}
         </div>
 
         <div className="min-w-0 space-y-4 lg:sticky lg:top-0 lg:self-start">
-          <PreviewPanel input={previewInput} sendPush={fields.sendPush} />
+          <PreviewPanel input={previewInput} sendPush={sendPush} />
           <SendPanel
             preview={preview}
             audienceEmpty={audienceEmpty}
-            sendEmail={fields.sendEmail}
-            sendPush={fields.sendPush}
+            sendEmail={sendEmail}
+            sendPush={sendPush}
             missing={missing}
             onTestSend={testSend}
             testPending={testPending}

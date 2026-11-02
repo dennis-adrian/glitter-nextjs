@@ -9,6 +9,7 @@ import {
   COMUNICADO_ESSENTIAL_REASON_MAX,
   COMUNICADO_ESSENTIAL_REASON_MIN,
   ComunicadoActionSchema,
+  ComunicadoPreviewTextSchema,
   ComunicadoTitleSchema,
 } from "@/app/lib/comunicados/definitions";
 import { renderComunicadoEmail } from "@/app/lib/comunicados/email";
@@ -27,6 +28,7 @@ export type ComunicadoSendCheckInput = {
   doc: unknown;
   actionLabel: string | null;
   actionPath: string | null;
+  previewText: string | null;
   essential: boolean;
   essentialReason: string | null;
   /** Without email there is no email to fit under Gmail's clip. */
@@ -43,6 +45,8 @@ export type ComunicadoSendCheck =
       text: string;
       actionLabel: string | null;
       actionPath: string | null;
+      /** Trimmed; null when none was written. */
+      previewText: string | null;
       /** Trimmed; null unless essential. */
       essentialReason: string | null;
     }
@@ -53,10 +57,8 @@ export const COMUNICADO_EMAIL_TOO_LARGE_MESSAGE =
 
 /**
  * The longest each per-recipient part can be, so a body measured here fits
- * every recipient's copy: `safeGreetingName` keeps 40 characters, and a
- * signed unsubscribe token is about 105.
+ * every recipient's copy: a signed unsubscribe token is about 105.
  */
-const LONGEST_GREETING = "N".repeat(40);
 const LONGEST_TOKEN = "t".repeat(160);
 const LONGEST_FESTIVAL_NAME = "F".repeat(120);
 
@@ -75,6 +77,7 @@ async function largestEmailBytes(
   title: string,
   blocks: AnnouncementBlock[],
   action: { actionLabel: string | null; actionPath: string | null },
+  previewText: string | null,
   essential: boolean,
 ) {
   const baseUrl = publicBaseUrl();
@@ -82,7 +85,7 @@ async function largestEmailBytes(
     title,
     blocks,
     ...action,
-    greetingName: LONGEST_GREETING,
+    previewText,
     unsubscribeUrl: `${baseUrl}${UNSUBSCRIBE_PAGE_PATH}?token=${LONGEST_TOKEN}`,
     essentialFestivalName: essential ? LONGEST_FESTIVAL_NAME : null,
     staging: true,
@@ -117,6 +120,11 @@ export async function validateComunicadoForSend(
     return { ok: false, message: action.error.issues[0]!.message };
   }
 
+  const previewText = ComunicadoPreviewTextSchema.safeParse(input.previewText);
+  if (!previewText.success) {
+    return { ok: false, message: previewText.error.issues[0]!.message };
+  }
+
   let essentialReason: string | null = null;
   if (input.essential) {
     essentialReason = input.essentialReason?.trim() ?? "";
@@ -130,6 +138,7 @@ export async function validateComunicadoForSend(
       title.data,
       content.blocks,
       action.data,
+      previewText.data,
       input.essential,
     )) > COMUNICADO_EMAIL_HTML_MAX_BYTES
   ) {
@@ -143,6 +152,7 @@ export async function validateComunicadoForSend(
     text: content.text,
     actionLabel: action.data.actionLabel,
     actionPath: action.data.actionPath,
+    previewText: previewText.data,
     essentialReason,
   };
 }

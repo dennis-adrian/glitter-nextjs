@@ -7,6 +7,7 @@ import {
   COMUNICADO_UNTITLED,
   ComunicadoDraftSchema,
 } from "@/app/lib/comunicados/definitions";
+import { comunicadoPreheaderOf } from "@/app/emails/comunicado";
 import { renderComunicadoEmail } from "@/app/lib/comunicados/email";
 import { excerptOf } from "@/app/lib/comunicados/text";
 import { UNSUBSCRIBE_PAGE_PATH } from "@/app/lib/emails/unsubscribe-links";
@@ -15,7 +16,6 @@ import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { blocksToSanitizedHtml } from "@/app/lib/rich-text/render";
 import { publicBaseUrl } from "@/app/lib/urls";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-import { getUserName } from "@/app/lib/users/utils";
 import { serverEnv } from "@/env";
 
 const PreviewSchema = ComunicadoDraftSchema.pick({
@@ -23,6 +23,7 @@ const PreviewSchema = ComunicadoDraftSchema.pick({
   doc: true,
   actionLabel: true,
   actionPath: true,
+  previewText: true,
 }).extend({
   /** Only the admin's own preview prints it, escaped. */
   essentialFestivalName: z.string().trim().max(200).nullish(),
@@ -44,7 +45,7 @@ export async function renderComunicadoPreviewAction(input: unknown): Promise<
       /** `blocksToSanitizedHtml(blocks, "announcement")`, for `RichTextHtml`. */
       detailHtml: string;
       excerpt: string;
-      email: { subject: string; html: string; from: string };
+      email: { subject: string; preheader: string; html: string; from: string };
     }
   | { success: false; message: string }
 > {
@@ -69,7 +70,7 @@ export async function renderComunicadoPreviewAction(input: unknown): Promise<
       blocks: content.blocks,
       actionLabel: fields.actionLabel,
       actionPath: fields.actionPath,
-      greetingName: getUserName(actor),
+      previewText: fields.previewText,
       // Never a working link: the page refuses this token, so following it
       // from the preview unsubscribes nobody.
       unsubscribeUrl: `${baseUrl}${UNSUBSCRIBE_PAGE_PATH}?token=preview`,
@@ -82,7 +83,12 @@ export async function renderComunicadoPreviewAction(input: unknown): Promise<
       success: true,
       detailHtml: await blocksToSanitizedHtml(content.blocks, "announcement"),
       excerpt: excerptOf(content.text),
-      email: { subject: email.subject, html: email.html, from: email.from },
+      email: {
+        subject: email.subject,
+        preheader: comunicadoPreheaderOf(fields.previewText, content.blocks),
+        html: email.html,
+        from: email.from,
+      },
     };
   } catch (error) {
     console.error("Error rendering a comunicado preview", {

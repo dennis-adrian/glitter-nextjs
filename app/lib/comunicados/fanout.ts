@@ -80,6 +80,29 @@ function failureLabel(error: unknown) {
   return (error instanceof Error ? error.name : typeof error).slice(0, 180);
 }
 
+/**
+ * The eligible rows grouped by the channels they go out on, in user order
+ * within each group: one `notifyMany` per group. A chunk of the original
+ * send is one group; resends with other channels add one each (G10).
+ */
+export function byChannels<
+  T extends { send_email: boolean; send_push: boolean },
+>(rows: readonly T[]) {
+  const groups = new Map<
+    string,
+    { sendEmail: boolean; sendPush: boolean; rows: T[] }
+  >();
+  for (const row of rows) {
+    const sendEmail = row.send_email === true;
+    const sendPush = row.send_push === true;
+    const key = `${sendEmail}:${sendPush}`;
+    const group = groups.get(key) ?? { sendEmail, sendPush, rows: [] };
+    group.rows.push(row);
+    groups.set(key, group);
+  }
+  return [...groups.values()];
+}
+
 /** The next pending people in user order, read without a lock. */
 async function chunkCandidates(
   campaignId: number,
@@ -134,10 +157,11 @@ async function writeChunk(
       text: string | null;
       action_label: string | null;
       action_path: string | null;
+      preview_text: string | null;
     }>(sql`
       SELECT k.campaign_id, k.retracted_at IS NOT NULL AS retracted,
         k.send_email, k.send_push, rv.revision, rv.title, rv.text,
-        rv.action_label, rv.action_path
+        rv.action_label, rv.action_path, rv.preview_text
       FROM comunicados k
       LEFT JOIN comunicado_revisions rv
         ON rv.comunicado_id = k.id AND rv.revision = k.current_revision
@@ -188,18 +212,25 @@ async function writeChunk(
     // allowlist: a row with no source, or whose person is gone, is never
     // notified.
     const person = { id: sql`u.id`, role: sql`u.role`, status: sql`u.status` };
+    // Each row's channels: the original send's, or the resend's that wrote
+    // it (G10).
     const { rows: judged } = await tx.execute<{
       id: number;
       user_id: number;
       reason: string | null;
+      send_email: boolean;
+      send_push: boolean;
     }>(sql`
       SELECT r.id, r.user_id,
         CASE WHEN u.id IS NULL OR r.source IS NULL
                THEN ${COMUNICADO_SKIP_REASONS.not_participant}::text
              ELSE ${comunicadoSkipReasonSql(person, sql`r.source::text`, narrow)}
-        END AS reason
+        END AS reason,
+        coalesce(rs.send_email, ${content.send_email}::boolean) AS send_email,
+        coalesce(rs.send_push, ${content.send_push}::boolean) AS send_push
       FROM notification_campaign_recipients r
       LEFT JOIN users u ON u.id = r.user_id
+      LEFT JOIN comunicado_resends rs ON rs.id = r.resend_id
       WHERE r.id = ANY(${intArray([...locked])})
       ORDER BY r.user_id
     `);
@@ -207,25 +238,27 @@ async function writeChunk(
     const skipped = judged.filter((row) => row.reason !== null);
 
     const notified: { id: number; notificationId: number }[] = [];
-    if (eligible.length > 0) {
+    const data = {
+      comunicadoId,
+      revision: Number(content.revision),
+      title: content.title,
+      excerpt: excerptOf(content.text ?? ""),
+      actionPath: content.action_path,
+      actionLabel: content.action_label,
+      preview: content.preview_text,
+    };
+    for (const group of byChannels(eligible)) {
       const written = await notifyMany(tx, {
         kind: "comunicado",
-        data: {
-          comunicadoId,
-          revision: Number(content.revision),
-          title: content.title,
-          excerpt: excerptOf(content.text ?? ""),
-          actionPath: content.action_path,
-          actionLabel: content.action_label,
-        },
-        userIds: eligible.map((row) => Number(row.user_id)),
+        data,
+        userIds: group.rows.map((row) => Number(row.user_id)),
         dedupeKey: `comunicado:${comunicadoId}`,
         campaignId,
-        email: content.send_email ? "bulk" : null,
+        email: group.sendEmail ? "bulk" : null,
         emailPayload: { comunicadoId },
-        push: content.send_push,
+        push: group.sendPush,
       });
-      for (const row of eligible) {
+      for (const row of group.rows) {
         const notificationId = written.notificationIdByUser.get(
           Number(row.user_id),
         );
@@ -236,7 +269,7 @@ async function writeChunk(
         }
         notified.push({ id: Number(row.id), notificationId });
       }
-      result.pushDeliveryIds = written.pushDeliveryIds;
+      result.pushDeliveryIds.push(...written.pushDeliveryIds);
     }
 
     if (notified.length > 0) {
@@ -569,6 +602,12 @@ export async function completeComunicadoIfDone(
         SELECT 1 FROM notification_deliveries d
         JOIN notifications n ON n.id = d.notification_id
         WHERE n.campaign_id = ${campaignId}::int AND d.channel = 'email'
+          AND d.status IN ('pending', 'processing')
+      )
+      -- A visitor comunicado's emails, which have no inbox item (§L).
+      OR EXISTS (
+        SELECT 1 FROM notification_deliveries d
+        WHERE d.campaign_id = ${campaignId}::int
           AND d.status IN ('pending', 'processing')
       ) AS open
   `);

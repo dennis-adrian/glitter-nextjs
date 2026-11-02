@@ -14,6 +14,8 @@ import {
 /** As the send freezes it for a festival list plus a person, in production. */
 const SUMMARY: ComunicadoAudienceSummary = {
   v: 1,
+  audienceKind: "users",
+  contacts: null,
   env: "production",
   narrowed: false,
   sources: [
@@ -53,6 +55,31 @@ describe("parseComunicadoAudienceSummary", () => {
     // jsonb hands it back as plain JSON.
     const stored: unknown = JSON.parse(JSON.stringify(SUMMARY));
     expect(parseComunicadoAudienceSummary(stored)).toEqual(SUMMARY);
+  });
+
+  it("reads one written before visitor comunicados as a participant one", () => {
+    const older: Record<string, unknown> = { ...SUMMARY };
+    delete older.audienceKind;
+    delete older.contacts;
+    expect(parseComunicadoAudienceSummary(older)).toEqual(SUMMARY);
+  });
+
+  it("reads back a visitor comunicado's summary", () => {
+    const visitors = {
+      ...SUMMARY,
+      audienceKind: "visitors",
+      contacts: { visitors: 900, guestBuyers: 40 },
+      sources: [
+        {
+          kind: "contacts",
+          id: null,
+          label: "Visitantes y compradores de merch",
+          matched: 940,
+          eligible: 910,
+        },
+      ],
+    };
+    expect(parseComunicadoAudienceSummary(visitors)).toEqual(visitors);
   });
 
   it("reads one from a test environment without an essential festival", () => {

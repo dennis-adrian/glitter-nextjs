@@ -22,11 +22,20 @@ export const COMUNICADO_EMAIL_HTML_MAX_BYTES = 90 * 1024;
 /** The inbox list clamps the body to two lines. */
 export const COMUNICADO_EXCERPT_MAX = 280;
 export const COMUNICADO_ACTION_LABEL_MAX = 30;
+/** The push body and the email preheader: about two lock-screen lines. */
+export const COMUNICADO_PREVIEW_TEXT_MAX = 120;
 /** Festivals and saved lists together. */
 export const COMUNICADO_MAX_SOURCES = 10;
 export const COMUNICADO_MAX_PEOPLE = 100;
 /** Eligible people, counted before a preview narrows them. */
 export const COMUNICADO_MAX_RECIPIENTS = 3_000;
+/**
+ * A visitor comunicado's cap (§L): every festival's visitors and every guest
+ * buyer is a larger audience than any participant list. Eligible addresses,
+ * counted before a preview narrows them. About a fifth of the monthly Resend
+ * allowance, which every Glitter email shares.
+ */
+export const COMUNICADO_VISITOR_MAX_RECIPIENTS = 10_000;
 /** At or above this many, and always when essential, the count is typed. */
 export const COMUNICADO_TYPE_TO_CONFIRM_RECIPIENTS = 300;
 export const COMUNICADO_ESSENTIAL_REASON_MIN = 10;
@@ -45,6 +54,39 @@ export const COMUNICADO_AUTOSAVE_DEBOUNCE_MS = 1_500;
 const DRAFT_TITLE_MAX = 300;
 const DRAFT_ACTION_LABEL_MAX = 120;
 const DRAFT_ACTION_PATH_MAX = 2_000;
+const DRAFT_PREVIEW_TEXT_MAX = 300;
+
+/**
+ * Who a comunicado is for (§L): participants with an account (inbox, email,
+ * push) or visitors and guest buyers without one (email only, Novedades).
+ */
+export const COMUNICADO_AUDIENCE_KINDS = ["users", "visitors"] as const;
+export type ComunicadoAudienceKind = (typeof COMUNICADO_AUDIENCE_KINDS)[number];
+
+/** The one source of a visitor comunicado, as the composer and report name it. */
+export const COMUNICADO_CONTACTS_SOURCE_LABEL =
+  "Visitantes y compradores de merch";
+
+/**
+ * Why an address in a visitor comunicado's audience does not get it, as
+ * stored in `notification_campaign_contacts.skipped_reason`.
+ */
+export const COMUNICADO_CONTACT_SKIP_REASONS = {
+  invalid: "Dirección no válida",
+  noConsent: "No aceptó recibir novedades",
+  suppressed: "Correo bloqueado por rebote o spam",
+  unsubscribed: "Se dio de baja de las novedades",
+  staging: "Entorno de prueba: no se envía a visitantes",
+} as const;
+
+/** How a contact entered a visitor comunicado, in the report's Origen column. */
+export const COMUNICADO_CONTACT_SOURCE_LABELS = {
+  visitor: "Visitante",
+  guest_buyer: "Compra de merch",
+  staging_admin: "Admin de prueba",
+} as const;
+export type ComunicadoContactSource =
+  keyof typeof COMUNICADO_CONTACT_SOURCE_LABELS;
 
 export const COMUNICADO_STATUSES = ["draft", "scheduled", "sent"] as const;
 export type ComunicadoStatus = (typeof COMUNICADO_STATUSES)[number];
@@ -163,8 +205,15 @@ export const ComunicadoDraftSchema = z.object({
   doc: z.array(z.unknown()).optional(),
   actionLabel: z.string().max(DRAFT_ACTION_LABEL_MAX).nullable(),
   actionPath: z.string().max(DRAFT_ACTION_PATH_MAX).nullable(),
+  /** Left out by an older tab, which keeps the stored one. */
+  previewText: z.string().max(DRAFT_PREVIEW_TEXT_MAX).nullable().optional(),
   sendEmail: z.boolean(),
   sendPush: z.boolean(),
+  /**
+   * Participants or visitors (§L). Left out by an older tab, which means
+   * participants.
+   */
+  audienceKind: z.enum(COMUNICADO_AUDIENCE_KINDS).default("users"),
   audience: ComunicadoAudienceSchema,
   essential: z.boolean(),
   essentialReason: z.string().max(COMUNICADO_ESSENTIAL_REASON_MAX).nullable(),
@@ -211,6 +260,21 @@ export const ComunicadoActionSchema = z
     const problem = actionPath ? comunicadoActionPathProblem(actionPath) : null;
     if (problem) ctx.addIssue({ code: "custom", message: problem });
   });
+
+/** The optional preview line, as it must be to send: empty means none. */
+export const ComunicadoPreviewTextSchema = z
+  .string()
+  .trim()
+  .nullish()
+  .transform((text) => text || null)
+  .refine(
+    (text) => text === null || text.length <= COMUNICADO_PREVIEW_TEXT_MAX,
+    `El resumen puede tener hasta ${COMUNICADO_PREVIEW_TEXT_MAX} caracteres.`,
+  )
+  .refine(
+    (text) => text === null || !/[\r\n]/.test(text),
+    "El resumen va en una sola línea.",
+  );
 
 export const COMUNICADO_STATUS_LABELS = {
   draft: "Borrador",
@@ -259,11 +323,13 @@ const summaryCount = z.number().int().min(0);
  */
 export const ComunicadoAudienceSummarySchema = z.object({
   v: z.literal(1),
+  /** Absent on summaries written before visitor comunicados existed. */
+  audienceKind: z.enum(COMUNICADO_AUDIENCE_KINDS).default("users"),
   env: z.enum(["development", "preview", "production"]),
   narrowed: z.boolean(),
   sources: z.array(
     z.object({
-      kind: z.enum(["festival", "list", "people"]),
+      kind: z.enum(["festival", "list", "people", "contacts"]),
       id: z.number().int().nullable(),
       label: z.string(),
       matched: summaryCount,
@@ -294,9 +360,28 @@ export const ComunicadoAudienceSummarySchema = z.object({
   essentialFestival: z
     .object({ id: z.number().int(), name: z.string() })
     .nullable(),
+  /** A visitor comunicado's addresses by how they entered; else null. */
+  contacts: z
+    .object({ visitors: summaryCount, guestBuyers: summaryCount })
+    .nullable()
+    .default(null),
   /** Top level, as runbook query I4 #6 reads them. */
   essentialOverride: summaryCount,
   essentialNotOverridden: summaryCount,
+  /**
+   * Every "Enviar a más personas" since, added up (G10): the fields above
+   * stay the original send's, and these are the rows each resend wrote.
+   * Absent until the first one.
+   */
+  resends: z
+    .object({
+      count: summaryCount,
+      willReceive: summaryCount,
+      pickedByName: summaryCount,
+      essentialOverride: summaryCount,
+      essentialNotOverridden: summaryCount,
+    })
+    .optional(),
 });
 export type ComunicadoAudienceSummary = z.output<
   typeof ComunicadoAudienceSummarySchema
@@ -340,3 +425,46 @@ export const COMUNICADO_IMAGE_HELP =
   "JPG o PNG, hasta 4 MB. Se ve mejor a 1200 px de ancho.";
 export const COMUNICADO_FOREIGN_IMAGE_MESSAGE =
   "Esta imagen no está subida a Glitter: subila de nuevo.";
+
+/** "Enviar a más personas" (G10): people picked by name, at most, per resend. */
+export const COMUNICADO_RESEND_MAX_PEOPLE = COMUNICADO_MAX_PEOPLE;
+
+/**
+ * `comunicado_resends.summary`: who one resend reached when it was
+ * confirmed. `eligible` is counted before a preview narrows, as the send's.
+ */
+export const ComunicadoResendSummarySchema = z.object({
+  v: z.literal(1),
+  env: z.enum(["development", "preview", "production"]),
+  narrowed: z.boolean(),
+  /** New to the original audience who can receive it, before narrowing. */
+  newcomers: summaryCount,
+  /** Picked by name who can receive it. */
+  pickedByName: summaryCount,
+  eligible: summaryCount,
+  /** Recipient rows written `pending`. */
+  willReceive: summaryCount,
+  stagingAdmins: summaryCount,
+  /** List members a preview wrote skipped. */
+  stagingSkipped: summaryCount,
+  channels: z.object({ email: z.boolean(), push: z.boolean() }),
+  email: z.object({
+    sendTo: summaryCount,
+    unsubscribedAnnouncements: summaryCount,
+    unsubscribedAll: summaryCount,
+    suppressed: summaryCount,
+    invalid: summaryCount,
+  }),
+  essentialOverride: summaryCount,
+  essentialNotOverridden: summaryCount,
+});
+export type ComunicadoResendSummary = z.output<
+  typeof ComunicadoResendSummarySchema
+>;
+
+export function parseComunicadoResendSummary(
+  value: unknown,
+): ComunicadoResendSummary | null {
+  const parsed = ComunicadoResendSummarySchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}

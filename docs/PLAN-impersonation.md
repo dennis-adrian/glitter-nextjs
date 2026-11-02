@@ -105,7 +105,7 @@ export const impersonationSessions = pgTable(
 
 A row with `ended_at` null and `expires_at` in the past reads as **expirada**; nothing has to run to mark it. `blocked_writes` is bumped outside the guarded scope (see 6) so the audit can record the attempt.
 
-Migration: `pnpm generate` → `drizzle/0305_impersonation_sessions.sql`. Applied locally with `pnpm migrate` after confirming `POSTGRES_URL` points at `localhost`. Production applies it through `vercel-build` on deploy, which is Dennis's call as always.
+Migration: `pnpm generate` → `drizzle/0309_impersonation_sessions.sql` (generated as 0305 at first, regenerated as 0309 when `develop` brought 0305–0308). Applied locally with `pnpm migrate` after confirming `POSTGRES_URL` points at `localhost`. Production applies it through `vercel-build` on deploy, which is Dennis's call as always.
 
 ---
 

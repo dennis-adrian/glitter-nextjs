@@ -81,8 +81,10 @@ export async function loadComunicadoSendConfirmationAction(
         doc: comunicados.doc,
         actionLabel: comunicados.actionLabel,
         actionPath: comunicados.actionPath,
+        previewText: comunicados.previewText,
         sendEmail: comunicados.sendEmail,
         sendPush: comunicados.sendPush,
+        audienceKind: comunicados.audienceKind,
         audience: comunicados.audience,
         essential: comunicados.essential,
         essentialReason: comunicados.essentialReason,
@@ -108,7 +110,7 @@ export async function loadComunicadoSendConfirmationAction(
     const problem = !check.ok
       ? check.refusal.message
       : preview.tooLarge
-        ? audienceTooLargeMessage()
+        ? audienceTooLargeMessage(row.audienceKind)
         : preview.eligible === 0
           ? SEND_MESSAGES.noEligible
           : null;
@@ -118,6 +120,7 @@ export async function loadComunicadoSendConfirmationAction(
       confirmation: {
         comunicadoId: row.id,
         version: row.version,
+        audienceKind: row.audienceKind,
         title: check.ok
           ? check.content.title
           : row.title.trim() || COMUNICADO_UNTITLED,

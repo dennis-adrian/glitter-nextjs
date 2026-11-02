@@ -894,6 +894,14 @@
   }
 }
 
+/* The installed app refreshes on pull with its own gesture (PullToRefresh);
+ * the browser's own pull-to-refresh, where it still fires, stays out. */
+@media (display-mode: standalone) {
+  html {
+    overscroll-behavior-y: contain;
+  }
+}
+
 @media (display-mode: standalone) and (width < 64rem) {
   body:has([data-screen-bar]) [data-announcement-strip] {
     display: none;

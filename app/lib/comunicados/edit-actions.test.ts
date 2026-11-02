@@ -124,10 +124,22 @@ describe("editComunicadoAction", () => {
       },
       ADMIN.id,
     );
+    // Left out (a tab from before the field) stays left out: the service
+    // keeps the current summary.
+    expect(mocks.edit.mock.calls[0]![1].previewText).toBeUndefined();
     expect(mocks.revalidatePath.mock.calls).toEqual([
       ["/dashboard/communications"],
       ["/dashboard/communications/7"],
       ["/dashboard/communications/7/edit"],
+    ]);
+  });
+
+  it("hands a summary over as written, and null to clear it", async () => {
+    await editComunicadoAction({ ...INPUT, previewText: "Resumen" });
+    await editComunicadoAction({ ...INPUT, previewText: null });
+    expect(mocks.edit.mock.calls.map((call) => call[1].previewText)).toEqual([
+      "Resumen",
+      null,
     ]);
   });
 

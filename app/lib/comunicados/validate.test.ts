@@ -46,6 +46,7 @@ function input(
     doc: DOC,
     actionLabel: " Ver mi reserva ",
     actionPath: " /my_participations ",
+    previewText: null,
     essential: false,
     essentialReason: null,
     sendEmail: true,
@@ -123,8 +124,26 @@ describe("validateComunicadoForSend", () => {
       text: "El armado se adelanta.",
       actionLabel: "Ver mi reserva",
       actionPath: "/my_participations",
+      previewText: null,
       essentialReason: null,
     });
+  });
+
+  it("keeps a one-line preview of up to 120 characters, trimmed, and none when blank", async () => {
+    const kept = await validateComunicadoForSend(
+      input({ previewText: "  El armado empieza a las 7:00.  " }),
+    );
+    expect(kept.ok && kept.previewText).toBe("El armado empieza a las 7:00.");
+    const blank = await validateComunicadoForSend(
+      input({ previewText: "   " }),
+    );
+    expect(blank.ok && blank.previewText).toBeNull();
+    expect(await refusal({ previewText: "x".repeat(121) })).toBe(
+      "El resumen puede tener hasta 120 caracteres.",
+    );
+    expect(await refusal({ previewText: "Una línea\notra" })).toBe(
+      "El resumen va en una sola línea.",
+    );
   });
 
   it("asks for a one-line title of 1 to 80 characters", async () => {

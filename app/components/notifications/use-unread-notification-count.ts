@@ -3,6 +3,8 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { onAppRefresh } from "@/app/components/navbar/pull-refresh";
+
 import { onNotificationsChanged } from "@/app/components/notifications/notification-events";
 
 const POLL_INTERVAL_MS = 60_000;
@@ -70,12 +72,15 @@ export function useUnreadNotificationCount() {
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
     const unsubscribe = onNotificationsChanged(() => poll(true));
+    // Pulling to refresh in the installed app asks again too.
+    const unsubscribeRefresh = onAppRefresh(() => poll(true));
     return () => {
       current = false;
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
       unsubscribe();
+      unsubscribeRefresh();
     };
   }, [pathname]);
 

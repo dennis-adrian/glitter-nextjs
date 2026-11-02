@@ -35,6 +35,11 @@ export type KindDefinition<Data> = {
    */
   opensDetail?: (data: Data) => boolean;
   /**
+   * A push body its sender wrote to be shown, for an item that opens its own
+   * page: in place of "Tocá para ver el detalle.". Null keeps that line.
+   */
+  pushBody?: (data: Data) => string | null;
+  /**
    * Whether the item is written already read: a receipt for something the
    * person just did themselves ("Recibimos tu comprobante") belongs in their
    * history, but is not news worth a badge.

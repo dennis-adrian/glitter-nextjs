@@ -155,18 +155,26 @@ export async function loadHistorySummary(
   );
   if (accepted.length === 0) return null;
 
-  const [pastFestivals, partnersByReservation] = await Promise.all([
-    fetchPastFestivals(),
-    fetchPartnersByReservation(
-      accepted.map((participation) => participation.reservation.id),
-      profile.id,
-    ),
-  ]);
+  // Past means archived: an accepted reservation for a festival still to
+  // come (one staff added by hand) is not history yet.
+  const pastFestivalIds = (await fetchPastFestivals()).map(
+    (festival) => festival.id,
+  );
+  const archived = new Set(pastFestivalIds);
+  const past = accepted.filter((participation) =>
+    archived.has(participation.reservation.festivalId),
+  );
+  if (past.length === 0) return null;
+
+  const partnersByReservation = await fetchPartnersByReservation(
+    past.map((participation) => participation.reservation.id),
+    profile.id,
+  );
 
   return buildHistorySummary({
     participations: profile.participations,
     activeFestivalId,
-    pastFestivalIds: pastFestivals.map((festival) => festival.id),
+    pastFestivalIds,
     partnersByReservation,
   });
 }
@@ -202,7 +210,9 @@ export async function loadHomeStore(
 
   const products = (
     await fetchProducts("default", { visibleOnly: true, storeCategory: kind })
-  ).filter((product) => getProductEffectiveStock(product) > 0 || product.isRentable);
+  ).filter(
+    (product) => getProductEffectiveStock(product) > 0 || product.isRentable,
+  );
   const featured =
     kind === "merch" ? products.filter((product) => product.isFeatured) : [];
   const shown = (featured.length > 0 ? featured : products).slice(

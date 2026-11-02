@@ -12,12 +12,19 @@ import {
   snapshotComunicadoRecipients,
   summarizeComunicadoAudience,
 } from "@/app/lib/comunicados/audience";
+import {
+  contactAudiencePreview,
+  countContactAudience,
+  snapshotComunicadoContacts,
+} from "@/app/lib/comunicados/contacts";
 import type {
   SendRefusalCode,
   VercelEnvironment,
 } from "@/app/lib/comunicados/contracts";
 import {
   COMUNICADO_MAX_RECIPIENTS,
+  COMUNICADO_VISITOR_MAX_RECIPIENTS,
+  type ComunicadoAudienceKind,
   COMUNICADO_SCHEDULE_LATE_LIMIT_MS,
   COMUNICADO_TYPE_TO_CONFIRM_RECIPIENTS,
   type ComunicadoAudience,
@@ -65,6 +72,8 @@ export const SEND_MESSAGES = {
   baseUrl:
     "Falta configurar la dirección pública del sitio: los enlaces del correo no funcionarían.",
   noEligible: "Nadie de esta audiencia puede recibirlo.",
+  visitorsEmailOnly:
+    "Un comunicado a visitantes va solo por correo: sin notificación ni envío esencial.",
 } as const;
 
 /** A send that will not start, with the reason in the admin's words. */
@@ -72,22 +81,37 @@ export class SendRefusal extends Error {
   readonly code: SendRefusalCode;
   /** The snapshot's count, for the refusals taken after it; else null. */
   readonly eligible: number | null;
+  /** `AUDIENCE_TOO_LARGE`'s cap, which depends on the audience kind. */
+  readonly max: number | null;
 
   constructor(
     code: SendRefusalCode,
     message: string,
-    opts: { eligible?: number } = {},
+    opts: { eligible?: number; max?: number } = {},
   ) {
     super(message);
     this.name = "SendRefusal";
     this.code = code;
     this.eligible = opts.eligible ?? null;
+    this.max = opts.max ?? null;
   }
 }
 
+/** The cap for an audience kind (A9, §L). */
+export function comunicadoMaxRecipients(kind: ComunicadoAudienceKind) {
+  return kind === "visitors"
+    ? COMUNICADO_VISITOR_MAX_RECIPIENTS
+    : COMUNICADO_MAX_RECIPIENTS;
+}
+
 /** "Por ahora un comunicado llega a 3.000 personas como máximo…" (G5). */
-export function audienceTooLargeMessage() {
-  return `Por ahora un comunicado llega a ${formatAudienceCount(COMUNICADO_MAX_RECIPIENTS)} personas como máximo. Achicá la audiencia con una lista más precisa.`;
+export function audienceTooLargeMessage(
+  kind: ComunicadoAudienceKind = "users",
+) {
+  const max = formatAudienceCount(comunicadoMaxRecipients(kind));
+  return kind === "visitors"
+    ? `Por ahora un comunicado a visitantes llega a ${max} direcciones como máximo.`
+    : `Por ahora un comunicado llega a ${max} personas como máximo. Achicá la audiencia con una lista más precisa.`;
 }
 
 /** "La audiencia cambió: ahora son 1.251 personas…" (B8), or "es 1 persona". */
@@ -114,6 +138,8 @@ export function typedConfirmationRequired(
  * same transaction, for display.
  */
 export function buildAudienceSummary(i: {
+  audienceKind?: ComunicadoAudienceKind;
+  contacts?: { visitors: number; guestBuyers: number } | null;
   env: VercelEnvironment;
   narrowed: boolean;
   preview: ComunicadoAudiencePreview;
@@ -125,6 +151,7 @@ export function buildAudienceSummary(i: {
   const { email } = i.preview;
   return {
     v: 1,
+    audienceKind: i.audienceKind ?? "users",
     env: i.env,
     narrowed: i.narrowed,
     sources: i.preview.sources.map((source) => ({
@@ -156,6 +183,7 @@ export function buildAudienceSummary(i: {
           suppressed: 0,
           invalid: 0,
         },
+    contacts: i.contacts ?? null,
     essentialFestival: i.essential ? i.preview.essentialAllowed.festival : null,
     essentialOverride: i.essential ? email.essentialOverride : 0,
     essentialNotOverridden: i.essential
@@ -170,9 +198,13 @@ export type SendableComunicadoRow = {
   doc: unknown;
   actionLabel: string | null;
   actionPath: string | null;
+  previewText: string | null;
   essential: boolean;
   essentialReason: string | null;
   sendEmail: boolean;
+  /** Absent means a participant comunicado. */
+  sendPush?: boolean;
+  audienceKind?: ComunicadoAudienceKind;
   audience: unknown;
 };
 
@@ -181,9 +213,16 @@ export type SendableContent = Extract<ComunicadoSendCheck, { ok: true }>;
 export type ComunicadoSendability =
   | {
       ok: true;
+      kind: "users";
       content: SendableContent;
       audience: ComunicadoAudience;
       resolved: ResolvedComunicadoAudience;
+      preview: ComunicadoAudiencePreview;
+    }
+  | {
+      ok: true;
+      kind: "visitors";
+      content: SendableContent;
       preview: ComunicadoAudiencePreview;
     }
   | {
@@ -229,11 +268,15 @@ export async function checkComunicadoSendable(
   row: SendableComunicadoRow,
   { env, narrow }: { env: VercelEnvironment; narrow: boolean },
 ): Promise<ComunicadoSendability> {
+  if (row.audienceKind === "visitors") {
+    return checkVisitorComunicadoSendable(executor, row, { env, narrow });
+  }
   const content = await validateComunicadoForSend({
     title: row.title,
     doc: row.doc,
     actionLabel: row.actionLabel,
     actionPath: row.actionPath,
+    previewText: row.previewText,
     essential: row.essential,
     essentialReason: row.essentialReason,
     sendEmail: row.sendEmail,
@@ -271,19 +314,67 @@ export async function checkComunicadoSendable(
     return refused("ESSENTIAL_NOT_ALLOWED", ESSENTIAL_NOT_ALLOWED_MESSAGE);
   }
   if (row.sendEmail) {
-    const problem = emailBaseUrlProblem(publicBaseUrl(), env);
-    if (problem) {
-      console.error("[comunicados] email links would not work:", problem);
-      return refused("BASE_URL", SEND_MESSAGES.baseUrl);
-    }
+    const baseUrl = baseUrlRefusal(env);
+    if (baseUrl) return { ok: false as const, refusal: baseUrl, preview };
   }
   return {
     ok: true,
+    kind: "users",
     content,
     audience,
     resolved: counted.resolved,
     preview,
   };
+}
+
+/** The base URL check every emailing send shares. */
+function baseUrlRefusal(env: VercelEnvironment) {
+  const problem = emailBaseUrlProblem(publicBaseUrl(), env);
+  if (!problem) return null;
+  console.error("[comunicados] email links would not work:", problem);
+  return new SendRefusal("BASE_URL", SEND_MESSAGES.baseUrl);
+}
+
+/**
+ * The same checks for a comunicado to visitors and guest buyers (§L): the
+ * content, email only (no push, never essential) and the base URL. The
+ * audience is every contact, so there is nothing stored to parse.
+ */
+async function checkVisitorComunicadoSendable(
+  executor: Executor,
+  row: SendableComunicadoRow,
+  { env, narrow }: { env: VercelEnvironment; narrow: boolean },
+): Promise<ComunicadoSendability> {
+  const content = await validateComunicadoForSend({
+    title: row.title,
+    doc: row.doc,
+    actionLabel: row.actionLabel,
+    actionPath: row.actionPath,
+    previewText: row.previewText,
+    essential: false,
+    essentialReason: null,
+    sendEmail: true,
+  });
+  const preview = contactAudiencePreview(
+    await countContactAudience(executor, { narrow }),
+    narrow,
+  );
+  const refused = (refusal: SendRefusal) => ({
+    ok: false as const,
+    refusal,
+    preview,
+  });
+  if (!content.ok) {
+    return refused(new SendRefusal("INVALID_CONTENT", content.message));
+  }
+  if (!row.sendEmail || row.sendPush || row.essential) {
+    return refused(
+      new SendRefusal("INVALID_AUDIENCE", SEND_MESSAGES.visitorsEmailOnly),
+    );
+  }
+  const baseUrl = baseUrlRefusal(env);
+  if (baseUrl) return refused(baseUrl);
+  return { ok: true, kind: "visitors", content, preview };
 }
 
 /**
@@ -365,8 +456,10 @@ export async function startComunicadoSend(
       doc: comunicados.doc,
       actionLabel: comunicados.actionLabel,
       actionPath: comunicados.actionPath,
+      previewText: comunicados.previewText,
       sendEmail: comunicados.sendEmail,
       sendPush: comunicados.sendPush,
+      audienceKind: comunicados.audienceKind,
       audience: comunicados.audience,
       essential: comunicados.essential,
       essentialReason: comunicados.essentialReason,
@@ -415,7 +508,7 @@ export async function startComunicadoSend(
     narrow: env !== "production",
   });
   if (!check.ok) throw check.refusal;
-  const { content, resolved, preview } = check;
+  const { content, preview } = check;
   const html = await blocksToSanitizedHtml(content.blocks, "announcement");
 
   // The key is unique across campaign types: one campaign per comunicado.
@@ -432,16 +525,34 @@ export async function startComunicadoSend(
     .returning({ id: notificationCampaigns.id });
   const campaignId = campaign!.id;
 
-  const snapshot = await snapshotComunicadoRecipients(
-    tx,
-    campaignId,
-    resolved.input,
-  );
+  let snapshot: ComunicadoSnapshotCounts;
+  let contacts: { visitors: number; guestBuyers: number } | null = null;
+  if (check.kind === "visitors") {
+    const counts = await snapshotComunicadoContacts(tx, campaignId, row.id, {
+      narrow: preview.narrowed,
+    });
+    snapshot = {
+      matched: counts.matched,
+      eligible: counts.eligible,
+      willReceive: counts.willReceive,
+      stagingAdmins: counts.stagingAdmins,
+      pickedByName: 0,
+      skipped: counts.skipped,
+    };
+    contacts = { visitors: counts.visitors, guestBuyers: counts.guestBuyers };
+  } else {
+    snapshot = await snapshotComunicadoRecipients(
+      tx,
+      campaignId,
+      check.resolved.input,
+    );
+  }
   const { eligible } = snapshot;
+  const max = comunicadoMaxRecipients(check.kind);
   const refusal = (code: SendRefusalCode, message: string) =>
-    new SendRefusal(code, message, { eligible });
-  if (eligible > COMUNICADO_MAX_RECIPIENTS) {
-    throw refusal("AUDIENCE_TOO_LARGE", audienceTooLargeMessage());
+    new SendRefusal(code, message, { eligible, max });
+  if (eligible > max) {
+    throw refusal("AUDIENCE_TOO_LARGE", audienceTooLargeMessage(check.kind));
   }
   if (eligible === 0) {
     throw refusal("NO_ELIGIBLE_RECIPIENTS", SEND_MESSAGES.noEligible);
@@ -465,6 +576,7 @@ export async function startComunicadoSend(
     text: content.text,
     actionLabel: content.actionLabel,
     actionPath: content.actionPath,
+    previewText: content.previewText,
     createdByUserId: by,
   });
 
@@ -488,13 +600,15 @@ export async function startComunicadoSend(
       sentAt: sql`now()`,
       sentByUserId: by,
       audienceSummary: buildAudienceSummary({
+        audienceKind: check.kind,
+        contacts,
         env,
         narrowed: preview.narrowed,
         preview,
         snapshot,
         sendEmail: row.sendEmail,
-        sendPush: row.sendPush,
-        essential: row.essential,
+        sendPush: check.kind === "visitors" ? false : row.sendPush,
+        essential: check.kind === "visitors" ? false : row.essential,
       }),
       // The working copy as sent, so the list pages show revision 1's title
       // and the CHECKs that spare drafts hold from here on.

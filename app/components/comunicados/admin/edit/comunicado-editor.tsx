@@ -64,6 +64,7 @@ export type ComunicadoEditorProps = {
   doc: unknown[];
   actionLabel: string | null;
   actionPath: string | null;
+  previewText: string | null;
   essential: boolean;
   /** The festival an essential email names, as the preview shows it. */
   essentialFestivalName: string | null;
@@ -89,6 +90,7 @@ export default function ComunicadoEditor({
   doc: revisionDoc,
   actionLabel: revisionActionLabel,
   actionPath: revisionActionPath,
+  previewText: revisionPreviewText,
   essential,
   essentialFestivalName,
   sendEmail,
@@ -108,7 +110,10 @@ export default function ComunicadoEditor({
     doc: revisionDoc,
     actionLabel: revisionActionLabel,
     actionPath: revisionActionPath,
+    previewText: revisionPreviewText,
   }));
+  const [previewText, setPreviewText] = useState(seed.previewText ?? "");
+  const sentPreviewText = previewText.trim() || null;
   const [title, setTitle] = useState(seed.title);
   const [doc, setDoc] = useState(seed.doc);
   /** The admin wrote in the text: BlockNote's own settling is not a change. */
@@ -135,7 +140,8 @@ export default function ComunicadoEditor({
     docChanged ||
     title.trim() !== seed.title.trim() ||
     button.label !== seed.actionLabel ||
-    button.path !== seed.actionPath;
+    button.path !== seed.actionPath ||
+    sentPreviewText !== seed.previewText;
   const noteMissing = essential && !note.trim();
   const text = announcementBlocksToText(doc, { withUrls: false });
   // What a sent comunicado must still have; its audience and essential
@@ -164,6 +170,7 @@ export default function ComunicadoEditor({
     doc,
     actionLabel: action.enabled ? action.label : null,
     actionPath: action.enabled ? action.path : null,
+    previewText: sentPreviewText,
     editNote: note.trim() || null,
   };
   const previewInput: PreviewInput = {
@@ -171,6 +178,7 @@ export default function ComunicadoEditor({
     doc,
     actionLabel: input.actionLabel,
     actionPath: input.actionPath,
+    previewText: sentPreviewText,
     essentialFestivalName,
   };
 
@@ -220,6 +228,8 @@ export default function ComunicadoEditor({
               setDocChanged(true);
             }}
             textLength={text.length}
+            previewText={previewText}
+            onPreviewTextChange={setPreviewText}
             // Its own refusal speaks of a draft; the server's answer is
             // shown by the button instead.
             contentError={null}

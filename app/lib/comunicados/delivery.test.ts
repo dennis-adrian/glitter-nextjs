@@ -45,9 +45,7 @@ function check(
     id,
     skip,
     overridden: false,
-    displayName: null,
-    firstName: "Ana",
-    lastName: "Ilustra",
+    essential: false,
     ...overrides,
   };
 }

@@ -8,6 +8,7 @@ import { db } from "@/db";
 import {
   emailSuppressions,
   emailUnsubscribes,
+  notificationCampaignContacts,
   users,
   visitors,
 } from "@/db/schema";
@@ -264,6 +265,15 @@ export async function isUnsubscribed(address: string, topic: MailingTopic) {
 
 /** The address an unsubscribe link's recipient has now, or null. */
 export async function recipientAddress(recipient: UnsubscribeRecipient) {
+  if (recipient.kind === "contact") {
+    // The address the comunicado was sent to, as frozen at its send.
+    const [row] = await db
+      .select({ email: notificationCampaignContacts.email })
+      .from(notificationCampaignContacts)
+      .where(eq(notificationCampaignContacts.id, recipient.id))
+      .limit(1);
+    return row?.email ?? null;
+  }
   if (recipient.kind === "visitor") {
     const [row] = await db
       .select({ email: visitors.email })
@@ -391,5 +401,22 @@ export function announcementOptOutOverridden(
     and not ${activeSuppressionExists(address)}
     and not ${unsubscribeExists(address, "all")}
     and ${unsubscribeExists(address, "announcements")}
+  )`;
+}
+
+/**
+ * Why a "Novedades" email (a comunicado to visitors and guest buyers) skips
+ * `address`: `suppressed` (a bounce or a complaint), `unsubscribed` (from
+ * Novedades or from all bulk mail), or null. Nothing overrides either: a
+ * visitor comunicado is never essential. For the counts and for the send.
+ */
+export function newsEmailExclusion(address: SQL) {
+  return sql<"suppressed" | "unsubscribed" | null>`(
+    case
+      when ${activeSuppressionExists(address)} then 'suppressed'
+      when ${unsubscribeExists(address, "all")} then 'unsubscribed'
+      when ${unsubscribeExists(address, "news")} then 'unsubscribed'
+      else null
+    end
   )`;
 }

@@ -6,8 +6,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table";
+import { COMUNICADO_CONTACT_SOURCE_LABELS } from "@/app/lib/comunicados/definitions";
 import type { ComunicadoRecipientRow } from "@/app/lib/comunicados/report";
 import { COMUNICADO_SOURCE_LABELS } from "@/app/lib/comunicados/skip-reasons";
+
+/** The Origen column, for a participant or a visitor comunicado's contact. */
+const SOURCE_LABELS: Record<string, string> = {
+  ...COMUNICADO_SOURCE_LABELS,
+  ...COMUNICADO_CONTACT_SOURCE_LABELS,
+};
 
 /**
  * One page of who the comunicado was for (G6): how each person entered the
@@ -40,7 +47,7 @@ export default function RecipientsTable({
         </TableHeader>
         <TableBody>
           {rows.map((row) => (
-            <TableRow key={row.userId}>
+            <TableRow key={row.key}>
               <TableCell className="min-w-56">
                 <p className="break-words font-medium">{row.name}</p>
                 <p className="break-all text-xs text-muted-foreground">
@@ -48,7 +55,13 @@ export default function RecipientsTable({
                 </p>
               </TableCell>
               <TableCell className="whitespace-nowrap">
-                {row.source ? COMUNICADO_SOURCE_LABELS[row.source] : "—"}
+                {row.source ? (SOURCE_LABELS[row.source] ?? "—") : "—"}
+                {/* Added by "Enviar a más personas" (G10). */}
+                {row.resent && (
+                  <span className="block text-xs text-muted-foreground">
+                    Después del envío
+                  </span>
+                )}
               </TableCell>
               <TableCell className="min-w-32">{row.app}</TableCell>
               <TableCell className="min-w-40">{row.emailLabel}</TableCell>

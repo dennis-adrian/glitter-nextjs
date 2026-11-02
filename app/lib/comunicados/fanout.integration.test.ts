@@ -192,6 +192,8 @@ function summaryFor(
 ): ComunicadoAudienceSummary {
   return {
     v: 1,
+    audienceKind: "users",
+    contacts: null,
     env,
     narrowed: env !== "production",
     sources: [],
@@ -769,6 +771,7 @@ describeDatabase("comunicado fan-out", () => {
         excerpt: "Texto de la revisión 2. Segundo párrafo.",
         actionPath: "/my_participations",
         actionLabel: "Ver horarios",
+        preview: null,
       });
       const recipients = await recipientsOf(fixture.campaignId);
       for (const userId of [ana, beto, admin]) {

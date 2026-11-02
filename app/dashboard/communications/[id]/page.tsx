@@ -2,6 +2,8 @@ import { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 
+import { COMUNICADO_CONTACTS_SOURCE_LABEL } from "@/app/lib/comunicados/definitions";
+
 import ComunicadoComposer from "@/app/components/comunicados/admin/composer/composer";
 import type {
   ComposerDraft,
@@ -51,8 +53,10 @@ function draftOf(comunicado: ComposerComunicado): ComposerDraft {
     doc: comunicado.doc,
     actionLabel: comunicado.actionLabel,
     actionPath: comunicado.actionPath,
+    previewText: comunicado.previewText,
     sendEmail: comunicado.sendEmail,
     sendPush: comunicado.sendPush,
+    audienceKind: comunicado.audienceKind,
     audience: comunicado.audience,
     audienceUnreadable: comunicado.audienceUnreadable,
     essential: comunicado.essential,
@@ -75,6 +79,7 @@ function scheduledOf(comunicado: ComposerComunicado): ScheduledComunicadoData {
     doc: comunicado.doc,
     actionLabel: comunicado.actionLabel,
     actionPath: comunicado.actionPath,
+    previewText: comunicado.previewText,
     sendEmail: comunicado.sendEmail,
     sendPush: comunicado.sendPush,
     essential: comunicado.essential,
@@ -90,6 +95,9 @@ function scheduledOf(comunicado: ComposerComunicado): ScheduledComunicadoData {
 
 /** "Para: Confirmados · Glitter Navidad 2026 y 3 personas", as the list says it. */
 function audienceLabelOf(comunicado: ComposerComunicado) {
+  if (comunicado.audienceKind === "visitors") {
+    return `${COMUNICADO_CONTACTS_SOURCE_LABEL} · solo correo`;
+  }
   return comunicadoAudienceLabel(comunicado.audience, {
     festivals: new Map(
       comunicado.sources.festivals.map((festival) => [
@@ -130,13 +138,14 @@ export default async function ComunicadoPage(props: {
     const searchParams = await props.searchParams;
     const filter = parseRecipientFilter(searchParams.filter);
     const query = querySchema.parse(searchParams.q);
-    const [recipients, revisions] = await Promise.all([
+    const [recipients, revisions, pushLaunched] = await Promise.all([
       fetchComunicadoRecipients(id, {
         filter,
         query,
         page: pageSchema.parse(searchParams.page),
       }),
       fetchComunicadoRevisions(id),
+      isFeatureLaunched("push_notifications"),
     ]);
     if (!recipients) notFound();
     return (
@@ -147,6 +156,7 @@ export default async function ComunicadoPage(props: {
         filter={filter}
         query={query}
         env={serverEnv.VERCEL_ENV}
+        pushLaunched={pushLaunched}
       />
     );
   }

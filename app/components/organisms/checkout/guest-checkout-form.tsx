@@ -9,14 +9,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { CircleCheckIcon, Loader2Icon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { z } from "zod";
 
 import Heading from "@/app/components/atoms/heading";
+import NewsOptInField from "@/app/components/form/fields/news-opt-in";
 import PhoneInput from "@/app/components/form/fields/phone";
 import TextInput from "@/app/components/form/fields/text";
-import {
-  guestCheckoutContactSchema,
-  type GuestCheckoutContactInput,
-} from "@/app/components/form/input-validators";
+import { guestCheckoutContactSchema } from "@/app/components/form/input-validators";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Form } from "@/app/components/ui/form";
@@ -27,7 +26,11 @@ import type {
   GuestCartItem,
 } from "@/app/lib/cart/definitions";
 
-type GuestFormValues = GuestCheckoutContactInput;
+/** The contact, and "Quiero recibir novedades" (unticked unless ticked). */
+const guestFormSchema = guestCheckoutContactSchema.extend({
+  newsOptIn: z.boolean(),
+});
+type GuestFormValues = z.infer<typeof guestFormSchema>;
 
 type GuestCheckoutFormProps = {
   guestItems: GuestCartItem[];
@@ -46,8 +49,8 @@ export function GuestCheckoutForm({
   const [loading, setLoading] = useState(false);
 
   const form = useForm<GuestFormValues>({
-    resolver: zodResolver(guestCheckoutContactSchema),
-    defaultValues: { name: "", email: "", phone: "" },
+    resolver: zodResolver(guestFormSchema),
+    defaultValues: { name: "", email: "", phone: "", newsOptIn: false },
   });
 
   async function handleSubmit(values: GuestFormValues) {
@@ -73,6 +76,7 @@ export function GuestCheckoutForm({
           quantity: bundle.quantity,
           selections: bundle.selections,
         })),
+        { newsOptIn: values.newsOptIn },
       );
 
       if (result.success && result.orderId && result.guestOrderToken) {
@@ -121,6 +125,7 @@ export function GuestCheckoutForm({
               type="email"
             />
             <PhoneInput name="phone" label="Número de teléfono" />
+            <NewsOptInField control={form.control} name="newsOptIn" />
 
             {blockingMessage && (
               <p
