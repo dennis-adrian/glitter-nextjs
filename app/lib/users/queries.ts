@@ -1,5 +1,6 @@
 import "server-only";
 
+// eslint-disable-next-line no-restricted-imports -- the Clerk account itself, see below
 import { currentUser } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
 import { cache } from "react";
@@ -13,6 +14,12 @@ import { users } from "@/db/schema";
 // there, any visitor could fetch a full profile row by id or Clerk id. Callers
 // pass the session's own Clerk id, or authorize before they ask.
 
+/**
+ * The Clerk account that is signed in, never whoever it is viewing the app
+ * as. Only for what belongs to the account itself (creating its own profile
+ * row from its own email). To find the current profile, use
+ * `getCurrentUserProfile`; to ask whether anyone is signed in, `isSignedIn`.
+ */
 export const getCurrentClerkUser = cache(async () => await currentUser());
 
 export const fetchUserProfileByClerkId = async (

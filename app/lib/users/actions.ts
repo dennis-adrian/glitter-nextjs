@@ -32,6 +32,7 @@ import { profileReviewBlocker } from "@/app/lib/users/profile-review";
 import {
   fetchAdminUsers,
   fetchUserProfileById,
+  // eslint-disable-next-line no-restricted-imports -- createUserProfile needs the Clerk account itself
   getCurrentClerkUser,
 } from "@/app/lib/users/queries";
 import {
@@ -63,6 +64,8 @@ import { revalidatePath } from "next/cache";
  * create a row under another Clerk id or pick their own role or status.
  */
 export async function createUserProfile() {
+  // The Clerk account itself, not a viewer: a profile is only ever created
+  // for the account that is signed in.
   const clerkUser = await getCurrentClerkUser();
   const email = clerkUser?.emailAddresses[0]?.emailAddress;
   if (!clerkUser || !email) {

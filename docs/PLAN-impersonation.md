@@ -116,21 +116,27 @@ Migration: `pnpm generate` → `drizzle/0305_impersonation_sessions.sql`. Applie
 1. `requireAdmin()` on the **real** viewer (`getImpersonation()` must be null; an admin already viewing as someone is refused).
 2. Load the subject: `role = 'user'`, `id !== admin.id`, no `pending_user_deletions` row for its `clerk_id` with `local_deleted_at` null. Otherwise `{ success: false, message }`.
 3. `randomBytes(32)` → token; store `sha256(token)`; `expires_at = now + 60 min`; `admin_clerk_session_id = auth().sessionId`; `return_to` only when it is a same-origin path under `/dashboard`.
-4. Set the cookie (`maxAge` 3600) and return `{ success: true, redirectTo: "/portal" }`. The client navigates with `router.push` and `router.refresh()`.
+4. Set the cookie (`maxAge` 3600) and return `{ success: true, redirectTo: "/portal" }`. The client navigates with a **full document load** (`window.location.assign`), not `router.push`: Clerk's client `userId` stays the admin's during a view, and client caches keyed on it (`useNavbarProfile`, the program price eligibility in `viewer-session-price.tsx`) would otherwise keep showing the admin's data.
 5. PostHog: one server event `impersonation_started` with `subject_id`, attributed to the admin.
 
 ### 5.2 While viewing
 
-- `getCurrentUserProfile`, `getCurrentBaseProfile`, `getCurrentNavbarProfile` call `getViewerClerkId()` instead of `getCurrentClerkUser().id`.
-- `app/api/users/navbar-profile/route.ts`, `app/page.tsx`, `app/lib/notifications/queries.ts` (`resolveInboxViewer`) and `app/launch/route.ts` use `getViewerClerkId()`.
-- `getCurrentClerkUser` stays for the places that need Clerk's user object itself, but is no longer how a profile is found.
+Every place that read Clerk's identity, sorted by what it needs (done in step 2):
+
+| Needs | Call sites | Now uses |
+| --- | --- | --- |
+| Whose profile | `getCurrentUserProfile`, `getCurrentBaseProfile`, `getCurrentNavbarProfile` (`app/lib/users/helpers.ts`); `app/api/users/navbar-profile/route.ts`; `resolveInboxViewer` (`app/lib/notifications/queries.ts`); the three `my_profile` pages; the 16 UploadThing middlewares (`app/api/uploadthing/core.ts`, through a local `currentUploader`) | `getViewerClerkId()` |
+| Whether anyone is signed in | `app/page.tsx`, `app/launch/route.ts`, the supplies page and the supplies product notice | `isSignedIn()` |
+| The Clerk account itself | `createUserProfile` (`app/lib/users/actions.ts`), from its own email | `getCurrentClerkUser()`, unchanged |
+
+`getCurrentClerkUser` is documented as the Clerk account, never the viewer. ESLint (`no-restricted-imports`) refuses `auth` and `currentUser` from `@clerk/nextjs/server` and `getCurrentClerkUser` everywhere except `viewer.ts`, `users/queries.ts` and `createUserProfile`, each with a commented exemption. Test files are exempt; they mock rather than call.
 - Everything downstream is unchanged: `requireAdmin` is false, `/dashboard` redirects to `/`, `protectRoute` sees the subject's status, feature flags, navigation, Inicio and the hub resolve for the subject.
 
 ### 5.3 Exit — `POST /api/impersonation/exit` (route handler)
 
 1. `auth()` must be signed in; the view row for the cookie must be bound to this Clerk session (an expired row still ends cleanly).
 2. Inside `allowImpersonationWrites()`: set `ended_at`, `end_reason = 'exited'`.
-3. Clear the cookie; respond with `{ returnTo }` (`return_to` or `/dashboard`). The banner's Salir button posts, then `router.replace(returnTo)` and `router.refresh()`.
+3. Clear the cookie; respond with `{ returnTo }` (`return_to` or `/dashboard`). The banner's Salir button posts, then `window.location.replace(returnTo)`, a full document load for the same reason as entering.
 
 A route handler rather than a server action so it is callable from the banner on every page, including `force-static` ones, with no RSC round-trip and no dependency on the page it is on.
 
@@ -163,7 +169,7 @@ A route handler rather than a server action so it is callable from the banner on
 | `app/lib/notifications/push/send.ts` | Same refusal before any delivery. |
 | `app/lib/notifications/push/actions.ts` | `savePushDeviceAction` and friends return the read-only result before touching the DB, so the client gets a message rather than a thrown error. |
 | `app/components/notifications/use-push-device.ts` and the avisos control | Hidden / inert while viewing (`useImpersonation()` client hook from the banner's context). |
-| `proxy.ts` | `POST /api/uploadthing(.*)` answers 403 while the view cookie resolves to a live row. The middleware cannot read the DB cheaply, so it checks the cookie's presence plus a second, non-httpOnly marker cookie `glitter_view_as_marker` written and cleared together with the token; the route handler re-checks with `isImpersonating()`. |
+| `app/api/uploadthing/route.ts` | `POST` answers 403 while `isImpersonating()`, before UploadThing sees the request. This has to happen on the user's own request: several routes' `onUploadComplete` write to the database (credit top-ups, payment proofs, program vouchers), and that callback comes from UploadThing's servers with no cookie, so the database guard never sees a view there. UploadThing's own callback carries no view cookie and passes. One check in the route handler covers all 21 routes, guest checkout included, so the marker cookie and the `proxy.ts` rule planned here are dropped. |
 | `app/lib/notifications/read.ts` `markNotificationRead` | Returns without writing while viewing, so `/my_notifications/[id]/open` still renders. |
 | `app/components/providers/posthog-identify.tsx` | `useUser()` is still the admin, so identify is already right. No change beyond a comment; the client stays identified as the admin. |
 | Cart, reservations, profile edits, votes, uploads, terms acceptance | Caught by 6.1. Their forms show their usual error toast with the guard's message. |
@@ -232,7 +238,7 @@ Added to the "Glitter App Navigation Proposals" canvas beside R and S, following
 | Schema | `db/schema.ts`, `drizzle/0305_*.sql` (generated) |
 | Core | `app/lib/impersonation/viewer.ts`, `cookie.ts`, `queries.ts`, `actions.ts`, `write-guard.ts`, `eligibility.ts`, `definitions.ts` |
 | Viewer resolution | `app/lib/users/helpers.ts`, `app/lib/users/queries.ts`, `app/api/users/navbar-profile/route.ts`, `app/page.tsx`, `app/lib/notifications/queries.ts`, `app/launch/route.ts` |
-| Guard | `db/index.ts`, `app/vendors/resend.ts`, `app/lib/notifications/push/send.ts`, `app/lib/notifications/push/actions.ts`, `app/lib/notifications/read.ts`, `proxy.ts` |
+| Guard | `db/index.ts`, `app/vendors/resend.ts`, `app/lib/notifications/push/send.ts`, `app/lib/notifications/push/actions.ts`, `app/lib/notifications/read.ts`, `app/api/uploadthing/route.ts` |
 | Routes | `app/api/impersonation/route.ts` (GET state), `app/api/impersonation/exit/route.ts` |
 | Screens | `app/dashboard/impersonate/page.tsx` + components under `app/components/impersonation/` (picker, confirmation, recent list, banner, provider) |
 | Entry points | `app/components/navbar/app-navigation.ts`, `app/components/ui/user-dropdown.tsx`, `app/components/user_profile/public_profile/quick-actions.tsx`, `app/components/pages/dashboard/user/user.tsx` |
@@ -256,7 +262,7 @@ Unit (vitest + @testing-library, no jest-dom):
 - Navigation: the row exists for `admin`, not for `festival_admin`, not for participants; `/dashboard/impersonate` resolves its screen title and parent.
 - Banner: renders name and Salir; posts to exit and replaces the route; flips to the ended state at `expiresAt`.
 - `markNotificationRead` and `savePushDeviceAction` are no-ops while viewing.
-- Middleware rule for `/api/uploadthing`.
+- UploadThing route handler: `POST` refused while viewing, UploadThing's own callback (no view cookie) let through.
 
 Integration (added to `test:integration`): `app/lib/impersonation/sessions.integration.test.ts` — start, resolve, exit, expiry, blocked-write counter against the disposable Postgres.
 

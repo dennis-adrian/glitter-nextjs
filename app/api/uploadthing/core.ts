@@ -1,4 +1,3 @@
-import { currentUser } from "@clerk/nextjs/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { UploadThingError } from "uploadthing/server";
@@ -6,6 +5,7 @@ import { z } from "zod";
 
 import type { ComunicadoImageType } from "@/app/lib/comunicados/definitions";
 import type { FestivalArtworkType } from "@/app/lib/festivals/artwork";
+import { getViewerClerkId } from "@/app/lib/impersonation/viewer";
 import { fetchUserProfile } from "@/app/lib/users/queries";
 import {
   getCreditTopUpUploadTarget,
@@ -32,6 +32,16 @@ import { db } from "@/db";
 import { invoices, orders, productImages, sessionPurchases } from "@/db/schema";
 
 const f = createUploadthing();
+
+/**
+ * Who is uploading, by Clerk id: the participant while an admin views the
+ * app as them, so a file is never filed under the admin's own profile. Only
+ * `id` was ever read from Clerk's user here.
+ */
+async function currentUploader(): Promise<{ id: string } | null> {
+  const id = await getViewerClerkId();
+  return id ? { id } : null;
+}
 
 // const auth = (req: Request) => ({ id: "fakeId" }); // Fake auth function
 
@@ -100,7 +110,7 @@ export const ourFileRouter = {
   profilePicture: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
     .middleware(async ({ req }) => {
       // This code runs on your server before upload
-      const user = await currentUser();
+      const user = await currentUploader();
 
       // Throw if user isn't signed in
       if (!user) {
@@ -134,7 +144,7 @@ export const ourFileRouter = {
   reservationPayment: f({ image: { maxFileSize: "4MB" } })
     .input(z.object({ invoiceId: z.number().int().positive() }))
     .middleware(async ({ input }) => {
-      const user = await currentUser();
+      const user = await currentUploader();
 
       if (!user) {
         throw new UploadThingError(
@@ -205,7 +215,7 @@ export const ourFileRouter = {
   creditTopUpVoucher: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
     .input(z.object({ topUpId: z.number().int().positive() }))
     .middleware(async ({ input }) => {
-      const user = await currentUser();
+      const user = await currentUploader();
       if (!user) {
         throw new UploadThingError(
           "Tenés que iniciar sesión para subir un comprobante",
@@ -290,7 +300,7 @@ export const ourFileRouter = {
   adminReservationPayment: f({ image: { maxFileSize: "4MB" } })
     .input(z.object({ invoiceId: z.number().int().positive() }))
     .middleware(async ({ input }) => {
-      const user = await currentUser();
+      const user = await currentUploader();
 
       if (!user) {
         throw new UploadThingError(
@@ -362,7 +372,7 @@ export const ourFileRouter = {
   imageUploader: f({ image: { maxFileSize: "4MB" } })
     // Set permissions and file types for this FileRoute
     .middleware(async ({ req }) => {
-      const user = await currentUser();
+      const user = await currentUploader();
 
       // Throw if user isn't signed in
       if (!user)
@@ -387,7 +397,7 @@ export const ourFileRouter = {
     }),
   storeOrderPayment: f({ image: { maxFileSize: "4MB" } })
     .middleware(async ({ req }) => {
-      const user = await currentUser();
+      const user = await currentUploader();
 
       if (!user) {
         throw new UploadThingError("Debes iniciar sesión");
@@ -441,7 +451,7 @@ export const ourFileRouter = {
         purchase,
         presentedTokenHash: input.token ? hashAccessToken(input.token) : null,
         loadViewer: async () => {
-          const user = await currentUser();
+          const user = await currentUploader();
           return user ? ((await fetchUserProfile(user.id)) ?? null) : null;
         },
         getViewerUserId: (profile) => profile.id,
@@ -490,7 +500,7 @@ export const ourFileRouter = {
   })
     // Set permissions and file types for this FileRoute
     .middleware(async ({ req }) => {
-      const user = await currentUser();
+      const user = await currentUploader();
 
       // Throw if user isn't signed in
       if (!user)
@@ -519,7 +529,7 @@ export const ourFileRouter = {
     }),
   qrCode: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
     .middleware(async () => {
-      const user = await currentUser();
+      const user = await currentUploader();
       if (!user) throw new UploadThingError("Debes iniciar sesión");
 
       const profile = await fetchUserProfile(user.id);
@@ -536,7 +546,7 @@ export const ourFileRouter = {
     image: { maxFileSize: "4MB", maxFileCount: 1 },
   })
     .middleware(async () => {
-      const user = await currentUser();
+      const user = await currentUploader();
       if (!user) throw new UploadThingError("Debes iniciar sesión");
 
       const profile = await fetchUserProfile(user.id);
@@ -558,7 +568,7 @@ export const ourFileRouter = {
     image: { maxFileSize: "4MB", maxFileCount: 1 },
   })
     .middleware(async () => {
-      const user = await currentUser();
+      const user = await currentUploader();
       if (!user) throw new UploadThingError("Debes iniciar sesión");
 
       const profile = await fetchUserProfile(user.id);
@@ -580,7 +590,7 @@ export const ourFileRouter = {
     image: { maxFileSize: "4MB", maxFileCount: 1 },
   })
     .middleware(async () => {
-      const user = await currentUser();
+      const user = await currentUploader();
       if (!user) throw new UploadThingError("Debes iniciar sesión");
 
       const profile = await fetchUserProfile(user.id);
@@ -597,7 +607,7 @@ export const ourFileRouter = {
     })),
   productImage: f({ image: { maxFileSize: "4MB", maxFileCount: 10 } })
     .middleware(async ({ req }) => {
-      const user = await currentUser();
+      const user = await currentUploader();
 
       if (!user) throw new UploadThingError("Debes iniciar sesión");
 
@@ -626,7 +636,7 @@ export const ourFileRouter = {
     }),
   categoryImage: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
     .middleware(async () => {
-      const user = await currentUser();
+      const user = await currentUploader();
       if (!user) throw new UploadThingError("Debes iniciar sesión");
 
       const profile = await fetchUserProfile(user.id);
@@ -644,7 +654,7 @@ export const ourFileRouter = {
     })),
   bannerImage: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
     .middleware(async () => {
-      const user = await currentUser();
+      const user = await currentUploader();
       if (!user) throw new UploadThingError("Debes iniciar sesión");
 
       const profile = await fetchUserProfile(user.id);
@@ -661,7 +671,7 @@ export const ourFileRouter = {
     })),
   blogImage: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
     .middleware(async () => {
-      const user = await currentUser();
+      const user = await currentUploader();
       if (!user) throw new UploadThingError("Debes iniciar sesión");
 
       const profile = await fetchUserProfile(user.id);

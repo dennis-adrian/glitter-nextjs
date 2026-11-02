@@ -226,7 +226,10 @@ export async function listRecentImpersonations(
     .leftJoin(admins, eq(admins.id, impersonationSessions.adminUserId))
     .leftJoin(subjects, eq(subjects.id, impersonationSessions.subjectUserId))
     .where(where)
-    .orderBy(desc(impersonationSessions.startedAt), desc(impersonationSessions.id))
+    .orderBy(
+      desc(impersonationSessions.startedAt),
+      desc(impersonationSessions.id),
+    )
     .limit(Math.min(Math.max(1, Math.trunc(limit)), RECENT_LIMIT_MAX));
 
   // A left join with no match yields an object of nulls, not null.

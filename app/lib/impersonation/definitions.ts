@@ -7,16 +7,11 @@ import type { BaseProfile } from "@/app/api/users/definitions";
 
 /** How long one view lasts. The cookie and the row expire together. */
 export const IMPERSONATION_DURATION_MINUTES = 60;
-export const IMPERSONATION_DURATION_SECONDS = IMPERSONATION_DURATION_MINUTES * 60;
+export const IMPERSONATION_DURATION_SECONDS =
+  IMPERSONATION_DURATION_MINUTES * 60;
 
 /** httpOnly: the opaque token whose SHA-256 the row keeps. */
 export const IMPERSONATION_TOKEN_COOKIE = "glitter_view_as";
-/**
- * Readable by the middleware without a database read: set and cleared with
- * the token, it only says a view may be on. Never trusted on its own; the
- * route behind it checks the row.
- */
-export const IMPERSONATION_MARKER_COOKIE = "glitter_view_as_marker";
 
 /** Only participants can be viewed as. Staff accounts never. */
 export const IMPERSONATABLE_ROLES = [

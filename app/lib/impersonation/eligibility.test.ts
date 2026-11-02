@@ -11,7 +11,9 @@ type Role = BaseProfile["role"];
 const admin = { id: 1, role: "admin" as Role };
 const participant = { id: 2, role: "user" as Role };
 
-function refusal(overrides: Partial<Parameters<typeof impersonationRefusal>[0]>) {
+function refusal(
+  overrides: Partial<Parameters<typeof impersonationRefusal>[0]>,
+) {
   return impersonationRefusal({
     actor: admin,
     actorIsViewing: false,
