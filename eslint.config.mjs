@@ -19,15 +19,43 @@ const eslintConfig = defineConfig([
           paths: [
             {
               name: "@clerk/nextjs/server",
-              importNames: ["auth", "currentUser"],
+              importNames: ["auth", "currentUser", "getAuth"],
               message:
                 "Use getCurrentUserProfile, getViewerClerkId or isSignedIn (app/lib/impersonation/viewer.ts): while an admin views the app as a participant, the viewer is the participant.",
+            },
+            {
+              name: "@/db/write-guard",
+              importNames: ["allowImpersonationWrites"],
+              message:
+                "Only app/lib/impersonation may let a write through during a view (its own bookkeeping).",
+            },
+            {
+              name: "@/app/lib/impersonation/housekeeping",
+              importNames: ["allowHousekeepingWrite"],
+              message:
+                "Only for idempotent inserts of global default rows that a page needs to render; add a commented exemption explaining why this write belongs to nobody.",
             },
             {
               name: "@/app/lib/users/queries",
               importNames: ["getCurrentClerkUser"],
               message:
                 "This is the signed-in Clerk account, not the viewer. Use getCurrentUserProfile or getViewerClerkId; isSignedIn to ask whether anyone is signed in.",
+            },
+          ],
+          // The same modules reached by a relative path.
+          patterns: [
+            {
+              // Only users/queries exports it, so any "queries" will do.
+              group: ["**/queries", "./queries"],
+              importNames: ["getCurrentClerkUser"],
+              message:
+                "This is the signed-in Clerk account, not the viewer. Use getCurrentUserProfile or getViewerClerkId.",
+            },
+            {
+              group: ["**/write-guard", "!@/db/write-guard"],
+              importNames: ["allowImpersonationWrites"],
+              message:
+                "Only app/lib/impersonation may let a write through during a view.",
             },
           ],
         },

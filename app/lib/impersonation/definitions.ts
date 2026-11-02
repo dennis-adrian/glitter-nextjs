@@ -66,6 +66,12 @@ export const IMPERSONATION_REFUSAL_MESSAGES: Record<
 export const IMPERSONATION_READ_ONLY_MESSAGE =
   "Estás viendo la app como otra cuenta: solo lectura.";
 
+/** The usual `{ success, message }` action result, for a refusal by the view. */
+export const IMPERSONATION_READ_ONLY_RESULT = {
+  success: false,
+  message: IMPERSONATION_READ_ONLY_MESSAGE,
+} as const;
+
 /** One row of "Recientes", as the picker and a person's admin page list it. */
 export type RecentImpersonation = {
   id: number;

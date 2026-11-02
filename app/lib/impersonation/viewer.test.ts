@@ -179,6 +179,50 @@ describe("getImpersonation", () => {
   });
 });
 
+describe("one answer per request", () => {
+  it("looks the view up once, however many times it is asked", async () => {
+    signedIn();
+    withCookie(TOKEN);
+    findLiveMock.mockResolvedValue(liveRow());
+    await getViewerClerkId();
+    await getImpersonation();
+    await isImpersonating();
+    await getViewerClerkId();
+    expect(findLiveMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the profile and the guard agreeing when the view ends mid-request", async () => {
+    signedIn();
+    withCookie(TOKEN);
+    findLiveMock.mockResolvedValueOnce(liveRow()).mockResolvedValue(null);
+    // The profile is resolved as the participant's...
+    expect(await getViewerClerkId()).toBe(SUBJECT.clerkId);
+    // ...so the guard must still refuse a write in the same request.
+    expect(await isImpersonating()).toBe(true);
+  });
+
+  it("keeps a failed lookup failed, so the guard keeps refusing", async () => {
+    signedIn();
+    withCookie(TOKEN);
+    findLiveMock
+      .mockRejectedValueOnce(new Error("database down"))
+      .mockResolvedValue(null);
+    expect(await isImpersonating()).toBe(true);
+    expect(await isImpersonating()).toBe(true);
+    await expect(getViewerClerkId()).rejects.toThrow("database down");
+  });
+
+  it("asks again in the next request", async () => {
+    signedIn();
+    withCookie(TOKEN);
+    findLiveMock.mockResolvedValue(liveRow());
+    expect(await isImpersonating()).toBe(true);
+    withCookie(TOKEN);
+    findLiveMock.mockResolvedValue(null);
+    expect(await isImpersonating()).toBe(false);
+  });
+});
+
 describe("isImpersonating", () => {
   it("is false outside a request", async () => {
     cookiesMock.mockRejectedValue(new Error("outside a request scope"));
@@ -223,5 +267,21 @@ describe("isImpersonating", () => {
     withCookie(TOKEN);
     findLiveMock.mockRejectedValue(new Error("database down"));
     expect(await isImpersonating()).toBe(true);
+  });
+});
+
+describe("two copies of the module, as Turbopack compiles one per server layer", () => {
+  it("share one answer per request", async () => {
+    signedIn();
+    withCookie(TOKEN);
+    findLiveMock.mockResolvedValueOnce(liveRow()).mockResolvedValue(null);
+    vi.resetModules();
+    const copyA = await import("@/app/lib/impersonation/viewer");
+    vi.resetModules();
+    const copyB = await import("@/app/lib/impersonation/viewer");
+    expect(copyA).not.toBe(copyB);
+    expect(await copyA.getViewerClerkId()).toBe(SUBJECT.clerkId);
+    expect(await copyB.isImpersonating()).toBe(true);
+    expect(findLiveMock).toHaveBeenCalledTimes(1);
   });
 });

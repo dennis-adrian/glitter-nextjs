@@ -152,31 +152,47 @@ A route handler rather than a server action so it is callable from the banner on
 
 ## 6. Read-only enforcement
 
-### 6.1 Database guard — `db/index.ts` + `app/lib/impersonation/write-guard.ts`
+### 6.1 Database guard — `db/write-guard.ts`, `db/statement-kind.ts`, installed in `db/index.ts` (done in step 3)
 
-- `pool.query` and the `client.query` of every client handed out by `pool.connect` are wrapped. Drizzle's node-postgres driver funnels every statement through those two.
-- `classifyStatement(sql)` (pure, tested) returns `"read"` or `"write"`: the first keyword after comments, with CTEs looked through (`with … insert|update|delete|merge`). `insert`, `update`, `delete`, `merge`, `truncate`, `create`, `alter`, `drop`, `copy`, `call`, `refresh` are writes. `select … for update` is a read: it locks, it changes nothing, and the write that follows is caught.
-- For a write, the wrapper awaits `isImpersonating()`. Reads never ask, so they cost nothing.
-- When viewing: throw `ImpersonationReadOnlyError` (message `"Estás viendo la app como otra cuenta: solo lectura."`), and `after()`-style bump `blocked_writes` on the row through `allowImpersonationWrites`.
-- `allowImpersonationWrites(fn)` is an `AsyncLocalStorage` scope that lets the exit route and the blocked-write counter write. Only `app/lib/impersonation/*` imports it; the ESLint rule enforces that too.
-- `isImpersonating()` returns `false` when `auth()`/`cookies()` are unavailable (scripts, instrumentation, static renders, `migrate.ts`, cron handlers with no session), so nothing outside a viewing request is affected.
+- `installWriteGuard(pool)` wraps `pool.connect`, in both its promise and callback forms, and the `query` of every client the pool hands out. `pool.query` checks a client out through `connect`, so Drizzle's reads, writes and transactions, `db.execute`, and raw `pool.query` all pass through it. It is installed once, with the pool, so both of Turbopack's module copies share it.
+- `classifyStatement(sql)` is pure and tested on 59 statements. Before looking at keywords it strips comments (including nested block comments), string literals (standard, `E''`, dollar-quoted) and quoted identifiers.
+  - **Read:** `select`, `values`, `table`, `show`, `explain` without `analyze`; transaction control and `set`/`lock`; `select … for update`, which only locks; `with` whose CTEs only read.
+  - **Write:** anything else, including an unknown keyword, a data-modifying CTE, `select … into`, `explain analyze`, and a multi-statement text with any write in it.
+- **Reads stay synchronous pass-throughs.** A write waits for the async check, and any statement sent on the same client after it waits too, so a check never lets a later statement overtake an earlier one inside a transaction.
+- `refuseDuringView()`:
+  1. Reads the view cookie first. Without one, or outside a request (scripts, cron work, a page's `after`), nothing is viewing.
+  2. Only with a cookie does it load the viewer (lazily, so scripts never import `server-only` code) and ask `isImpersonating()`.
+  3. During a view it counts the refusal on the row, inside the allowed scope, and throws `ImpersonationReadOnlyError` (code `IMPERSONATION_READ_ONLY`, message "Estás viendo la app como otra cuenta: solo lectura."). Next's own throws are handed back with `unstable_rethrow`.
+- **One answer per request.** `getImpersonation` memoizes the view in a `WeakMap` keyed by the request's cookie store, not React `cache`, which does not hold in Server Actions and Route Handlers. The profile and the guard therefore cannot disagree, even if the view ends mid-request.
+- `allowImpersonationWrites(fn)` is an `AsyncLocalStorage` scope that awaits `fn` inside itself, so a lazy Drizzle query runs in scope. It is for the view's own bookkeeping. ESLint refuses it outside `app/lib/impersonation`.
+- **Integration-tested on a real pool:** inserts, updates and deletes are refused; a refused write rolls back its transaction; a data-modifying CTE through `db.execute` is refused; `pool.query` is refused and the pool keeps working; the allowed scope survives a brand-new connection; writes outside a request pass.
 
-### 6.2 Side-effect chokepoints
+### 6.2 What a plain visit writes, and how each is handled
+
+An inventory of every participant page, GET route and action-on-mount (step 3) found few writes. Reads filter expired rows by time instead of sweeping them, and no render registers an `after` or processes an outbox.
+
+| Write on a plain visit | Whose | During a view |
+| --- | --- | --- |
+| Lazy default rows: `store_settings` (`StoreSectionGate`, `/portal`'s store strip), `program_settings` (`/programs`), a feature flag's first row | Nobody's. The first two crash their page if refused while the row is missing | Let through with `allowHousekeepingWrite` (`app/lib/impersonation/housekeeping.ts`): idempotent `ON CONFLICT DO NOTHING` inserts only. ESLint makes each use a commented exemption. |
+| Rate-limit counters (`consumeActionRateLimit`), e.g. `/api/stands/status` polled every 4 s | Keyed to the viewer | Not counted: an admin's view is not rate limited and does not spend the participant's allowance. Refused, the map would go stale on 429s. |
+| Notification read on open (`/my_notifications/[id]/open`, the item page, the popover), gift banner celebrated on mount | The participant's | `markNotificationRead` and `markGiftsCelebratedAction` do nothing and answer as done, so the client's `void` calls raise nothing. The participant still finds them unread and uncelebrated. |
+| Push device save, refresh, release and forget (`use-push-device` on mount; `releaseForeign…` would delete the **admin's** own device) | The admin's browser | All four push actions return the read-only result before touching anything. |
+| Cancelling an expired stand hold when its countdown ends | Housekeeping on the participant's hold | Refused by the guard. The client toasts and returns to the map; reads already ignore expired holds. |
+
+### 6.3 Other chokepoints (done in step 3)
 
 | Where | Change |
 | --- | --- |
-| `app/vendors/resend.ts` | `sendEmail` / batch: `if (await isImpersonating()) throw ImpersonationReadOnlyError`. The DB guard already stops the actions that would send; this is for the few sends that happen before or without a write. |
-| `app/lib/notifications/push/send.ts` | Same refusal before any delivery. |
-| `app/lib/notifications/push/actions.ts` | `savePushDeviceAction` and friends return the read-only result before touching the DB, so the client gets a message rather than a thrown error. |
-| `app/components/notifications/use-push-device.ts` and the avisos control | Hidden / inert while viewing (`useImpersonation()` client hook from the banner's context). |
-| `app/api/uploadthing/route.ts` | `POST` answers 403 while `isImpersonating()`, before UploadThing sees the request. This has to happen on the user's own request: several routes' `onUploadComplete` write to the database (credit top-ups, payment proofs, program vouchers), and that callback comes from UploadThing's servers with no cookie, so the database guard never sees a view there. UploadThing's own callback carries no view cookie and passes. One check in the route handler covers all 21 routes, guest checkout included, so the marker cookie and the `proxy.ts` rule planned here are dropped. |
-| `app/lib/notifications/read.ts` `markNotificationRead` | Returns without writing while viewing, so `/my_notifications/[id]/open` still renders. |
-| `app/components/providers/posthog-identify.tsx` | `useUser()` is still the admin, so identify is already right. No change beyond a comment; the client stays identified as the admin. |
-| Cart, reservations, profile edits, votes, uploads, terms acceptance | Caught by 6.1. Their forms show their usual error toast with the guard's message. |
+| `app/vendors/resend.ts` | `sendEmail` and `sendBatchEmails` call `refuseDuringView()` first, for the sends that write nothing before them. |
+| `app/api/uploadthing/route.ts` | `POST` answers 403 with the read-only message while `isImpersonating()`, before UploadThing sees the request. This has to happen on the person's own request: several routes' `onUploadComplete` write from UploadThing's callback, which carries no cookie, so the database guard never sees the view there. One check covers all 21 routes, guest checkout included. The marker cookie and the `proxy.ts` rule first planned are dropped. |
+| Explicit notification actions (mark unread, archive, unarchive, mark all read) | Return the read-only result, so the inbox shows the message instead of a thrown error. |
+| `app/lib/notifications/push/send.ts` | **No change.** A delivery only ever follows a new notification row or a claimed delivery row, and the guard refuses both during a view, so a refusal there would never run. |
+| `app/components/providers/posthog-identify.tsx` | No change. `useUser()` is still the admin, so the client stays identified as the admin. |
+| Push and avisos UI (`use-push-device`, the avisos control) | Hidden while viewing: step 5, from the banner's context. |
 
-### 6.3 What the admin sees when something is blocked
+### 6.4 What the admin sees when something is blocked
 
-The banner already says **solo lectura**. A blocked action shows the action's own error path with the guard's message. No per-action UI changes.
+The banner already says **solo lectura**. Most actions catch their own errors and answer `{ success: false, message }`, which their forms show as a toast. **Known limit:** an action that lets the guard's error escape, called from a form with `useActionState`, reaches the route's error boundary instead of a toast. Step 8's manual pass covers the common flows (add to cart, edit profile, upload a voucher, vote); any that crash get a `try/catch` with `isImpersonationReadOnlyError` returning `IMPERSONATION_READ_ONLY_RESULT`.
 
 ---
 
@@ -236,9 +252,9 @@ Added to the "Glitter App Navigation Proposals" canvas beside R and S, following
 | Area | Files |
 | --- | --- |
 | Schema | `db/schema.ts`, `drizzle/0305_*.sql` (generated) |
-| Core | `app/lib/impersonation/viewer.ts`, `cookie.ts`, `queries.ts`, `actions.ts`, `write-guard.ts`, `eligibility.ts`, `definitions.ts` |
+| Core | `app/lib/impersonation/viewer.ts`, `cookie.ts`, `queries.ts`, `actions.ts`, `housekeeping.ts`, `eligibility.ts`, `definitions.ts`; `db/write-guard.ts`, `db/statement-kind.ts` |
 | Viewer resolution | `app/lib/users/helpers.ts`, `app/lib/users/queries.ts`, `app/api/users/navbar-profile/route.ts`, `app/page.tsx`, `app/lib/notifications/queries.ts`, `app/launch/route.ts` |
-| Guard | `db/index.ts`, `app/vendors/resend.ts`, `app/lib/notifications/push/send.ts`, `app/lib/notifications/push/actions.ts`, `app/lib/notifications/read.ts`, `app/api/uploadthing/route.ts` |
+| Guard | `db/index.ts`, `app/vendors/resend.ts`, `app/lib/notifications/push/actions.ts`, `app/lib/notifications/read.ts`, `app/lib/notifications/actions.ts`, `app/lib/rate-limit.ts`, `app/lib/store_settings/data.ts`, `app/lib/programs/data.ts`, `app/lib/feature_flags/data.ts`, `app/api/uploadthing/route.ts` |
 | Routes | `app/api/impersonation/route.ts` (GET state), `app/api/impersonation/exit/route.ts` |
 | Screens | `app/dashboard/impersonate/page.tsx` + components under `app/components/impersonation/` (picker, confirmation, recent list, banner, provider) |
 | Entry points | `app/components/navbar/app-navigation.ts`, `app/components/ui/user-dropdown.tsx`, `app/components/user_profile/public_profile/quick-actions.tsx`, `app/components/pages/dashboard/user/user.tsx` |

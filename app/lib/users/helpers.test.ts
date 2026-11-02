@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 
 const currentClerkUserMock = vi.hoisted(() => vi.fn());
 const fetchProfileByClerkIdMock = vi.hoisted(() => vi.fn());
+const viewerClerkIdMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/queries", () => ({
   getCurrentClerkUser: currentClerkUserMock,
@@ -14,8 +15,7 @@ vi.mock("@/app/lib/users/queries", () => ({
 // Whoever Clerk says is signed in is the viewer: nobody is viewing as
 // someone else in these tests.
 vi.mock("@/app/lib/impersonation/viewer", () => ({
-  getViewerClerkId: async () =>
-    ((await currentClerkUserMock()) as { id: string } | null)?.id ?? null,
+  getViewerClerkId: viewerClerkIdMock,
 }));
 
 vi.mock("@/app/lib/users/navbar-profile", () => ({
@@ -25,6 +25,7 @@ vi.mock("@/app/lib/users/navbar-profile", () => ({
 vi.mock("@/db", () => ({ db: {} }));
 
 import {
+  getCurrentUserProfile,
   requireAdmin,
   requireProfileOwnerOrAdmin,
   requireProfileOwnerOrStaff,
@@ -44,6 +45,25 @@ describe("profile write gates", () => {
   beforeEach(() => {
     currentClerkUserMock.mockReset();
     fetchProfileByClerkIdMock.mockReset();
+    // Whoever Clerk says is signed in is the viewer, unless a test says not.
+    viewerClerkIdMock.mockReset();
+    viewerClerkIdMock.mockImplementation(
+      async () =>
+        ((await currentClerkUserMock()) as { id: string } | null)?.id ?? null,
+    );
+  });
+
+  it("finds the profile of the viewer, not of the signed-in account", async () => {
+    // An admin is signed in and views the app as a participant.
+    currentClerkUserMock.mockResolvedValue({ id: "clerk_admin" });
+    viewerClerkIdMock.mockResolvedValue("clerk_participant");
+    fetchProfileByClerkIdMock.mockResolvedValue(OWNER);
+
+    await expect(getCurrentUserProfile()).resolves.toBe(OWNER);
+    expect(fetchProfileByClerkIdMock).toHaveBeenCalledWith("clerk_participant");
+    expect(fetchProfileByClerkIdMock).not.toHaveBeenCalledWith("clerk_admin");
+    // So nothing admin-only opens from inside the view.
+    await expect(requireAdmin()).resolves.toBeNull();
   });
 
   it("refuses an unauthenticated caller", async () => {
