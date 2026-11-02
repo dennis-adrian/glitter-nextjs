@@ -111,13 +111,13 @@ Migration: `pnpm generate` → `drizzle/0305_impersonation_sessions.sql`. Applie
 
 ## 5. Server flow
 
-### 5.1 Start — `startImpersonationAction(subjectId, returnTo)` in `app/lib/impersonation/actions.ts`
+### 5.1 Start — `startImpersonationAction({ subjectId, returnTo })` in `app/lib/impersonation/actions.ts` (done in step 4)
 
-1. `requireAdmin()` on the **real** viewer (`getImpersonation()` must be null; an admin already viewing as someone is refused).
-2. Load the subject: `role = 'user'`, `id !== admin.id`, no `pending_user_deletions` row for its `clerk_id` with `local_deleted_at` null. Otherwise `{ success: false, message }`.
-3. `randomBytes(32)` → token; store `sha256(token)`; `expires_at = now + 60 min`; `admin_clerk_session_id = auth().sessionId`; `return_to` only when it is a same-origin path under `/dashboard`.
-4. Set the cookie (`maxAge` 3600) and return `{ success: true, redirectTo: "/portal" }`. The client navigates with a **full document load** (`window.location.assign`), not `router.push`: Clerk's client `userId` stays the admin's during a view, and client caches keyed on it (`useNavbarProfile`, the program price eligibility in `viewer-session-price.tsx`) would otherwise keep showing the admin's data.
-5. PostHog: one server event `impersonation_started` with `subject_id`, attributed to the admin.
+1. The actor is the signed-in person themself: the Clerk session (`getClerkSession`) and, since no view is on, `getCurrentUserProfile`. Starting from inside a view answers "Ya estás viendo la app como otra cuenta. Salí primero."
+2. `loadImpersonationTarget` loads the subject and any pending deletion. `impersonationRefusal` then decides, with its message from `IMPERSONATION_REFUSAL_MESSAGES`. A refusal writes nothing and sets no cookie.
+3. Creates the row: a fresh 32-byte token, only its SHA-256 stored, `expires_at` an hour later by the database's clock, bound to the Clerk session id. `return_to` is kept only when `sanitizeImpersonationReturnTo` accepts it.
+4. Sets the httpOnly cookie for an hour and returns `{ success: true, redirectTo: "/portal" }`. The client loads it as a **full document** (`window.location.assign`), not `router.push`: Clerk's client `userId` stays the admin's during a view, and client caches keyed on it (`useNavbarProfile`, the program price eligibility) would otherwise keep showing the admin's data.
+5. Sends one server PostHog event, `impersonation_started`, with `subject_id` and `session_id`, attributed to the admin.
 
 ### 5.2 While viewing
 
@@ -132,13 +132,16 @@ Every place that read Clerk's identity, sorted by what it needs (done in step 2)
 `getCurrentClerkUser` is documented as the Clerk account, never the viewer. ESLint (`no-restricted-imports`) refuses `auth` and `currentUser` from `@clerk/nextjs/server` and `getCurrentClerkUser` everywhere except `viewer.ts`, `users/queries.ts` and `createUserProfile`, each with a commented exemption. Test files are exempt; they mock rather than call.
 - Everything downstream is unchanged: `requireAdmin` is false, `/dashboard` redirects to `/`, `protectRoute` sees the subject's status, feature flags, navigation, Inicio and the hub resolve for the subject.
 
-### 5.3 Exit — `POST /api/impersonation/exit` (route handler)
+### 5.3 Exit — `POST /api/impersonation/exit`, logic in `app/lib/impersonation/exit.ts` (done in step 4)
 
-1. `auth()` must be signed in; the view row for the cookie must be bound to this Clerk session (an expired row still ends cleanly).
-2. Inside `allowImpersonationWrites()`: set `ended_at`, `end_reason = 'exited'`.
-3. Clear the cookie; respond with `{ returnTo }` (`return_to` or `/dashboard`). The banner's Salir button posts, then `window.location.replace(returnTo)`, a full document load for the same reason as entering.
+1. Refuses a cross-site `Origin` with 403, so another site cannot end a view by posting a form.
+2. Takes an optional `{ reason: "signed_out" }`, sent by the sign-out button; anything else is `exited`.
+3. When the cookie's open row is bound to this very Clerk session and user, it ends the row inside `allowImpersonationWrites` (the request still carries the view's cookie). A view that already ran out is left reading as expired. A view bound to another session is never ended from here.
+4. Always clears the cookie, and answers `{ returnTo }`: the row's `return_to`, sanitized again, or `/dashboard`, or `/` when signed out. The banner then loads it with `window.location.replace`, a full document load for the same reason as entering.
 
-A route handler rather than a server action so it is callable from the banner on every page, including `force-static` ones, with no RSC round-trip and no dependency on the page it is on.
+A route handler rather than a server action, so it works from every page, including `force-static` ones, with no RSC round-trip and no dependency on the page it is on. Integration-tested end to end with the real action, viewer, guard and exit (`lifecycle.integration.test.ts`).
+
+`GET /api/impersonation` answers `{ active: false }`, or `{ active: true, secondsLeft, subject }` with only the subject's name, email and photo, for the banner on static pages and its expiry check. Both routes answer `Cache-Control: no-store`.
 
 ### 5.4 Expiry
 
