@@ -1,5 +1,19 @@
-CREATE TYPE "public"."impersonation_end_reason" AS ENUM('exited', 'signed_out');--> statement-breakpoint
-CREATE TABLE "impersonation_sessions" (
+-- "Entrar como participante" (docs/PLAN-impersonation.md §4). This same SQL
+-- was first pushed as 0305_impersonation_sessions, and preview databases may
+-- have run it under that name before develop took 0305-0308; they never re-run
+-- a recorded migration, but they do run this one. Idempotent, so it changes
+-- nothing where the table is already there, and touches only its own objects.
+DO $$
+BEGIN
+	IF NOT EXISTS (
+		SELECT 1 FROM pg_type t
+		JOIN pg_namespace n ON n.oid = t.typnamespace
+		WHERE t.typname = 'impersonation_end_reason' AND n.nspname = 'public'
+	) THEN
+		CREATE TYPE "public"."impersonation_end_reason" AS ENUM('exited', 'signed_out');
+	END IF;
+END $$;--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "impersonation_sessions" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"admin_user_id" integer,
 	"subject_user_id" integer,
@@ -21,7 +35,25 @@ CREATE TABLE "impersonation_sessions" (
 	CONSTRAINT "impersonation_sessions_return_to_dashboard" CHECK ("impersonation_sessions"."return_to" IS NULL OR ("impersonation_sessions"."return_to" LIKE '/dashboard%' AND "impersonation_sessions"."return_to" NOT LIKE '//%'))
 );
 --> statement-breakpoint
-ALTER TABLE "impersonation_sessions" ADD CONSTRAINT "impersonation_sessions_admin_user_id_users_id_fk" FOREIGN KEY ("admin_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "impersonation_sessions" ADD CONSTRAINT "impersonation_sessions_subject_user_id_users_id_fk" FOREIGN KEY ("subject_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "impersonation_sessions_admin_started_idx" ON "impersonation_sessions" USING btree ("admin_user_id","started_at");--> statement-breakpoint
-CREATE INDEX "impersonation_sessions_subject_started_idx" ON "impersonation_sessions" USING btree ("subject_user_id","started_at");
+DO $$
+BEGIN
+	IF NOT EXISTS (
+		SELECT 1 FROM pg_constraint
+		WHERE conname = 'impersonation_sessions_admin_user_id_users_id_fk'
+			AND conrelid = 'public.impersonation_sessions'::regclass
+	) THEN
+		ALTER TABLE "impersonation_sessions" ADD CONSTRAINT "impersonation_sessions_admin_user_id_users_id_fk" FOREIGN KEY ("admin_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+	END IF;
+END $$;--> statement-breakpoint
+DO $$
+BEGIN
+	IF NOT EXISTS (
+		SELECT 1 FROM pg_constraint
+		WHERE conname = 'impersonation_sessions_subject_user_id_users_id_fk'
+			AND conrelid = 'public.impersonation_sessions'::regclass
+	) THEN
+		ALTER TABLE "impersonation_sessions" ADD CONSTRAINT "impersonation_sessions_subject_user_id_users_id_fk" FOREIGN KEY ("subject_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+	END IF;
+END $$;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "impersonation_sessions_admin_started_idx" ON "impersonation_sessions" USING btree ("admin_user_id","started_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "impersonation_sessions_subject_started_idx" ON "impersonation_sessions" USING btree ("subject_user_id","started_at");
