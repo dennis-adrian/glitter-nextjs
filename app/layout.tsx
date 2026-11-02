@@ -15,6 +15,7 @@ import CreditGiftCelebration from "@/app/components/credit_gifts/credit-gift-cel
 import InstalledAppHead from "@/app/components/installed-app-head";
 import Navbar from "@/app/components/navbar/navbar";
 import { ScreenBarProvider } from "@/app/components/navbar/screen-bar";
+import ScrollToTopOnNavigation from "@/app/components/navbar/scroll-to-top";
 import ServiceWorkerMessages from "@/app/components/notifications/service-worker-messages";
 import FooterServer from "@/app/components/footer-server";
 
@@ -84,6 +85,9 @@ export default function RootLayout({
             >
               {/* Lets a page give the installed app's top bar its title. */}
               <ScreenBarProvider>
+                {/* Every new screen opens at its top, whatever the last
+                    one's scroll was. */}
+                <ScrollToTopOnNavigation />
                 <Suspense fallback={<div className="h-[76px] lg:h-[84px]" />}>
                   <Navbar />
                 </Suspense>
