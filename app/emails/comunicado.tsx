@@ -32,10 +32,14 @@ export type ComunicadoEmailProps = {
   /** The optional button; shown only with both and a Glitter path. */
   actionLabel: string | null;
   actionPath: string | null;
+  /** The sender's preview line; without it the preheader is the text's start. */
+  previewText?: string | null;
   /** The footer link to the unsubscribe page, for the topic Anuncios. */
   unsubscribeUrl: string;
   /** An essential send's festival: adds the note that explains it (D7). */
   essentialFestivalName?: string | null;
+  /** A comunicado to visitors and guest buyers: says why they get it (§L). */
+  visitors?: boolean;
   /** Origin the Glitter paths are joined to, from `publicBaseUrl()`. */
   baseUrl: string;
 };
@@ -44,15 +48,22 @@ export function comunicadoEssentialNote(festivalName: string) {
   return `Es un correo esencial sobre tu participación en ${festivalName}: llega también a quienes se dieron de baja de los anuncios.`;
 }
 
+/** Why someone without an account gets a comunicado (§L). */
+export const COMUNICADO_VISITOR_NOTE =
+  "Te escribimos porque te registraste para visitar un festival de Productora Glitter o compraste en nuestra tienda. Son nuestras novedades: podés darte de baja cuando quieras.";
+
 /**
- * The footer's small print: only an essential send's note. Staging mail is
- * marked by its From name and subject alone.
+ * The footer's small print: why a visitor gets it (§L), and an essential
+ * send's note. Staging mail is marked by its From name and subject alone.
  */
 export function comunicadoFooterNotes(opts: {
   essentialFestivalName?: string | null;
+  visitors?: boolean;
 }): string[] {
+  const notes: string[] = opts.visitors ? [COMUNICADO_VISITOR_NOTE] : [];
   const festival = opts.essentialFestivalName?.trim();
-  return festival ? [comunicadoEssentialNote(festival)] : [];
+  if (festival) notes.push(comunicadoEssentialNote(festival));
+  return notes;
 }
 
 /** The excerpt cut on a word boundary, "…" included, to fit 120. */
@@ -68,6 +79,17 @@ export function comunicadoPreheader(text: string) {
     else if (/[\uD800-\uDBFF]$/.test(cut)) cut = cut.slice(0, -1);
   }
   return `${cut.replace(/[\s,;:.\-–—…]+$/, "")}…`;
+}
+
+/** The inbox line under the subject: the sender's own, or the text's start. */
+export function comunicadoPreheaderOf(
+  previewText: string | null | undefined,
+  blocks: AnnouncementBlock[],
+) {
+  return (
+    previewText?.trim() ||
+    comunicadoPreheader(announcementBlocksToText(blocks, { withUrls: false }))
+  );
 }
 
 const bodyStyle = { ...styles.sectionWithBanner, textAlign: "left" as const };
@@ -89,8 +111,10 @@ export default function ComunicadoEmail({
   blocks,
   actionLabel,
   actionPath,
+  previewText,
   unsubscribeUrl,
   essentialFestivalName,
+  visitors = false,
   baseUrl,
 }: ComunicadoEmailProps) {
   const label = actionLabel?.trim();
@@ -99,11 +123,7 @@ export default function ComunicadoEmail({
   return (
     <Html lang="es">
       <Head />
-      <Preview>
-        {comunicadoPreheader(
-          announcementBlocksToText(blocks, { withUrls: false }),
-        )}
-      </Preview>
+      <Preview>{comunicadoPreheaderOf(previewText, blocks)}</Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
           <EmailHeader />
@@ -123,7 +143,7 @@ export default function ComunicadoEmail({
         </Container>
         <EmailFooter
           unsubscribeUrl={unsubscribeUrl}
-          notes={comunicadoFooterNotes({ essentialFestivalName })}
+          notes={comunicadoFooterNotes({ essentialFestivalName, visitors })}
         />
       </Body>
     </Html>

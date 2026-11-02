@@ -86,8 +86,10 @@ const DRAFT: ComposerDraft = {
   doc: [],
   actionLabel: null,
   actionPath: null,
+  previewText: null,
   sendEmail: true,
   sendPush: false,
+  audienceKind: "users",
   audience: { festivals: [], lists: [], people: [] },
   audienceUnreadable: false,
   essential: false,
@@ -108,6 +110,7 @@ function confirmation(version: number): ComunicadoSendConfirmation {
   return {
     comunicadoId: 7,
     version,
+    audienceKind: "users",
     title: "Cambio de horario de armado",
     sendEmail: true,
     sendPush: false,

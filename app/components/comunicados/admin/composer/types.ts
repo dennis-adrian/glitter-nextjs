@@ -1,5 +1,8 @@
 import type { DraftFields } from "@/app/components/comunicados/admin/composer/use-autosave";
-import type { ComunicadoAudience } from "@/app/lib/comunicados/definitions";
+import type {
+  ComunicadoAudience,
+  ComunicadoAudienceKind,
+} from "@/app/lib/comunicados/definitions";
 import type {
   AudienceCount,
   DistributionListKind,
@@ -53,8 +56,11 @@ export type ComposerDraft = {
   doc: unknown[];
   actionLabel: string | null;
   actionPath: string | null;
+  previewText: string | null;
   sendEmail: boolean;
   sendPush: boolean;
+  /** Participants or visitors (§L). */
+  audienceKind: ComunicadoAudienceKind;
   audience: ComunicadoAudience;
   /** The stored audience no longer parsed: it opens empty. */
   audienceUnreadable: boolean;
@@ -73,8 +79,11 @@ export type ComposerFields = {
   actionEnabled: boolean;
   actionLabel: string;
   actionPath: string;
+  /** "Resumen"; empty means none. */
+  previewText: string;
   sendEmail: boolean;
   sendPush: boolean;
+  audienceKind: ComunicadoAudienceKind;
   audience: ComunicadoAudience;
   essential: boolean;
   essentialReason: string;
@@ -88,8 +97,10 @@ export function draftFieldsOf(fields: ComposerFields): DraftFields {
     // An empty pair still says the switch is on, so it reopens on.
     actionLabel: fields.actionEnabled ? fields.actionLabel : null,
     actionPath: fields.actionEnabled ? fields.actionPath : null,
+    previewText: fields.previewText.trim() ? fields.previewText : null,
     sendEmail: fields.sendEmail,
     sendPush: fields.sendPush,
+    audienceKind: fields.audienceKind,
     audience: fields.audience,
     essential: fields.essential,
     essentialReason: fields.essential ? fields.essentialReason : null,
@@ -103,8 +114,10 @@ export function composerFieldsOf(draft: ComposerDraft): ComposerFields {
     actionEnabled: draft.actionLabel !== null || draft.actionPath !== null,
     actionLabel: draft.actionLabel ?? "",
     actionPath: draft.actionPath ?? "",
+    previewText: draft.previewText ?? "",
     sendEmail: draft.sendEmail,
     sendPush: draft.sendPush,
+    audienceKind: draft.audienceKind,
     audience: draft.audience,
     essential: draft.essential,
     essentialReason: draft.essentialReason ?? "",

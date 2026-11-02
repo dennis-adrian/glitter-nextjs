@@ -104,6 +104,10 @@ export async function saveComunicadoDraft(
       ? null
       : normalizeAnnouncementDoc(draft.doc, { stage: "draft" });
   const contentError = content && !content.ok ? content.message : null;
+  // A visitor comunicado is email only (§L): the channels are fixed whatever
+  // the composer sent. The participant audience is kept, so switching back
+  // finds the lists and people as they were.
+  const visitors = draft.audienceKind === "visitors";
 
   const [row] = await db
     .update(comunicados)
@@ -113,10 +117,14 @@ export async function saveComunicadoDraft(
       ...(content?.ok ? { doc: content.blocks } : {}),
       actionLabel: withoutNul(draft.actionLabel),
       actionPath: withoutNul(draft.actionPath),
-      sendEmail: draft.sendEmail,
-      sendPush: draft.sendPush,
+      ...(draft.previewText === undefined
+        ? {}
+        : { previewText: withoutNul(draft.previewText) }),
+      sendEmail: visitors ? true : draft.sendEmail,
+      sendPush: visitors ? false : draft.sendPush,
+      audienceKind: draft.audienceKind,
       audience: draft.audience,
-      essential: draft.essential,
+      essential: visitors ? false : draft.essential,
       essentialReason: withoutNul(draft.essentialReason),
       version: sql`${comunicados.version} + 1`,
       updatedByUserId: actorId,

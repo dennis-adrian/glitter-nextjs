@@ -472,6 +472,7 @@ const NEW_CONTENT: Omit<EditInput, "expectedRevision"> = {
   doc: doc(NEW_TEXT),
   actionLabel: NEW_LABEL,
   actionPath: NEW_PATH,
+  previewText: null,
 };
 
 function edit(
@@ -946,6 +947,97 @@ describeDatabase("editing a sent comunicado", () => {
           { comunicadoId: sent.comunicadoId, revision: 2, items: 2 },
         ],
       ]);
+    });
+
+    it("takes the summary alone as a revision for pushes not yet sent, with no Editado", async () => {
+      const [person] = await createPeople(1);
+      const sent = await insertSent({ people: [person!] });
+      await fanOut(sent);
+      const before = await itemOf(sent.campaignId, person!);
+
+      const outcome = await edit(sent, {
+        title: TITLE,
+        doc: doc(TEXT),
+        actionLabel: null,
+        actionPath: null,
+        previewText: " El armado empieza a las 8:00. ",
+      });
+
+      expect(outcome).toMatchObject({ ok: true, revision: 2, updatedItems: 1 });
+      const after = await itemOf(sent.campaignId, person!);
+      expect(after.edited_at).toBeNull();
+      expect(after.title).toBe(before.title);
+      expect(after.body).toBe(before.body);
+      expect(after.data).toMatchObject({
+        revision: 2,
+        preview: "El armado empieza a las 8:00.",
+      });
+      const { rows } = await pool!.query<{ preview_text: string | null }>(
+        "SELECT preview_text FROM comunicado_revisions WHERE comunicado_id = $1 ORDER BY revision",
+        [sent.comunicadoId],
+      );
+      expect(rows.map((row) => row.preview_text)).toEqual([
+        null,
+        "El armado empieza a las 8:00.",
+      ]);
+    });
+
+    it("keeps the summary when an edit leaves it out, and clears it on null", async () => {
+      const [person] = await createPeople(1);
+      const sent = await insertSent({ people: [person!] });
+      await fanOut(sent);
+      const summary = "El armado empieza a las 8:00.";
+      const withoutSummary = {
+        title: NEW_TITLE,
+        doc: doc(NEW_TEXT),
+        actionLabel: NEW_LABEL,
+        actionPath: NEW_PATH,
+      };
+
+      await edit(sent, {
+        title: TITLE,
+        doc: doc(TEXT),
+        actionLabel: null,
+        actionPath: null,
+        previewText: summary,
+      });
+      // An older tab: no summary field at all. Only the title changes.
+      expect(
+        await editMod.editSentComunicado(
+          sent.comunicadoId,
+          { expectedRevision: 2, ...withoutSummary },
+          sent.authorId,
+        ),
+      ).toMatchObject({ ok: true, revision: 3 });
+      expect(
+        await editMod.editSentComunicado(
+          sent.comunicadoId,
+          { expectedRevision: 3, ...withoutSummary },
+          sent.authorId,
+        ),
+      ).toMatchObject({ ok: false, code: "NO_CHANGES" });
+      expect(
+        await editMod.editSentComunicado(
+          sent.comunicadoId,
+          { expectedRevision: 3, ...NEW_CONTENT, previewText: null },
+          sent.authorId,
+        ),
+      ).toMatchObject({ ok: true, revision: 4 });
+
+      const { rows } = await pool!.query<{ preview_text: string | null }>(
+        "SELECT preview_text FROM comunicado_revisions WHERE comunicado_id = $1 ORDER BY revision",
+        [sent.comunicadoId],
+      );
+      expect(rows.map((row) => row.preview_text)).toEqual([
+        null,
+        summary,
+        summary,
+        null,
+      ]);
+      expect((await itemOf(sent.campaignId, person!)).data).toMatchObject({
+        revision: 4,
+        preview: null,
+      });
     });
 
     it("shows the new text on the detail page at once, marked Editado, and Editado in the list (H2, F2)", async () => {

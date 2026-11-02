@@ -14,6 +14,7 @@ import {
 } from "drizzle-orm";
 import type { CreateBatchEmailOptions } from "resend";
 
+import { comunicadoContactBatchRenderer } from "@/app/lib/comunicados/contact-delivery";
 import { comunicadoBatchRenderer } from "@/app/lib/comunicados/delivery";
 import { isDeliverableEmail } from "@/app/lib/festivals/invitation-helpers";
 import { sendBatchEmails } from "@/app/vendors/resend";
@@ -72,6 +73,13 @@ export interface BulkEmailRenderer {
    */
   scope(): SQL;
   /**
+   * True for a delivery (`notification_deliveries`, under the schema's name)
+   * whose send was retracted, for rows going back to `pending` outside the
+   * content lock. Without it, those rows wait for the next claim, whose
+   * `prepare` skips them. Defaults to the inbox item's `retracted_at`.
+   */
+  retracted?(): SQL;
+  /**
    * Inside the send transaction, before the lane lock: locks whatever fixes
    * the content, so an edit or a retraction waits for the batch, or the batch
    * for it. Runs right after `SET LOCAL lock_timeout`, so it may throw
@@ -101,6 +109,8 @@ export type BulkEmailRenderers = Readonly<Record<string, BulkEmailRenderer>>;
  */
 export const BULK_EMAIL_RENDERERS: BulkEmailRenderers = {
   comunicado: comunicadoBatchRenderer,
+  // A comunicado to visitors and guest buyers: no inbox item, no user (§L).
+  comunicado_contact: comunicadoContactBatchRenderer,
 };
 
 /**
@@ -615,6 +625,17 @@ function errorShape(error: unknown) {
 
 const bulkEmail = and(eq(nd.lane, "bulk"), eq(nd.channel, "email"));
 
+/**
+ * A row's campaign: its own column when it has no inbox item (a comunicado
+ * to visitors), else its inbox item's. Claims join `notifications` LEFT.
+ */
+const campaignOf = sql<
+  number | null
+>`coalesce(${nd.campaignId}, ${notifications.campaignId})`;
+
+/** The default `retracted` test: the row's inbox item was retracted. */
+const inboxRetracted = sql`EXISTS (SELECT 1 FROM ${notifications} WHERE ${notifications.id} = ${nd.notificationId} AND ${notifications.retractedAt} IS NOT NULL)`;
+
 /** As in `deliveries.ts`: due by the database's clock. */
 const dueNow = sql`(
   ${nd.status} = 'pending'
@@ -690,7 +711,7 @@ function claimScope(renderers: BulkEmailRenderers, campaignId?: number) {
   if (campaignId !== undefined) {
     return and(
       inArray(nd.templateKey, keys),
-      eq(notifications.campaignId, campaignId),
+      sql`${campaignOf} = ${campaignId}`,
     );
   }
   return or(
@@ -714,18 +735,18 @@ async function claimHeldBatch(
   const [first] = await tx
     .select({
       batchKey: nd.batchKey,
-      campaignId: notifications.campaignId,
+      campaignId: campaignOf,
       templateKey: nd.templateKey,
     })
     .from(nd)
-    .innerJoin(notifications, eq(notifications.id, nd.notificationId))
+    .leftJoin(notifications, eq(notifications.id, nd.notificationId))
     .where(
       and(
         bulkEmail,
         isNotNull(nd.batchKey),
         dueNow,
         notExpired,
-        isNotNull(notifications.campaignId),
+        sql`${campaignOf} IS NOT NULL`,
         scope,
       ),
     )
@@ -762,7 +783,7 @@ async function claimHeldBatch(
     .returning();
   return {
     owner,
-    campaignId: first.campaignId,
+    campaignId: Number(first.campaignId),
     templateKey: first.templateKey,
     batchKey: first.batchKey,
     rows: rows.sort((a, b) => a.id - b.id),
@@ -781,12 +802,12 @@ async function claimFreshBatch(
 ): Promise<BulkClaim | null> {
   const [first] = await tx
     .select({
-      campaignId: notifications.campaignId,
+      campaignId: campaignOf,
       templateKey: nd.templateKey,
     })
     .from(nd)
-    .innerJoin(notifications, eq(notifications.id, nd.notificationId))
-    .where(and(freshPool, isNotNull(notifications.campaignId), scope))
+    .leftJoin(notifications, eq(notifications.id, nd.notificationId))
+    .where(and(freshPool, sql`${campaignOf} IS NOT NULL`, scope))
     .orderBy(nd.id)
     .limit(1)
     .for("update", { of: nd, skipLocked: true });
@@ -795,11 +816,11 @@ async function claimFreshBatch(
   const picked = await tx
     .select({ id: nd.id })
     .from(nd)
-    .innerJoin(notifications, eq(notifications.id, nd.notificationId))
+    .leftJoin(notifications, eq(notifications.id, nd.notificationId))
     .where(
       and(
         freshPool,
-        eq(notifications.campaignId, first.campaignId),
+        sql`${campaignOf} = ${first.campaignId}`,
         eq(nd.templateKey, first.templateKey),
         scope,
       ),
@@ -828,7 +849,7 @@ async function claimFreshBatch(
     .returning();
   return {
     owner,
-    campaignId: first.campaignId,
+    campaignId: Number(first.campaignId),
     templateKey: first.templateKey,
     batchKey,
     rows: rows.sort((a, b) => a.id - b.id),
@@ -870,7 +891,7 @@ async function settleRows(
   tx: BulkEmailTx,
   owner: string,
   settlements: readonly RowSettlement[],
-  { skipRetracted = false }: { skipRetracted?: boolean } = {},
+  { skipRetracted = null }: { skipRetracted?: SQL | null } = {},
 ): Promise<SettleCounts> {
   const counts = emptyCounts();
   if (settlements.length === 0) return counts;
@@ -923,7 +944,7 @@ async function settleRows(
         and(
           inArray(nd.id, pendingIds),
           eq(nd.status, "pending"),
-          sql`EXISTS (SELECT 1 FROM ${notifications} WHERE ${notifications.id} = ${nd.notificationId} AND ${notifications.retractedAt} IS NOT NULL)`,
+          skipRetracted,
         ),
       )
       .returning({ id: nd.id });
@@ -951,12 +972,15 @@ async function failNeverBatched(
         isNull(nd.batchKey),
         eq(nd.status, "pending"),
         eq(nd.templateKey, claim.templateKey),
-        inArray(
-          nd.notificationId,
-          tx
-            .select({ id: notifications.id })
-            .from(notifications)
-            .where(eq(notifications.campaignId, claim.campaignId)),
+        or(
+          eq(nd.campaignId, claim.campaignId),
+          inArray(
+            nd.notificationId,
+            tx
+              .select({ id: notifications.id })
+              .from(notifications)
+              .where(eq(notifications.campaignId, claim.campaignId)),
+          ),
         ),
       ),
     )
@@ -964,18 +988,22 @@ async function failNeverBatched(
   return failed.length;
 }
 
-function releaseClaim(claim: BulkClaim) {
+function retractedTest(renderer: BulkEmailRenderer | undefined) {
+  return renderer?.retracted?.() ?? inboxRetracted;
+}
+
+function releaseClaim(claim: BulkClaim, renderer?: BulkEmailRenderer) {
   return db.transaction((tx) =>
     settleRows(tx, claim.owner, claim.rows.map(releaseSettlement), {
-      skipRetracted: true,
+      skipRetracted: retractedTest(renderer),
     }),
   );
 }
 
-function spendClaim(claim: BulkClaim) {
+function spendClaim(claim: BulkClaim, renderer?: BulkEmailRenderer) {
   return db.transaction((tx) =>
     settleRows(tx, claim.owner, claim.rows.map(renderFailureSettlement), {
-      skipRetracted: true,
+      skipRetracted: retractedTest(renderer),
     }),
   );
 }
@@ -1292,7 +1320,7 @@ export async function sendBulkEmails(opts: {
     );
 
     const release = async (reason: BulkStopReason) => {
-      const counts = await releaseClaim(claim);
+      const counts = await releaseClaim(claim, renderer);
       run.released += counts.retry;
       run.skipped += counts.skipped;
       return reason;
@@ -1354,7 +1382,7 @@ export async function sendBulkEmails(opts: {
             size: claim.rows.length,
             ...errorShape(error),
           });
-          addCounts(run, await spendClaim(claim));
+          addCounts(run, await spendClaim(claim, renderer));
           break;
         }
       }

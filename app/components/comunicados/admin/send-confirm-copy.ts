@@ -1,9 +1,13 @@
 import {
+  addressCountText,
   peopleCountText,
   realSkippedCount,
+  VISITORS_EMAIL_ONLY_TEXT,
+  visitorReachText,
 } from "@/app/components/comunicados/admin/composer/composer-copy";
 import type { ComunicadoAudiencePreview } from "@/app/lib/comunicados/audience";
 import type { ComunicadoSendConfirmation } from "@/app/lib/comunicados/contracts";
+import { COMUNICADO_CONTACT_SKIP_REASONS } from "@/app/lib/comunicados/definitions";
 import {
   COMUNICADO_SKIP_REASONS,
   type ComunicadoSkipReasonLabel,
@@ -20,7 +24,7 @@ import { formatAudienceCount } from "@/app/lib/distribution_lists/definitions";
 export type ConfirmRow = { label: string; value: string; strong?: boolean };
 
 export type ConfirmCallout = {
-  kind: "essential" | "push" | "environment" | "bell";
+  kind: "essential" | "push" | "environment" | "bell" | "email_only";
   tone: "amber" | "blue" | "neutral";
   text: string;
 };
@@ -77,7 +81,7 @@ const SKIP_REASON_NOUNS = {
   readonly [string, string]
 >;
 
-function skipReasonText(reason: string, count: number) {
+export function skipReasonText(reason: string, count: number) {
   if (Object.hasOwn(SKIP_REASON_NOUNS, reason)) {
     const [one, many] =
       SKIP_REASON_NOUNS[reason as keyof typeof SKIP_REASON_NOUNS];
@@ -89,7 +93,14 @@ function skipReasonText(reason: string, count: number) {
 
 /** "1.194 · 30 dados de baja de los anuncios · 4 sin correos masivos…". */
 function emailValue({ preview, essential }: ComunicadoSendConfirmation) {
-  const { email } = preview;
+  return emailSplitText(preview.email, essential);
+}
+
+/** The email split for any count (G5, G10). */
+export function emailSplitText(
+  email: ComunicadoAudiencePreview["email"],
+  essential: boolean,
+) {
   const parts = [fmt(email.sendTo)];
   // An essential send reaches them: they are in `sendTo` already.
   if (!essential && email.unsubscribedAnnouncements > 0) {
@@ -136,6 +147,7 @@ function skippedValue(preview: ComunicadoAudiencePreview) {
 /** The dialog's table: who can receive it today, and by which channel. */
 export function confirmRows(c: ComunicadoSendConfirmation): ConfirmRow[] {
   const { preview } = c;
+  if (c.audienceKind === "visitors") return visitorConfirmRows(preview);
   return [
     {
       label: "Pueden recibirlo hoy",
@@ -149,6 +161,28 @@ export function confirmRows(c: ComunicadoSendConfirmation): ConfirmRow[] {
       value: c.sendPush ? pushValue(preview) : "No",
     },
     { label: "No lo reciben", value: skippedValue(preview) },
+  ];
+}
+
+/**
+ * A comunicado to visitors and guest buyers (§L): email only, so the app and
+ * device rows say so instead of a count.
+ */
+function visitorConfirmRows(preview: ComunicadoAudiencePreview): ConfirmRow[] {
+  const skipped = preview.matched - preview.eligible;
+  const reasons = preview.skipped
+    .filter((entry) => entry.reason !== COMUNICADO_CONTACT_SKIP_REASONS.staging)
+    .map((entry) => `${fmt(entry.count)} ${entry.reason.toLowerCase()}`);
+  return [
+    {
+      label: "Pueden recibirlo hoy",
+      value: addressCountText(preview.eligible),
+      strong: true,
+    },
+    { label: "Por correo", value: fmt(preview.willReceive) },
+    { label: "En la app", value: "No: no tienen cuenta" },
+    { label: "En el dispositivo", value: "No" },
+    { label: "No lo reciben", value: [fmt(skipped), ...reasons].join(" · ") },
   ];
 }
 
@@ -276,6 +310,21 @@ export function confirmCallouts(
   c: ComunicadoSendConfirmation,
 ): ConfirmCallout[] {
   const callouts: ConfirmCallout[] = [];
+  if (c.audienceKind === "visitors") {
+    callouts.push({
+      kind: "email_only",
+      tone: "neutral",
+      text: VISITORS_EMAIL_ONLY_TEXT,
+    });
+    if (c.env !== "production") {
+      callouts.push({
+        kind: "environment",
+        tone: "blue",
+        text: visitorReachText(c.preview, c.env),
+      });
+    }
+    return callouts;
+  }
   if (c.essential) {
     callouts.push({ kind: "essential", tone: "amber", text: essentialText(c) });
   }

@@ -100,6 +100,11 @@ export default function RevisionViewButton({
                   {state.view.actionPath})
                 </p>
               )}
+              {state.view.previewText && (
+                <p className="break-words text-sm text-muted-foreground">
+                  Resumen: {state.view.previewText}
+                </p>
+              )}
             </div>
           ) : state.status === "error" ? (
             <p className="text-sm text-red-600 dark:text-red-400" role="alert">

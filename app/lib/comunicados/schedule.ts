@@ -114,7 +114,10 @@ export async function scheduleComunicado(i: {
         doc: comunicados.doc,
         actionLabel: comunicados.actionLabel,
         actionPath: comunicados.actionPath,
+        previewText: comunicados.previewText,
         sendEmail: comunicados.sendEmail,
+        sendPush: comunicados.sendPush,
+        audienceKind: comunicados.audienceKind,
         audience: comunicados.audience,
         essential: comunicados.essential,
         essentialReason: comunicados.essentialReason,
@@ -133,7 +136,7 @@ export async function scheduleComunicado(i: {
       narrow: env !== "production",
     });
     if (!check.ok) return refused(check.refusal.code, check.refusal.message);
-    if (row.essential) {
+    if (row.essential && check.kind === "users") {
       const tooLate = await essentialTooLate(tx, check.audience, {
         sendEmail: row.sendEmail,
         at: i.scheduledAt,
@@ -144,7 +147,7 @@ export async function scheduleComunicado(i: {
     // that would refuse these does not run until the release.
     const { content, preview } = check;
     if (preview.tooLarge) {
-      return refused("AUDIENCE_TOO_LARGE", audienceTooLargeMessage());
+      return refused("AUDIENCE_TOO_LARGE", audienceTooLargeMessage(check.kind));
     }
     if (preview.eligible === 0) {
       return refused("NO_ELIGIBLE_RECIPIENTS", SEND_MESSAGES.noEligible);
@@ -172,6 +175,7 @@ export async function scheduleComunicado(i: {
         title: content.title,
         actionLabel: content.actionLabel,
         actionPath: content.actionPath,
+        previewText: content.previewText,
         essentialReason: content.essentialReason,
         essentialConfirmedByUserId: row.essential ? i.by : null,
         essentialConfirmedAt: row.essential ? sql`now()` : null,

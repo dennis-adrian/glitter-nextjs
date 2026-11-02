@@ -6,6 +6,7 @@ import { z } from "zod";
 import { hasPgErrorCode } from "@/app/lib/errors/postgres";
 import { db } from "@/db";
 import {
+  comunicadoResends,
   comunicados,
   creditLedgerEntries,
   infractionEvidence,
@@ -135,8 +136,16 @@ async function hasRestrictActorReferences(
     .from(comunicados)
     .where(eq(comunicados.essentialConfirmedByUserId, profileId))
     .limit(1);
+  if (essential) return true;
 
-  return Boolean(essential);
+  // So does who confirmed an essential "Enviar a más personas".
+  const [essentialResend] = await tx
+    .select({ id: comunicadoResends.id })
+    .from(comunicadoResends)
+    .where(eq(comunicadoResends.essentialConfirmedByUserId, profileId))
+    .limit(1);
+
+  return Boolean(essentialResend);
 }
 
 async function hasCreditLedgerEntries(
@@ -216,6 +225,26 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
       // A null clerkDeletedAt is a durable unknown/in-progress state. Retrying
       // the idempotent Clerk step reconciles it without creating another row.
       if (existingPending) {
+        // Before Clerk goes, the retry checks what would block the local
+        // delete: a reference added since the first try keeps the account.
+        if (existingPending.clerkDeletedAt === null) {
+          const existingInfraction = await tx.query.infractions.findFirst({
+            where: eq(infractions.userId, profileId),
+            columns: { id: true },
+          });
+          if (existingInfraction) {
+            return { ok: false as const, reason: "has_infractions" as const };
+          }
+        }
+        if (
+          existingPending.clerkDeletedAt === null &&
+          (await hasRestrictActorReferences(tx, profileId))
+        ) {
+          return {
+            ok: false as const,
+            reason: "has_restrict_references" as const,
+          };
+        }
         if (
           existingPending.clerkDeletedAt === null &&
           (await hasCreditLedgerEntries(tx, profileId))

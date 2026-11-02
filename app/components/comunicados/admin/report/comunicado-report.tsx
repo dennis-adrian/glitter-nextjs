@@ -11,6 +11,8 @@ import RecipientsPagination from "@/app/components/comunicados/admin/report/reci
 import RecipientsSearch from "@/app/components/comunicados/admin/report/recipients-search";
 import RecipientsTable from "@/app/components/comunicados/admin/report/recipients-table";
 import ComunicadoReportBanners from "@/app/components/comunicados/admin/report/report-banners";
+import { resendHistoryLine } from "@/app/components/comunicados/admin/report/resend-copy";
+import ResendComunicadoButton from "@/app/components/comunicados/admin/report/resend-dialog";
 import ReportKpi from "@/app/components/comunicados/admin/report/report-kpi";
 import RetryFailedButton from "@/app/components/comunicados/admin/report/retry-failed-dialog";
 import RevisionHistory from "@/app/components/comunicados/admin/report/revision-history";
@@ -81,10 +83,12 @@ function ReportKpis({
           kpis.notReceived > 0 ? notReceivedText(kpis.notReceived) : undefined
         }
       />
-      <ReportKpi
-        label="Leídos en la app"
-        value={readKpiValue(kpis.read, kpis.recipients)}
-      />
+      {report.audienceKind !== "visitors" && (
+        <ReportKpi
+          label="Leídos en la app"
+          value={readKpiValue(kpis.read, kpis.recipients)}
+        />
+      )}
       {report.sendEmail && (
         <>
           <ReportKpi
@@ -138,6 +142,7 @@ export default function ComunicadoReport({
   filter,
   query,
   env,
+  pushLaunched = true,
 }: {
   report: ComunicadoReportData;
   /** "Historial", the first version first. */
@@ -146,6 +151,8 @@ export default function ComunicadoReport({
   filter: ComunicadoRecipientFilter;
   query: string;
   env: VercelEnvironment;
+  /** Whether `push_notifications` is public, for the resend's push line. */
+  pushLaunched?: boolean;
 }) {
   const badge = comunicadoBadge({
     status: "sent",
@@ -181,6 +188,9 @@ export default function ComunicadoReport({
             {/* As its row in the list tags it (G3). */}
             {edited && <Badge variant="outline">Editado</Badge>}
             {report.essential && <Badge variant="orange">Esencial</Badge>}
+            {report.audienceKind === "visitors" && (
+              <Badge variant="outline">Visitantes · solo correo</Badge>
+            )}
           </div>
           <p className="text-sm text-muted-foreground">
             {sentByText(momentLabel(report.sentAt), report.sentByName)}
@@ -217,13 +227,26 @@ export default function ComunicadoReport({
           <DuplicateComunicadoButton comunicadoId={report.id} />
           {report.retractedAt === null && (
             <>
-              {/* Shows itself only when something can be retried; from
-                  another environment the retry would only be refused (D9). */}
+              {/* From another environment both would only be refused (D9). */}
               {report.summary?.env === env && (
-                <RetryFailedButton
-                  comunicadoId={report.id}
-                  counts={report.retryCounts}
-                />
+                <>
+                  {/* Participants only: a visitor comunicado has contacts,
+                      not recipient rows (§L). */}
+                  {report.audienceKind === "users" && (
+                    <ResendComunicadoButton
+                      comunicadoId={report.id}
+                      title={title}
+                      sentChannels={report.sentChannels}
+                      essential={report.essential}
+                      pushLaunched={pushLaunched}
+                    />
+                  )}
+                  {/* Shows itself only when something can be retried. */}
+                  <RetryFailedButton
+                    comunicadoId={report.id}
+                    counts={report.retryCounts}
+                  />
+                </>
               )}
               <RetractComunicadoMenu
                 comunicadoId={report.id}
@@ -261,6 +284,30 @@ export default function ComunicadoReport({
             revisions={revisions}
             currentRevision={report.currentRevision}
           />
+
+          {report.resends.length > 0 && (
+            <Card>
+              <CardContent className="space-y-2 pt-6">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Envíos a más personas
+                </p>
+                <ul className="space-y-1.5 text-sm">
+                  {report.resends.map((resend) => (
+                    <li key={resend.id} className="break-words">
+                      {resendHistoryLine({
+                        moment: momentLabel(resend.createdAt),
+                        byName: resend.byName,
+                        sendEmail: resend.sendEmail,
+                        sendPush: resend.sendPush,
+                        essential: resend.essential,
+                        summary: resend.summary,
+                      })}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <section
@@ -272,6 +319,7 @@ export default function ComunicadoReport({
               comunicadoId={report.id}
               filter={filter}
               query={query}
+              emailOnly={report.audienceKind === "visitors"}
             />
             <RecipientsSearch
               comunicadoId={report.id}

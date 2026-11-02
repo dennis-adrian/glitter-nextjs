@@ -1,4 +1,5 @@
 import type { ComunicadoAudiencePreview } from "@/app/lib/comunicados/audience";
+import type { ComunicadoAudienceKind } from "@/app/lib/comunicados/definitions";
 
 /**
  * What the send, the retraction and the work driver hand to the admin pages
@@ -27,6 +28,8 @@ export type ComunicadoSendConfirmation = {
   comunicadoId: number;
   /** The stored version these numbers are for: the send's expectedVersion. */
   version: number;
+  /** A visitor comunicado is email only (§L). */
+  audienceKind: ComunicadoAudienceKind;
   title: string;
   sendEmail: boolean;
   sendPush: boolean;
@@ -120,6 +123,7 @@ export type EditComunicadoInput = {
   doc: unknown[];
   actionLabel: string | null;
   actionPath: string | null;
+  previewText: string | null;
   editNote: string | null;
 };
 export type EditRefusalCode =
@@ -146,6 +150,7 @@ export type ComunicadoRevisionView = {
   html: string;
   actionLabel: string | null;
   actionPath: string | null;
+  previewText: string | null;
   editNote: string | null;
   /** ISO. */
   createdAt: string;
@@ -154,3 +159,88 @@ export type ComunicadoRevisionView = {
 export type LoadComunicadoRevisionResult =
   | { success: true; revision: ComunicadoRevisionView }
   | { success: false; message: string };
+
+export const RESEND_REFUSAL_CODES = [
+  "NOT_FOUND",
+  "NOT_SENT",
+  "RETRACTED",
+  "OTHER_ENV",
+  "VISITORS",
+  "EMPTY",
+  "ESSENTIAL_PEOPLE",
+  "INVALID_AUDIENCE",
+  "BASE_URL",
+  "NOBODY",
+  "AUDIENCE_TOO_LARGE",
+  "AUDIENCE_CHANGED",
+  "ESSENTIAL_CHANGED",
+  "LOCKED",
+] as const;
+export type ResendRefusalCode = (typeof RESEND_REFUSAL_CODES)[number];
+
+/** "Enviar a más personas" (G10): what the dialog asks the server to count. */
+export type ResendComunicadoRequestInput = {
+  comunicadoId: number;
+  includeAudience: boolean;
+  people: number[];
+  sendEmail: boolean;
+  sendPush: boolean;
+};
+
+/** The dialog's numbers, fresh from the server. */
+export type ComunicadoResendPreview =
+  | {
+      ok: true;
+      /** The original send's channels, the dialog's starting point. */
+      original: { sendEmail: boolean; sendPush: boolean };
+      originalEssential: boolean;
+      currentRevision: number;
+      /** New to the original audience since the send who can receive it. */
+      newcomers: number;
+      /** Picked by name now who can receive it. */
+      pickedByName: number;
+      /** Both, counted once, before a preview narrows: the typed count. */
+      eligible: number;
+      /** Who it is written for, after narrowing. */
+      willReceive: number;
+      /** New people who cannot receive it, by B5 label: they get no row. */
+      notReceiving: { reason: string; count: number }[];
+      narrowed: boolean;
+      stagingAdmins: number;
+      email: ComunicadoAudiencePreview["email"];
+      pushDevices: number;
+      pushSubscriptions: number;
+      /** Goes out essential: the Anuncios opt-out is lifted, as at the send. */
+      essential: boolean;
+      /** The comunicado is essential but this resend goes out normal. */
+      essentialLapsed: boolean;
+      typedRequired: boolean;
+      env: VercelEnvironment;
+      /** The refusal the resend would answer now, or null. */
+      problem: string | null;
+    }
+  | {
+      ok: false;
+      original: { sendEmail: boolean; sendPush: boolean };
+      originalEssential: boolean;
+      code: ResendRefusalCode;
+      problem: string;
+    };
+export type LoadResendPreviewResult =
+  | { success: true; preview: ComunicadoResendPreview }
+  | { success: false; message: string };
+
+export type ResendComunicadoInput = ResendComunicadoRequestInput & {
+  /** Minted when the dialog opened. */
+  requestKey: string;
+  /** Whether the dialog said it goes out essential. */
+  expectEssential: boolean;
+  typedCount: number | null;
+};
+export type ResendComunicadoActionResult =
+  | { success: true; message: string }
+  | {
+      success: false;
+      code: ResendRefusalCode | "INVALID" | "FORBIDDEN" | "FAILED";
+      message: string;
+    };
