@@ -10,19 +10,32 @@ import {
 } from "@/app/lib/notifications/definitions";
 
 describe("inbox filters", () => {
+  const none = { hasAnnouncements: false };
+
   it("shows Administración to the admin role alone", () => {
-    expect(visibleNotificationFilters("admin")).toContain("admin");
-    expect(visibleNotificationFilters("festival_admin")).not.toContain("admin");
-    expect(visibleNotificationFilters("user")).not.toContain("admin");
+    expect(visibleNotificationFilters("admin", none)).toContain("admin");
+    expect(visibleNotificationFilters("festival_admin", none)).not.toContain(
+      "admin",
+    );
+    expect(visibleNotificationFilters("user", none)).not.toContain("admin");
   });
 
-  it("hides Anuncios until there are announcements to file there", () => {
-    expect(visibleNotificationFilters("user")).toEqual([
+  it("shows Anuncios only once there is one to file there", () => {
+    expect(visibleNotificationFilters("user", none)).toEqual([
       "all",
       "reservations",
       "credits",
     ]);
-    expect(parseNotificationFilter("announcements", "user")).toBe("all");
+    expect(
+      visibleNotificationFilters("user", { hasAnnouncements: true }),
+    ).toEqual(["all", "reservations", "credits", "announcements"]);
+    expect(
+      visibleNotificationFilters("admin", { hasAnnouncements: true }),
+    ).toEqual(["all", "reservations", "credits", "announcements", "admin"]);
+    // A link to the filter works on the role alone: the chip is what waits.
+    expect(parseNotificationFilter("announcements", "user")).toBe(
+      "announcements",
+    );
   });
 
   it("falls back to all for an unknown or forbidden filter", () => {
@@ -119,5 +132,19 @@ describe("notificationDateGroup", () => {
 describe("safeActionPath", () => {
   it("refuses a backslash path a browser would read as another host", () => {
     expect(safeActionPath("/\\evil.example")).toBeNull();
+  });
+
+  it.each(["/\t/evil.example", "/\n/evil.example", "/ x", "/a\u0000b"])(
+    "refuses %j: a browser drops tabs and newlines and could leave the site",
+    (path) => {
+      expect(safeActionPath(path)).toBeNull();
+    },
+  );
+
+  it("keeps a path with a query or an encoded space", () => {
+    expect(safeActionPath("/dashboard/users?limit=10&offset=0")).toBe(
+      "/dashboard/users?limit=10&offset=0",
+    );
+    expect(safeActionPath("/blog/a%20b")).toBe("/blog/a%20b");
   });
 });

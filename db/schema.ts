@@ -1,5 +1,6 @@
-import { relations, sql } from "drizzle-orm";
+import { relations, type SQL, sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
   check,
   date,
@@ -1525,6 +1526,15 @@ export const visitors = pgTable("visitors", {
     .default("other"),
   gender: genderEnum("gender").notNull().default("undisclosed"),
   birthdate: timestamp("birthdate").notNull(),
+  /**
+   * "Quiero recibir novedades" at registration. Null on visitors who
+   * registered before the question existed: they are assumed to have
+   * agreed. A tick records consent; leaving it unticked later never
+   * withdraws it (unsubscribing does).
+   */
+  newsOptIn: boolean("news_opt_in"),
+  /** When they last ticked it. */
+  newsOptInAt: timestamp("news_opt_in_at"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -3188,6 +3198,12 @@ export const orders = pgTable(
     guestEmail: text("guest_email"),
     guestPhone: text("guest_phone"),
     guestOrderToken: text("guest_order_token").unique(),
+    /**
+     * A guest's "Quiero recibir novedades" at checkout. Null on orders placed
+     * before the question existed (assumed to have agreed) and on account
+     * orders.
+     */
+    guestNewsOptIn: boolean("guest_news_opt_in"),
     orderDate: timestamp("order_date").defaultNow(),
     status: orderStatusEnum("status").default("pending").notNull(),
     totalAmount: numeric("total_amount", {
@@ -5285,6 +5301,11 @@ export const emailTopicEnum = pgEnum("email_topic", [
   "all",
   /** Comunicados: announcements admins write to participants (phase 3). */
   "announcements",
+  /**
+   * "Novedades": comunicados to visitors and guest merch buyers, people
+   * without a Glitter account.
+   */
+  "news",
 ]);
 
 /**
@@ -7124,7 +7145,7 @@ export const notificationDeliveryLaneEnum = pgEnum(
 );
 export const notificationCampaignTypeEnum = pgEnum(
   "notification_campaign_type",
-  ["credit_gift"],
+  ["credit_gift", "comunicado"],
 );
 export const notificationCampaignStatusEnum = pgEnum(
   "notification_campaign_status",
@@ -7132,8 +7153,15 @@ export const notificationCampaignStatusEnum = pgEnum(
 );
 export const notificationCampaignRecipientStatusEnum = pgEnum(
   "notification_campaign_recipient_status",
-  ["pending", "granted", "skipped", "failed"],
+  // `notified`: a comunicado's inbox item was written.
+  ["pending", "granted", "skipped", "failed", "notified"],
 );
+/** How a person entered a comunicado's audience. Null on gift rows. */
+export const campaignRecipientSourceEnum = pgEnum("campaign_recipient_source", [
+  "list",
+  "person",
+  "staging_admin",
+]);
 export const creditGiftOccasionEnum = pgEnum("credit_gift_occasion", [
   "thanks",
   "compensation",
@@ -7375,6 +7403,14 @@ export const notificationDeliveries = pgTable(
     maybeSentAt: timestamp("maybe_sent_at"),
     /** Bulk email only: the content revision the accepted request carried. */
     contentRevision: integer("content_revision"),
+    /**
+     * The campaign of a row with no inbox copy (a comunicado to visitors). A
+     * row with one reaches its campaign through `notifications`.
+     */
+    campaignId: integer("campaign_id").references(
+      () => notificationCampaigns.id,
+      { onDelete: "cascade" },
+    ),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -7418,6 +7454,13 @@ export const notificationDeliveries = pgTable(
       "notification_deliveries_revision_is_bulk",
       sql`${t.contentRevision} IS NULL OR ${t.lane} = 'bulk'`,
     ),
+    check(
+      "notification_deliveries_campaign_without_inbox",
+      sql`${t.campaignId} IS NULL OR (${t.notificationId} IS NULL AND ${t.lane} = 'bulk' AND ${t.channel} = 'email')`,
+    ),
+    index("notification_deliveries_campaign_idx")
+      .on(t.campaignId)
+      .where(sql`${t.campaignId} IS NOT NULL`),
     foreignKey({
       name: "notification_deliveries_resend_of_delivery_id_fk",
       columns: [t.resendOfDeliveryId],
@@ -7460,6 +7503,19 @@ export const notificationCampaignRecipients = pgTable(
       onDelete: "set null",
     }),
     processedAt: timestamp("processed_at"),
+    /**
+     * A comunicado's: how the person entered its audience. Every send-time
+     * check allows by it, so a row without one is never sent.
+     */
+    source: campaignRecipientSourceEnum("source"),
+    /**
+     * A comunicado's: the "Enviar a más personas" that added this row, whose
+     * channels and essential mark it is sent with; null for the original
+     * send's snapshot.
+     */
+    resendId: integer("resend_id").references(() => comunicadoResends.id, {
+      onDelete: "restrict",
+    }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
@@ -7480,6 +7536,74 @@ export const notificationCampaignRecipients = pgTable(
     check(
       "notification_campaign_recipients_revoked_was_granted",
       sql`${t.revokedAt} IS NULL OR (${t.status} = 'granted' AND ${t.reversalEntryId} IS NOT NULL)`,
+    ),
+  ],
+);
+
+/** How a contact entered a visitor comunicado's audience. */
+export const campaignContactSourceEnum = pgEnum("campaign_contact_source", [
+  /** In `visitors` (a guest order with the same address too). */
+  "visitor",
+  /** Only in `orders.guest_email`. */
+  "guest_buyer",
+  /** Outside production, an admin standing in for the visitors. */
+  "staging_admin",
+]);
+export const campaignContactStatusEnum = pgEnum("campaign_contact_status", [
+  /** Its email row was written. */
+  "queued",
+  "skipped",
+]);
+
+/**
+ * A visitor comunicado's audience, frozen at send: one row per normalized
+ * address, from visitors and guest merch buyers. Email only, so there is no
+ * user, inbox item or push; `delivery_id` is its email row on the bulk lane.
+ * The address is stored, so the report and the unsubscribe link keep working
+ * whatever happens to the visitor or order it came from.
+ */
+export const notificationCampaignContacts = pgTable(
+  "notification_campaign_contacts",
+  {
+    id: serial("id").primaryKey(),
+    campaignId: integer("campaign_id")
+      .notNull()
+      .references(() => notificationCampaigns.id, { onDelete: "cascade" }),
+    /** `lower(trim(email))`. */
+    emailKey: text("email_key").notNull(),
+    /** The address as mailed, trimmed. */
+    email: text("email").notNull(),
+    /** For the report: the visitor's or guest's first name. */
+    name: text("name"),
+    visitorId: integer("visitor_id").references(() => visitors.id, {
+      onDelete: "set null",
+    }),
+    source: campaignContactSourceEnum("source").notNull(),
+    status: campaignContactStatusEnum("status").notNull(),
+    /** Why it was left out, in the admin's words. */
+    skippedReason: text("skipped_reason"),
+    deliveryId: integer("delivery_id").references(
+      () => notificationDeliveries.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("notification_campaign_contacts_campaign_email_unique").on(
+      t.campaignId,
+      t.emailKey,
+    ),
+    uniqueIndex("notification_campaign_contacts_delivery_unique").on(
+      t.deliveryId,
+    ),
+    index("notification_campaign_contacts_visitor_idx").on(t.visitorId),
+    check(
+      "notification_campaign_contacts_skip_reason",
+      sql`(${t.status} = 'skipped') = (${t.skippedReason} IS NOT NULL)`,
+    ),
+    check(
+      "notification_campaign_contacts_email_key_normalized",
+      sql`${t.emailKey} = lower(trim(${t.emailKey})) and ${t.emailKey} <> ''`,
     ),
   ],
 );
@@ -7582,6 +7706,26 @@ export const distributionLists = pgTable(
       onDelete: "set null",
     }),
     archivedAt: timestamp("archived_at"),
+    /**
+     * A copy of a computed audience ("Confirmados · <festival>" or a filter
+     * list) remembers where it came from, so "Traer nuevos" can resolve it
+     * again. At most one of the two is set; both go null if the origin is
+     * deleted, and `originName` still says what it was.
+     */
+    originFestivalId: integer("origin_festival_id").references(
+      () => festivals.id,
+      { onDelete: "set null" },
+    ),
+    originListId: integer("origin_list_id").references(
+      (): AnyPgColumn => distributionLists.id,
+      { onDelete: "set null" },
+    ),
+    /** The origin's name when copied; null for a list that is not a copy. */
+    originName: text("origin_name"),
+    /** When the copy was made; set exactly when `originName` is. */
+    copiedAt: timestamp("copied_at"),
+    /** The last "Traer nuevos"; null until the first one. */
+    lastPulledAt: timestamp("last_pulled_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -7600,6 +7744,15 @@ export const distributionLists = pgTable(
     check(
       "distribution_lists_description_length",
       sql`${t.description} IS NULL OR char_length(${t.description}) <= 200`,
+    ),
+    // Only a fixed list is a copy; a copy has one origin at most, and its
+    // name and date; a list that is not a copy has no pull either.
+    check(
+      "distribution_lists_origin",
+      sql`num_nonnulls(${t.originFestivalId}, ${t.originListId}) <= 1
+        AND (${t.originName} IS NULL) = (${t.copiedAt} IS NULL)
+        AND (${t.originName} IS NOT NULL OR (${t.originFestivalId} IS NULL AND ${t.originListId} IS NULL AND ${t.lastPulledAt} IS NULL))
+        AND (${t.originName} IS NULL OR ${t.kind} = 'fixed')`,
     ),
   ],
 );
@@ -7623,5 +7776,318 @@ export const distributionListMembers = pgTable(
     primaryKey({ columns: [t.listId, t.userId] }),
     // Deleting a user cascades here; without it that scans the table.
     index("distribution_list_members_user_idx").on(t.userId),
+  ],
+);
+
+/**
+ * People removed by hand from a copy of a computed audience. "Traer nuevos"
+ * leaves them out unless the admin asks for them; adding one back by hand
+ * forgets the removal.
+ */
+export const distributionListRemovals = pgTable(
+  "distribution_list_removals",
+  {
+    listId: integer("list_id")
+      .notNull()
+      .references(() => distributionLists.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    removedByUserId: integer("removed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    removedAt: timestamp("removed_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.listId, t.userId] }),
+    // Deleting a user cascades here; without it that scans the table.
+    index("distribution_list_removals_user_idx").on(t.userId),
+  ],
+);
+
+/**
+ * Who a comunicado is for: participants with an account (inbox, email,
+ * push) or visitors and guest buyers without one (email only, under
+ * "Novedades"). Never both.
+ */
+export const comunicadoAudienceKindEnum = pgEnum("comunicado_audience_kind", [
+  "users",
+  "visitors",
+]);
+
+export const comunicadoStatusEnum = pgEnum("comunicado_status", [
+  "draft",
+  "scheduled",
+  // The send has started.
+  "sent",
+]);
+
+/** A button path stays inside Glitter: no "//host", "/\\host" or whitespace. */
+const comunicadoActionPathSafe = (path: SQL | AnyPgColumn) =>
+  sql`(left(${path}, 1) = '/' AND substr(${path}, 2, 1) NOT IN ('/', E'\\\\') AND ${path} !~ '[[:cntrl:][:space:]]')`;
+
+/**
+ * Announcements admins write to participants (docs/IMPLEMENTATION-comunicados.md
+ * A4). The row is the working copy; what was sent lives in
+ * `comunicado_revisions`. Content CHECKs skip drafts, so an autosave halfway
+ * through a field always saves; a draft is validated in code before it goes
+ * anywhere.
+ */
+export const comunicados = pgTable(
+  "comunicados",
+  {
+    id: serial("id").primaryKey(),
+    status: comunicadoStatusEnum("status").default("draft").notNull(),
+    /** Bumped by every write, for compare-and-set. */
+    version: integer("version").default(1).notNull(),
+    /**
+     * The last autosave's key, so a retry of a save whose response was lost
+     * reads as saved rather than as another tab's change.
+     */
+    autosaveKey: text("autosave_key"),
+    title: text("title").default("").notNull(),
+    /** BlockNote blocks. */
+    doc: jsonb("doc")
+      .$type<unknown[]>()
+      .default(sql`'[]'::jsonb`)
+      .notNull(),
+    actionLabel: text("action_label"),
+    actionPath: text("action_path"),
+    /**
+     * Optional line for the lock screen and the email preheader; without it
+     * the push says "Tocá para ver el detalle." and the preheader is the text.
+     */
+    previewText: text("preview_text"),
+    sendEmail: boolean("send_email").default(true).notNull(),
+    sendPush: boolean("send_push").default(false).notNull(),
+    /** Users or visitors; a visitor comunicado is email only. */
+    audienceKind: comunicadoAudienceKindEnum("audience_kind")
+      .default("users")
+      .notNull(),
+    audience: jsonb("audience")
+      .$type<{ festivals: number[]; lists: number[]; people: number[] }>()
+      .default(sql`'{"festivals":[],"lists":[],"people":[]}'::jsonb`)
+      .notNull(),
+    essential: boolean("essential").default(false).notNull(),
+    /** Why, for the team only. */
+    essentialReason: text("essential_reason"),
+    /** Permanent: deleting this admin's profile is refused. */
+    essentialConfirmedByUserId: integer(
+      "essential_confirmed_by_user_id",
+    ).references(() => users.id, { onDelete: "restrict" }),
+    essentialConfirmedAt: timestamp("essential_confirmed_at"),
+    /** Naive UTC, picked in America/La_Paz. */
+    scheduledAt: timestamp("scheduled_at"),
+    scheduledByUserId: integer("scheduled_by_user_id").references(
+      () => users.id,
+      { onDelete: "set null" },
+    ),
+    scheduleMissedAt: timestamp("schedule_missed_at"),
+    scheduleMissedReason: text("schedule_missed_reason"),
+    scheduleMissedDetail: text("schedule_missed_detail"),
+    campaignId: integer("campaign_id").references(
+      () => notificationCampaigns.id,
+      { onDelete: "restrict" },
+    ),
+    currentRevision: integer("current_revision"),
+    /** Frozen at send. */
+    audienceSummary: jsonb("audience_summary").$type<Record<string, unknown>>(),
+    sentAt: timestamp("sent_at"),
+    sentByUserId: integer("sent_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    retractedAt: timestamp("retracted_at"),
+    retractedByUserId: integer("retracted_by_user_id").references(
+      () => users.id,
+      { onDelete: "set null" },
+    ),
+    retractReason: text("retract_reason"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("comunicados_campaign_id_unique").on(t.campaignId),
+    index("comunicados_scheduled_idx")
+      .on(t.scheduledAt)
+      .where(sql`${t.status} = 'scheduled'`),
+    index("comunicados_status_updated_idx").on(t.status, t.updatedAt),
+    check(
+      "comunicados_sent_has_campaign",
+      sql`(${t.status} = 'sent') = (${t.campaignId} IS NOT NULL)`,
+    ),
+    check(
+      "comunicados_sent_has_revision",
+      sql`(${t.status} = 'sent') = (${t.currentRevision} IS NOT NULL)`,
+    ),
+    check(
+      "comunicados_schedule_matches",
+      sql`(${t.status} <> 'scheduled' OR ${t.scheduledAt} IS NOT NULL) AND (${t.status} <> 'draft' OR ${t.scheduledAt} IS NULL)`,
+    ),
+    check(
+      "comunicados_missed_only_draft",
+      sql`${t.scheduleMissedAt} IS NULL OR ${t.status} = 'draft'`,
+    ),
+    check(
+      "comunicados_missed_reason",
+      sql`(${t.scheduleMissedAt} IS NULL) = (${t.scheduleMissedReason} IS NULL) AND (${t.scheduleMissedReason} IS NULL OR ${t.scheduleMissedReason} IN ('late', 'too_large', 'empty', 'invalid', 'sender_not_admin'))`,
+    ),
+    check(
+      "comunicados_retracted_was_sent",
+      sql`${t.retractedAt} IS NULL OR ${t.status} = 'sent'`,
+    ),
+    check(
+      "comunicados_retract_reason",
+      sql`(${t.retractedAt} IS NULL) = (${t.retractReason} IS NULL)`,
+    ),
+    check(
+      "comunicados_essential",
+      sql`${t.status} = 'draft' OR NOT ${t.essential} OR (${t.sendEmail} AND ${t.essentialReason} IS NOT NULL)`,
+    ),
+    check(
+      "comunicados_essential_confirmed",
+      sql`(${t.essentialConfirmedAt} IS NULL) = (${t.essentialConfirmedByUserId} IS NULL) AND (${t.essentialConfirmedAt} IS NULL OR ${t.essential})`,
+    ),
+    check(
+      "comunicados_essential_recorded",
+      sql`${t.status} <> 'sent' OR NOT ${t.essential} OR ${t.essentialConfirmedAt} IS NOT NULL`,
+    ),
+    check(
+      "comunicados_visitors_email_only",
+      sql`${t.status} = 'draft' OR ${t.audienceKind} = 'users' OR (${t.sendEmail} AND NOT ${t.sendPush} AND NOT ${t.essential})`,
+    ),
+    check(
+      "comunicados_action_pair",
+      sql`${t.status} = 'draft' OR ((${t.actionLabel} IS NULL) = (${t.actionPath} IS NULL))`,
+    ),
+    check(
+      "comunicados_action_path_safe",
+      sql`${t.status} = 'draft' OR ${t.actionPath} IS NULL OR ${comunicadoActionPathSafe(t.actionPath)}`,
+    ),
+  ],
+);
+
+/**
+ * What a comunicado said at each point after it started sending: revision 1
+ * at the send, one more per edit. Never updated. RESTRICT, so a sent
+ * comunicado cannot be deleted.
+ */
+export const comunicadoRevisions = pgTable(
+  "comunicado_revisions",
+  {
+    comunicadoId: integer("comunicado_id")
+      .notNull()
+      .references(() => comunicados.id, { onDelete: "restrict" }),
+    revision: integer("revision").notNull(),
+    title: text("title").notNull(),
+    /** The normalized document. */
+    doc: jsonb("doc").$type<unknown[]>().notNull(),
+    /** Rendered on the server for the inbox detail. */
+    html: text("html").notNull(),
+    /** Plain text without URLs. */
+    text: text("text").notNull(),
+    actionLabel: text("action_label"),
+    actionPath: text("action_path"),
+    /** Trimmed, one line; null when the sender wrote none. */
+    previewText: text("preview_text"),
+    /** Internal. Null on revision 1; required on an essential edit. */
+    editNote: text("edit_note"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    // An edit waits for a lock first, so the time it was written is the clock's.
+    createdAt: timestamp("created_at")
+      .default(sql`clock_timestamp()`)
+      .notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.comunicadoId, t.revision] }),
+    check("comunicado_revisions_revision_positive", sql`${t.revision} >= 1`),
+    check(
+      "comunicado_revisions_title_length",
+      sql`char_length(${t.title}) BETWEEN 1 AND 80`,
+    ),
+    check(
+      "comunicado_revisions_action_pair",
+      sql`(${t.actionLabel} IS NULL) = (${t.actionPath} IS NULL)`,
+    ),
+    check(
+      "comunicado_revisions_action_path_safe",
+      sql`${t.actionPath} IS NULL OR ${comunicadoActionPathSafe(t.actionPath)}`,
+    ),
+    check(
+      "comunicado_revisions_preview_text_length",
+      sql`${t.previewText} IS NULL OR char_length(${t.previewText}) BETWEEN 1 AND 120`,
+    ),
+    check(
+      "comunicado_revisions_edit_note_length",
+      sql`${t.editNote} IS NULL OR char_length(${t.editNote}) <= 300`,
+    ),
+  ],
+);
+
+/**
+ * "Enviar a más personas" (docs/IMPLEMENTATION-comunicados.md G10): each
+ * time a sent comunicado was delivered to people who had not got it, with the
+ * channels and the essential mark those people's rows are sent with, and the
+ * counts at that moment. Its recipient rows point here (`resend_id`). Never
+ * updated; RESTRICT, like the revisions, so the record stays.
+ */
+export const comunicadoResends = pgTable(
+  "comunicado_resends",
+  {
+    id: serial("id").primaryKey(),
+    comunicadoId: integer("comunicado_id")
+      .notNull()
+      .references(() => comunicados.id, { onDelete: "restrict" }),
+    /** Minted when the dialog opens, so a double submit is one resend. */
+    requestKey: text("request_key").notNull(),
+    /** The original audience was re-resolved for people new to it. */
+    includesAudience: boolean("includes_audience").notNull(),
+    /** People picked by name for this resend. */
+    people: jsonb("people")
+      .$type<number[]>()
+      .default(sql`'[]'::jsonb`)
+      .notNull(),
+    sendEmail: boolean("send_email").notNull(),
+    sendPush: boolean("send_push").notNull(),
+    /**
+     * Its email lifts the Anuncios opt-out, as the original's did: only for
+     * the festival's newcomers, by email, inside the 7-day window (B7).
+     */
+    essential: boolean("essential").default(false).notNull(),
+    /** Permanent, as the send's: deleting this admin's profile is refused. */
+    essentialConfirmedByUserId: integer(
+      "essential_confirmed_by_user_id",
+    ).references(() => users.id, { onDelete: "restrict" }),
+    /** The revision current when it was confirmed; the fan-out sends the current one. */
+    revision: integer("revision").notNull(),
+    /** Counts at the resend (`ComunicadoResendSummary`). */
+    summary: jsonb("summary").$type<Record<string, unknown>>().notNull(),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("comunicado_resends_request_key_unique").on(t.requestKey),
+    index("comunicado_resends_comunicado_idx").on(t.comunicadoId, t.id),
+    check(
+      "comunicado_resends_has_target",
+      sql`${t.includesAudience} OR jsonb_array_length(${t.people}) > 0`,
+    ),
+    check(
+      "comunicado_resends_essential",
+      sql`NOT ${t.essential} OR (${t.sendEmail} AND ${t.includesAudience} AND jsonb_array_length(${t.people}) = 0)`,
+    ),
+    check(
+      "comunicado_resends_essential_confirmed",
+      sql`${t.essential} = (${t.essentialConfirmedByUserId} IS NOT NULL)`,
+    ),
   ],
 );

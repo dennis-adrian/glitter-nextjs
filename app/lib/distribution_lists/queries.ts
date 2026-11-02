@@ -10,6 +10,7 @@ import {
   DISTRIBUTION_LIST_PREVIEW_NAMES,
   type DistributionListFilter,
   type DistributionListMember,
+  type DistributionListOrigin,
   type DistributionListSource,
   type DistributionListSummary,
   type FestivalListSummary,
@@ -24,6 +25,8 @@ import {
   countAudience,
   filterMemberIdsSql,
   listMemberIdsSql,
+  originMemberIdsSql,
+  pullCandidatesSql,
   UnreadableListFilterError,
 } from "@/app/lib/distribution_lists/resolve";
 import {
@@ -290,6 +293,31 @@ async function countSavedLists(
   return counts;
 }
 
+/** Where a copy came from, or null for a list that is not one (B10). */
+function toOrigin(
+  list: Pick<
+    ListRow,
+    | "originFestivalId"
+    | "originListId"
+    | "originName"
+    | "copiedAt"
+    | "lastPulledAt"
+  >,
+): DistributionListOrigin | null {
+  if (list.originName === null || list.copiedAt === null) return null;
+  return {
+    name: list.originName,
+    source:
+      list.originFestivalId !== null
+        ? { kind: "festival", festivalId: list.originFestivalId }
+        : list.originListId !== null
+          ? { kind: "list", listId: list.originListId }
+          : null,
+    copiedAt: list.copiedAt,
+    lastPulledAt: list.lastPulledAt,
+  };
+}
+
 /** The saved lists the pickers offer: every one not archived, by name. */
 export async function fetchSavedLists(): Promise<DistributionListSummary[]> {
   if (!(await canReadLists())) return [];
@@ -309,6 +337,7 @@ export async function fetchSavedLists(): Promise<DistributionListSummary[]> {
     kind: list.kind,
     count: counts.get(list.id) ?? null,
     updatedAt: list.updatedAt,
+    origin: toOrigin(list),
   }));
 }
 
@@ -343,6 +372,7 @@ export async function fetchDistributionList(
     kind: list.kind,
     count: counts.get(list.id) ?? null,
     updatedAt: list.updatedAt,
+    origin: toOrigin(list),
     archivedAt: list.archivedAt,
     filter,
     unreadableFilter: list.kind === "filter" && filter === null,
@@ -517,4 +547,50 @@ export async function resolveListSourceMembers(
     label,
     members,
   };
+}
+
+export type PullCandidates =
+  | {
+      ok: true;
+      originName: string;
+      /** In the origin now and not in the copy: offered, all ticked. */
+      candidates: DistributionListMember[];
+      /** The same, but removed from the copy by hand: left out unless asked. */
+      removed: DistributionListMember[];
+    }
+  | { ok: false; message: string };
+
+/**
+ * "Traer nuevos de «…»" (B10): resolves the copy's origin again and returns
+ * who is in it now but not in the copy. Reads only.
+ */
+export async function fetchPullCandidates(
+  listId: number,
+): Promise<PullCandidates> {
+  if (!(await canReadLists())) return { ok: false, message: "No autorizado." };
+  const [list] = await db
+    .select()
+    .from(distributionLists)
+    .where(eq(distributionLists.id, listId))
+    .limit(1);
+  if (!list) return { ok: false, message: "No encontramos esa lista." };
+  if (list.archivedAt) {
+    return {
+      ok: false,
+      message: "Esta lista está archivada: ya no se puede cambiar.",
+    };
+  }
+  const origin = await originMemberIdsSql(db, list);
+  if (!origin.ok) return origin;
+  const result = await db.execute<MemberRow & { removed: boolean }>(sql`
+    SELECT ${memberColumns}, c.removed
+    FROM (${pullCandidatesSql(list.id, origin.memberIds)}) AS c
+    JOIN ${users} ON ${users.id} = c.user_id
+    ORDER BY ${memberNameOrder}`);
+  const candidates: DistributionListMember[] = [];
+  const removed: DistributionListMember[] = [];
+  for (const row of result.rows) {
+    (row.removed ? removed : candidates).push(toMember(row));
+  }
+  return { ok: true, originName: list.originName!, candidates, removed };
 }

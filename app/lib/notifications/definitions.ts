@@ -52,29 +52,33 @@ export function canSeeAdminNotifications(role: string | null | undefined) {
 }
 
 /**
- * Filters with nothing to show yet. "Anuncios" waits for phase 3's comunicados:
- * an always-empty chip reads as something missing.
+ * The chips the inbox shows. "Anuncios" waits until the person has an anuncio
+ * in view: an always-empty chip reads as something missing.
  */
-const UNUSED_FILTERS: ReadonlySet<NotificationFilter> = new Set([
-  "announcements",
-]);
-
 export function visibleNotificationFilters(
   role: string | null | undefined,
+  { hasAnnouncements }: { hasAnnouncements: boolean },
 ): NotificationFilter[] {
   return NOTIFICATION_FILTERS.filter(
     (filter) =>
-      !UNUSED_FILTERS.has(filter) &&
+      (filter !== "announcements" || hasAnnouncements) &&
       (filter !== "admin" || canSeeAdminNotifications(role)),
   );
 }
 
+/**
+ * The filter a URL asks for, if the viewer's role allows it. "Anuncios" is
+ * allowed on the role alone: whether there is one to show is the chip's
+ * business, and an empty filter is only an empty list.
+ */
 export function parseNotificationFilter(
   value: unknown,
   role: string | null | undefined,
 ): NotificationFilter {
-  return typeof value === "string" &&
-    (visibleNotificationFilters(role) as string[]).includes(value)
+  const allowed: readonly string[] = visibleNotificationFilters(role, {
+    hasAnnouncements: true,
+  });
+  return typeof value === "string" && allowed.includes(value)
     ? (value as NotificationFilter)
     : "all";
 }
@@ -103,6 +107,8 @@ export type InboxNotification = {
   opensDetail: boolean;
   readAt: string | null;
   createdAt: string;
+  /** When its text was rewritten after it arrived ("Editado"), or null. */
+  editedAt: string | null;
 };
 
 export type InboxPage = {
@@ -120,8 +126,10 @@ export type InboxPage = {
 
 /** The one place that turns a stored path into a link the inbox may follow. */
 export function safeActionPath(path: string | null | undefined): string | null {
-  // "//host" and "/\host" both leave the site in a browser.
-  if (!path || !path.startsWith("/") || /^\/[/\\]/.test(path)) return null;
+  // "//host" and "/\host" both leave the site in a browser, and so does
+  // "/\t/host": a browser drops tabs and newlines while parsing a URL. No
+  // whitespace or control character, then, anywhere in the path.
+  if (!path || !/^\/(?![/\\])[^\s\x00-\x1f\x7f]*$/.test(path)) return null;
   return path;
 }
 

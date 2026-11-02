@@ -15,6 +15,7 @@ import {
 } from "@/app/lib/notifications/definitions";
 import {
   fetchInboxPage,
+  hasVisibleAnnouncements,
   resolveInboxViewer,
 } from "@/app/lib/notifications/queries";
 
@@ -30,9 +31,10 @@ export default async function MyNotificationsPage(props: {
   );
   // Asked together, each its own trip to the database; the flag check still
   // turns the page away when it is off.
-  const [, page, [pushEnabled, devices]] = await Promise.all([
+  const [, page, hasAnnouncements, [pushEnabled, devices]] = await Promise.all([
     requireFeatureEnabled("notifications", viewer),
     fetchInboxPage(viewer, { filter }),
+    hasVisibleAnnouncements(viewer),
     isPushEnabledFor(viewer).then(
       async (on) => [on, on ? await fetchPushDevices(viewer.id) : []] as const,
     ),
@@ -64,7 +66,11 @@ export default async function MyNotificationsPage(props: {
         key={filter}
         initialPage={page}
         filter={filter}
-        filters={visibleNotificationFilters(viewer.role)}
+        filters={visibleNotificationFilters(viewer.role, {
+          // A stale link to Anuncios (its last one retracted) keeps the chip,
+          // so the filter in use is never one the chips leave out.
+          hasAnnouncements: hasAnnouncements || filter === "announcements",
+        })}
       />
     </div>
   );

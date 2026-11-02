@@ -29,6 +29,7 @@ import {
 import {
   isSensitiveNotificationKind,
   notificationOpensDetail,
+  notificationPushBody,
 } from "@/app/lib/notifications/registry";
 import {
   legacyParserAgrees,
@@ -231,6 +232,9 @@ export async function attemptPushDelivery(delivery: {
     body: row.body,
     sensitive,
     writtenText,
+    writtenTextBody: writtenText
+      ? notificationPushBody(row.kind, row.data)
+      : null,
     href: notificationTapHref(
       { id: row.id, actionPath: row.actionPath, opensDetail: writtenText },
       sensitive,

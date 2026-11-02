@@ -5,6 +5,13 @@ vi.mock("server-only", () => ({}));
 // The pure rules only: nothing here reaches the database or Resend.
 vi.mock("@/db", () => ({ db: {} }));
 vi.mock("@/app/vendors/resend", () => ({ sendBatchEmails: vi.fn() }));
+// The registry's renderer reads `@/env`, which parses on import.
+vi.mock("@/app/lib/comunicados/delivery", () => ({
+  comunicadoBatchRenderer: {},
+}));
+vi.mock("@/app/lib/comunicados/contact-delivery", () => ({
+  comunicadoContactBatchRenderer: {},
+}));
 
 import {
   BULK_TIMING,

@@ -262,7 +262,8 @@ async function recipientCounts(campaignId: number) {
     if (row.status === "granted") {
       if (row.revoked) counts.revoked += n;
       else counts.granted += n;
-    } else {
+    } else if (row.status !== "notified") {
+      // `notified` is a comunicado's and never occurs on a gift.
       counts[row.status] += n;
     }
   }

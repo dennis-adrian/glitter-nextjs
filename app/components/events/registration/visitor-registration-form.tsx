@@ -3,6 +3,7 @@
 import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import DateInput from "@/app/components/form/fields/date";
+import NewsOptInField from "@/app/components/form/fields/news-opt-in";
 import PhoneInput from "@/app/components/form/fields/phone";
 import SelectInput from "@/app/components/form/fields/select";
 import TextInput from "@/app/components/form/fields/text";
@@ -36,6 +37,7 @@ export default function VisitorRegistrationForm({
       gender: "other" as const,
       lastName: "",
       phoneNumber: "",
+      newsOptIn: false,
     },
   });
 
@@ -109,6 +111,7 @@ export default function VisitorRegistrationForm({
             side="top"
           />
         </div>
+        <NewsOptInField control={form.control} name="newsOptIn" />
         <SubmitButton
           className="my-2"
           disabled={
