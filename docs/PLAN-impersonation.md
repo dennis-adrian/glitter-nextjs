@@ -241,16 +241,21 @@ The banner already says **solo lectura**. Most actions catch their own errors an
   - The avisos controls (`PushControl`, `PushOffer`) render nothing during a view, and the foreign-device release check is skipped.
   - Every sign-out (account menu, Más, mobile menu, the profile retry) calls `prepareSignOut()`. It ends the view first as `signed_out`, then forgets this browser's avisos, now for the admin who is really signed in. It always asks the server, which knows of a view before the banner has loaded, and a failure never holds the sign-out up.
 
-### 7.5 Design board T (canvas)
+### 7.5 Design board T (done in step 7)
 
-Added to the "Glitter App Navigation Proposals" canvas beside R and S, following their conventions (normal case, no invented copy, banners drawn whole):
+Board **T · Entrar como participante** on the "Glitter App Navigation Proposals" canvas, below R. It follows R and S (their styles, shell and tab bars), with captions and labels in normal case and only copy the app ships.
 
-1. Más (admin) with the new row under "Mi cuenta".
-2. Picker on the phone: search, results, Recientes.
-3. Confirmation sheet.
-4. Banner over the subject's Inicio: phone browser, installed app with the top bar on a deep screen, desktop with the sidebar.
-5. Salir → back on `/dashboard/users/{id}`.
-6. Expired state, and a blocked action's toast.
+- **Entrar:**
+  - the admin's Más with the new row under "Mi cuenta";
+  - the picker in the installed app (search, results with status, Recientes);
+  - the confirmation;
+  - the person's admin page after Salir, with "Entrar como {nombre}" and "Vistas recientes".
+- **Mientras dura la vista:**
+  - the banner over the participant's Inicio in a phone browser;
+  - over a deep screen in the installed app, with the participant's tab bar;
+  - a refused action, with the read-only message;
+  - the ended state, with "Volver a mi cuenta".
+- **Escritorio:** the banner with the email, over the content to the right of the participant's sidebar.
 
 ---
 
