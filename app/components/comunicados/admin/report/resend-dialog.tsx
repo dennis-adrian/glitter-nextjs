@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { PUSH_NOT_LAUNCHED_LINE } from "@/app/components/comunicados/admin/composer/composer-copy";
 import PersonPicker from "@/app/components/comunicados/admin/composer/person-picker";
 import type { ComposerPerson } from "@/app/components/comunicados/admin/composer/types";
+import { newSaveKey } from "@/app/components/comunicados/admin/composer/use-autosave";
 import {
   channelsText,
   essentialResendText,
@@ -200,7 +201,7 @@ export default function ResendComunicadoButton({
       setTyped("");
       setRefusal(null);
       setLoaded({ status: "loading" });
-      setRequestKey(crypto.randomUUID());
+      setRequestKey(newSaveKey());
     } else if (refusal !== null) {
       router.refresh();
     }

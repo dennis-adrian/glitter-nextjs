@@ -113,6 +113,7 @@ function comunicado(
     doc: DOC,
     actionLabel: "Ver horarios",
     actionPath: "/festivals/12",
+    previewText: null,
     sendEmail: true,
     sendPush: false,
     essential: false,
@@ -172,6 +173,7 @@ function confirmation(version: number): ComunicadoSendConfirmation {
   return {
     comunicadoId: 7,
     version,
+    audienceKind: "users",
     title: "Cambio de horario de armado",
     sendEmail: true,
     sendPush: false,
@@ -256,6 +258,7 @@ describe("ScheduledComunicado", () => {
       doc: DOC,
       actionLabel: "Ver horarios",
       actionPath: "/festivals/12",
+      previewText: null,
       essentialFestivalName: null,
     });
   });
