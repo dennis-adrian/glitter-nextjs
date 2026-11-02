@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   endView,
+  listenForViewChanges,
   setViewState,
   useViewState,
   type ViewState,
@@ -93,6 +94,11 @@ export default function ImpersonationBanner({
   // Who the banner speaks of: kept once the view ends, to say whose ended.
   const [shown, setShown] = useState<NonNullable<ViewState> | null>(initial);
 
+  // Another tab started or ended a view: this tab shares the cookie, so it is
+  // drawn again rather than go on showing someone else's app, or the
+  // participant's without a banner. Mounted on every page, view or not.
+  useEffect(() => listenForViewChanges(() => window.location.reload()), []);
+
   // `initial` only changes with a whole new document (entering and leaving
   // a view both load one), so `shown` starts from it and the store follows.
   useEffect(() => {
@@ -128,7 +134,15 @@ export default function ImpersonationBanner({
     const recheck = () => {
       if (document.visibilityState !== "visible") return;
       void fetchViewState().then((state) => {
-        if (state === null) setEnded(true);
+        if (state === "unknown") return;
+        if (state === null) {
+          setEnded(true);
+          return;
+        }
+        // Another tab left this view and entered someone else's: what this
+        // page shows is the first person's, so it is drawn again for the
+        // view that is on now.
+        if (state.subject.id !== shown?.subject.id) window.location.reload();
       });
     };
     document.addEventListener("visibilitychange", recheck);
@@ -137,7 +151,7 @@ export default function ImpersonationBanner({
       document.removeEventListener("visibilitychange", recheck);
       window.removeEventListener("focus", recheck);
     };
-  }, [view, ended]);
+  }, [view, ended, shown]);
 
   const visible = shown != null && (view != null || ended);
 

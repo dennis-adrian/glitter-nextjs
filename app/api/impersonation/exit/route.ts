@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
 import { exitImpersonation } from "@/app/lib/impersonation/exit";
+import { isSameOriginRequest } from "@/app/lib/impersonation/same-origin";
 
 /**
  * Salir: ends the view of the app as a participant and answers where the
@@ -11,11 +12,7 @@ import { exitImpersonation } from "@/app/lib/impersonation/exit";
  * form here.
  */
 export async function POST(request: Request) {
-  const origin = request.headers.get("origin");
-  if (
-    (origin && origin !== new URL(request.url).origin) ||
-    request.headers.get("sec-fetch-site") === "cross-site"
-  ) {
+  if (!isSameOriginRequest(request)) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
 

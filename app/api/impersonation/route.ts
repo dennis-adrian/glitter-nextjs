@@ -7,7 +7,16 @@ import { getImpersonation } from "@/app/lib/impersonation/viewer";
  * admin who is viewing ever gets an answer other than `active: false`.
  */
 export async function GET() {
-  const view = await getImpersonation().catch(() => null);
+  let view: Awaited<ReturnType<typeof getImpersonation>>;
+  try {
+    view = await getImpersonation();
+  } catch {
+    // Not "no view": the banner must not say a view ended that may be on.
+    return Response.json(
+      { error: "unavailable" },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const body = view
     ? {
         active: true as const,

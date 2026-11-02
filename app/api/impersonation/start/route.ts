@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 
+import { isSameOriginRequest } from "@/app/lib/impersonation/same-origin";
 import { startImpersonation } from "@/app/lib/impersonation/start";
 
 /**
@@ -11,14 +12,7 @@ import { startImpersonation } from "@/app/lib/impersonation/start";
  * view in an admin's browser.
  */
 export async function POST(request: Request) {
-  const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) {
-    return Response.json(
-      { success: false, message: "No autorizado" },
-      { status: 403 },
-    );
-  }
-  if (request.headers.get("sec-fetch-site") === "cross-site") {
+  if (!isSameOriginRequest(request)) {
     return Response.json(
       { success: false, message: "No autorizado" },
       { status: 403 },

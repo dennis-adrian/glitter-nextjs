@@ -191,6 +191,34 @@ describe("ImpersonationBanner", () => {
     );
   });
 
+  it("draws the page again when another tab switched to someone else", async () => {
+    const reloadMock = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, replace: replaceMock, reload: reloadMock },
+    });
+    fetchMock.mockReturnValue(
+      respond({ active: true, secondsLeft: 900, subject: { ...ANA, id: 9 } }),
+    );
+    render(<ImpersonationBanner initial={VIEW} />);
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await waitFor(() => expect(reloadMock).toHaveBeenCalled());
+  });
+
+  it("keeps the banner as it is when the server cannot tell", async () => {
+    fetchMock.mockReturnValue(respond({ error: "unavailable" }, false));
+    render(<ImpersonationBanner initial={VIEW} />);
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(screen.getByRole("region").textContent).toContain(
+      "Estás viendo como",
+    );
+  });
+
   it("asks the server on a page rendered without a request", async () => {
     fetchMock.mockReturnValue(
       respond({ active: true, secondsLeft: 900, subject: ANA }),
@@ -223,6 +251,43 @@ describe("ImpersonationBanner", () => {
         "--impersonation-banner-height",
       ),
     ).toBe("");
+  });
+});
+
+describe("other tabs", () => {
+  function stubLocation() {
+    const reloadMock = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, replace: replaceMock, reload: reloadMock },
+    });
+    return reloadMock;
+  }
+
+  it("draw themselves again when a view starts or ends elsewhere", async () => {
+    const reloadMock = stubLocation();
+    // A tab outside any view listens too; the message is another tab's.
+    render(<ImpersonationBanner initial={null} />);
+    const other = new BroadcastChannel("glitter:impersonation");
+    other.postMessage({ from: "another-tab" });
+    other.close();
+    await waitFor(() => expect(reloadMock).toHaveBeenCalled());
+  });
+
+  it("are told when this tab leaves, and this tab does not reload itself", async () => {
+    const reloadMock = stubLocation();
+    fetchMock.mockReturnValue(respond({ returnTo: "/dashboard" }));
+    const heard = vi.fn();
+    const channel = new BroadcastChannel("glitter:impersonation");
+    channel.onmessage = heard;
+    render(<ImpersonationBanner initial={VIEW} />);
+    fireEvent.click(screen.getByRole("button", { name: "Salir" }));
+    await waitFor(() => expect(heard).toHaveBeenCalled());
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/dashboard"));
+    // Time for a stray self-message to arrive, were there one.
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(reloadMock).not.toHaveBeenCalled();
+    channel.close();
   });
 });
 

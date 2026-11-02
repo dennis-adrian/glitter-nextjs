@@ -52,7 +52,48 @@ export function isViewingNow(): boolean {
   return current != null;
 }
 
+/**
+ * Tells this browser's other tabs that a view started or ended. They share
+ * the cookie, so what they show from their next navigation on is someone
+ * else's; each one draws itself again (see `useViewChangesFromOtherTabs`).
+ */
+const CHANNEL = "glitter:impersonation";
+/**
+ * This document's own id. A message reaches every other channel object,
+ * this tab's own listener included, which must not reload the page that is
+ * already on its way to the admin's.
+ */
+const TAB_ID =
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : String(Math.random());
+
+export function announceViewChange() {
+  try {
+    const channel = new BroadcastChannel(CHANNEL);
+    channel.postMessage({ from: TAB_ID });
+    channel.close();
+  } catch {
+    // No BroadcastChannel: the other tabs find out on focus instead.
+  }
+}
+
+/** Reloads this tab when another one starts or ends a view. */
+export function listenForViewChanges(onChange: () => void): () => void {
+  let channel: BroadcastChannel;
+  try {
+    channel = new BroadcastChannel(CHANNEL);
+  } catch {
+    return () => {};
+  }
+  channel.onmessage = (event: MessageEvent<{ from?: unknown }>) => {
+    if (event.data?.from !== TAB_ID) onChange();
+  };
+  return () => channel.close();
+}
+
 const EXIT_URL = "/api/impersonation/exit";
+const EXIT_TIMEOUT_MS = 5_000;
 
 /**
  * Ends this browser's view and answers where the admin goes next, or null
@@ -68,8 +109,11 @@ export async function endView(
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ reason }),
       cache: "no-store",
+      // A sign-out waits for this: a slow server must not hold it up.
+      signal: AbortSignal.timeout(EXIT_TIMEOUT_MS),
     });
     if (!response.ok) return null;
+    announceViewChange();
     const body = (await response.json()) as { returnTo?: unknown };
     return typeof body.returnTo === "string" ? body.returnTo : null;
   } catch {

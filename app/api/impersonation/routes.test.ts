@@ -27,9 +27,13 @@ import { POST as exitPost } from "@/app/api/impersonation/exit/route";
 import { POST as startPost } from "@/app/api/impersonation/start/route";
 
 const ORIGIN = "https://www.glitter.com.bo";
+const HOST = "www.glitter.com.bo";
 
 function post(body?: unknown, origin: string | null = ORIGIN) {
-  const headers = new Headers({ "content-type": "application/json" });
+  const headers = new Headers({
+    "content-type": "application/json",
+    host: HOST,
+  });
   if (origin) headers.set("origin", origin);
   return exitPost(
     new Request(`${ORIGIN}/api/impersonation/exit`, {
@@ -85,9 +89,11 @@ describe("GET /api/impersonation", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
-  it("is off when the view cannot be read", async () => {
+  it("does not say there is no view when it cannot tell", async () => {
     getImpersonationMock.mockRejectedValue(new Error("database down"));
-    expect(await (await viewState()).json()).toEqual({ active: false });
+    const response = await viewState();
+    expect(response.status).toBe(503);
+    expect(await response.json()).not.toHaveProperty("active");
   });
 
   it("names the participant and the time left, and nothing else of theirs", async () => {
@@ -131,7 +137,7 @@ describe("POST /api/impersonation/start", () => {
     return startPost(
       new Request(`${ORIGIN}/api/impersonation/start`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...headers },
+        headers: { "content-type": "application/json", host: HOST, ...headers },
         body: JSON.stringify(body),
       }),
     );
@@ -174,7 +180,7 @@ describe("POST /api/impersonation/start", () => {
     const response = await startPost(
       new Request(`${ORIGIN}/api/impersonation/start`, {
         method: "POST",
-        headers: { origin: ORIGIN },
+        headers: { origin: ORIGIN, host: HOST },
         body: "not json",
       }),
     );
