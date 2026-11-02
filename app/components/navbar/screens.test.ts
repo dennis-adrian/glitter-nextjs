@@ -309,3 +309,16 @@ describe("breadcrumbTrail", () => {
     expect(breadcrumbTrail("/my_participations", ctx(verified))).toEqual([]);
   });
 });
+
+describe("Entrar como participante", () => {
+  it("is its own screen under Más", () => {
+    expect(SCREENS["/dashboard/impersonate"]).toEqual({
+      title: "Entrar como participante",
+      parent: "/menu",
+    });
+    expect(resolveScreen("/dashboard/impersonate", ctx(admin))).toMatchObject({
+      title: "Entrar como participante",
+      parentHref: "/menu",
+    });
+  });
+});

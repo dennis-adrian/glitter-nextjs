@@ -517,4 +517,48 @@ describeDatabase("impersonation sessions", () => {
       ).toBe(true);
     });
   });
+
+  describe("searchImpersonationCandidates", () => {
+    it("finds participants by name, email or #id, in any status, never staff", async () => {
+      const marker = `buscar${randomUUID().slice(0, 8)}`;
+      const banned = await createUser({
+        displayName: `${marker} Ana`,
+        status: "banned",
+      });
+      const pending = await createUser({
+        displayName: `${marker} Beto`,
+        status: "pending",
+      });
+      await createUser({
+        displayName: `${marker} Staff`,
+        role: "festival_admin",
+      });
+      await createUser({ displayName: `${marker} Admin`, role: "admin" });
+
+      const byName = await queries.searchImpersonationCandidates(
+        marker,
+        testDb!,
+      );
+      expect(byName.map((row) => row.id)).toEqual([banned.id, pending.id]);
+      expect(byName.map((row) => row.status)).toEqual(["banned", "pending"]);
+
+      const byEmail = await queries.searchImpersonationCandidates(
+        banned.email,
+        testDb!,
+      );
+      expect(byEmail.map((row) => row.id)).toEqual([banned.id]);
+
+      const byId = await queries.searchImpersonationCandidates(
+        `#${pending.id}`,
+        testDb!,
+      );
+      expect(byId.map((row) => row.id)).toContain(pending.id);
+    });
+
+    it("searches nobody for a blank term", async () => {
+      expect(
+        await queries.searchImpersonationCandidates("   ", testDb!),
+      ).toEqual([]);
+    });
+  });
 });

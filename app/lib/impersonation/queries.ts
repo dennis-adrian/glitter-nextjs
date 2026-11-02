@@ -19,6 +19,7 @@ import {
   type RecentImpersonation,
 } from "@/app/lib/impersonation/definitions";
 import { hasPendingDeletion } from "@/app/lib/notifications/push/devices";
+import { userSearchCondition } from "@/app/lib/users/search-condition";
 import { db } from "@/db";
 import { impersonationSessions, users } from "@/db/schema";
 
@@ -255,4 +256,50 @@ export async function loadImpersonationTarget(
     subject,
     pendingDeletion: await hasPendingDeletion(subject.id, executor),
   };
+}
+
+export type ImpersonationCandidate = Pick<
+  BaseProfile,
+  | "id"
+  | "displayName"
+  | "firstName"
+  | "lastName"
+  | "email"
+  | "imageUrl"
+  | "status"
+  | "category"
+>;
+
+const SEARCH_LIMIT = 20;
+
+/**
+ * The picker's search: participants matching a name, email or `#id`, the way
+ * admins look people up across the dashboard (`userSearchCondition`). Staff
+ * accounts never appear, since they cannot be viewed as. Nothing for a blank
+ * term, so the picker opens on its recent views rather than on everyone.
+ */
+export async function searchImpersonationCandidates(
+  query: string,
+  executor: Pick<typeof db, "select"> = db,
+): Promise<ImpersonationCandidate[]> {
+  const condition = userSearchCondition(query);
+  if (!condition) return [];
+  return executor
+    .select({
+      id: users.id,
+      displayName: users.displayName,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      email: users.email,
+      imageUrl: users.imageUrl,
+      status: users.status,
+      category: users.category,
+    })
+    .from(users)
+    .where(and(eq(users.role, "user"), condition))
+    .orderBy(
+      sql`lower(coalesce(${users.displayName}, ${users.firstName}, ${users.email}))`,
+      users.id,
+    )
+    .limit(SEARCH_LIMIT);
 }

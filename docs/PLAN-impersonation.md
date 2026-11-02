@@ -204,32 +204,27 @@ The banner already says **solo lectura**. Most actions catch their own errors an
 
 ## 7. Entry points and screens
 
-### 7.1 Navigation — `app/components/navbar/app-navigation.ts`
+### 7.1 Navigation (done in step 6)
 
-In `buildStaffNavigation`, for `isAdmin` only, the `account` group gains:
+- `buildStaffNavigation` adds `IMPERSONATE_LINK` to the "Mi cuenta" group **for global admins only**: "Entrar como participante", described as "ver la app como cualquier cuenta", leading to `/dashboard/impersonate`. It shows in Más and in the sidebar.
+- Festival admins, participants and visitors never get it in any tab, group or Más list (tested).
+- The desktop account menu (`user-dropdown.tsx`) shows the same row when its profile is a global admin. During a view that profile is the participant's, so the row is gone with the rest of the admin's entries.
+- `screens.ts` names the page "Entrar como participante", with Más as its parent.
 
-```ts
-{
-  key: "impersonate",
-  label: "Entrar como participante",
-  description: "ver la app como cualquier cuenta",
-  href: "/dashboard/impersonate",
-  icon: UserRoundSearchIcon,
-}
-```
+### 7.2 Picker — `/dashboard/impersonate` (done in step 6)
 
-It appears in Más (`more`) and in the sidebar's "Mi cuenta" group. The desktop account menu (`app/components/ui/user-dropdown.tsx`) gets the same row for admins.
+- `requireAdmin()`, or `notFound()`, like every other admin-only page.
+- **Search:** a plain `GET` form (`?q=`, cut to 120 characters), searching by name, email or `#id` with `searchImpersonationCandidates`. Participants only, any status, never staff, 20 results. A blank term searches nobody.
+- **Results:** name, email and status label, each with **Entrar** (`EnterAsButton`), whose Salir returns to this search.
+- **Recientes:** the admin's last 10 views, each with who, when, how long, how it ended, and any blocked actions (`RecentImpersonations`).
+- **Confirmation:** an `AlertDialog` reading "Entrar como {nombre}", the email and status, then "Vas a ver Glitter como esta persona. Solo lectura: no se guarda nada, no se envían correos ni avisos. La vista termina sola a los 60 minutos.", with **Entrar** and **Cancelar**.
+  - It posts to `/api/impersonation/start`. A refusal shows the server's message and stays.
+  - On success it tells other tabs (`announceViewChange`), then loads `/portal` as a new document.
 
-### 7.2 Picker — `/dashboard/impersonate` (`app/dashboard/impersonate/page.tsx`)
+### 7.3 Person's admin page — `/dashboard/users/[profileId]` (done in step 6)
 
-- `requireAdmin()` or `notFound()`.
-- Search field (name or email, `userSearchCondition`, `role = 'user'`, 20 results, debounced through a `"use server"` fetcher), each row: avatar, name, email, status badge, category.
-- "Recientes": the admin's last 10 view sessions with subject, when, how long, how it ended.
-- Tapping a row opens the confirmation: name, email, status; "Vas a ver Glitter como esta persona. Solo lectura: no se guarda nada, no se envían correos ni avisos. La vista termina sola a los 60 minutos." Buttons **Entrar** / **Cancelar**.
-
-### 7.3 Person's admin page — `/dashboard/users/[profileId]`
-
-`ProfileQuickActions` gains "Entrar como {nombre}" for admins when the profile is eligible; same confirmation; `returnTo` = that page. Below the profile, "Vistas recientes" lists this person's view sessions.
+- **Button:** "Entrar como {nombre}" sits beside the quick actions when the viewer is a global admin, the profile is someone else's, and it can be viewed as (`canBeImpersonated`). It uses the same confirmation, and Salir returns to this page.
+- **History:** below the profile, "Vistas recientes" lists the last 5 views of this account and which admin made each.
 
 ### 7.4 Banner — `app/components/impersonation/impersonation-banner.tsx` (done in step 5)
 
