@@ -129,14 +129,15 @@ async function editInTransaction(
   `);
   const before = previous[0];
   if (!before) throw new Error("comunicado_revision_missing");
-  if (
-    before.title === content.title &&
-    before.html === content.html &&
-    before.text === content.text &&
-    before.action_label === content.actionLabel &&
-    before.action_path === content.actionPath &&
-    before.preview_text === content.previewText
-  ) {
+  const visibleChange =
+    before.title !== content.title ||
+    before.html !== content.html ||
+    before.text !== content.text ||
+    before.action_label !== content.actionLabel ||
+    before.action_path !== content.actionPath;
+  // The summary alone is a revision too (pushes not yet sent, the preheader),
+  // but the inbox and the page show nothing new: no "Editado" for it.
+  if (!visibleChange && before.preview_text === content.previewText) {
     return refusal("NO_CHANGES");
   }
 
@@ -193,11 +194,11 @@ async function editInTransaction(
     SET title = ${copy.title}::text, body = ${copy.body}::text,
       action_path = ${safeActionPath(copy.actionPath)}::text,
       action_label = ${copy.actionLabel}::text,
-      edited_at = (
+      edited_at = CASE WHEN ${visibleChange}::boolean THEN (
         SELECT created_at FROM comunicado_revisions
         WHERE comunicado_id = ${comunicadoId}::int
           AND revision = ${revision}::int
-      ),
+      ) ELSE edited_at END,
       data = data || jsonb_build_object(
         'revision', ${data.revision}::int, 'title', ${data.title}::text,
         'excerpt', ${data.excerpt}::text,
