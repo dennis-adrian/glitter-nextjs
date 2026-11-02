@@ -2,6 +2,7 @@ import { createRouteHandler } from "uploadthing/next";
 
 import { IMPERSONATION_READ_ONLY_MESSAGE } from "@/app/lib/impersonation/definitions";
 import { isImpersonating } from "@/app/lib/impersonation/viewer";
+import { countRefusal } from "@/db/write-guard";
 
 import { ourFileRouter } from "./core";
 
@@ -24,6 +25,8 @@ export const { GET } = handlers;
  */
 export async function POST(request: Request) {
   if (await isImpersonating()) {
+    // An upload the admin tried: counted in the view's audit.
+    await countRefusal();
     return Response.json(
       {
         error: IMPERSONATION_READ_ONLY_MESSAGE,

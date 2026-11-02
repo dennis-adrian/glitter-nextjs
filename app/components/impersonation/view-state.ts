@@ -113,8 +113,13 @@ export async function endView(
       signal: AbortSignal.timeout(EXIT_TIMEOUT_MS),
     });
     if (!response.ok) return null;
-    announceViewChange();
-    const body = (await response.json()) as { returnTo?: unknown };
+    const body = (await response.json()) as {
+      returnTo?: unknown;
+      ended?: unknown;
+    };
+    // Only a view that really ended changes what other tabs show: an
+    // ordinary sign-out must not reload every tab.
+    if (body.ended === true) announceViewChange();
     return typeof body.returnTo === "string" ? body.returnTo : null;
   } catch {
     return null;

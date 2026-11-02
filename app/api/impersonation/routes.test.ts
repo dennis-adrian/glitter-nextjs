@@ -54,7 +54,10 @@ describe("POST /api/impersonation/exit", () => {
   it("ends the view and answers where to go, never cached", async () => {
     const response = await post();
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ returnTo: "/dashboard/users/2" });
+    expect(await response.json()).toEqual({
+      returnTo: "/dashboard/users/2",
+      ended: true,
+    });
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(exitMock).toHaveBeenCalledWith(store, "exited");
   });

@@ -276,7 +276,7 @@ describe("other tabs", () => {
 
   it("are told when this tab leaves, and this tab does not reload itself", async () => {
     const reloadMock = stubLocation();
-    fetchMock.mockReturnValue(respond({ returnTo: "/dashboard" }));
+    fetchMock.mockReturnValue(respond({ returnTo: "/dashboard", ended: true }));
     const heard = vi.fn();
     const channel = new BroadcastChannel("glitter:impersonation");
     channel.onmessage = heard;
@@ -287,6 +287,19 @@ describe("other tabs", () => {
     // Time for a stray self-message to arrive, were there one.
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(reloadMock).not.toHaveBeenCalled();
+    channel.close();
+  });
+});
+
+describe("an ordinary sign-out", () => {
+  it("tells no other tab anything when no view ended", async () => {
+    fetchMock.mockReturnValue(respond({ returnTo: "/", ended: false }));
+    const heard = vi.fn();
+    const channel = new BroadcastChannel("glitter:impersonation");
+    channel.onmessage = heard;
+    await prepareSignOut();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(heard).not.toHaveBeenCalled();
     channel.close();
   });
 });

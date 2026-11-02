@@ -338,3 +338,20 @@ describe("two copies of the module, as Turbopack compiles one per server layer",
     });
   });
 });
+
+describe("countRefusal", () => {
+  it("counts on the view this request is in, without failing the caller", async () => {
+    viewing(true);
+    const { countRefusal } = await import("@/db/write-guard");
+    await expect(countRefusal()).resolves.toBeUndefined();
+    await vi.waitFor(() => expect(recordMock).toHaveBeenCalledWith(41));
+  });
+
+  it("counts nothing outside a view, and never throws", async () => {
+    viewing(false);
+    const { countRefusal } = await import("@/db/write-guard");
+    getImpersonationMock.mockRejectedValue(new Error("database down"));
+    await expect(countRefusal()).resolves.toBeUndefined();
+    expect(recordMock).not.toHaveBeenCalled();
+  });
+});

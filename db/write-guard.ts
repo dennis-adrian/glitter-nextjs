@@ -97,32 +97,66 @@ async function rethrowNextInternal(error: unknown) {
  * once a view cookie is seen.
  */
 export async function refuseDuringView(): Promise<void> {
+  if (!(await isViewRequest())) return;
+  await countRefusal();
+  throw new ImpersonationReadOnlyError();
+}
+
+/**
+ * Whether this request is a view as someone else. Never throws (bar Next's
+ * own signals): without a view cookie, or outside a request, it is not. Safe
+ * from modules that scripts load, like `refuseDuringView`.
+ */
+export async function isViewRequest(): Promise<boolean> {
   let carriesViewCookie: boolean;
   try {
     const { cookies } = await import("next/headers");
     carriesViewCookie = (await cookies()).has(IMPERSONATION_TOKEN_COOKIE);
   } catch (error) {
     await rethrowNextInternal(error);
-    return;
+    return false;
   }
-  if (!carriesViewCookie) return;
-
+  if (!carriesViewCookie) return false;
   const viewer = await import("@/app/lib/impersonation/viewer");
-  if (!(await viewer.isImpersonating())) return;
+  return viewer.isImpersonating();
+}
 
-  // Counted without waiting: the refused statement still holds its pooled
-  // client here, and the count needs another one. Awaited, a small or busy
-  // pool would stall until a connection times out, for everyone.
-  void allowImpersonationWrites(async () => {
+/** Runs `task` once the response is sent, keeping a serverless function up. */
+async function afterResponse(task: () => Promise<unknown>) {
+  try {
+    const { after } = await import("next/server");
+    after(task);
+  } catch {
+    // Outside a request scope: nothing would end before it finishes.
+    void task();
+  }
+}
+
+/**
+ * Counts one refused attempt on the view this request is in: the audit's
+ * `blocked_writes`. Never delays the refusal and never fails it. The count
+ * runs after the response through Next's `after`, so a serverless function
+ * is not frozen before it lands, and it needs a pooled client of its own:
+ * awaited here, the refused statement's own client would still be held.
+ */
+export async function countRefusal(): Promise<void> {
+  try {
+    const viewer = await import("@/app/lib/impersonation/viewer");
     const view = await viewer.getImpersonation().catch(() => null);
     if (!view) return;
-    const { recordBlockedImpersonationWrite } =
-      await import("@/app/lib/impersonation/queries");
-    await recordBlockedImpersonationWrite(view.sessionId);
-  }).catch((error) => {
+    const sessionId = view.sessionId;
+    await afterResponse(() =>
+      allowImpersonationWrites(async () => {
+        const { recordBlockedImpersonationWrite } =
+          await import("@/app/lib/impersonation/queries");
+        await recordBlockedImpersonationWrite(sessionId);
+      }).catch((error) => {
+        console.error("Could not count a refused write of a view", error);
+      }),
+    );
+  } catch (error) {
     console.error("Could not count a refused write of a view", error);
-  });
-  throw new ImpersonationReadOnlyError();
+  }
 }
 
 type QueryFn = (...args: unknown[]) => unknown;

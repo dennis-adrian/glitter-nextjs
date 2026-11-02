@@ -10,12 +10,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { viewState, writes, uploadHandler } = vi.hoisted(() => ({
+const { viewState, writes, uploadHandler, countMock } = vi.hoisted(() => ({
+  countMock: vi.fn(async () => {}),
   viewState: { viewing: true },
   writes: [] as string[],
   uploadHandler: vi.fn(async () => new Response("ok")),
 }));
 
+vi.mock("@/db/write-guard", () => ({
+  countRefusal: countMock,
+  isViewRequest: async () => viewState.viewing,
+}));
 vi.mock("@/app/lib/impersonation/viewer", () => ({
   isImpersonating: async () => viewState.viewing,
 }));
@@ -79,6 +84,7 @@ beforeEach(() => {
   viewState.viewing = true;
   writes.length = 0;
   uploadHandler.mockClear();
+  countMock.mockClear();
 });
 
 describe("rate limits during a view", () => {
@@ -130,9 +136,16 @@ describe("read state during a view", () => {
       "markNotificationsUnreadAction",
       () => markNotificationsUnreadAction([12]),
     ],
-  ])("refuses %s with the read-only message", async (_, run) => {
+  ])("refuses %s with the read-only message, and counts it", async (_, run) => {
     await expect(run()).resolves.toEqual(IMPERSONATION_READ_ONLY_RESULT);
     expect(writes).toEqual([]);
+    expect(countMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not count what nobody tried: reading on open, the gift banner", async () => {
+    await markNotificationReadAction(12);
+    await markGiftsCelebratedAction([12]);
+    expect(countMock).not.toHaveBeenCalled();
   });
 
   it("reads an item for the participant outside a view", async () => {
@@ -150,6 +163,7 @@ describe("uploads during a view", () => {
       }),
     );
     expect(response.status).toBe(403);
+    expect(countMock).toHaveBeenCalledTimes(1);
     expect(await response.json()).toMatchObject({
       message: IMPERSONATION_READ_ONLY_RESULT.message,
     });
@@ -165,5 +179,38 @@ describe("uploads during a view", () => {
     );
     expect(response.status).toBe(200);
     expect(uploadHandler).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("server-side PostHog during a view", () => {
+  it("reports nothing under the participant's id", async () => {
+    const capture = vi.fn();
+    vi.doMock("posthog-node", () => ({
+      PostHog: class {
+        capture = capture;
+        shutdown = async () => {};
+      },
+    }));
+    vi.doMock("@/env", () => ({
+      serverEnv: { VERCEL_ENV: "production" },
+      getClientEnv: () => ({
+        NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: "phc_test",
+        NEXT_PUBLIC_POSTHOG_HOST: "https://example.test",
+      }),
+    }));
+    vi.resetModules();
+    const { captureServerEvent } = await import("@/app/lib/posthog-server");
+    const input = {
+      distinctId: "user_participant",
+      event: "store_order_adjustment_failed" as const,
+      context: "test",
+    };
+    await captureServerEvent(input);
+    expect(capture).not.toHaveBeenCalled();
+    viewState.viewing = false;
+    await captureServerEvent(input);
+    expect(capture).toHaveBeenCalledTimes(1);
+    vi.doUnmock("posthog-node");
+    vi.doUnmock("@/env");
   });
 });

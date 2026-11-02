@@ -24,9 +24,9 @@ export async function POST(request: Request) {
     // No body: a plain Salir.
   }
 
-  const { returnTo } = await exitImpersonation(await cookies(), reason);
+  const { returnTo, ended } = await exitImpersonation(await cookies(), reason);
   return Response.json(
-    { returnTo },
+    { returnTo, ended },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
