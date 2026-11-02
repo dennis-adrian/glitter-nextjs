@@ -38,9 +38,11 @@ describe("FestivalBanner", () => {
     expect(img.getAttribute("srcset")).not.toContain("wide.png");
     expect(img.getAttribute("width")).toBe("1200");
     expect(img.getAttribute("height")).toBe("800");
-    // fetchPriority, not preload/eager, so only the matching image loads.
+    // Eager with a high fetch priority, not preloaded: a preload link would
+    // carry the phone srcset without the media query.
     expect(img.getAttribute("fetchpriority")).toBe("high");
-    expect(img.getAttribute("loading")).toBe("lazy");
+    expect(img.getAttribute("loading")).toBe("eager");
+    expect(document.head.querySelector('link[rel="preload"]')).toBeNull();
     expect(img.className).toBe("h-auto w-full");
   });
 
@@ -81,6 +83,26 @@ describe("FestivalBanner", () => {
     const imgs = container.querySelectorAll("img");
     expect(imgs).toHaveLength(1);
     expect(imgs[0].getAttribute("src")).toContain("phone.png");
+    // Reserves 3:2, the file's own shape, so nothing shifts when it loads.
+    expect(imgs[0].getAttribute("width")).toBe("1200");
+    expect(imgs[0].getAttribute("height")).toBe("800");
+  });
+
+  it("stays lazy when the banner is not the page's main image", () => {
+    const { container } = render(
+      <FestivalBanner
+        festival={{
+          festivalBannerUrl: "/wide.png",
+          festivalBannerMobileUrl: "/phone.png",
+        }}
+        alt="Festicker"
+        sizes={sizes}
+      />,
+    );
+
+    const img = container.querySelector("picture img")!;
+    expect(img.getAttribute("loading")).toBe("lazy");
+    expect(img.getAttribute("fetchpriority")).toBeNull();
   });
 
   it("renders nothing without a banner", () => {

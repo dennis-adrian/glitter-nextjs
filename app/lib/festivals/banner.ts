@@ -13,6 +13,8 @@ export type ResolvedFestivalBanner = {
    * serves every width, as before the phone banner existed.
    */
   mobileSrc: string | null;
+  /** `wideSrc` is the 3:2 phone banner, the festival's only one. */
+  wideIsPhoneBanner: boolean;
 };
 
 /**
@@ -29,10 +31,12 @@ export function resolveFestivalBanner(
   const mobile = festival.festivalBannerMobileUrl || null;
 
   if (!wide && !mobile) return null;
-  if (!wide || !mobile || wide === mobile) {
-    return { wideSrc: (wide ?? mobile)!, mobileSrc: null };
+  if (!wide)
+    return { wideSrc: mobile!, mobileSrc: null, wideIsPhoneBanner: true };
+  if (!mobile || wide === mobile) {
+    return { wideSrc: wide, mobileSrc: null, wideIsPhoneBanner: false };
   }
-  return { wideSrc: wide, mobileSrc: mobile };
+  return { wideSrc: wide, mobileSrc: mobile, wideIsPhoneBanner: false };
 }
 
 export function hasFestivalBanner(festival: FestivalBannerSource) {

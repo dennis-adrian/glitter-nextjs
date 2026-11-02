@@ -44,7 +44,8 @@ export default function FestivalBanner({
       <Image
         src={banner.wideSrc}
         alt={alt}
-        {...WIDE}
+        // Reserve the space of the file actually shown.
+        {...(banner.wideIsPhoneBanner ? MOBILE : WIDE)}
         sizes={sizes}
         className={className}
         preload={highPriority}
@@ -52,8 +53,10 @@ export default function FestivalBanner({
     );
   }
 
-  // Two images: only the one whose media matches is fetched. `preload` or
-  // `loading="eager"` would fetch both, so the LCP hint is fetchPriority.
+  // Two images: the browser fetches only the source whose media matches,
+  // eager or not. `preload` would not: its <link> carries the phone srcset
+  // without the media query, so desktops would fetch the phone banner too.
+  // An LCP banner is therefore eager with fetchPriority high, not lazy.
   const common = { alt, sizes } as const;
   const {
     props: { srcSet: wideSrcSet },
@@ -63,6 +66,7 @@ export default function FestivalBanner({
     ...MOBILE,
     src: banner.mobileSrc,
     fetchPriority: highPriority ? "high" : undefined,
+    loading: highPriority ? "eager" : undefined,
   });
 
   return (
