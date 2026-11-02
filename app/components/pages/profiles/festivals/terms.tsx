@@ -23,22 +23,21 @@ type TermsPageProps = {
   festivalId: number;
 };
 export default async function TermsPage(props: TermsPageProps) {
-  // Everything the page reads is started at once, so it costs one database
-  // round trip instead of seven. Nothing is used before the route check.
+  // The page's reads run side by side instead of seven in a row. The two
+  // light ones start with the route check; the sector tree (every stand,
+  // reservation and occupant) and the target profile only once it has
+  // passed, so a visitor it redirects never costs them.
   const festivalPromise = started(fetchFestivalWithDates(props.festivalId));
-  const festivalSectorsPromise = started(
-    fetchFestivalSectors(props.festivalId),
-  );
-  const forProfilePromise = started(fetchUserProfileById(props.profileId));
   const termsVersionPromise = started(getPublishedFestivalTermsForPage());
 
   const currentProfile = await getCurrentUserProfile();
   await protectRoute(currentProfile || undefined, props.profileId, {
     allowedStatuses: [...PARTICIPANT_READ_ONLY_ROUTE_STATUSES],
   });
+  const forProfilePromise = started(fetchUserProfileById(props.profileId));
   const [festival, festivalSectors] = await Promise.all([
     festivalPromise,
-    festivalSectorsPromise,
+    fetchFestivalSectors(props.festivalId),
   ]);
   if (!festival) notFound();
 

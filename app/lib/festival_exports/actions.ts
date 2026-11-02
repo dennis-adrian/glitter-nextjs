@@ -261,6 +261,9 @@ export async function importFestivalData(
         });
 
         basicInfoUpdated = true;
+        // Committed: expire now, since the sector import below can still fail
+        // and return early.
+        expireFestivalCaches();
       } catch (error: unknown) {
         // Check for unique name constraint violation
         if (
