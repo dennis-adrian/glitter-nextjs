@@ -225,6 +225,17 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
       // A null clerkDeletedAt is a durable unknown/in-progress state. Retrying
       // the idempotent Clerk step reconciles it without creating another row.
       if (existingPending) {
+        // Before Clerk goes, the retry checks what would block the local
+        // delete: a reference added since the first try keeps the account.
+        if (
+          existingPending.clerkDeletedAt === null &&
+          (await hasRestrictActorReferences(tx, profileId))
+        ) {
+          return {
+            ok: false as const,
+            reason: "has_restrict_references" as const,
+          };
+        }
         if (
           existingPending.clerkDeletedAt === null &&
           (await hasCreditLedgerEntries(tx, profileId))

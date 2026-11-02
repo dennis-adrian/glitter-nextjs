@@ -1431,6 +1431,27 @@ describeDatabase("starting a comunicado send", () => {
         constraint: "comunicados_essential_confirmed_by_user_id_users_id_fk",
       });
     });
+
+    it("keeps the Clerk account when a pending deletion is retried after it", async () => {
+      const festival = await festivalWith([await createUser()]);
+      const id = await essentialDraft({ festivals: [festival.id] });
+      await started(id, { typedCount: 1 });
+      // An earlier try that never reached Clerk.
+      await markDeleting(sender);
+
+      state.viewer = { id: await createUser({ role: "admin" }), role: "admin" };
+      expect(
+        await userActions.deleteProfile(sender, {
+          success: false,
+          message: "",
+        }),
+      ).toEqual({
+        success: false,
+        message:
+          "No se puede eliminar un perfil con registros administrativos vinculados.",
+      });
+      expect(deleteClerkUser).not.toHaveBeenCalled();
+    });
   });
 
   describe("a profile deletion racing the snapshot (B4, F4)", () => {
