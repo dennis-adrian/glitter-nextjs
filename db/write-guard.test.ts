@@ -99,7 +99,8 @@ describe("refuseDuringView", () => {
     const error = await refuseDuringView().catch((e: unknown) => e);
     expect(isImpersonationReadOnlyError(error)).toBe(true);
     expect((error as Error).message).toBe(IMPERSONATION_READ_ONLY_MESSAGE);
-    expect(recordMock).toHaveBeenCalledWith(41);
+    // Counted after the refusal, without holding it up.
+    await vi.waitFor(() => expect(recordMock).toHaveBeenCalledWith(41));
   });
 
   it("still refuses when the refusal cannot be counted", async () => {
@@ -128,6 +129,29 @@ describe("refuseDuringView", () => {
     });
     cookiesMock.mockRejectedValue(internal);
     await expect(refuseDuringView()).rejects.toBe(internal);
+  });
+});
+
+describe("isImpersonationReadOnlyError", () => {
+  it("sees the refusal through Drizzle's wrapper", async () => {
+    viewing(true);
+    const refusal = await refuseDuringView().catch((e: unknown) => e);
+    const wrapped = Object.assign(new Error("Failed query: delete"), {
+      cause: refusal,
+    });
+    expect(isImpersonationReadOnlyError(wrapped)).toBe(true);
+    expect(isImpersonationReadOnlyError(new Error("other"))).toBe(false);
+    expect(isImpersonationReadOnlyError(null)).toBe(false);
+  });
+
+  it("refuses at once, without waiting for the refusal to be counted", async () => {
+    viewing(true);
+    let settle!: () => void;
+    recordMock.mockReturnValue(new Promise<void>((r) => (settle = r)));
+    await expect(refuseDuringView()).rejects.toMatchObject({
+      code: "IMPERSONATION_READ_ONLY",
+    });
+    settle();
   });
 });
 

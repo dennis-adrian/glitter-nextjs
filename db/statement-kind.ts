@@ -61,8 +61,9 @@ export function stripSqlNoise(text: string): string {
     const ch = text[i]!;
     const next = text[i + 1];
     if (ch === "-" && next === "-") {
-      const end = text.indexOf("\n", i + 2);
-      i = end === -1 ? n : end + 1;
+      // Postgres ends a line comment at a newline or a carriage return.
+      const rest = text.slice(i + 2).search(/[\n\r]/);
+      i = rest === -1 ? n : i + 2 + rest + 1;
       out += " ";
       continue;
     }
@@ -122,7 +123,8 @@ export function stripSqlNoise(text: string): string {
       continue;
     }
     if (ch === "$") {
-      const tag = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/.exec(text.slice(i));
+      // Tags may hold any letter Postgres takes in an identifier.
+      const tag = /^\$([\p{L}_][\p{L}\p{N}_]*)?\$/u.exec(text.slice(i));
       if (tag && !/[\w$]$/.test(out)) {
         const close = text.indexOf(tag[0], i + tag[0].length);
         i = close === -1 ? n : close + tag[0].length;
@@ -156,7 +158,9 @@ function classifyOne(statement: string): StatementKind | null {
   if (keyword === "with") {
     // A data-modifying CTE makes the whole statement a write.
     const withoutLocks = body.replace(ROW_LOCK, " ");
-    return DATA_MODIFYING.test(withoutLocks) ? "write" : "read";
+    if (DATA_MODIFYING.test(withoutLocks)) return "write";
+    // `with … select … into new_table` creates a table too.
+    return SELECT_INTO.test(withoutLocks) ? "write" : "read";
   }
   if (READ_KEYWORDS.has(keyword)) {
     if (keyword === "select" && SELECT_INTO.test(body.replace(ROW_LOCK, " "))) {

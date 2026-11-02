@@ -26,13 +26,23 @@ export class ImpersonationReadOnlyError extends Error {
   }
 }
 
-export function isImpersonationReadOnlyError(
-  error: unknown,
-): error is ImpersonationReadOnlyError {
-  return (
-    error instanceof ImpersonationReadOnlyError ||
-    (error as { code?: unknown } | null)?.code === "IMPERSONATION_READ_ONLY"
-  );
+/**
+ * Whether `error` is, or was caused by, a refusal of the read-only guard.
+ * Drizzle wraps a failed statement in `DrizzleQueryError`, keeping the
+ * guard's error as its `cause`, so the chain is followed.
+ */
+export function isImpersonationReadOnlyError(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; current != null && depth < 8; depth += 1) {
+    if (
+      current instanceof ImpersonationReadOnlyError ||
+      (current as { code?: unknown }).code === "IMPERSONATION_READ_ONLY"
+    ) {
+      return true;
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
 }
 
 /**
@@ -100,7 +110,10 @@ export async function refuseDuringView(): Promise<void> {
   const viewer = await import("@/app/lib/impersonation/viewer");
   if (!(await viewer.isImpersonating())) return;
 
-  await allowImpersonationWrites(async () => {
+  // Counted without waiting: the refused statement still holds its pooled
+  // client here, and the count needs another one. Awaited, a small or busy
+  // pool would stall until a connection times out, for everyone.
+  void allowImpersonationWrites(async () => {
     const view = await viewer.getImpersonation().catch(() => null);
     if (!view) return;
     const { recordBlockedImpersonationWrite } =

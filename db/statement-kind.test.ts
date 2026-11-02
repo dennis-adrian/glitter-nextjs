@@ -80,6 +80,9 @@ describe("classifyStatement", () => {
     ["explain update users set x = 1"],
     ["/* select */ update users set x = 1"],
     ["something_unknown users"],
+    ["with a as (select 1) select * into t from a"],
+    ["select 1 -- comment\r; delete from users"],
+    ["select $é$'$é$; create temp table t (a int); --'"],
   ])("writes: %s", (sql) => {
     expect(classifyStatement(sql)).toBe("write");
   });
