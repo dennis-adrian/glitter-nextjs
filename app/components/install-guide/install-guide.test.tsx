@@ -254,6 +254,16 @@ describe("/instalar, step 1", () => {
     expect(
       screen.getAllByText(/no «Crear acceso directo»/).length,
     ).toBeGreaterThan(0);
+    for (const alt of [
+      /botón de menú \(tres puntos\) marcado/,
+      /con «Instalar y crear acceso directo» marcado/,
+      /con «Instalar» marcado y «Crear acceso directo» debajo/,
+      /«Instalar aplicación» de Glitter/,
+    ]) {
+      expect(screen.getAllByAltText(alt)[0].getAttribute("src")).toMatch(
+        /android-\d-[a-z-]+\.webp/,
+      );
+    }
     expect(
       screen.getAllByText(/Agregar a la pantalla principal/).length,
     ).toBeGreaterThan(0);

@@ -49,8 +49,9 @@ export function UiLabel({
 
 /**
  * A screenshot under a step, from `public/img/install-guide/`. Taken on an
- * iPhone (iOS 26, Safari) and cropped to the part that matters, with the
- * control to tap ringed; nothing personal is left in them.
+ * iPhone (iOS 26, Safari) and on Android (Chrome), and cropped to the part
+ * that matters, with the control to tap ringed; nothing personal is left in
+ * them.
  */
 type StepImage = { src: string; width: number; height: number; alt: string };
 
@@ -112,6 +113,37 @@ const IOS_IMAGES = {
     width: 884,
     height: 410,
     alt: `La tarjeta «Notificaciones en este dispositivo», con el botón «${ENABLE_PUSH_LABEL}» marcado.`,
+  },
+} satisfies Record<string, StepImage>;
+
+/**
+ * Chrome on Android (Dennis's screenshots, 2026-11-03), cropped the same way:
+ * no status bar, the open-tab count painted over, and no home screen.
+ */
+const ANDROID_IMAGES = {
+  menuButton: {
+    src: `${IMAGES}/android-1-menu-button.webp`,
+    width: 878,
+    height: 124,
+    alt: "La barra de Chrome, con el botón de menú (tres puntos) marcado.",
+  },
+  installMenu: {
+    src: `${IMAGES}/android-2-install-menu.webp`,
+    width: 774,
+    height: 350,
+    alt: "El menú de Chrome, con «Instalar y crear acceso directo» marcado.",
+  },
+  installSheet: {
+    src: `${IMAGES}/android-3-install-sheet.webp`,
+    width: 878,
+    height: 490,
+    alt: "La ventana «Instalar y crear acceso directo», con «Instalar» marcado y «Crear acceso directo» debajo.",
+  },
+  installDialog: {
+    src: `${IMAGES}/android-4-install-dialog.webp`,
+    width: 834,
+    height: 502,
+    alt: "La ventana «Instalar aplicación» de Glitter, con el botón «Instalar» marcado.",
   },
 } satisfies Record<string, StepImage>;
 
@@ -305,18 +337,30 @@ function androidGuide(browser: InstallBrowser): InstallGuideText {
     };
   }
   // As current Chrome has it (Dennis's screenshots, 2026-11-03), with the
-  // labels older versions used.
+  // labels older versions used. The screenshots are Chrome's own; Opera
+  // shares the steps but not the look.
+  const shot = (text: ReactNode, image: StepImage): InstallStep =>
+    browser === "chrome" ? { text, images: [image] } : text;
   return {
     steps: [
-      menu,
-      "Elegí «Instalar y crear acceso directo» (en algunas versiones, «Instalar app» o «Agregar a la pantalla principal»).",
-      <>
-        Tocá <UiLabel>Instalar</UiLabel>, no «Crear acceso directo»: el acceso
-        directo abre Glitter dentro de Chrome.
-      </>,
-      <>
-        En «Instalar aplicación», confirmá con <UiLabel>Instalar</UiLabel>.
-      </>,
+      shot(menu, ANDROID_IMAGES.menuButton),
+      shot(
+        "Elegí «Instalar y crear acceso directo» (en algunas versiones, «Instalar app» o «Agregar a la pantalla principal»).",
+        ANDROID_IMAGES.installMenu,
+      ),
+      shot(
+        <>
+          Tocá <UiLabel>Instalar</UiLabel>, no «Crear acceso directo»: el acceso
+          directo abre Glitter dentro de Chrome.
+        </>,
+        ANDROID_IMAGES.installSheet,
+      ),
+      shot(
+        <>
+          En «Instalar aplicación», confirmá con <UiLabel>Instalar</UiLabel>.
+        </>,
+        ANDROID_IMAGES.installDialog,
+      ),
       OPEN_FROM_ICON,
     ],
   };

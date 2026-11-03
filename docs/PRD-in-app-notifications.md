@@ -194,7 +194,8 @@ What gifts do about it: every gift entry carries `metadata.creditGiftId` and `me
       - **iPhone screenshots** (Dennis, 2026-11-03, iOS 26 Safari): one or two under each iPhone step, in `public/img/install-guide/`, cropped to the control with it ringed, and with nothing personal left in them (status bar, contacts, extensions). They also corrected the steps: on iOS 26 Compartir sits in the menu at the left of the address, «Agregar a Inicio» (capital I) is behind «Ver más», and «Abrir como app web» is on by default. To redo them, crop new screenshots the same way.
       - **Notifications step on iPhone** (Dennis, 2026-11-03): screenshots of the bell in the installed app and of the «Recibir notificaciones en este dispositivo» card, then «Permitir». The page's first benefit also names novedades.
       - **Android Chrome labels** (Dennis's screenshots, 2026-11-03): ⋮ › «Instalar y crear acceso directo», then «Instalar» (not «Crear acceso directo», which opens Glitter inside Chrome), then «Instalar aplicación» › «Instalar». Older labels are named too.
-      - **Still to do:** the Android screenshots on the page; check the Edge and Samsung Internet labels on real phones.
+      - **Android screenshots** (Dennis, 2026-11-03, Chrome): one under each Chrome step, cropped the same way, with the open-tab count painted over and no home-screen shot (wallpaper and dock are the owner's). Opera shares the steps but not the screenshots.
+      - **Still to do:** check the Edge and Samsung Internet labels on real phones.
     - **Paths:** `proxy.ts`'s matcher already skips paths with a file extension, so Clerk does not touch the manifest or the icons.
     - **To test on real phones:**
       - Clerk sign-in inside the installed app.
