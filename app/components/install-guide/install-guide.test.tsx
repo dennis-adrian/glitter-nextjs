@@ -82,6 +82,8 @@ function renderGuide(
       signedIn
       publicKey="key"
       devices={[]}
+      installUrl="https://www.glitter.com.bo/instalar"
+      qrSvg='<svg data-testid="qr"></svg>'
       {...props}
     />,
   );
@@ -143,7 +145,7 @@ describe("/instalar, step 1", () => {
   });
 
   it("falls back to the menu steps when the prompt is dismissed", async () => {
-    useBrowser(UA.windows);
+    useBrowser(UA.android);
     renderGuide();
     offerInstall("dismissed");
     fireEvent.click(installButton()!);
@@ -151,8 +153,44 @@ describe("/instalar, step 1", () => {
     await waitFor(() => expect(screen.getByText(/No pasa nada/)).toBeTruthy());
     expect(installButton()).toBe(null);
     expect(
-      screen.getAllByText(/Instalar página como app/).length,
+      screen.getAllByText(/Agregar a la pantalla principal/).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("sends a computer to its phone with a QR code, even when Chrome offers to install", () => {
+    useBrowser(UA.windows);
+    renderGuide();
+    offerInstall("accepted");
+
+    expect(screen.getByText("Glitter se instala en tu teléfono.")).toBeTruthy();
+    expect(
+      screen.getByRole("img", {
+        name: "Código QR que abre www.glitter.com.bo/instalar",
+      }),
+    ).toBeTruthy();
+    expect(screen.getByText("www.glitter.com.bo/instalar")).toBeTruthy();
+    expect(installButton()).toBe(null);
+    // The steps for both phones, and nothing about computers.
+    expect(screen.getByText("Los pasos en cada teléfono")).toBeTruthy();
+    expect(screen.getByText("iPhone y iPad")).toBeTruthy();
+    expect(screen.getByText("Android")).toBeTruthy();
+    expect(screen.queryByText(/Computadora|Mac/)).toBe(null);
+  });
+
+  it("gives a computer the address alone when the QR code could not be drawn", () => {
+    useBrowser(UA.windows);
+    renderGuide({ qrSvg: null });
+    expect(screen.queryByRole("img")).toBe(null);
+    expect(screen.getByText(/Abrí esta página en tu teléfono/)).toBeTruthy();
+    expect(screen.getByText("www.glitter.com.bo/instalar")).toBeTruthy();
+  });
+
+  it("lists only the other phone's steps on a phone", () => {
+    useBrowser(UA.iphone);
+    renderGuide();
+    expect(screen.getByText("¿Usás otro teléfono?")).toBeTruthy();
+    expect(screen.getByText("Android")).toBeTruthy();
+    expect(screen.queryByText("iPhone y iPad")).toBe(null);
   });
 
   it("gives the menu steps when the browser has not offered to install", () => {
@@ -185,13 +223,13 @@ describe("/instalar, step 1", () => {
 
 describe("/instalar, step 2", () => {
   it("leaves notifications out before they launch for this viewer", () => {
-    useBrowser(UA.windows);
+    useBrowser(UA.android);
     renderGuide({ pushAvailable: false });
     expect(screen.queryByText("Activá las notificaciones")).toBe(null);
   });
 
   it("asks a signed-out visitor to sign in, coming back here", () => {
-    useBrowser(UA.windows);
+    useBrowser(UA.android);
     renderGuide({ signedIn: false });
     expect(
       screen.getByRole("link", { name: "Iniciar sesión" }).getAttribute("href"),
@@ -207,8 +245,15 @@ describe("/instalar, step 2", () => {
   });
 
   it("shows the notifications control where it can be used", () => {
-    useBrowser(UA.windows);
+    useBrowser(UA.android);
     renderGuide();
     expect(screen.getByTestId("push-control")).toBeTruthy();
+  });
+
+  it("leaves notifications for the phone on a computer", () => {
+    useBrowser(UA.windows);
+    renderGuide();
+    expect(screen.queryByText("Activá las notificaciones")).toBe(null);
+    expect(screen.queryByTestId("push-control")).toBe(null);
   });
 });
