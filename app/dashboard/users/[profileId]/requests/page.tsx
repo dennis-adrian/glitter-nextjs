@@ -1,6 +1,7 @@
 import { formatDateTime } from "@/app/lib/formatters";
 import { fetchRequestsByUserId } from "@/app/api/user_requests/actions";
 
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { Badge } from "@/app/components/ui/badge";
 import ReviewRequestForm from "@/app/components/user_requests/review-request-form";
 import {
@@ -26,7 +27,12 @@ export default async function Page(props: {
 
   return (
     <div className="m-auto max-w-screen-sm">
-      <h1 className="mb-6 mt-8 text-2xl font-bold">
+      <ScreenTitle
+        title={
+          user.displayName ? `Solicitudes de ${user.displayName}` : undefined
+        }
+      />
+      <h1 className="mb-6 mt-8 text-2xl font-bold" data-installed-title="">
         Solicitudes de {user.displayName}
       </h1>
       {requests.map((request) => (

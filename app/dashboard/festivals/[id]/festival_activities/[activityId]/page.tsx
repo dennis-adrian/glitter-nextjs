@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import AdminActivityDetail from "@/app/components/festivals/festival_activities/admin-activity-detail";
 import { fetchFestivalActivityForStaff } from "@/app/lib/festival_activites/queries";
+import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 
 const ParamsSchema = z.object({
   id: z.coerce.number(),
@@ -26,5 +27,13 @@ export default async function Page({ params }: ActivityPageProps) {
     return notFound();
   }
 
-  return <AdminActivityDetail activity={activity} festivalId={festivalId} />;
+  const festival = await fetchBaseFestival(festivalId);
+
+  return (
+    <AdminActivityDetail
+      activity={activity}
+      festivalId={festivalId}
+      festivalName={festival?.name}
+    />
+  );
 }

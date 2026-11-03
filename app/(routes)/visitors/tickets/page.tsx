@@ -74,7 +74,12 @@ export default async function Page(props: {
     <div className="container flex flex-col gap-8 p-4 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold sm:text-2xl">Mis entradas</h1>
+          <h1
+            className="text-xl font-semibold sm:text-2xl"
+            data-installed-title=""
+          >
+            Mis entradas
+          </h1>
           <p className="text-sm text-muted-foreground">
             Hola, {history.firstName}.
           </p>

@@ -15,6 +15,7 @@ import { getProductVariantImageUrl } from "@/app/lib/products/variants";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import Heading from "@/app/components/atoms/heading";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { Badge } from "@/app/components/ui/badge";
 
 const ParamsSchema = z.object({
@@ -57,8 +58,11 @@ export default async function GuestOrderPage(props: {
 
   return (
     <div className="container px-3 py-6 max-w-2xl mx-auto">
+      <ScreenTitle title={`Tu orden #${order.id}`} />
       <div className="mb-6">
-        <Heading level={2}>Tu orden #{order.id}</Heading>
+        <Heading level={2} data-installed-title="">
+          Tu orden #{order.id}
+        </Heading>
         <div className="flex items-center gap-2 mt-2">
           <Badge variant="outline">{statusLabel}</Badge>
           {order.guestName && (

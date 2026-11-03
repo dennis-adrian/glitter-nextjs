@@ -5,7 +5,9 @@ export default async function AddBundlePage() {
   const { products, collectionOptions } = await fetchBundleEditorData();
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-semibold">Crear combo</h2>
+      <h2 className="text-2xl font-semibold" data-installed-title="">
+        Crear combo
+      </h2>
       <BundleForm products={products} collectionOptions={collectionOptions} />
     </div>
   );

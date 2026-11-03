@@ -12,8 +12,11 @@ export default async function StoreLayoutShell({
   // Section open/closed gating happens per-section via <StoreSectionGate>; the
   // shell only provides shared chrome (cart + subheader) so visitors can still
   // reach an open section when another one is closed.
-  const user = await getCurrentUserProfile();
-  const initialItemCount = user ? await fetchCartItemCount() : 0;
+  // Side by side: the count resolves the caller itself and is 0 signed out.
+  const [user, initialItemCount] = await Promise.all([
+    getCurrentUserProfile(),
+    fetchCartItemCount(),
+  ]);
 
   return (
     <CartProvider initialItemCount={initialItemCount} isAuthenticated={!!user}>

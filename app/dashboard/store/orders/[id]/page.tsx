@@ -1,3 +1,5 @@
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import OrderStatusBadge from "@/app/components/atoms/order-status-badge";
 import OrderDetailActions from "@/app/components/organisms/orders/order-detail-actions";
 import RentalReturnForm from "@/app/components/organisms/orders/rental-return-form";
@@ -33,12 +35,7 @@ import {
   getRentalStatusLabel,
 } from "@/app/lib/rentals/status";
 import { getProductVariantImageUrl } from "@/app/lib/products/variants";
-import {
-  AlertTriangleIcon,
-  ArrowLeftIcon,
-  PackageIcon,
-  UserIcon,
-} from "lucide-react";
+import { AlertTriangleIcon, PackageIcon, UserIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import Image from "next/image";
 import Link from "next/link";
@@ -161,18 +158,14 @@ export default async function OrderDetailPage({
 
   return (
     <div className="space-y-6">
+      <ScreenTitle title={`Pedido #${order.id}`} />
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/dashboard/store/orders"
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeftIcon className="h-4 w-4" />
-            Pedidos
-          </Link>
-          <span className="text-muted-foreground">/</span>
-          <span className="font-semibold">Pedido #{order.id}</span>
+        <div className="flex flex-col gap-1">
+          <PageBreadcrumbs />
+          <span className="font-semibold" data-installed-title="">
+            Pedido #{order.id}
+          </span>
         </div>
         <div className="flex items-center gap-3">
           <OrderStatusBadge status={order.status} />

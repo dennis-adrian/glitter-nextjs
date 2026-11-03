@@ -21,7 +21,9 @@ export default async function EditProductPage({
 
   return (
     <div className="max-w-5xl pb-24 md:pb-0">
-      <h2 className="text-xl font-semibold mb-6">Editar producto</h2>
+      <h2 className="text-xl font-semibold mb-6" data-installed-title="">
+        Editar producto
+      </h2>
       <ProductForm
         key={product.id}
         product={product}

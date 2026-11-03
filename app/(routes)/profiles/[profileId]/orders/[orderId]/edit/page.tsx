@@ -3,6 +3,8 @@ import { z } from "zod";
 
 import { fetchOrder } from "@/app/lib/orders/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
+import { started } from "@/app/lib/started";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import EditOrderForm from "@/app/components/organisms/orders/edit-order-form";
 
 const ParamsSchema = z.object({
@@ -22,10 +24,13 @@ export default async function EditOrderPage(props: {
 
   const { profileId, orderId } = validatedParams.data;
 
+  // Started with the profile lookup: `fetchOrder` checks the caller itself,
+  // and nothing is used before the route check.
+  const orderPromise = started(fetchOrder(orderId));
   const currentUser = await getCurrentUserProfile();
   await protectRoute(currentUser || undefined, profileId);
 
-  const order = await fetchOrder(orderId);
+  const order = await orderPromise;
   if (!order || order.userId !== profileId) {
     return notFound();
   }
@@ -37,6 +42,7 @@ export default async function EditOrderPage(props: {
 
   return (
     <div className="container p-3 md:p-6">
+      <ScreenTitle title={`Editar pedido #${order.id}`} />
       <EditOrderForm order={order} profileId={profileId} />
     </div>
   );

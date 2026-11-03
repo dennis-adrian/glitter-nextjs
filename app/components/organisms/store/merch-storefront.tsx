@@ -3,11 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowUpRight, Search, ShoppingBag, X } from "lucide-react";
+import { ArrowUpRight, Search, ShoppingBag, X } from "lucide-react";
 import BundleCard from "./bundle-card";
 import CollectionBanner from "./collection-banner";
 import FeaturedCollectionCarousel from "./featured-collection-carousel";
 import StoreItemCard from "@/app/components/molecules/store-item-card";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { Button } from "@/app/components/ui/button";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import {
@@ -105,15 +106,7 @@ export default function MerchStorefront({
 
   return (
     <div className="mx-auto max-w-7xl px-4 pb-16 pt-5 sm:px-6 lg:px-8">
-      {pageCollection && (
-        <Link
-          href="/merch"
-          className="mb-5 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="size-3.5" aria-hidden="true" />
-          Volver a la tienda
-        </Link>
-      )}
+      {pageCollection && <PageBreadcrumbs className="mb-5" />}
 
       {pageCollection && (
         <CollectionBanner collection={pageCollection} isCollectionPage />

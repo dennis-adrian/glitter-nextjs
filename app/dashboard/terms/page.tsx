@@ -30,7 +30,9 @@ export default async function FestivalTermsDashboardPage() {
     <div className="container space-y-6 p-4 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Términos y condiciones</h1>
+          <h1 className="text-2xl font-bold" data-installed-title="">
+            Términos y condiciones
+          </h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Documento global para la inscripción a festivales. Los
             participantes no ven el número de versión. La aceptación solo se

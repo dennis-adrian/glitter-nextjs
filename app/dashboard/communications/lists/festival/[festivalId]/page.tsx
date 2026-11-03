@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
@@ -6,6 +5,8 @@ import FestivalStatusBadge from "@/app/components/atoms/festival-status-badge";
 import ListDuplicateButton from "@/app/components/communications/admin/list-duplicate-button";
 import ListMemberCell from "@/app/components/communications/admin/list-member-cell";
 import ListMembersPagination from "@/app/components/communications/admin/list-members-pagination";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { Badge } from "@/app/components/ui/badge";
 import {
   Table,
@@ -49,16 +50,14 @@ export default async function ConfirmadosListPage(props: {
 
   return (
     <div className="space-y-4 overflow-y-auto pb-6">
-      <Link
-        href="/dashboard/communications/lists"
-        className="text-sm text-muted-foreground hover:underline"
-      >
-        Volver a las listas
-      </Link>
+      <ScreenTitle title={festival.listName} />
+      <PageBreadcrumbs />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold">{festival.listName}</h2>
+            <h2 className="text-lg font-semibold" data-installed-title="">
+              {festival.listName}
+            </h2>
             <FestivalStatusBadge
               status={festival.festivalStatus as FestivalBase["status"]}
             />

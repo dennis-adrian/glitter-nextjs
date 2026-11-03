@@ -533,7 +533,14 @@ export default function PostFormInner({
           <div className="px-4 py-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Button asChild variant="ghost" size="icon" aria-label="Volver">
+                {/* The installed app's top bar carries back. */}
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Volver"
+                  data-installed-hidden=""
+                >
                   <Link
                     href={
                       surface === "dashboard"

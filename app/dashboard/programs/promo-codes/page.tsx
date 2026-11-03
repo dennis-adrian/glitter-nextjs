@@ -32,7 +32,9 @@ export default async function ProgramPromoCodesPage() {
           <p className="text-sm font-medium text-muted-foreground">
             Programas · atribución
           </p>
-          <h1 className="text-2xl font-bold">Códigos promocionales</h1>
+          <h1 className="text-2xl font-bold" data-installed-title="">
+            Códigos promocionales
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Campañas de artistas e influencers, con usos confirmados y montos.
           </p>

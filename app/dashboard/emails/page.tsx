@@ -46,7 +46,12 @@ export default async function EmailsAdminPage(props: {
     <div className="container flex min-h-0 flex-1 flex-col gap-4 p-3 md:p-6">
       <div className="flex shrink-0 flex-wrap items-end justify-between gap-3">
         <div className="min-w-0 max-w-2xl">
-          <h1 className="text-2xl font-bold md:text-3xl">Correos bloqueados</h1>
+          <h1
+            className="text-2xl font-bold md:text-3xl"
+            data-installed-title=""
+          >
+            Correos bloqueados
+          </h1>
           <p className="text-sm text-muted-foreground">
             A quiénes no les llegan nuestros correos masivos, como las
             invitaciones a festivales, y por qué.

@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import AdminReturnOrderForm from "@/app/components/organisms/orders/admin-return-order-form";
 import { fetchOrder } from "@/app/lib/orders/actions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 
 export default async function AdminOrderReturnPage({
   params,
@@ -17,8 +18,9 @@ export default async function AdminOrderReturnPage({
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
+      <ScreenTitle title={`Registrar devolución · pedido #${order.id}`} />
       <div>
-        <h1 className="text-xl font-semibold">
+        <h1 className="text-xl font-semibold" data-installed-title="">
           Registrar devolución · pedido #{order.id}
         </h1>
         <p className="text-sm text-muted-foreground">

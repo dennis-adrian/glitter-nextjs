@@ -50,7 +50,12 @@ const session = vi.hoisted(() => ({
 }));
 
 vi.mock("server-only", () => ({}));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", async (importOriginal) => ({
+  // The real module: outside a Next server its caches fall through to the
+  // database and expiring a tag does nothing, which is what these suites need.
+  ...(await importOriginal<typeof import("next/cache")>()),
+  revalidatePath: vi.fn(),
+}));
 vi.mock("next/server", () => ({ after: vi.fn() }));
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: async () => session.profile,

@@ -33,7 +33,10 @@ export default async function Page({ params }: FestivalActivitiesPageProps) {
     return (
       <div className="container p-4 md:p-6">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold md:text-3xl">
+          <h1
+            className="text-2xl font-bold md:text-3xl"
+            data-installed-title=""
+          >
             Actividades del festival
           </h1>
           <Button asChild size="sm">
@@ -55,7 +58,7 @@ export default async function Page({ params }: FestivalActivitiesPageProps) {
   return (
     <div className="container p-4 md:p-6">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold md:text-3xl">
+        <h1 className="text-2xl font-bold md:text-3xl" data-installed-title="">
           Actividades del festival
         </h1>
         <Button asChild size="sm">

@@ -1,13 +1,12 @@
-import { ArrowLeftIcon } from "lucide-react";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { z } from "zod";
 
 import Heading from "@/app/components/atoms/heading";
 import FestivalInvoicesList from "@/app/components/payments/festival-invoices-list";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import FestivalInvoicesListSkeleton from "@/app/components/payments/festival-invoices-list-skeleton";
-import { Button } from "@/app/components/ui/button";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 
@@ -32,14 +31,12 @@ export default async function Page(props: {
 
   return (
     <div className="container max-w-3xl p-4 md:p-6">
-      <Button asChild variant="link" size="sm" className="px-0 mb-2">
-        <Link href="/portal">
-          <ArrowLeftIcon className="w-3.5 h-3.5 mr-1" />
-          Volver al inicio
-        </Link>
-      </Button>
+      <ScreenTitle title={festival.name} />
+      <PageBreadcrumbs className="mb-2" />
 
-      <Heading level={2}>{festival.name}</Heading>
+      <Heading level={2} data-installed-title="">
+        {festival.name}
+      </Heading>
       <p className="text-sm md:text-base text-muted-foreground mb-6">
         Tus pagos para este festival
       </p>

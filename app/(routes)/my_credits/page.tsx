@@ -29,7 +29,7 @@ export default async function MyCreditsPage() {
   return (
     <div className="container p-3 md:p-6">
       <div className="mb-4 flex flex-col gap-1 md:gap-2">
-        <Title>Mis créditos</Title>
+        <Title data-installed-title="">Mis créditos</Title>
         <p className="text-sm leading-tight text-muted-foreground md:text-base">
           Los usás para pagar tus reservas y las funciones opcionales del
           festival.

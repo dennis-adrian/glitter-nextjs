@@ -1,6 +1,7 @@
 import { fetchUserProfileById } from "@/app/lib/users/queries";
 import { BaseProfile } from "@/app/api/users/definitions";
 import ActivityDetails from "@/app/components/festivals/festival_activities/activity-details";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { fetchFullFestivalById } from "@/app/lib/festival_sectors/queries";
 import { withoutParticipantRoster } from "@/app/lib/festivals/utils";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
@@ -60,7 +61,8 @@ export default async function Page({ params }: EnrollPageProps) {
   if ((now < startDate || now > endDate) && currentProfile?.role !== "admin") {
     return (
       <div className="container p-4 md:p-6">
-        <h1 className="text-3xl font-bold mb-2">
+        <ScreenTitle title="Inscripción al Sticker-Print" />
+        <h1 className="text-3xl font-bold mb-2" data-installed-title="">
           Inscripción al Sticker-Print
         </h1>
         <p className="text-muted-foreground">
@@ -86,7 +88,13 @@ export default async function Page({ params }: EnrollPageProps) {
 
     return (
       <div className="container p-4 md:p-6">
-        <h1 className="text-2xl md:text-3xl font-bold mb-1">Sticker-Print</h1>
+        <ScreenTitle title="Sticker-Print" />
+        <h1
+          className="text-2xl md:text-3xl font-bold mb-1"
+          data-installed-title=""
+        >
+          Sticker-Print
+        </h1>
         <p className="text-sm md:text-base mb-2 md:mb-4">
           Muchas gracias por inscribirte a la actividad del Sticker-Print. Toma
           nota de los siguientes detalles:
@@ -212,7 +220,11 @@ export default async function Page({ params }: EnrollPageProps) {
 
   return (
     <div className="container p-4 md:p-6">
-      <h1 className="text-xl md:text-2xl font-bold mb-1">
+      <ScreenTitle title="Inscripción al Sticker-Print" />
+      <h1
+        className="text-xl md:text-2xl font-bold mb-1"
+        data-installed-title=""
+      >
         Inscripción al Sticker-Print
       </h1>
       <p className="text-muted-foreground text-sm md:text-base mb-2 md:mb-4">

@@ -20,6 +20,7 @@ import { fetchReleaseOffer } from "@/app/lib/reservations/release-queries";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { pushPublicKeyFor } from "@/app/lib/notifications/push/access";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
+import { started } from "@/app/lib/started";
 import { getUserName } from "@/app/lib/users/utils";
 
 import type { ReservationAction } from "@/app/components/festivals/reservations/reservation-available-actions";
@@ -53,10 +54,15 @@ export default async function ReservationDetailPage({
   festivalId,
   reservationId,
 }: ReservationDetailPageProps) {
+  // Started with the profile lookup rather than after it: the query checks
+  // the caller itself, and nothing is used before the route check.
+  const reservationPromise = started(
+    fetchReservationForParticipant(reservationId),
+  );
   const currentProfile = await getCurrentUserProfile();
   await protectRoute(currentProfile || undefined, profileId);
 
-  const reservation = await fetchReservationForParticipant(reservationId);
+  const reservation = await reservationPromise;
   // Not-found rather than forbidden, and the same for a reservation that
   // exists but belongs to somebody else: telling a stranger which reservation
   // ids are real is a leak with nothing to gain.
@@ -195,7 +201,7 @@ export default async function ReservationDetailPage({
   return (
     <div className="container max-w-[640px] space-y-4 p-4 md:p-6">
       <div className="flex flex-col gap-1">
-        <Title>Tu reserva</Title>
+        <Title data-installed-title="">Tu reserva</Title>
         <p className="text-sm text-muted-foreground">
           {reservation.festival.name}
         </p>

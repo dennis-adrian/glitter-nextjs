@@ -1,7 +1,5 @@
-import { ArrowLeftIcon } from "lucide-react";
-import Link from "next/link";
-
 import InfractionTypesManager from "@/app/components/infractions/types/manager";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { fetchAllInfractionTypes } from "@/app/lib/infraction-types/actions";
 
 export default async function InfractionTypesPage() {
@@ -10,15 +8,12 @@ export default async function InfractionTypesPage() {
   return (
     <div className="container mx-auto space-y-5 p-3 md:p-6">
       <div className="space-y-2">
-        <Link
-          href="/dashboard/infractions?limit=25&offset=0"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeftIcon className="size-4" />
-          Volver a infracciones
-        </Link>
+        <PageBreadcrumbs />
         <div>
-          <h1 className="text-2xl font-bold md:text-3xl">
+          <h1
+            className="text-2xl font-bold md:text-3xl"
+            data-installed-title=""
+          >
             Tipos de infracción
           </h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">

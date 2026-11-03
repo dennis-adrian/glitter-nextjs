@@ -101,7 +101,9 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
         )}
 
         <div className="text-left md:text-center mb-4">
-          <Heading level={1}>Términos y Condiciones para Expositores</Heading>
+          <Heading level={1} data-installed-title="">
+            Términos y Condiciones para Expositores
+          </Heading>
           {publishedAt ? (
             <p className="text-xs md:text-sm text-muted-foreground mt-2">
               Última actualización: {formatFullDate(publishedAt)}
@@ -206,14 +208,13 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
                 </>
               ) : participationRequest?.status === "rejected" ? (
                 <>
-                  Gracias por aceptar los términos y condiciones. Tu
-                  postulación para participar en este festival no fue aprobada.
+                  Gracias por aceptar los términos y condiciones. Tu postulación
+                  para participar en este festival no fue aprobada.
                 </>
               ) : (
                 <>
                   Gracias por aceptar los términos y condiciones. Te avisaremos
-                  por correo electrónico cuando puedas continuar con tu
-                  reserva.
+                  por correo electrónico cuando puedas continuar con tu reserva.
                 </>
               )}
             </div>

@@ -10,10 +10,12 @@ import type { OrderWithRelations } from "@/app/lib/orders/definitions";
 
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
+  replace: vi.fn(),
   updateOrder: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mocks.push }),
+  useRouter: () => ({ push: mocks.push, replace: mocks.replace }),
+  usePathname: () => "/profiles/3/orders/1/edit",
 }));
 vi.mock("@/app/lib/orders/actions", () => ({
   updateOrder: mocks.updateOrder,
@@ -124,7 +126,7 @@ it("sends the removal and leaves for the orders list once the order is cancelled
     await screen.findByRole("button", { name: "Sí, cancelar pedido" }),
   );
 
-  await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/my_orders"));
+  await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/my_orders"));
   expect(mocks.updateOrder).toHaveBeenCalledWith(
     42,
     3,

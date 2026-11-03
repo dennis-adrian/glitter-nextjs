@@ -1,12 +1,5 @@
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/app/components/ui/breadcrumb";
 import Title from "@/app/components/atoms/heading";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import UserInfractionCard from "@/app/components/molecules/user-infraction-card";
 import UserSanctionCard from "@/app/components/molecules/user-sanction-card";
 import { fetchParticipantDisciplinaryHistory } from "@/app/lib/infractions/participant-queries";
@@ -49,17 +42,7 @@ export default async function InfractionsPage(props: InfractionsPageProps) {
 
   return (
     <div className="container p-3 md:p-6 space-y-6">
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink href="/my_history">Mi historial</BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>Infracciones</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+      <PageBreadcrumbs />
 
       {!hasContent ? (
         <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground mt-10">
@@ -89,7 +72,12 @@ export default async function InfractionsPage(props: InfractionsPageProps) {
 
           {history.infractions.length > 0 && (
             <section className="space-y-3">
-              <Title level={history.sanctions.length > 0 ? 2 : 1}>
+              <Title
+                level={history.sanctions.length > 0 ? 2 : 1}
+                data-installed-title={
+                  history.sanctions.length > 0 ? undefined : ""
+                }
+              >
                 Infracciones
               </Title>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">

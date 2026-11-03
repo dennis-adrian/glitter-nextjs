@@ -43,7 +43,7 @@ export default async function MyOrdersPage(props: {
 
   return (
     <div className="container p-3 md:p-6">
-      <Heading>Mis pedidos</Heading>
+      <Heading data-installed-title="">Mis pedidos</Heading>
       <p>Aquí podés ver los pedidos que realizaste</p>
       <OrdersTabBar activeTab={activeTab} counts={counts}>
         <Suspense fallback={<OrdersSkeleton />}>

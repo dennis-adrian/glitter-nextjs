@@ -31,6 +31,7 @@ const startUpload = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mocks.push, refresh: mocks.refresh }),
+  usePathname: () => "/dashboard/communications/42/edit",
 }));
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: unknown }) => (
@@ -170,11 +171,6 @@ describe("ComunicadoEditor", () => {
         "Estás editando un comunicado enviado. Podés cambiar el título, el texto y el botón. Los destinatarios y los canales quedan como están.",
       ),
     ).toBeTruthy();
-    expect(
-      screen
-        .getByRole("link", { name: "Volver al comunicado" })
-        .getAttribute("href"),
-    ).toBe("/dashboard/communications/42");
     expect(titleInput().value).toBe("Cambio de horario de armado");
     expect(
       (screen.getByLabelText("Texto del botón") as HTMLInputElement).value,

@@ -8,7 +8,9 @@ export default async function DashboardBlogCategoriesPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl space-y-8">
       <div>
-        <h1 className="text-2xl font-bold">Categorías del blog</h1>
+        <h1 className="text-2xl font-bold" data-installed-title="">
+          Categorías del blog
+        </h1>
         <p className="text-sm text-muted-foreground">
           Crea y administra las categorías que se usan al etiquetar artículos.
         </p>

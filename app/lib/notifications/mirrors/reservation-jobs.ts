@@ -7,6 +7,7 @@ import {
   type MirrorNotification,
 } from "@/app/lib/notifications/mirrors/shared";
 import { notify } from "@/app/lib/notifications/notify";
+import { adminCancellationReason } from "@/app/lib/reservations/cancellation-reason";
 import type { ReservationNotificationKind } from "@/app/lib/reservations/notification-queue";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { db } from "@/db";
@@ -71,16 +72,6 @@ export type ReservationContext = {
 
 const UNNAMED_PARTICIPANT = "Un participante";
 const UNNAMED_PARTNER = "tu compañero";
-
-/**
- * Reasons the code fills in when no admin typed one. The email still shows
- * them; the inbox does not present them as a reason worth opening.
- */
-const PLACEHOLDER_REASONS = new Set([
-  "Actualización administrativa",
-  "Cancelado desde el estado de pago",
-  "Revisión administrativa",
-]);
 
 /** The inbox item for a job, keyed so a person gets one per queued email. */
 export function reservationJobDedupeKey(jobId: number) {
@@ -256,7 +247,7 @@ export function buildReservationJobNotification(
         kind: "reservation_cancelled",
         data: {
           ...own,
-          reason: reason && !PLACEHOLDER_REASONS.has(reason) ? reason : null,
+          reason: adminCancellationReason(reason),
         },
       };
     }

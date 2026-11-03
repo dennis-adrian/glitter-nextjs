@@ -1,4 +1,4 @@
-import { ArrowLeftIcon, PencilIcon } from "lucide-react";
+import { PencilIcon } from "lucide-react";
 import Link from "next/link";
 
 import {
@@ -18,6 +18,8 @@ import RetryFailedButton from "@/app/components/comunicados/admin/report/retry-f
 import RevisionHistory from "@/app/components/comunicados/admin/report/revision-history";
 import RetractComunicadoMenu from "@/app/components/comunicados/admin/retract-dialog";
 import RichTextHtml from "@/app/components/molecules/rich-text-html";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { Badge } from "@/app/components/ui/badge";
 import { buttonVariants } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
@@ -170,21 +172,16 @@ export default function ComunicadoReport({
 
   return (
     <div className="space-y-4 overflow-y-auto pb-6">
-      <Link
-        href={COMUNICADOS_PATH}
-        className={cn(
-          buttonVariants({ variant: "ghost", size: "sm" }),
-          "-ml-3",
-        )}
-      >
-        <ArrowLeftIcon className="mr-1 h-4 w-4" aria-hidden />
-        Comunicados
-      </Link>
+      <ScreenTitle title={title} />
+      <PageBreadcrumbs />
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="min-w-0 break-words text-lg font-semibold">
+            <h2
+              className="min-w-0 break-words text-lg font-semibold"
+              data-installed-title=""
+            >
               {title}
             </h2>
             <Badge variant={badge.variant}>{badge.label}</Badge>
