@@ -281,7 +281,6 @@ function ThisDeviceInstall({
   );
 }
 
-/** Step 2: turning notifications on, once the app can receive them. */
 /**
  * Step 2: the tutorial, for everyone and whatever the flags say. Nobody is
  * asked to sign in here; that happens once they open the app. When this
