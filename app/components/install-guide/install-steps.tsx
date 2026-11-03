@@ -1,11 +1,13 @@
 import {
+  ChevronDownIcon,
   EllipsisIcon,
   EllipsisVerticalIcon,
   MenuIcon,
   ShareIcon,
   SquarePlusIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import Image from "next/image";
+import { isValidElement, type ReactNode } from "react";
 
 import type {
   InstallBrowser,
@@ -42,40 +44,108 @@ export function UiLabel({
   );
 }
 
+/**
+ * A screenshot under a step, from `public/img/install-guide/`. Taken on an
+ * iPhone (iOS 26, Safari) and cropped to the part that matters, with the
+ * control to tap ringed; nothing personal is left in them.
+ */
+type StepImage = { src: string; width: number; height: number; alt: string };
+
+export type InstallStep = ReactNode | { text: ReactNode; images: StepImage[] };
+
 export type InstallGuideText = {
-  steps: ReactNode[];
+  steps: InstallStep[];
   /** A line under the steps: a fallback, or what this browser cannot do. */
   note?: ReactNode;
 };
 
-const OPEN_FROM_ICON =
-  "Abrí Glitter desde el ícono nuevo en tu pantalla de inicio.";
+const IMAGES = "/img/install-guide";
 
-function iosSteps(firstStep: ReactNode): ReactNode[] {
+const IOS_IMAGES = {
+  addressBar: {
+    src: `${IMAGES}/ios-1-address-bar.webp`,
+    width: 804,
+    height: 136,
+    alt: "La barra de Safari, con el ícono a la izquierda de la dirección marcado.",
+  },
+  shareMenu: {
+    src: `${IMAGES}/ios-2-share-menu.webp`,
+    width: 556,
+    height: 410,
+    alt: "El menú que se abre, con «Compartir» marcado.",
+  },
+  more: {
+    src: `${IMAGES}/ios-3-more.webp`,
+    width: 864,
+    height: 290,
+    alt: "Los botones de Compartir, con «Ver más» marcado.",
+  },
+  addToHome: {
+    src: `${IMAGES}/ios-4-add-to-home.webp`,
+    width: 864,
+    height: 610,
+    alt: "La lista de opciones, con «Agregar a Inicio» marcado.",
+  },
+  confirm: {
+    src: `${IMAGES}/ios-5-confirm.webp`,
+    width: 924,
+    height: 740,
+    alt: "La pantalla «Agregar a Inicio», con «Abrir como app web» activado y el botón «Agregar» marcado.",
+  },
+  homeIcon: {
+    src: `${IMAGES}/ios-6-home-icon.webp`,
+    width: 420,
+    height: 270,
+    alt: "El ícono de Glitter en la pantalla de inicio.",
+  },
+} satisfies Record<string, StepImage>;
+
+const OPEN_FROM_ICON =
+  "Abrí Glitter desde el ícono nuevo en tu pantalla de inicio. Si te lo pide, iniciá sesión.";
+
+/** From the share sheet on, every iPhone browser shows the same screens. */
+function iosSteps(firstStep: InstallStep): InstallStep[] {
   return [
     firstStep,
-    <>
-      Desplazate hacia abajo en la lista y tocá{" "}
-      <UiLabel icon={<SquarePlusIcon aria-hidden />}>Agregar a inicio</UiLabel>.
-    </>,
-    <>
-      Si ves la opción «Abrir como app web», dejala activada. Después tocá{" "}
-      <UiLabel>Agregar</UiLabel>.
-    </>,
-    OPEN_FROM_ICON,
+    {
+      text: (
+        <>
+          Tocá <UiLabel icon={<ChevronDownIcon aria-hidden />}>Ver más</UiLabel>{" "}
+          y después{" "}
+          <UiLabel icon={<SquarePlusIcon aria-hidden />}>
+            Agregar a Inicio
+          </UiLabel>
+          . Si no ves «Ver más», desplazate hacia abajo en la lista hasta
+          «Agregar a Inicio».
+        </>
+      ),
+      images: [IOS_IMAGES.more, IOS_IMAGES.addToHome],
+    },
+    {
+      text: (
+        <>
+          Dejá activada la opción «Abrir como app web», si aparece, y tocá{" "}
+          <UiLabel>Agregar</UiLabel>.
+        </>
+      ),
+      images: [IOS_IMAGES.confirm],
+    },
+    { text: OPEN_FROM_ICON, images: [IOS_IMAGES.homeIcon] },
   ];
 }
 
 export const IOS_SAFARI_GUIDE: InstallGuideText = {
-  steps: iosSteps(
-    <>
-      Tocá <UiLabel icon={<ShareIcon aria-hidden />}>Compartir</UiLabel>, el
-      cuadrado con una flecha hacia arriba, en la barra de Safari (abajo en
-      iPhone, arriba en iPad). Si no lo ves, tocá{" "}
-      <UiLabel icon={<EllipsisIcon aria-hidden />} srLabel="Más opciones" />{" "}
-      primero.
-    </>,
-  ),
+  steps: iosSteps({
+    text: (
+      <>
+        En la barra de Safari, tocá el ícono que está a la izquierda de la
+        dirección y elegí{" "}
+        <UiLabel icon={<ShareIcon aria-hidden />}>Compartir</UiLabel>. Si ves el
+        botón Compartir directo en la barra, tocalo.
+      </>
+    ),
+    images: [IOS_IMAGES.addressBar, IOS_IMAGES.shareMenu],
+  }),
 };
 
 function iosBrowserGuide(browser: InstallBrowser): InstallGuideText {
@@ -105,7 +175,7 @@ function iosBrowserGuide(browser: InstallBrowser): InstallGuideText {
         {where}.
       </>,
     ),
-    note: "¿No aparece «Agregar a inicio»? Abrí esta página en Safari y seguí los pasos desde ahí.",
+    note: "¿No aparece «Agregar a Inicio»? Abrí esta página en Safari y seguí los pasos desde ahí.",
   };
 }
 
@@ -240,22 +310,59 @@ export const PHONE_GUIDES: {
   { key: "android", title: "Android", guide: androidGuide("chrome") },
 ];
 
+/** Screenshots are 924 px wide for a 390-point iPhone screen. */
+const SCREENSHOT_SCALE = 924 / 390;
+
+function isStepWithImages(
+  step: InstallStep,
+): step is { text: ReactNode; images: StepImage[] } {
+  return (
+    typeof step === "object" &&
+    step !== null &&
+    !isValidElement(step) &&
+    "images" in step
+  );
+}
+
 export function InstallStepList({ guide }: { guide: InstallGuideText }) {
   return (
     <div className="space-y-3">
       {guide.steps.length > 0 && (
-        <ol className="space-y-3">
-          {guide.steps.map((step, index) => (
-            <li key={index} className="flex gap-3 text-sm leading-relaxed">
-              <span
-                aria-hidden
-                className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary"
-              >
-                {index + 1}
-              </span>
-              <span className="min-w-0 pt-0.5">{step}</span>
-            </li>
-          ))}
+        <ol className="space-y-4">
+          {guide.steps.map((step, index) => {
+            const { text, images } = isStepWithImages(step)
+              ? step
+              : { text: step, images: [] };
+            return (
+              <li key={index} className="flex gap-3 text-sm leading-relaxed">
+                <span
+                  aria-hidden
+                  className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary"
+                >
+                  {index + 1}
+                </span>
+                <div className="min-w-0 flex-1 space-y-2 pt-0.5">
+                  <p>{text}</p>
+                  {images.map((image) => (
+                    <Image
+                      key={image.src}
+                      src={image.src}
+                      width={image.width}
+                      height={image.height}
+                      alt={image.alt}
+                      // As large as on the phone itself, never wider than
+                      // the step.
+                      style={{
+                        width: Math.round(image.width / SCREENSHOT_SCALE),
+                      }}
+                      sizes={`${Math.round(image.width / SCREENSHOT_SCALE)}px`}
+                      className="h-auto max-w-full rounded-lg border"
+                    />
+                  ))}
+                </div>
+              </li>
+            );
+          })}
         </ol>
       )}
       {guide.note && (

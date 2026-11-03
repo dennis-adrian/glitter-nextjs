@@ -46,7 +46,7 @@ function blockedReason(
 ): string | null {
   switch (support) {
     case "ios-needs-install":
-      return "En iPhone y iPad, las notificaciones llegan solo si agregás Glitter a la pantalla de inicio. En Safari, tocá Compartir y después «Agregar a inicio». Después abrí Glitter desde ese ícono y tocá la campana para activarlas.";
+      return "En iPhone y iPad, las notificaciones llegan solo si agregás Glitter a la pantalla de inicio. En Safari, elegí Compartir y después «Agregar a Inicio». Después abrí Glitter desde ese ícono y tocá la campana para activarlas.";
     case "ios-in-app-browser":
       return "Abrí esta página en Safari para poder agregar Glitter a la pantalla de inicio y recibir notificaciones.";
     case "ios-outdated":

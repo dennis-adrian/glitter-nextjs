@@ -114,8 +114,29 @@ describe("/instalar, step 1", () => {
   it("shows an iPhone the home-screen steps, with no button it could not use", () => {
     useBrowser(UA.iphone);
     renderGuide();
-    expect(screen.getAllByText(/Agregar a inicio/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Agregar a Inicio/).length).toBeGreaterThan(0);
     expect(installButton()).toBe(null);
+  });
+
+  it("shows each iPhone step with its screenshot, as iOS 26 Safari has it", () => {
+    useBrowser(UA.iphone);
+    renderGuide();
+    const step1 = document
+      .getElementById("install-step-heading")
+      ?.closest("section")
+      ?.querySelector("ol > li");
+    expect(step1?.textContent).toMatch(/a la izquierda de la dirección/);
+    for (const alt of [
+      /ícono a la izquierda de la dirección marcado/,
+      /con «Compartir» marcado/,
+      /con «Ver más» marcado/,
+      /con «Agregar a Inicio» marcado/,
+      /«Abrir como app web» activado/,
+      /ícono de Glitter en la pantalla de inicio/,
+    ]) {
+      const image = screen.getByAltText(alt);
+      expect(image.getAttribute("src")).toMatch(/install-guide/);
+    }
   });
 
   it("asks Instagram's browser to open the page elsewhere, with the link to copy", () => {
@@ -183,7 +204,7 @@ describe("/instalar, step 1", () => {
   it("gives a computer the address alone when the QR code could not be drawn", () => {
     useBrowser(UA.windows);
     renderGuide({ qrSvg: null });
-    expect(screen.queryByRole("img")).toBe(null);
+    expect(screen.queryByRole("img", { name: /Código QR/ })).toBe(null);
     expect(screen.getByText(/Abrí esta página en tu teléfono/)).toBeTruthy();
     expect(screen.getByText("www.glitter.com.bo/instalar")).toBeTruthy();
   });
