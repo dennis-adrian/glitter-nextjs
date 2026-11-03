@@ -1,4 +1,5 @@
 import {
+  BellIcon,
   ChevronDownIcon,
   EllipsisIcon,
   EllipsisVerticalIcon,
@@ -8,6 +9,8 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { isValidElement, type ReactNode } from "react";
+
+import { ENABLE_PUSH_LABEL } from "@/app/components/notifications/push-control";
 
 import type {
   InstallBrowser,
@@ -98,6 +101,18 @@ const IOS_IMAGES = {
     height: 270,
     alt: "El ícono de Glitter en la pantalla de inicio.",
   },
+  bell: {
+    src: `${IMAGES}/ios-7-bell.webp`,
+    width: 798,
+    height: 170,
+    alt: "La barra de arriba de Glitter, con la campana marcada.",
+  },
+  enablePush: {
+    src: `${IMAGES}/ios-8-enable-push.webp`,
+    width: 884,
+    height: 410,
+    alt: `La tarjeta «Notificaciones en este dispositivo», con el botón «${ENABLE_PUSH_LABEL}» marcado.`,
+  },
 } satisfies Record<string, StepImage>;
 
 const OPEN_FROM_ICON =
@@ -146,6 +161,34 @@ export const IOS_SAFARI_GUIDE: InstallGuideText = {
     ),
     images: [IOS_IMAGES.addressBar, IOS_IMAGES.shareMenu],
   }),
+};
+
+/**
+ * Step 2 on an iPhone that has not installed Glitter yet: the control only
+ * works inside the installed app, so the page shows where it is there.
+ */
+export const IOS_NOTIFICATIONS_GUIDE: InstallGuideText = {
+  steps: [
+    {
+      text: (
+        <>
+          Abrí Glitter desde su ícono y tocá la campana{" "}
+          <UiLabel icon={<BellIcon aria-hidden />} srLabel="Notificaciones" />,
+          arriba.
+        </>
+      ),
+      images: [IOS_IMAGES.bell],
+    },
+    {
+      text: `Tocá el botón «${ENABLE_PUSH_LABEL}».`,
+      images: [IOS_IMAGES.enablePush],
+    },
+    <>
+      Cuando tu iPhone te pregunte si Glitter puede enviarte notificaciones,
+      tocá <UiLabel>Permitir</UiLabel>.
+    </>,
+  ],
+  note: "En iPhone y iPad las notificaciones llegan solo a Glitter instalado.",
 };
 
 function iosBrowserGuide(browser: InstallBrowser): InstallGuideText {
@@ -249,14 +292,30 @@ function androidGuide(browser: InstallBrowser): InstallGuideText {
         arriba a la derecha.
       </>
     );
+  if (browser === "edge") {
+    return {
+      steps: [
+        menu,
+        "Elegí «Agregar al teléfono» o «Instalar app».",
+        <>
+          Confirmá con <UiLabel>Instalar</UiLabel>.
+        </>,
+        OPEN_FROM_ICON,
+      ],
+    };
+  }
+  // As current Chrome has it (Dennis's screenshots, 2026-11-03), with the
+  // labels older versions used.
   return {
     steps: [
       menu,
-      browser === "edge"
-        ? "Elegí «Agregar al teléfono» o «Instalar app»."
-        : "Elegí «Instalar app» o «Agregar a la pantalla principal».",
+      "Elegí «Instalar y crear acceso directo» (en algunas versiones, «Instalar app» o «Agregar a la pantalla principal»).",
       <>
-        Confirmá con <UiLabel>Instalar</UiLabel>.
+        Tocá <UiLabel>Instalar</UiLabel>, no «Crear acceso directo»: el acceso
+        directo abre Glitter dentro de Chrome.
+      </>,
+      <>
+        En «Instalar aplicación», confirmá con <UiLabel>Instalar</UiLabel>.
       </>,
       OPEN_FROM_ICON,
     ],

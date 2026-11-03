@@ -17,7 +17,7 @@ export default function InstallGuideIntro({
           {
             icon: BellRingIcon,
             title: "Enterate al instante",
-            text: "Te avisamos de tus reservas, pagos y créditos aunque no tengas Glitter abierto.",
+            text: "Te avisamos de tus reservas, pagos, créditos y novedades aunque no tengas Glitter abierto.",
           },
         ]
       : []),

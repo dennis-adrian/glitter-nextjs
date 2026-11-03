@@ -246,6 +246,14 @@ describe("/instalar, step 1", () => {
     useBrowser(UA.android);
     renderGuide();
     expect(screen.getByText(/Si ya instalaste Glitter/)).toBeTruthy();
+    // Current Chrome's labels: the menu entry, then «Instalar», not the
+    // shortcut.
+    expect(
+      screen.getAllByText(/«Instalar y crear acceso directo»/).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(/no «Crear acceso directo»/).length,
+    ).toBeGreaterThan(0);
     expect(
       screen.getAllByText(/Agregar a la pantalla principal/).length,
     ).toBeGreaterThan(0);
@@ -290,6 +298,13 @@ describe("/instalar, step 2", () => {
     useBrowser(UA.iphone);
     renderGuide();
     expect(screen.getByText(/tocá la campana/)).toBeTruthy();
+    expect(screen.getByAltText(/con la campana marcada/)).toBeTruthy();
+    expect(
+      screen.getByAltText(
+        /con el botón «Recibir notificaciones en este dispositivo» marcado/,
+      ),
+    ).toBeTruthy();
+    expect(screen.getAllByText("Permitir").length).toBe(1);
     expect(screen.queryByTestId("push-control")).toBe(null);
   });
 

@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  BellRingIcon,
   CheckIcon,
   CircleCheckIcon,
   CopyIcon,
@@ -14,15 +13,14 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   InstallStepList,
   installGuideFor,
+  IOS_NOTIFICATIONS_GUIDE,
   PHONE_GUIDES,
-  UiLabel,
 } from "@/app/components/install-guide/install-steps";
 import {
   useInstallContext,
   useInstallPromptStatus,
 } from "@/app/components/install-guide/use-install-guide";
 import {
-  ENABLE_PUSH_LABEL,
   PushControl,
   type PushDeviceRow,
 } from "@/app/components/notifications/push-control";
@@ -315,16 +313,9 @@ function NotificationsStep({
   }
 
   // On an iPhone, the notifications control only works inside the installed
-  // app: say where to find it there instead of repeating step 1.
+  // app: show where it is there instead of repeating step 1.
   if (support === "ios-needs-install" || support === "ios-in-app-browser") {
-    return (
-      <p className="text-sm leading-relaxed">
-        Cuando abras Glitter desde su ícono, tocá la campana{" "}
-        <UiLabel icon={<BellRingIcon aria-hidden />} srLabel="Notificaciones" />{" "}
-        y elegí «{ENABLE_PUSH_LABEL}». En iPhone y iPad las notificaciones
-        llegan solo a Glitter instalado.
-      </p>
-    );
+    return <InstallStepList guide={IOS_NOTIFICATIONS_GUIDE} />;
   }
 
   return <PushControl publicKey={publicKey} devices={devices} />;
