@@ -39,9 +39,9 @@ export default function InstallGuideIntro({
         <Title data-installed-title="">Instalá Glitter</Title>
         <p className="text-sm leading-tight text-muted-foreground md:text-base">
           {pushAvailable
-            ? "Agregá Glitter a tu teléfono o tu computadora y activá las notificaciones."
-            : "Agregá Glitter a tu teléfono o tu computadora y abrilo como cualquier otra app."}{" "}
-          Es gratis y no hace falta bajar nada de la App Store ni de Google
+            ? "Agregá Glitter a la pantalla de inicio de tu teléfono y activá las notificaciones."
+            : "Agregá Glitter a la pantalla de inicio de tu teléfono y abrilo como cualquier otra app."}{" "}
+          Es gratis y no hace falta descargar nada de la App Store ni de Google
           Play.
         </p>
       </div>

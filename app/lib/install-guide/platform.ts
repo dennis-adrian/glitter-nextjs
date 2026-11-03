@@ -6,6 +6,8 @@ import {
 /**
  * Which install steps fit this browser, decided from what it exposes. Pure,
  * so `/instalar` and its tests share it; nothing here touches the network.
+ * Glitter is installed on phones only: a computer is told to open the page
+ * on its phone instead.
  *
  * - `unknown`: the server render and the first client render.
  * - `installed`: already running as the installed app.
@@ -18,9 +20,7 @@ import {
  * - `android-chromium`: Chrome, Edge, Opera or Samsung Internet on Android,
  *   which can offer the install prompt (`beforeinstallprompt`).
  * - `android-firefox`: installs from its menu, without a prompt.
- * - `desktop-chromium`: Chrome or Edge on a computer, prompt too.
- * - `desktop-safari`: Safari on a Mac, "Agregar al Dock".
- * - `desktop-firefox`: cannot install, though it can receive notifications.
+ * - `desktop`: a computer, whatever its browser.
  * - `other`: anything else; the generic steps.
  */
 export type InstallPlatform =
@@ -32,9 +32,7 @@ export type InstallPlatform =
   | "android-chromium"
   | "android-firefox"
   | "android-in-app"
-  | "desktop-chromium"
-  | "desktop-safari"
-  | "desktop-firefox"
+  | "desktop"
   | "other";
 
 /** The browser this person is in, when the steps differ by it. */
@@ -106,13 +104,9 @@ export function detectInstallContext(browser: BrowserLike): InstallContext {
     return { platform: "android-chromium", browser: name };
   }
 
+  // After iOS and Android, both of which also name Mac OS X or Linux.
   if (/Windows|Macintosh|Mac OS X|CrOS|Linux|X11/.test(userAgent)) {
-    if (name === "chrome" || name === "edge" || name === "opera") {
-      return { platform: "desktop-chromium", browser: name };
-    }
-    if (name === "safari") return { platform: "desktop-safari", browser: name };
-    if (name === "firefox")
-      return { platform: "desktop-firefox", browser: name };
+    return { platform: "desktop", browser: name };
   }
 
   return { platform: "other", browser: name };
@@ -125,6 +119,6 @@ export function installPlatformGroup(
   if (platform === "installed") return "installed";
   if (platform.startsWith("ios-")) return "ios";
   if (platform.startsWith("android-")) return "android";
-  if (platform.startsWith("desktop-")) return "desktop";
+  if (platform === "desktop") return "desktop";
   return "other";
 }
