@@ -196,10 +196,12 @@ export const IOS_SAFARI_GUIDE: InstallGuideText = {
 };
 
 /**
- * Step 2 on an iPhone that has not installed Glitter yet: the control only
- * works inside the installed app, so the page shows where it is there.
+ * Step 2, for everyone: where the control is inside the installed app. Shown
+ * whatever the flags say, so the page explains notifications before they
+ * launch too; the screenshots are of Glitter's own screens, the same on any
+ * phone.
  */
-export const IOS_NOTIFICATIONS_GUIDE: InstallGuideText = {
+export const NOTIFICATIONS_GUIDE: InstallGuideText = {
   steps: [
     {
       text: (
@@ -216,11 +218,11 @@ export const IOS_NOTIFICATIONS_GUIDE: InstallGuideText = {
       images: [IOS_IMAGES.enablePush],
     },
     <>
-      Cuando tu iPhone te pregunte si Glitter puede enviarte notificaciones,
+      Cuando tu teléfono te pregunte si Glitter puede enviarte notificaciones,
       tocá <UiLabel>Permitir</UiLabel>.
     </>,
   ],
-  note: "En iPhone y iPad las notificaciones llegan solo a Glitter instalado.",
+  note: "En iPhone y iPad las notificaciones llegan solo a Glitter instalado: por eso el paso 1.",
 };
 
 function iosBrowserGuide(browser: InstallBrowser): InstallGuideText {

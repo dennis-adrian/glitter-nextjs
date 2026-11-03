@@ -15,7 +15,7 @@ import InstallGuideIntro from "@/app/components/install-guide/install-guide-intr
 function InstallGuideScreen(props: React.ComponentProps<typeof InstallGuide>) {
   return (
     <div className="mx-auto max-w-2xl">
-      <InstallGuideIntro pushAvailable={props.pushAvailable} />
+      <InstallGuideIntro />
       <InstallGuide {...props} />
     </div>
   );
@@ -73,7 +73,7 @@ export const SignedIn: Story = {};
 
 export const SignedOut: Story = { args: { signedIn: false } };
 
-/** Before the push flags launch for this viewer. */
-export const WithoutNotifications: Story = {
+/** Push flags off for this viewer: the tutorial shows, the control does not. */
+export const BeforeNotificationsLaunch: Story = {
   args: { pushAvailable: false },
 };

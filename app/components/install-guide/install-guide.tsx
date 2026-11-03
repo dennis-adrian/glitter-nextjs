@@ -7,13 +7,12 @@ import {
   DownloadIcon,
   SmartphoneIcon,
 } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import {
   InstallStepList,
   installGuideFor,
-  IOS_NOTIFICATIONS_GUIDE,
+  NOTIFICATIONS_GUIDE,
   PHONE_GUIDES,
 } from "@/app/components/install-guide/install-steps";
 import {
@@ -283,42 +282,41 @@ function ThisDeviceInstall({
 }
 
 /** Step 2: turning notifications on, once the app can receive them. */
+/**
+ * Step 2: the tutorial, for everyone and whatever the flags say. Nobody is
+ * asked to sign in here; that happens once they open the app. When this
+ * phone can already turn notifications on (signed in, notifications open to
+ * them, and not an iPhone outside the installed app), the control follows as
+ * a shortcut.
+ */
 function NotificationsStep({
+  context,
+  pushAvailable,
   signedIn,
   publicKey,
   devices,
 }: {
+  context: InstallContext;
+  pushAvailable: boolean;
   signedIn: boolean;
   publicKey: string | null;
   devices: PushDeviceRow[];
 }) {
   const support = usePushSupport();
+  const canTurnOnHere =
+    pushAvailable &&
+    signedIn &&
+    context.platform !== "desktop" &&
+    support !== "unknown" &&
+    support !== "ios-needs-install" &&
+    support !== "ios-in-app-browser";
 
-  if (!signedIn) {
-    return (
-      <div className="space-y-3 text-sm">
-        <p>
-          Iniciá sesión con tu cuenta de Glitter y activá las notificaciones en
-          este dispositivo.
-        </p>
-        <Button asChild variant="outline">
-          <Link
-            href={`/sign_in?redirect_url=${encodeURIComponent(INSTALL_GUIDE_PATH)}`}
-          >
-            Iniciar sesión
-          </Link>
-        </Button>
-      </div>
-    );
-  }
-
-  // On an iPhone, the notifications control only works inside the installed
-  // app: show where it is there instead of repeating step 1.
-  if (support === "ios-needs-install" || support === "ios-in-app-browser") {
-    return <InstallStepList guide={IOS_NOTIFICATIONS_GUIDE} />;
-  }
-
-  return <PushControl publicKey={publicKey} devices={devices} />;
+  return (
+    <div className="space-y-4">
+      <InstallStepList guide={NOTIFICATIONS_GUIDE} />
+      {canTurnOnHere && <PushControl publicKey={publicKey} devices={devices} />}
+    </div>
+  );
 }
 
 function InstallGuideViewTracker({
@@ -380,7 +378,6 @@ export default function InstallGuide({
   serverGuess?: InstallContext;
 }) {
   const context = useInstallContext(serverGuess);
-  const desktop = context.platform === "desktop";
 
   return (
     <div className="space-y-4">
@@ -403,22 +400,23 @@ export default function InstallGuide({
         />
       </section>
 
-      {/* On a computer, notifications are turned on later, in the phone. */}
-      {pushAvailable && !desktop && (
-        <section
-          aria-labelledby="notifications-step-heading"
-          className="space-y-4 rounded-lg border p-4 md:p-5"
-        >
-          <StepHeading number={2} id="notifications-step-heading">
-            Activá las notificaciones
-          </StepHeading>
-          <NotificationsStep
-            signedIn={signedIn}
-            publicKey={publicKey}
-            devices={devices}
-          />
-        </section>
-      )}
+      {/* Always explained, flags or not; on a computer it is what to do on
+          the phone. */}
+      <section
+        aria-labelledby="notifications-step-heading"
+        className="space-y-4 rounded-lg border p-4 md:p-5"
+      >
+        <StepHeading number={2} id="notifications-step-heading">
+          Activá las notificaciones
+        </StepHeading>
+        <NotificationsStep
+          context={context}
+          pushAvailable={pushAvailable}
+          signedIn={signedIn}
+          publicKey={publicKey}
+          devices={devices}
+        />
+      </section>
 
       <section aria-labelledby="other-devices-heading" className="pt-2">
         <h2 id="other-devices-heading" className="mb-2 font-semibold">

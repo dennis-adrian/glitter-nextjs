@@ -25,9 +25,9 @@ export const metadata: Metadata = {
  * computer gets a QR code that opens this page on the phone.
  *
  * Public, with no flag of its own: installing works for everyone already.
- * What it says about notifications follows the push flags for this viewer
- * (a signed-out visitor counts as one), so it never promises them before
- * they launch.
+ * Notifications are explained to everyone too, and nobody is asked to sign
+ * in here (Dennis, 2026-11-03): that happens in the app. Only the control
+ * itself, offered as a shortcut, follows the push flags for this viewer.
  */
 export default async function InstallGuidePage() {
   const [viewer, requestHeaders] = await Promise.all([
@@ -51,7 +51,7 @@ export default async function InstallGuidePage() {
 
   return (
     <div className="container max-w-2xl p-3 md:p-6">
-      <InstallGuideIntro pushAvailable={pushAvailable} />
+      <InstallGuideIntro />
       <InstallGuide
         pushAvailable={pushAvailable}
         signedIn={viewer != null}

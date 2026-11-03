@@ -209,7 +209,7 @@ describe("/instalar, step 1", () => {
     expect(screen.getByText("www.glitter.com.bo/instalar")).toBeTruthy();
   });
 
-  it("draws a computer as one from the server, with no phone-only step", () => {
+  it("draws a computer as one from the server", () => {
     const html = renderToString(
       <InstallGuide
         pushAvailable
@@ -223,8 +223,10 @@ describe("/instalar, step 1", () => {
     );
     expect(html).toContain("Glitter se instala en tu teléfono.");
     expect(html).toContain("Los pasos en cada teléfono");
-    expect(html).not.toContain("Activá las notificaciones");
     expect(html).not.toContain("¿Usás otro teléfono?");
+    // The notifications tutorial, for the phone, but never the control.
+    expect(html).toContain("Activá las notificaciones");
+    expect(html).not.toContain("push-control");
   });
 
   it("does not call the installed app a phone, which may be a computer", () => {
@@ -289,24 +291,9 @@ describe("/instalar, step 1", () => {
 });
 
 describe("/instalar, step 2", () => {
-  it("leaves notifications out before they launch for this viewer", () => {
-    useBrowser(UA.android);
-    renderGuide({ pushAvailable: false });
-    expect(screen.queryByText("Activá las notificaciones")).toBe(null);
-  });
-
-  it("asks a signed-out visitor to sign in, coming back here", () => {
-    useBrowser(UA.android);
-    renderGuide({ signedIn: false });
-    expect(
-      screen.getByRole("link", { name: "Iniciar sesión" }).getAttribute("href"),
-    ).toBe("/sign_in?redirect_url=%2Finstalar");
-    expect(screen.queryByTestId("push-control")).toBe(null);
-  });
-
-  it("tells an iPhone where the control is once installed", () => {
-    useBrowser(UA.iphone);
-    renderGuide();
+  /** The tutorial's three steps, as every viewer gets them. */
+  function expectTutorial() {
+    expect(screen.getByText("Activá las notificaciones")).toBeTruthy();
     expect(screen.getByText(/tocá la campana/)).toBeTruthy();
     expect(screen.getByAltText(/con la campana marcada/)).toBeTruthy();
     expect(
@@ -314,20 +301,45 @@ describe("/instalar, step 2", () => {
         /con el botón «Recibir notificaciones en este dispositivo» marcado/,
       ),
     ).toBeTruthy();
-    expect(screen.getAllByText("Permitir").length).toBe(1);
+    expect(
+      screen.getByText(/Cuando tu teléfono te pregunte/).textContent,
+    ).toMatch(/Permitir/);
+  }
+
+  it("explains notifications before they launch, without the control", () => {
+    useBrowser(UA.android);
+    renderGuide({ pushAvailable: false });
+    expectTutorial();
     expect(screen.queryByTestId("push-control")).toBe(null);
   });
 
-  it("shows the notifications control where it can be used", () => {
+  it("never asks a signed-out visitor to sign in: the tutorial only", () => {
+    useBrowser(UA.android);
+    renderGuide({ signedIn: false });
+    expectTutorial();
+    expect(screen.queryByRole("link", { name: /Iniciar sesión/ })).toBe(null);
+    expect(screen.queryByText(/Iniciá sesión con tu cuenta/)).toBe(null);
+    expect(screen.queryByTestId("push-control")).toBe(null);
+  });
+
+  it("gives an iPhone outside the installed app the tutorial, not the control", () => {
+    useBrowser(UA.iphone);
+    renderGuide();
+    expectTutorial();
+    expect(screen.queryByTestId("push-control")).toBe(null);
+  });
+
+  it("adds the control as a shortcut where it can be used", () => {
     useBrowser(UA.android);
     renderGuide();
+    expectTutorial();
     expect(screen.getByTestId("push-control")).toBeTruthy();
   });
 
-  it("leaves notifications for the phone on a computer", () => {
+  it("gives a computer the tutorial for the phone, without the control", () => {
     useBrowser(UA.windows);
     renderGuide();
-    expect(screen.queryByText("Activá las notificaciones")).toBe(null);
+    expectTutorial();
     expect(screen.queryByTestId("push-control")).toBe(null);
   });
 });
