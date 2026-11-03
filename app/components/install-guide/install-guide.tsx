@@ -35,6 +35,7 @@ import {
   promptInstall,
 } from "@/app/lib/install-guide/install-prompt";
 import {
+  detectInstallContext,
   type InstallContext,
   installPlatformGroup,
 } from "@/app/lib/install-guide/platform";
@@ -330,26 +331,35 @@ function NotificationsStep({
 }
 
 function InstallGuideViewTracker({
-  context,
   pushAvailable,
   signedIn,
 }: {
-  context: InstallContext;
   pushAvailable: boolean;
   signedIn: boolean;
 }) {
   const captured = useRef(false);
   useEffect(() => {
-    if (captured.current || context.platform === "unknown") return;
+    if (captured.current) return;
     captured.current = true;
+    // Read here rather than from the render, whose first pass may still be
+    // the server's guess.
+    const context = detectInstallContext(window);
     captureClientEvent(POSTHOG_EVENTS.INSTALL_GUIDE_VIEWED, {
       platform: context.platform,
       browser: context.browser,
       push_available: pushAvailable,
       signed_in: signedIn,
     });
-  }, [context, pushAvailable, signedIn]);
+  }, [pushAvailable, signedIn]);
   return null;
+}
+
+/** Only on a phone's browser can "otro teléfono" be said. */
+function isPhoneBrowser(context: InstallContext) {
+  return (
+    context.platform.startsWith("ios-") ||
+    context.platform.startsWith("android-")
+  );
 }
 
 /**
@@ -364,6 +374,7 @@ export default function InstallGuide({
   devices,
   installUrl,
   qrSvg,
+  serverGuess,
 }: {
   /** Notifications are open to this viewer and configured here. */
   pushAvailable: boolean;
@@ -374,14 +385,15 @@ export default function InstallGuide({
   installUrl: string;
   /** A QR code of `installUrl`, as SVG markup; null if it could not be drawn. */
   qrSvg: string | null;
+  /** What the request's user agent says, until the browser can be asked. */
+  serverGuess?: InstallContext;
 }) {
-  const context = useInstallContext();
+  const context = useInstallContext(serverGuess);
   const desktop = context.platform === "desktop";
 
   return (
     <div className="space-y-4">
       <InstallGuideViewTracker
-        context={context}
         pushAvailable={pushAvailable}
         signedIn={signedIn}
       />
@@ -419,7 +431,9 @@ export default function InstallGuide({
 
       <section aria-labelledby="other-devices-heading" className="pt-2">
         <h2 id="other-devices-heading" className="mb-2 font-semibold">
-          {desktop ? "Los pasos en cada teléfono" : "¿Usás otro teléfono?"}
+          {isPhoneBrowser(context)
+            ? "¿Usás otro teléfono?"
+            : "Los pasos en cada teléfono"}
         </h2>
         <div className="divide-y rounded-lg border">
           {PHONE_GUIDES.filter(

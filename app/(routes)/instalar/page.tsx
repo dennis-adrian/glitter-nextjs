@@ -1,11 +1,13 @@
 import { DateTime } from "luxon";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import QRCode from "qrcode";
 
 import InstallGuide from "@/app/components/install-guide/install-guide";
 import InstallGuideIntro from "@/app/components/install-guide/install-guide-intro";
 import { formatDisplayDate } from "@/app/lib/formatters";
 import { INSTALL_GUIDE_PATH } from "@/app/lib/install-guide/definitions";
+import { detectInstallContext } from "@/app/lib/install-guide/platform";
 import { isPushEnabledFor } from "@/app/lib/notifications/push/access";
 import { pushPublicKey } from "@/app/lib/notifications/push/config";
 import { fetchPushDevices } from "@/app/lib/notifications/push/devices";
@@ -28,7 +30,15 @@ export const metadata: Metadata = {
  * they launch.
  */
 export default async function InstallGuidePage() {
-  const viewer = await resolveInboxViewer();
+  const [viewer, requestHeaders] = await Promise.all([
+    resolveInboxViewer(),
+    headers(),
+  ]);
+  // The first render follows the user agent, so a computer is not drawn as
+  // a phone until the page runs; the browser then has the last word.
+  const serverGuess = detectInstallContext({
+    navigator: { userAgent: requestHeaders.get("user-agent") ?? "" },
+  });
   const publicKey = pushPublicKey();
   const pushAvailable =
     publicKey != null && (await isPushEnabledFor(viewer ?? null));
@@ -48,6 +58,7 @@ export default async function InstallGuidePage() {
         publicKey={pushAvailable ? publicKey : null}
         installUrl={installUrl}
         qrSvg={qrSvg}
+        serverGuess={serverGuess}
         devices={devices.map((device) => ({
           id: device.id,
           label: device.label,
