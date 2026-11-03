@@ -6,6 +6,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ capture: vi.fn() }));
@@ -169,6 +170,8 @@ describe("/instalar, step 1", () => {
       }),
     ).toBeTruthy();
     expect(screen.getByText("www.glitter.com.bo/instalar")).toBeTruthy();
+    // The server's drawing, inside the labelled frame.
+    expect(screen.getByTestId("qr")).toBeTruthy();
     expect(installButton()).toBe(null);
     // The steps for both phones, and nothing about computers.
     expect(screen.getByText("Los pasos en cada teléfono")).toBeTruthy();
@@ -183,6 +186,31 @@ describe("/instalar, step 1", () => {
     expect(screen.queryByRole("img")).toBe(null);
     expect(screen.getByText(/Abrí esta página en tu teléfono/)).toBeTruthy();
     expect(screen.getByText("www.glitter.com.bo/instalar")).toBeTruthy();
+  });
+
+  it("draws a computer as one from the server, with no phone-only step", () => {
+    const html = renderToString(
+      <InstallGuide
+        pushAvailable
+        signedIn={false}
+        publicKey="key"
+        devices={[]}
+        installUrl="https://www.glitter.com.bo/instalar"
+        qrSvg="<svg></svg>"
+        serverGuess={{ platform: "desktop", browser: "chrome" }}
+      />,
+    );
+    expect(html).toContain("Glitter se instala en tu teléfono.");
+    expect(html).toContain("Los pasos en cada teléfono");
+    expect(html).not.toContain("Activá las notificaciones");
+    expect(html).not.toContain("¿Usás otro teléfono?");
+  });
+
+  it("does not call the installed app a phone, which may be a computer", () => {
+    useBrowser(UA.windows, { standalone: true });
+    renderGuide();
+    expect(screen.getByText(/Ya estás usando Glitter instalado/)).toBeTruthy();
+    expect(screen.getByText("Los pasos en cada teléfono")).toBeTruthy();
   });
 
   it("lists only the other phone's steps on a phone", () => {

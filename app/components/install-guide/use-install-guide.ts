@@ -35,12 +35,19 @@ function subscribeToDisplayMode(listener: () => void) {
   };
 }
 
-/** Which steps fit this browser; `unknown` on the server and while hydrating. */
-export function useInstallContext(): InstallContext {
+/**
+ * Which steps fit this browser. On the server and while hydrating it is
+ * `serverGuess`, read from the request's user agent, so a computer is not
+ * first drawn as a phone; the browser corrects it right after (an iPad that
+ * reports a Mac, the installed app).
+ */
+export function useInstallContext(
+  serverGuess: InstallContext = UNKNOWN_INSTALL_CONTEXT,
+): InstallContext {
   return useSyncExternalStore(
     subscribeToDisplayMode,
     readContext,
-    () => UNKNOWN_INSTALL_CONTEXT,
+    () => serverGuess,
   );
 }
 

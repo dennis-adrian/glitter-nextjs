@@ -55,7 +55,7 @@ function iosSteps(firstStep: ReactNode): ReactNode[] {
   return [
     firstStep,
     <>
-      Deslizá hacia abajo y tocá{" "}
+      Desplazate hacia abajo en la lista y tocá{" "}
       <UiLabel icon={<SquarePlusIcon aria-hidden />}>Agregar a inicio</UiLabel>.
     </>,
     <>
