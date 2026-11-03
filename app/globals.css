@@ -892,6 +892,11 @@
 @media (display-mode: standalone) {
   html {
     overscroll-behavior-y: contain;
+    /* The page's root background is what iOS paints behind the status bar
+     * of an installed app (and what shows when a pull overscrolls), so it is
+     * the navbar's colour, which sits right below it. The body keeps the
+     * page's own background. */
+    background-color: var(--brand-elevated);
   }
 }
 

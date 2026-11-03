@@ -21,6 +21,7 @@ import FooterServer from "@/app/components/footer-server";
 
 import "./globals.css";
 import { getEnvLabel } from "./lib/config";
+import { THEME_BOOT_SCRIPT } from "./lib/theme-boot";
 import { THEME_COLORS } from "./lib/theme-colors";
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
@@ -62,8 +63,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    // next-themes sets the theme class on <html> before React hydrates.
+    // The theme class is on <html> before first paint (THEME_BOOT_SCRIPT);
+    // next-themes keeps it in step afterwards.
     <html lang="es" suppressHydrationWarning>
+      <head>
+        {/* Before first paint: the installed app's status bar takes its
+            colour from it (app/lib/theme-boot.ts). */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body className={`${figtree.variable} ${gabarito.variable} font-sans`}>
         <InstalledAppHead />
         {/* Outside every Suspense boundary: a tapped notification's message
