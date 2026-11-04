@@ -164,8 +164,12 @@ describe("buildAppNavigation groups", () => {
       "Operación",
       "Mi cuenta",
     ]);
-    // Their own orders stay reachable where there is no "Más" tab.
-    expect(hrefs(group(nav, "account")!.items)).toEqual(["/my_orders"]);
+    // Their own orders stay reachable where there is no "Más" tab, and
+    // "Entrar como participante" sits with them (board R).
+    expect(hrefs(group(nav, "account")!.items)).toEqual([
+      "/my_orders",
+      "/dashboard/impersonate",
+    ]);
     const festival = group(nav, "festival")!.sections![0];
     expect(festival.label).toBe("Festicker 2026");
     expect(festival.defaultOpen).toBe(true);
@@ -201,6 +205,59 @@ describe("buildAppNavigation groups", () => {
       "/menu/configuracion",
     ]);
     expect(more.flatMap((entry) => entry.items).length).toBeLessThanOrEqual(9);
+  });
+
+  describe("Entrar como participante", () => {
+    function everyHref(nav: ReturnType<typeof buildAppNavigation>) {
+      return [
+        ...nav.tabs.flatMap((tab) => [
+          tab.href,
+          ...(tab.children ?? []).map((child) => child.href),
+        ]),
+        ...nav.groups.flatMap((entry) => [
+          ...hrefs(entry.items),
+          ...(entry.sections ?? []).flatMap((section) => hrefs(section.items)),
+        ]),
+        ...(nav.more ?? []).flatMap((entry) => hrefs(entry.items)),
+      ];
+    }
+
+    it("is offered to global admins under Mi cuenta, in Más and the sidebar", () => {
+      const nav = buildAppNavigation({
+        viewer: { role: "admin", status: "verified" },
+      });
+      const fromMore = nav
+        .more!.find((entry) => entry.label === "Mi cuenta")!
+        .items.find((item) => item.key === "impersonate");
+      expect(fromMore).toMatchObject({
+        label: "Entrar como participante",
+        description: "ver la app como cualquier cuenta",
+        href: "/dashboard/impersonate",
+      });
+      expect(
+        group(nav, "account")!.items.some((item) => item.key === "impersonate"),
+      ).toBe(true);
+    });
+
+    it.each([
+      [
+        "a festival admin",
+        { role: "festival_admin" as const, status: "verified" as const },
+      ],
+      [
+        "a verified participant",
+        { role: "user" as const, status: "verified" as const },
+      ],
+      [
+        "a pending participant",
+        { role: "user" as const, status: "pending" as const },
+      ],
+      ["a signed-out visitor", null],
+    ])("is never offered to %s", (_, viewer) => {
+      expect(everyHref(buildAppNavigation({ viewer }))).not.toContain(
+        "/dashboard/impersonate",
+      );
+    });
   });
 
   it("gives festival admins programs instead of the store, and only their pages", () => {

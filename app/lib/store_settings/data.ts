@@ -1,5 +1,8 @@
 import "server-only";
 
+// eslint-disable-next-line no-restricted-imports -- a global default row, see below
+import { allowHousekeepingWrite } from "@/app/lib/impersonation/housekeeping";
+
 import { eq } from "drizzle-orm";
 import { cache } from "react";
 
@@ -41,11 +44,15 @@ const readStoreSettings = sharedCache(
       return existing[0];
     }
 
-    const inserted = await db
-      .insert(storeSettings)
-      .values({ section, mode: "auto" })
-      .onConflictDoNothing({ target: storeSettings.section })
-      .returning();
+    // The default row belongs to nobody; a page needs it even while an admin
+    // views the app as a participant (docs/PLAN-impersonation.md §6.2).
+    const inserted = await allowHousekeepingWrite(() =>
+      db
+        .insert(storeSettings)
+        .values({ section, mode: "auto" })
+        .onConflictDoNothing({ target: storeSettings.section })
+        .returning(),
+    );
 
     if (inserted.length > 0) {
       return inserted[0];

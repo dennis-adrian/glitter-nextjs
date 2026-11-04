@@ -1,5 +1,7 @@
 import "server-only";
 
+import { isImpersonating } from "@/app/lib/impersonation/viewer";
+
 import { createHash } from "node:crypto";
 
 import { and, eq, lt, sql } from "drizzle-orm";
@@ -58,6 +60,10 @@ export async function consumeActionRateLimit(input: {
   windowMs: number;
   now?: Date;
 }): Promise<boolean> {
+  // An admin viewing the app as a participant is not rate limited, and does
+  // not spend the participant's own allowance: the counter is a write, and
+  // a page that polls (the stand map) would otherwise go stale on 429s.
+  if (await isImpersonating()) return true;
   const now = input.now ?? new Date();
   const windowStartedAt = windowStart(now, input.windowMs);
 
@@ -100,6 +106,8 @@ export async function releaseActionRateLimit(input: {
   windowMs: number;
   now: Date;
 }): Promise<void> {
+  // Nothing was counted during a view (see consumeActionRateLimit).
+  if (await isImpersonating()) return;
   const inWindow = and(
     eq(actionRateLimits.key, input.key),
     eq(

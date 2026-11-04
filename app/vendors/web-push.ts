@@ -4,6 +4,7 @@ import { parse as legacyParse } from "url";
 import webpush from "web-push";
 
 import type { VapidConfig } from "@/app/lib/notifications/push/config";
+import { refuseDuringView } from "@/db/write-guard";
 
 /** A socket-idle timeout, as `web-push` has no overall deadline. */
 const PUSH_REQUEST_TIMEOUT_MS = 10_000;
@@ -100,6 +101,9 @@ export async function sendPush(
     ttlSeconds: number;
   },
 ): Promise<PushSendResult> {
+  // Never sent from a view as someone else (docs/PLAN-impersonation.md §6.2):
+  // a send whose delivery row then could not be marked would go out twice.
+  await refuseDuringView();
   if (!legacyParserAgrees(target.endpoint)) {
     throw new Error("push_endpoint_rejected");
   }

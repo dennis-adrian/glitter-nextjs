@@ -1,15 +1,16 @@
+import { getViewerClerkId } from "@/app/lib/impersonation/viewer";
 import { cachedFetchNavbarProfileByClerkId } from "@/app/lib/users/navbar-profile";
-import { getCurrentClerkUser } from "@/app/lib/users/queries";
 
 export async function GET() {
-  const user = await getCurrentClerkUser();
+  // The participant's while an admin views the app as them.
+  const clerkId = await getViewerClerkId();
 
-  if (!user) {
+  if (!clerkId) {
     return Response.json(null);
   }
 
   try {
-    const profile = await cachedFetchNavbarProfileByClerkId(user.id);
+    const profile = await cachedFetchNavbarProfileByClerkId(clerkId);
     return Response.json(profile);
   } catch (error) {
     console.error("Failed to fetch navbar profile:", error);

@@ -8,6 +8,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/app/components/ui/dialog";
+import { useViewState } from "@/app/components/impersonation/view-state";
 import { getMissingProfileFieldsKeys } from "@/app/lib/utils";
 import { Subcategory } from "@/app/lib/subcategories/definitions";
 import { use, useEffect, useState } from "react";
@@ -32,14 +33,14 @@ export default function CompleteProfileModal({
   const [open, setOpen] = useState(false);
   const missingFields = getMissingProfileFieldsKeys(profile);
   const subcategories = use(subcategoriesPromise);
+  // An admin viewing the app as this participant cannot complete their
+  // profile (nothing is saved), and this dialog cannot be dismissed while
+  // fields are missing: it would cover the banner and its Salir.
+  const viewing = useViewState() != null;
 
   useEffect(() => {
-    if (missingFields.length > 0) {
-      setOpen(true);
-    } else {
-      setOpen(false);
-    }
-  }, [missingFields]);
+    setOpen(missingFields.length > 0 && !viewing);
+  }, [missingFields, viewing]);
 
   const renderContent = () => {
     if (

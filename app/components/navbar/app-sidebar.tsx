@@ -12,6 +12,7 @@ import {
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   UserIcon,
+  UserRoundSearchIcon,
 } from "lucide-react";
 
 import type { NavbarProfile } from "@/app/api/users/definitions";
@@ -21,6 +22,7 @@ import {
   ThemeSegmentedControl,
 } from "@/app/components/mode-toggle";
 import {
+  IMPERSONATE_HREF,
   isNavLinkActive,
   mostSpecificActiveKey,
   PORTAL_HREF,
@@ -325,6 +327,16 @@ function AccountCard({
             <span>Mi perfil</span>
           </Link>
         </DropdownMenuItem>
+        {/* The desktop account menu: global admins only. During a view the
+            viewer is the participant, so the entry is gone. */}
+        {viewer?.role === "admin" ? (
+          <DropdownMenuItem asChild>
+            <Link href={IMPERSONATE_HREF}>
+              <UserRoundSearchIcon className="mr-2 size-4" aria-hidden="true" />
+              <span>Entrar como participante</span>
+            </Link>
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuSeparator />
         <SignOutButton />
       </DropdownMenuContent>

@@ -34,6 +34,7 @@ vi.mock("sonner", () => ({
   toast: { success: state.toastSuccess, error: vi.fn() },
 }));
 
+import { setViewState } from "@/app/components/impersonation/view-state";
 import HomePushBanner, {
   DISMISS_FOR_MS,
   DISMISSED_AT_KEY,
@@ -56,7 +57,10 @@ beforeEach(() => {
   resetDismissedForTests();
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  act(() => setViewState(null));
+});
 
 describe("Inicio's notifications banner", () => {
   it("offers to turn notifications on where this device can and has not", async () => {
@@ -68,6 +72,26 @@ describe("Inicio's notifications banner", () => {
     });
     expect(state.enable).toHaveBeenCalledTimes(1);
     expect(state.toastSuccess).toHaveBeenCalled();
+  });
+
+  it("shows nothing while an admin views the app as a participant", () => {
+    // This browser's push is the admin's: nothing may subscribe it.
+    act(() =>
+      setViewState({
+        subject: {
+          id: 2,
+          displayName: "Ana Pérez",
+          firstName: "Ana",
+          lastName: "Pérez",
+          email: "ana@example.com",
+          imageUrl: null,
+        },
+        secondsLeft: 1800,
+      }),
+    );
+    const { container } = render(<HomePushBanner publicKey={KEY} />);
+    expect(container.innerHTML).toBe("");
+    expect(enableButton()).toBe(null);
   });
 
   it("sends an iPhone outside the installed app to /instalar", () => {

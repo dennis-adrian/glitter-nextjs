@@ -44,6 +44,7 @@ import {
   forgetThisBrowserForPush,
   useReleaseForeignPushDevice,
 } from "@/app/components/notifications/use-push-device";
+import { setViewState } from "@/app/components/impersonation/view-state";
 
 // Uncompressed P-256 points, as a VAPID public key and a browser's p256dh.
 const KEY =
@@ -297,6 +298,34 @@ afterEach(async () => {
   mocks.refresh.mockReset();
   mocks.toastSuccess.mockReset();
   mocks.toastError.mockReset();
+});
+
+describe("while an admin views the app as a participant", () => {
+  afterEach(() => act(() => setViewState(null)));
+
+  it("shows neither avisos control: this browser is the admin's", () => {
+    installBrowser();
+    act(() =>
+      setViewState({
+        secondsLeft: 600,
+        subject: {
+          id: 2,
+          displayName: "Ana",
+          firstName: null,
+          lastName: null,
+          email: "ana@example.com",
+          imageUrl: null,
+        },
+      }),
+    );
+    const { container } = render(
+      <>
+        <PushControl publicKey={KEY} devices={DEVICES} />
+        <PushOffer publicKey={KEY} />
+      </>,
+    );
+    expect(container.innerHTML).toBe("");
+  });
 });
 
 describe("the avisos control on /my_notifications", () => {

@@ -1,11 +1,39 @@
 import { createRouteHandler } from "uploadthing/next";
 
+import { IMPERSONATION_READ_ONLY_MESSAGE } from "@/app/lib/impersonation/definitions";
+import { isImpersonating } from "@/app/lib/impersonation/viewer";
+import { countRefusal } from "@/db/write-guard";
+
 import { ourFileRouter } from "./core";
 
-// Export routes for Next App Router
-export const { GET, POST } = createRouteHandler({
+const handlers = createRouteHandler({
   router: ourFileRouter,
 
   // Apply an (optional) custom config:
   // config: { ... },
 });
+
+export const { GET } = handlers;
+
+/**
+ * Nothing is uploaded while an admin views the app as a participant
+ * (docs/PLAN-impersonation.md §6.2). Refused here, on the person's own
+ * request: several routes' `onUploadComplete` write to the database from
+ * UploadThing's callback, which carries no cookie, so the database guard
+ * could never see the view there. That callback passes: it has no view
+ * cookie, so `isImpersonating` is false for it.
+ */
+export async function POST(request: Request) {
+  if (await isImpersonating()) {
+    // An upload the admin tried: counted in the view's audit.
+    await countRefusal();
+    return Response.json(
+      {
+        error: IMPERSONATION_READ_ONLY_MESSAGE,
+        message: IMPERSONATION_READ_ONLY_MESSAGE,
+      },
+      { status: 403 },
+    );
+  }
+  return handlers.POST(request as Parameters<typeof handlers.POST>[0]);
+}

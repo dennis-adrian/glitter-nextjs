@@ -1,6 +1,8 @@
 export const POSTHOG_EVENTS = {
   // User lifecycle
   USER_PROFILE_CREATED: "user_profile_created",
+  // An admin starts viewing the app as a participant (read-only).
+  IMPERSONATION_STARTED: "impersonation_started",
   // Festival flows
   FESTIVAL_TERMS_ACCEPTED: "festival_terms_accepted",
   FESTIVAL_CREATED: "festival_created",

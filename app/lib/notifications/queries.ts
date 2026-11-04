@@ -1,10 +1,10 @@
 import "server-only";
 
-import { auth } from "@clerk/nextjs/server";
 import { and, desc, eq, gt, inArray, isNull, lt, ne, sql } from "drizzle-orm";
 import { cache } from "react";
 
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { getViewerClerkId } from "@/app/lib/impersonation/viewer";
 import {
   canSeeAdminNotifications,
   type InboxNotification,
@@ -34,10 +34,12 @@ export type InboxViewer = Pick<typeof users.$inferSelect, "id" | "role">;
  * The signed-in user, from the session alone. The bell polls every minute, so
  * this reads Clerk's session claims instead of calling Clerk's API the way
  * `getCurrentUserProfile` does, and loads only the two columns it needs.
+ * While an admin views the app as a participant, it is the participant's
+ * inbox (`getViewerClerkId`).
  */
 export const resolveInboxViewer = cache(
   async (): Promise<InboxViewer | null> => {
-    const { userId } = await auth();
+    const userId = await getViewerClerkId();
     if (!userId) return null;
     const [row] = await db
       .select({ id: users.id, role: users.role })

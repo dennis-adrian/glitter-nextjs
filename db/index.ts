@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
 import "@/app/lib/config";
+import { installWriteGuard } from "@/db/write-guard";
 import { getPostgresUrl } from "@/env";
 
 /**
@@ -166,6 +167,12 @@ function createPool(): Pool {
   created.on("error", (error) => {
     console.error("Postgres pool error (client discarded)", error);
   });
+
+  // While an admin views the app as a participant, nothing is written
+  // (docs/PLAN-impersonation.md §6.1). Every statement, `pool.query`
+  // included, runs on a client this hands out, so one hook covers them all.
+  // Installed here, with the pool, so both module copies share it.
+  installWriteGuard(created);
 
   return created;
 }

@@ -16,6 +16,8 @@ const serverEnv = vi.hoisted(() => ({
 }));
 
 vi.mock("../../env", () => ({ serverEnv }));
+const refuseDuringViewMock = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock("@/db/write-guard", () => ({ refuseDuringView: refuseDuringViewMock }));
 
 import {
   removeResendSuppression,
@@ -772,5 +774,20 @@ describe("removeResendSuppression", () => {
       outcome: "failed",
       message: "network down",
     });
+  });
+});
+
+describe("during a view of the app as a participant", () => {
+  afterEach(() => {
+    refuseDuringViewMock.mockReset();
+    refuseDuringViewMock.mockImplementation(async () => {});
+  });
+
+  it("sends no email, single or batch", async () => {
+    const refusal = new Error("solo lectura");
+    refuseDuringViewMock.mockRejectedValue(refusal);
+    serverEnv.VERCEL_ENV = "production";
+    await expect(sendEmail(payload)).rejects.toBe(refusal);
+    await expect(sendBatchEmails([payload])).rejects.toBe(refusal);
   });
 });

@@ -67,13 +67,19 @@ export async function isLayoutFeatureEnabled(
  * the signed-in navigation.
  */
 const resolveLayoutFlagViewer = cache(async () => {
-  // Every real request carries headers (`host`, at least). Only a
-  // `force-static` render is handed an empty set.
-  const isStaticRender = (await headers()).keys().next().done;
-  if (isStaticRender) return null;
+  if (await isStaticLayoutRender()) return null;
 
   return getCurrentUserProfile();
 });
+
+/**
+ * Whether this render has no request behind it. Every real request carries
+ * headers (`host`, at least); only a `force-static` render is handed an
+ * empty set, without the throw that would make the page dynamic.
+ */
+export const isStaticLayoutRender = cache(
+  async (): Promise<boolean> => Boolean((await headers()).keys().next().done),
+);
 
 export const getLayoutViewer = resolveLayoutFlagViewer;
 

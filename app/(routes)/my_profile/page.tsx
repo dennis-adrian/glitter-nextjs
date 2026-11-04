@@ -1,19 +1,17 @@
 import TryAgainForm from "@/app/(routes)/my_profile/try-again-form";
 import UserProfile from "@/app/components/pages/user-profile";
 import { UserProfileSkeleton } from "@/app/components/user_profile/skeleton";
-import {
-  cachedFetchUserProfileByClerkId,
-  getCurrentClerkUser,
-} from "@/app/lib/users/queries";
+import { getViewerClerkId } from "@/app/lib/impersonation/viewer";
+import { cachedFetchUserProfileByClerkId } from "@/app/lib/users/queries";
 import { InfoIcon } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
 export default async function Page() {
-  const user = await getCurrentClerkUser();
-  if (!user) return null;
+  const clerkId = await getViewerClerkId();
+  if (!clerkId) return null;
 
-  const profile = await cachedFetchUserProfileByClerkId(user.id);
+  const profile = await cachedFetchUserProfileByClerkId(clerkId);
   if (!profile) {
     return (
       <div className="container p-3 md:p-6 flex flex-col gap-2">

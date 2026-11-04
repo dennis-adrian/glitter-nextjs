@@ -1,6 +1,6 @@
 "use client";
 
-import { forgetThisBrowserForPush } from "@/app/components/notifications/use-push-device";
+import { prepareSignOut } from "@/app/components/impersonation/view-state";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { useClerk } from "@clerk/nextjs";
@@ -11,7 +11,9 @@ export default function TryAgainForm() {
   const form = useForm();
 
   const action = form.handleSubmit(async () => {
-    await forgetThisBrowserForPush();
+    // Ends a view of the app as someone else first, then forgets this
+    // browser's avisos for whoever is really signed in.
+    await prepareSignOut();
     signOut({
       redirectUrl: "/sign_in",
     });

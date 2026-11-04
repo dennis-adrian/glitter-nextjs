@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/env", () => ({ serverEnv: { RESEND_API_KEY: "re_test" } }));
 vi.mock("@/db", () => ({ db: {} }));
-vi.mock("@clerk/nextjs/server", () => ({ currentUser: vi.fn() }));
+vi.mock("@/app/lib/impersonation/viewer", () => ({
+  getViewerClerkId: vi.fn(),
+}));
 vi.mock("@/app/lib/users/helpers", () => ({
   requireAdmin: vi.fn(),
   requireAdminOrFestivalAdmin: vi.fn(),
@@ -16,6 +18,7 @@ vi.mock("@/app/lib/feature_flags/helpers", () => ({
 import { ourFileRouter } from "@/app/api/uploadthing/core";
 import { COMUNICADO_IMAGE_TYPES } from "@/app/lib/comunicados/definitions";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { getViewerClerkId } from "@/app/lib/impersonation/viewer";
 import { FESTIVAL_ARTWORK_TYPES } from "@/app/lib/festivals/artwork";
 import {
   requireAdmin,
@@ -25,6 +28,7 @@ import {
 const requireAdminMock = vi.mocked(requireAdmin);
 const requireStaffMock = vi.mocked(requireAdminOrFestivalAdmin);
 const isFeatureEnabledMock = vi.mocked(isFeatureEnabled);
+const viewerClerkIdMock = vi.mocked(getViewerClerkId);
 
 type Route = {
   routerConfig: Record<string, unknown>;
@@ -43,6 +47,24 @@ beforeEach(() => {
   requireAdminMock.mockReset();
   requireStaffMock.mockReset();
   isFeatureEnabledMock.mockReset();
+});
+
+describe("who an upload is filed under", () => {
+  const imageUploader = ourFileRouter.imageUploader as unknown as Route;
+
+  it("is the viewer: the participant while an admin views as them", async () => {
+    viewerClerkIdMock.mockResolvedValue("clerk_participant");
+    await expect(
+      imageUploader.middleware({ files: [poster] }),
+    ).resolves.toEqual({ userId: "clerk_participant" });
+  });
+
+  it("is nobody when signed out", async () => {
+    viewerClerkIdMock.mockResolvedValue(null);
+    await expect(
+      imageUploader.middleware({ files: [poster] }),
+    ).rejects.toThrow();
+  });
 });
 
 describe("festivalArtwork upload route", () => {

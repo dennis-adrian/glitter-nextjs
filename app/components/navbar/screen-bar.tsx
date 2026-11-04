@@ -24,6 +24,7 @@ import {
   writeHistory,
 } from "@/app/components/navbar/screen-history";
 import type { Screen, ScreenContext } from "@/app/components/navbar/screens";
+import { useHydrated } from "@/app/hooks/use-hydrated";
 import { cn } from "@/app/lib/utils";
 
 /**
@@ -110,6 +111,22 @@ export function ScreenBarProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+const NO_OVERRIDES: Overrides = {};
+
+/**
+ * The page's overrides, as this reader may use them. None until the reader
+ * has hydrated: a page sets its title in a layout effect as soon as it
+ * hydrates, and the navbar, in a Suspense boundary of its own, can hydrate
+ * after it. Read at once, the navbar's first browser render would show the
+ * page's title ("Pin Estrellita") over the server's ("Producto") and React
+ * would throw the tree away. Read after, the first paint matches the server
+ * HTML and the page's title takes over one render later.
+ */
+function usePageOverrides(): Overrides {
+  const overrides = useContext(OverridesContext);
+  return useHydrated() ? overrides : NO_OVERRIDES;
+}
+
 /** Sets one value for the current path while the caller is on screen. */
 function useOverride<K extends keyof Overrides>(
   key: K,
@@ -164,7 +181,7 @@ export function ScreenRoot({ tab }: { tab: string }) {
 
 /** The tab the current page says it is the own page of, if any. */
 export function useScreenRootMark(): string | undefined {
-  const overrides = useContext(OverridesContext);
+  const overrides = usePageOverrides();
   const path = usePathname() ?? "/";
   return current(overrides.root, path);
 }
@@ -201,7 +218,7 @@ export function usePublishScreenContext(ctx: ScreenContext) {
 /** The navbar's view of who is viewing, and the page's own title, if set. */
 export function useScreenPlacement() {
   const nav = useContext(NavContext);
-  const overrides = useContext(OverridesContext);
+  const overrides = usePageOverrides();
   const path = usePathname() ?? "/";
   const rootTab = current(overrides.root, path);
   const isRoot = Boolean(
@@ -260,7 +277,7 @@ function hasPreviousScreen(): boolean {
 function useScreenBar(screen: Screen) {
   const router = useRouter();
   const path = usePathname() ?? "/";
-  const overrides = useContext(OverridesContext);
+  const overrides = usePageOverrides();
   const title = current(overrides.title, path) ?? screen.title;
   const parentHref = current(overrides.backHref, path) ?? screen.parentHref;
   const onBack = current(overrides.onBack, path);
