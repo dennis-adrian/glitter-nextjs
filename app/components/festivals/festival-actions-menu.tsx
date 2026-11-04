@@ -2,6 +2,7 @@
 
 import {
   ArchiveIcon,
+  CopyIcon,
   DownloadIcon,
   EyeIcon,
   MoreHorizontalIcon,
@@ -13,6 +14,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import DeleteFestival from "@/app/components/festivals/delete-festival";
+import FestivalDuplicateDialog from "@/app/components/festivals/festival-duplicate-dialog";
 import FestivalExportDialog from "@/app/components/festivals/festival-export-dialog";
 import FestivalImportDialog from "@/app/components/festivals/festival-import-dialog";
 import {
@@ -60,6 +62,7 @@ export default function FestivalActionsMenu({
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const sections = visibleFestivalSections(festival.status);
 
@@ -127,6 +130,10 @@ export default function FestivalActionsMenu({
               <UploadIcon className="mr-2 h-4 w-4" />
               Importar datos
             </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setDuplicateOpen(true)}>
+              <CopyIcon className="mr-2 h-4 w-4" />
+              Duplicar
+            </DropdownMenuItem>
             {festival.status !== "archived" ? (
               <DropdownMenuItem onSelect={() => setArchiveOpen(true)}>
                 <ArchiveIcon className="mr-2 h-4 w-4" />
@@ -159,6 +166,12 @@ export default function FestivalActionsMenu({
         open={importOpen}
         onOpenChange={setImportOpen}
         mode="existing"
+        festivalId={festival.id}
+        festivalName={festival.name}
+      />
+      <FestivalDuplicateDialog
+        open={duplicateOpen}
+        onOpenChange={setDuplicateOpen}
         festivalId={festival.id}
         festivalName={festival.name}
       />
