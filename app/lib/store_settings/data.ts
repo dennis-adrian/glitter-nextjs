@@ -6,6 +6,11 @@ import { allowHousekeepingWrite } from "@/app/lib/impersonation/housekeeping";
 import { eq } from "drizzle-orm";
 import { cache } from "react";
 
+import {
+  reviveTimestamps,
+  SHARED_CACHE_TAGS,
+  sharedCache,
+} from "@/app/lib/cache/shared";
 import { db } from "@/db";
 import { storeSettings } from "@/db/schema";
 import {
@@ -22,8 +27,12 @@ import {
  *
  * Lives in a `server-only` data module (not the `use server` actions file) so it
  * isn't exposed as a callable server action.
+ *
+ * Whether a store section is open is read on every page (the navbar's
+ * Tiendita) and every store page, and changes only when an admin saves the
+ * settings, which expires it. Shared across requests for up to five minutes.
  */
-export const fetchStoreSettings = cache(
+const readStoreSettings = sharedCache(
   async (section: StoreSection): Promise<StoreSettings> => {
     const existing = await db
       .select()
@@ -58,6 +67,16 @@ export const fetchStoreSettings = cache(
 
     return row;
   },
+  "store-settings",
+  {
+    tags: [SHARED_CACHE_TAGS.storeSettings],
+    revalidate: 300,
+    revive: (row) => reviveTimestamps(row, storeSettings),
+  },
+);
+
+export const fetchStoreSettings = cache(
+  (section: StoreSection): Promise<StoreSettings> => readStoreSettings(section),
 );
 
 /**

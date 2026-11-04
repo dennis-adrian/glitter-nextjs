@@ -8,7 +8,7 @@ import { cachedFetchNavbarProfileByClerkId } from "@/app/lib/users/navbar-profil
 import { users } from "@/db/schema";
 import { buildWhereClause } from "@/db/utils";
 import { eq, isNotNull, isNull, like, not, sql } from "drizzle-orm";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 
 /**
  * The profile the request is for: the signed-in person's own, or, while a
@@ -24,6 +24,9 @@ export async function getCurrentUserProfile() {
     // TODO: if the profile is not found, it should log out the user
     return await cachedFetchUserProfileByClerkId(clerkId);
   } catch (error) {
+    // Next signals a redirect, a 404 or "this render needs the request" by
+    // throwing. Swallowed here, any of them became "signed out".
+    unstable_rethrow(error);
     console.error(error);
     return null;
   }
@@ -36,6 +39,9 @@ export async function getCurrentBaseProfile() {
 
     return await cachedFetchBaseUserProfileByClerkId(clerkId);
   } catch (error) {
+    // Next signals a redirect, a 404 or "this render needs the request" by
+    // throwing. Swallowed here, any of them became "signed out".
+    unstable_rethrow(error);
     console.error(error);
     return null;
   }
@@ -48,6 +54,9 @@ export async function getCurrentNavbarProfile() {
 
     return await cachedFetchNavbarProfileByClerkId(clerkId);
   } catch (error) {
+    // Next signals a redirect, a 404 or "this render needs the request" by
+    // throwing. Swallowed here, any of them became "signed out".
+    unstable_rethrow(error);
     console.error(error);
     return null;
   }

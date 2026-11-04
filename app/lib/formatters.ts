@@ -15,6 +15,20 @@ export function formatDisplayDate(
     : formatDate(value);
   if (!date.isValid) return "—";
 
+  // A date and a time are formatted apart and joined with a comma. Asked for
+  // together, ICU picks the joiner from its locale data, and that changes
+  // between versions and month widths: newer data writes "25 de octubre a
+  // las 10:12 AM" where older data writes "25 de octubre, 10:12 AM". The
+  // server's Node and each browser carry their own data, so the same date
+  // could render two ways, and differ between server and hydration.
+  const { date: dateOptions, time: timeOptions } = splitDateTimeOptions(options);
+  if (dateOptions && timeOptions) {
+    return `${formatParts(date, dateOptions)}, ${formatParts(date, timeOptions)}`;
+  }
+  return formatParts(date, options);
+}
+
+function formatParts(date: DateTime, options: Intl.DateTimeFormatOptions) {
   return new Intl.DateTimeFormat("es", {
     ...options,
     timeZone: STORE_TIMEZONE,
@@ -26,6 +40,59 @@ export function formatDisplayDate(
       return part.value.replace(/[\u00a0\u202f]/g, " ");
     })
     .join("");
+}
+
+const DATE_FIELDS = ["weekday", "era", "year", "month", "day"] as const;
+const TIME_FIELDS = [
+  "hour",
+  "minute",
+  "second",
+  "fractionalSecondDigits",
+  "dayPeriod",
+] as const;
+
+/** Settings that only shape a time; every other non-field setting is shared. */
+const TIME_ONLY_SETTINGS = ["hourCycle", "hour12", "timeZoneName"] as const;
+
+/**
+ * The date half and the time half of `options`, when it asks for both;
+ * otherwise nulls, and the options are used as they are. Settings that shape
+ * both halves (calendar, numbering system) go to each; those that only shape
+ * a time go with the time.
+ */
+function splitDateTimeOptions(options: Intl.DateTimeFormatOptions): {
+  date: Intl.DateTimeFormatOptions | null;
+  time: Intl.DateTimeFormatOptions | null;
+} {
+  const shared: Record<string, unknown> = {};
+  const dateOnly: Record<string, unknown> = {};
+  const timeOnly: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(options)) {
+    if (value === undefined) continue;
+    if (key === "dateStyle" || (DATE_FIELDS as readonly string[]).includes(key)) {
+      dateOnly[key] = value;
+    } else if (
+      key === "timeStyle" ||
+      (TIME_FIELDS as readonly string[]).includes(key) ||
+      (TIME_ONLY_SETTINGS as readonly string[]).includes(key)
+    ) {
+      timeOnly[key] = value;
+    } else {
+      shared[key] = value;
+    }
+  }
+
+  const hasDate = Object.keys(dateOnly).length > 0;
+  const hasTime = Object.keys(timeOnly).some(
+    (key) =>
+      key === "timeStyle" || (TIME_FIELDS as readonly string[]).includes(key),
+  );
+  if (!hasDate || !hasTime) return { date: null, time: null };
+
+  return {
+    date: { ...shared, ...dateOnly } as Intl.DateTimeFormatOptions,
+    time: { ...shared, ...timeOnly } as Intl.DateTimeFormatOptions,
+  };
 }
 
 export function formatDateTime(

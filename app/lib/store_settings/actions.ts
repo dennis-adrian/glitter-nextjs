@@ -9,6 +9,10 @@ import { db } from "@/db";
 import { storeSettings } from "@/db/schema";
 import { fetchStoreSettings } from "./data";
 import { type UpdateStoreSettingsInput } from "./definitions";
+import {
+  expireSharedCache,
+  SHARED_CACHE_TAGS,
+} from "@/app/lib/cache/shared";
 
 const CLOSED_TITLE_MAX = 120;
 const CLOSED_MESSAGE_MAX = 1000;
@@ -44,6 +48,7 @@ export async function updateStoreSettings(input: UpdateStoreSettingsInput) {
     })
     .where(eq(storeSettings.id, current.id));
 
+  expireSharedCache(SHARED_CACHE_TAGS.storeSettings);
   revalidatePath("/merch", "layout");
   revalidatePath("/supplies", "layout");
   revalidatePath("/checkout", "layout");

@@ -1,8 +1,10 @@
 import "server-only";
 
+import { unstable_rethrow } from "next/navigation";
 import { cache } from "react";
 import { desc, eq } from "drizzle-orm";
 
+import { SHARED_CACHE_TAGS, sharedCache } from "@/app/lib/cache/shared";
 import { db } from "@/db";
 import { landingPageDrafts, landingPagePublications } from "@/db/schema";
 import { DEFAULT_LANDING_PAGE_CONTENT } from "./default-content";
@@ -16,31 +18,64 @@ function validContent(value: unknown): LandingPageContentV1 | null {
   return parsed.success ? parsed.data : null;
 }
 
-export const getLatestLandingPublication = cache(async () => {
-  let rows: (typeof landingPagePublications.$inferSelect)[];
-  try {
-    rows = await db
-      .select()
-      .from(landingPagePublications)
-      .where(eq(landingPagePublications.pageKey, LANDING_PAGE_KEY))
-      .orderBy(desc(landingPagePublications.id))
-      .limit(LATEST_PUBLICATION_SCAN_LIMIT);
-  } catch (error) {
-    console.error("Unable to read landing publications", error);
-    return null;
-  }
+type PublicationRow = typeof landingPagePublications.$inferSelect;
+
+/** The newest publications, newest first. Throws when they cannot be read. */
+async function readLatestPublications(): Promise<PublicationRow[]> {
+  return db
+    .select()
+    .from(landingPagePublications)
+    .where(eq(landingPagePublications.pageKey, LANDING_PAGE_KEY))
+    .orderBy(desc(landingPagePublications.id))
+    .limit(LATEST_PUBLICATION_SCAN_LIMIT);
+}
+
+/** The newest publication whose content is still valid, with that content. */
+function firstValidPublication(rows: PublicationRow[]) {
   for (const row of rows) {
     const content = validContent(row.content);
     if (content) return { ...row, content };
     console.error("Invalid landing publication", { publicationId: row.id });
   }
   return null;
+}
+
+export const getLatestLandingPublication = cache(async () => {
+  let rows: PublicationRow[];
+  try {
+    rows = await readLatestPublications();
+  } catch (error) {
+    console.error("Unable to read landing publications", error);
+    return null;
+  }
+  return firstValidPublication(rows);
 });
 
+/**
+ * The published content, which the navbar reads on every page for its
+ * announcement. Shared across requests for up to five minutes; publishing
+ * expires it. A failed read is never stored: it falls back to the default
+ * content for that request only.
+ */
+const readPublishedLandingContent = sharedCache(
+  async (): Promise<LandingPageContentV1 | null> =>
+    firstValidPublication(await readLatestPublications())?.content ?? null,
+  "landing-published-content",
+  { tags: [SHARED_CACHE_TAGS.landingContent], revalidate: 300 },
+);
+
 export const getPublishedLandingContent = cache(
-  async (): Promise<LandingPageContentV1> =>
-    (await getLatestLandingPublication())?.content ??
-    DEFAULT_LANDING_PAGE_CONTENT,
+  async (): Promise<LandingPageContentV1> => {
+    try {
+      return (
+        (await readPublishedLandingContent()) ?? DEFAULT_LANDING_PAGE_CONTENT
+      );
+    } catch (error) {
+      unstable_rethrow(error);
+      console.error("Unable to read landing publications", error);
+      return DEFAULT_LANDING_PAGE_CONTENT;
+    }
+  },
 );
 
 export async function getLandingDraft() {

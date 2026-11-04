@@ -58,7 +58,12 @@ vi.mock("@/app/lib/reservations/notification-outbox", () => ({
   enqueueReservationNotification: vi.fn(),
   scheduleReservationNotificationJobs: vi.fn(),
 }));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", async (importOriginal) => ({
+  // The real module: outside a Next server its caches fall through to the
+  // database and expiring a tag does nothing, which is what this suite needs.
+  ...(await importOriginal<typeof import("next/cache")>()),
+  revalidatePath: vi.fn(),
+}));
 // Nothing here sends: the outbox only queues, and its inbox copies are rows.
 vi.mock("@/app/vendors/resend", () => ({ sendEmail: vi.fn() }));
 

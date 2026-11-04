@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   detectPushSupport,
+  isStandaloneApp,
   pushDeviceLabel,
   subscribedWithKey,
   urlBase64ToUint8Array,
@@ -144,5 +145,45 @@ describe("subscription keys", () => {
       false,
     );
     expect(subscribedWithKey(null, publicKey)).toBe(false);
+  });
+});
+
+describe("isStandaloneApp", () => {
+  it("follows the display mode", () => {
+    expect(isStandaloneApp(browser({ standalone: true }))).toBe(true);
+    expect(isStandaloneApp(browser())).toBe(false);
+  });
+
+  it("trusts the start page's mark when the display mode says browser", () => {
+    const storage = new Map([["glitter:installed-app", "browser"]]);
+    expect(
+      isStandaloneApp({
+        ...browser(),
+        sessionStorage: { getItem: (key) => storage.get(key) ?? null },
+      }),
+    ).toBe(true);
+    expect(
+      isStandaloneApp({
+        ...browser(),
+        document: {
+          documentElement: {
+            hasAttribute: (name) => name === "data-installed-app",
+          },
+        },
+      }),
+    ).toBe(true);
+  });
+
+  it("reads blocked storage as a browser tab", () => {
+    expect(
+      isStandaloneApp({
+        ...browser(),
+        sessionStorage: {
+          getItem: () => {
+            throw new Error("SecurityError");
+          },
+        },
+      }),
+    ).toBe(false);
   });
 });

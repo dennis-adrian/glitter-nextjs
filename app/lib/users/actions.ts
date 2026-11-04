@@ -33,7 +33,7 @@ import {
   fetchAdminUsers,
   fetchUserProfileById,
   // eslint-disable-next-line no-restricted-imports -- createUserProfile needs the Clerk account itself
-  getCurrentClerkUser,
+  getCurrentClerkUserDetails,
 } from "@/app/lib/users/queries";
 import {
   latestRejectionReason,
@@ -66,7 +66,7 @@ import { revalidatePath } from "next/cache";
 export async function createUserProfile() {
   // The Clerk account itself, not a viewer: a profile is only ever created
   // for the account that is signed in.
-  const clerkUser = await getCurrentClerkUser();
+  const clerkUser = await getCurrentClerkUserDetails();
   const email = clerkUser?.emailAddresses[0]?.emailAddress;
   if (!clerkUser || !email) {
     return { success: false, message: "No autorizado" };

@@ -120,25 +120,24 @@ export default async function MapReservationPage(
     );
   }
 
-  const map = await fetchFestivalReservationMapDto({
-    festivalId: festival.id,
-    profileId: forProfile.id,
-    actorProfileId: currentProfile?.id ?? null,
-    revealHiddenIdentities: canViewAdminReservationData(
-      currentProfile
-        ? { id: currentProfile.id, role: currentProfile.role }
-        : null,
-    ),
-  });
-  if (!map) notFound();
-
   // The full-table decision happens here, before the map: the map is for
   // choosing a space, never for financial setup (PRD §7.2).
   // Only for the participant themselves. Its actions resolve the actor from
   // the session, so an admin viewing someone else's map would be shown that
   // participant's balance while spending their own credits.
+  // The offer and the flag do not depend on the map, so they load with it.
   const viewingOwnMap = currentProfile?.id === forProfile.id;
-  const [fullTableOffer, creditsEnabled] = await Promise.all([
+  const [map, fullTableOffer, creditsEnabled] = await Promise.all([
+    fetchFestivalReservationMapDto({
+      festivalId: festival.id,
+      profileId: forProfile.id,
+      actorProfileId: currentProfile?.id ?? null,
+      revealHiddenIdentities: canViewAdminReservationData(
+        currentProfile
+          ? { id: currentProfile.id, role: currentProfile.role }
+          : null,
+      ),
+    }),
     viewingOwnMap
       ? fetchFullTableOffer({
           userId: forProfile.id,
@@ -148,6 +147,7 @@ export default async function MapReservationPage(
       : null,
     isFeatureEnabled("credits"),
   ]);
+  if (!map) notFound();
 
   return (
     <>

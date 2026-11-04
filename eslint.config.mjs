@@ -37,7 +37,7 @@ const eslintConfig = defineConfig([
             },
             {
               name: "@/app/lib/users/queries",
-              importNames: ["getCurrentClerkUser"],
+              importNames: ["getCurrentClerkUser", "getCurrentClerkUserDetails"],
               message:
                 "This is the signed-in Clerk account, not the viewer. Use getCurrentUserProfile or getViewerClerkId; isSignedIn to ask whether anyone is signed in.",
             },
@@ -47,7 +47,7 @@ const eslintConfig = defineConfig([
             {
               // Only users/queries exports it, so any "queries" will do.
               group: ["**/queries", "./queries"],
-              importNames: ["getCurrentClerkUser"],
+              importNames: ["getCurrentClerkUser", "getCurrentClerkUserDetails"],
               message:
                 "This is the signed-in Clerk account, not the viewer. Use getCurrentUserProfile or getViewerClerkId.",
             },

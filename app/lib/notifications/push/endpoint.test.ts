@@ -10,6 +10,7 @@ describe("isAllowedPushEndpoint", () => {
   it.each([
     "https://fcm.googleapis.com/fcm/send/dXw7:APA91bHk-_AbC",
     "https://fcm.googleapis.com/wp/dXw7AbC",
+    "https://jmt17.google.com/fcm/send/dXw7:APA91bHk-_AbC",
     "https://updates.push.services.mozilla.com/wpush/v2/gAAAAABk",
     "https://web.push.apple.com/QGuQyavXutnMHlYq",
     "https://wns2-par02p.notify.windows.com/w/?token=BQYAAAB%2bC%3d",
@@ -36,6 +37,9 @@ describe("isAllowedPushEndpoint", () => {
     ["another site", "https://evil.example/fcm/send/x"],
     ["a lookalike suffix", "https://fcm.googleapis.com.evil.example/x"],
     ["an invented FCM subdomain", "https://evil.fcm.googleapis.com/x"],
+    ["the bare Google domain", "https://google.com/fcm/send/x"],
+    ["another google.com host", "https://jmt18.google.com/fcm/send/x"],
+    ["a jmt17 lookalike", "https://jmt17.google.com.evil.example/fcm/send/x"],
     ["a bare suffix", "https://push.apple.com/x"],
     ["a port", "https://fcm.googleapis.com:8443/fcm/send/x"],
     ["credentials", "https://user:pass@fcm.googleapis.com/x"],

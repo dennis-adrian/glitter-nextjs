@@ -34,6 +34,11 @@ import {
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
+  expireFestivalCaches,
+  readActiveFestivalBase,
+  readActiveFestivalWithDates,
+} from "@/app/lib/festivals/active-festival-cache";
+import {
   FestivalAvailableUser,
   FestivalBase,
   PublicFestivalPage,
@@ -240,6 +245,7 @@ export async function createFestival(
       return newFestival;
     });
 
+    expireFestivalCaches();
     revalidatePath("/dashboard/festivals");
     return {
       success: true,
@@ -316,6 +322,7 @@ export async function deleteFestival(festivalId: number) {
         "Error al eliminar el festival. Por favor verifica que no haya datos relacionados.",
     };
   }
+  expireFestivalCaches();
   revalidatePath("/dashboard/festivals");
   return {
     success: true,
@@ -325,9 +332,7 @@ export async function deleteFestival(festivalId: number) {
 
 export async function fetchActiveFestivalBase() {
   try {
-    return await db.query.festivals.findFirst({
-      where: eq(festivals.status, "active"),
-    });
+    return (await readActiveFestivalBase()) ?? undefined;
   } catch (error) {
     console.error("Error fetching active festival base", error);
     throw error;
@@ -555,6 +560,7 @@ export async function updateFestival(
       };
     });
 
+    expireFestivalCaches();
     revalidatePath("/dashboard/festivals");
     revalidatePath(`/dashboard/festivals/${data.id}`);
     for (const sanctionId of result.affectedSanctionIds) {
@@ -681,14 +687,7 @@ export async function fetchFestivalWithDatesAndSectors(
 
 export async function fetchActiveFestivalWithDates(): Promise<FestivalWithDates | null> {
   try {
-    const festival = await db.query.festivals.findFirst({
-      where: eq(festivals.status, "active"),
-      with: {
-        festivalDates: true,
-      },
-    });
-
-    return festival as FestivalWithDates | null;
+    return await readActiveFestivalWithDates();
   } catch (error) {
     console.error("Error fetching active festival with dates", error);
     throw error;
@@ -792,6 +791,7 @@ function revalidateFestivalPages(
   festivalId: number,
   associatedSanctionIds: readonly number[] = [],
 ) {
+  expireFestivalCaches();
   revalidatePath("/dashboard/festivals");
   revalidatePath(`/dashboard/festivals/${festivalId}`);
   revalidatePath(`/festivals/${festivalId}`, "layout");
@@ -962,6 +962,7 @@ export async function archiveFestival(festivalId: number) {
     return { success: false, message: "Error al actualizar el festival" };
   }
 
+  expireFestivalCaches();
   revalidatePath("/dashboard/festivals", "layout");
   revalidatePath(`/festivals/${festivalId}`, "layout");
   return { success: true, message: "Festival archivado" };
@@ -1183,6 +1184,7 @@ export async function updateFestivalParticipantTerms(
     };
   }
 
+  expireFestivalCaches();
   revalidatePath("/dashboard/festivals");
   revalidatePath(`/dashboard/festivals/${festivalId}`);
   revalidatePath("/festivals", "layout");

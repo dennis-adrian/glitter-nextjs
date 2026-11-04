@@ -10,6 +10,8 @@ import {
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+
+import { expireFestivalCaches } from "@/app/lib/festivals/active-festival-cache";
 import { z } from "zod";
 import {
   FestivalExport,
@@ -259,6 +261,9 @@ export async function importFestivalData(
         });
 
         basicInfoUpdated = true;
+        // Committed: expire now, since the sector import below can still fail
+        // and return early.
+        expireFestivalCaches();
       } catch (error: unknown) {
         // Check for unique name constraint violation
         if (
@@ -310,6 +315,7 @@ export async function importFestivalData(
       standsCreated = result.createdStands ?? 0;
     }
 
+    expireFestivalCaches();
     revalidatePath("/dashboard/festivals");
     revalidatePath("/", "layout");
 
@@ -465,6 +471,7 @@ export async function createFestivalFromImport(
       return newFestival;
     });
 
+    expireFestivalCaches();
     revalidatePath("/dashboard/festivals");
 
     return {

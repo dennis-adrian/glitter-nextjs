@@ -4,6 +4,7 @@ import "server-only";
 import { allowHousekeepingWrite } from "@/app/lib/impersonation/housekeeping";
 
 import { eq } from "drizzle-orm";
+import { unstable_rethrow } from "next/navigation";
 import { cache } from "react";
 
 import type {
@@ -16,6 +17,7 @@ import {
   type FeatureFlagKey,
 } from "@/app/lib/feature_flags/registry";
 import type { FeatureFlagRule } from "@/app/lib/feature_flags/visibility";
+import { SHARED_CACHE_TAGS, sharedCache } from "@/app/lib/cache/shared";
 import { db } from "@/db";
 import { featureFlagUserTargets, featureFlags, users } from "@/db/schema";
 
@@ -123,17 +125,32 @@ async function fetchFlagTargets(flagId: number): Promise<FeatureFlagTarget[]> {
  * `fetchAllFeatureFlags` still throw, because the admin screens that manage
  * flags must never render fabricated state as if it were stored.
  */
-export async function fetchFeatureFlagRule(
-  key: FeatureFlagKey,
-): Promise<FeatureFlagRule> {
-  try {
+/**
+ * The rule as stored, shared across requests for up to five minutes: the
+ * navbar alone evaluates seven flags on every page. The flag actions expire
+ * it the moment staff change a flag or its targets.
+ */
+const readFeatureFlagRule = sharedCache(
+  async (key: FeatureFlagKey): Promise<FeatureFlagRule> => {
     const flag = await fetchFeatureFlag(key);
 
     return {
       visibility: flag.visibility,
       targetedUserIds: flag.targets.map((target) => target.userId),
     };
+  },
+  "feature-flag-rule",
+  { tags: [SHARED_CACHE_TAGS.featureFlags], revalidate: 300 },
+);
+
+export const fetchFeatureFlagRule = cache(async function fetchFeatureFlagRule(
+  key: FeatureFlagKey,
+): Promise<FeatureFlagRule> {
+  try {
+    return await readFeatureFlagRule(key);
   } catch (error) {
+    // Only a failed read falls back: Next's own control-flow errors pass.
+    unstable_rethrow(error);
     console.error(
       `fetchFeatureFlagRule("${key}"): could not read the flag, falling back ` +
         `to its registry default (${FEATURE_FLAGS[key].defaultVisibility}).`,
@@ -145,7 +162,7 @@ export async function fetchFeatureFlagRule(
       targetedUserIds: [],
     };
   }
-}
+});
 
 /**
  * Every registered flag (creating any missing rows) in registry order, which

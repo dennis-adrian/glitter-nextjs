@@ -14,6 +14,7 @@ import { fetchFestivalWithDates } from "@/app/lib/festivals/actions";
 import { PARTICIPANT_READ_ONLY_ROUTE_STATUSES } from "@/app/lib/participants/definitions";
 import { stripHiddenReservationsFromSectors } from "@/app/lib/reservations/reveal";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
+import { started } from "@/app/lib/started";
 import { HeartCrackIcon } from "lucide-react";
 import { notFound } from "next/navigation";
 
@@ -22,12 +23,22 @@ type TermsPageProps = {
   festivalId: number;
 };
 export default async function TermsPage(props: TermsPageProps) {
+  // The page's reads run side by side instead of seven in a row. The two
+  // light ones start with the route check; the sector tree (every stand,
+  // reservation and occupant) and the target profile only once it has
+  // passed, so a visitor it redirects never costs them.
+  const festivalPromise = started(fetchFestivalWithDates(props.festivalId));
+  const termsVersionPromise = started(getPublishedFestivalTermsForPage());
+
   const currentProfile = await getCurrentUserProfile();
   await protectRoute(currentProfile || undefined, props.profileId, {
     allowedStatuses: [...PARTICIPANT_READ_ONLY_ROUTE_STATUSES],
   });
-  const festival = await fetchFestivalWithDates(props.festivalId);
-  const festivalSectors = await fetchFestivalSectors(props.festivalId);
+  const forProfilePromise = started(fetchUserProfileById(props.profileId));
+  const [festival, festivalSectors] = await Promise.all([
+    festivalPromise,
+    fetchFestivalSectors(props.festivalId),
+  ]);
   if (!festival) notFound();
 
   const canViewParticipantTerms =
@@ -51,7 +62,7 @@ export default async function TermsPage(props: TermsPageProps) {
   const canAcceptTerms =
     festival.status === "active" && isFestivalParticipantTermsEnabled(festival);
 
-  const forProfile = await fetchUserProfileById(props.profileId);
+  const forProfile = await forProfilePromise;
   if (!forProfile) notFound();
 
   if (forProfile.status === "paused") {
@@ -65,7 +76,7 @@ export default async function TermsPage(props: TermsPageProps) {
 
   const festivalSectorsWithAllowedCategoriesPromise =
     fetchFestivalSectorsWithAllowedCategories(festival.id);
-  const termsVersion = await getPublishedFestivalTermsForPage();
+  const termsVersion = await termsVersionPromise;
 
   return (
     <TermsAndConditions

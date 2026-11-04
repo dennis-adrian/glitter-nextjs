@@ -18,8 +18,11 @@ export default async function CheckoutLayout({
   // Opt into dynamic rendering so we can read the current time below.
   await connection();
 
-  const user = await getCurrentUserProfile();
-  const { data: cart } = await fetchCartWithItems();
+  // Side by side: the cart resolves the caller itself.
+  const [user, { data: cart }] = await Promise.all([
+    getCurrentUserProfile(),
+    fetchCartWithItems(),
+  ]);
   const items = cart?.items ?? [];
 
   // Block checkout when any section present in the (server-side) cart is closed.
