@@ -71,7 +71,9 @@ export const POSTHOG_EVENTS = {
    * This device opened the installed app for the first time. Chromium alone
    * reports installs; iPhone's home-screen app reports nothing, so this is
    * the install count that spans every platform (once per device, kept in
-   * localStorage: app/lib/install-guide/first-launch.ts).
+   * localStorage: app/lib/install-guide/first-launch.ts). `platform` is the
+   * device (`ios`, `android`, `desktop`, `other`); before 2026-11-04 it was
+   * always `installed`.
    */
   FIRST_STANDALONE_LAUNCH: "first_standalone_launch",
   PUSH_ENABLED: "push_enabled",
