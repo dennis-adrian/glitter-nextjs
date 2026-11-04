@@ -203,6 +203,7 @@ export async function createFestival(
             festivalData.entrepreneurshipStandUrl || null,
           festivalCode: festivalData.festivalCode || null,
           festivalBannerUrl: festivalData.festivalBannerUrl || null,
+          festivalBannerMobileUrl: festivalData.festivalBannerMobileUrl || null,
           updatedAt: new Date(),
           createdAt: new Date(),
         })
@@ -424,6 +425,7 @@ export async function updateFestival(
           entrepreneurshipStandUrl: data.entrepreneurshipStandUrl || null,
           festivalCode: data.festivalCode || null,
           festivalBannerUrl: data.festivalBannerUrl || null,
+          festivalBannerMobileUrl: data.festivalBannerMobileUrl || null,
           posterUrl: data.posterUrl || null,
           updatedAt: new Date(),
         })

@@ -4,9 +4,8 @@ import { db } from "@/db";
 import {
   festivals,
   festivalDates,
+  festivalReservationFeatures,
   festivalSectors,
-  mapElements,
-  stands,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -25,128 +24,125 @@ import {
   importFestivalDataOptionsSchema,
 } from "./schemas";
 import {
-  MapElementTemplate,
   MapTemplate,
   SectorTemplate,
-  StandTemplate,
 } from "@/app/lib/map_templates/definitions";
 import { importTemplateToFestival } from "@/app/lib/map_templates/actions";
+import {
+  insertSectorTemplateContents,
+  loadSubcategoryLookup,
+} from "@/app/lib/map_templates/sector-import";
+import {
+  buildSectorTemplate,
+  SECTOR_TEMPLATE_STAND_RELATIONS,
+} from "@/app/lib/map_templates/sector-template";
+import {
+  toReservationFeatureTemplates,
+  writeReservationFeatures,
+} from "@/app/lib/festival_exports/reservation-features";
 import { recordFestivalCreatedStatus } from "@/app/lib/festivals/status-transitions";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 
-export async function exportFestivalData(
+const EXPORT_METADATA_NAME_MAX = 100;
+const EXPORT_METADATA_NAME_SUFFIX = " - Exportacion";
+
+function exportMetadataName(festivalName: string) {
+  const room = EXPORT_METADATA_NAME_MAX - EXPORT_METADATA_NAME_SUFFIX.length;
+  const base =
+    festivalName.length > room
+      ? `${festivalName.slice(0, room - 1).trimEnd()}…`
+      : festivalName;
+  return `${base}${EXPORT_METADATA_NAME_SUFFIX}`;
+}
+
+type BuildExportResult =
+  | { ok: true; data: FestivalExport }
+  | { ok: false; message: string };
+
+/**
+ * Everything a festival export file holds, read in one place so the download
+ * and the one-step duplicate can never drift apart.
+ */
+async function buildFestivalExport(
   festivalId: number,
   options: ExportFestivalDataOptions,
-): Promise<{ success: boolean; data?: FestivalExport; message: string }> {
-  try {
-    const actor = await requireAdminOrFestivalAdmin();
-    if (!actor) {
-      return { success: false, message: "No autorizado" };
-    }
+  { allowNoSectors = false }: { allowNoSectors?: boolean } = {},
+): Promise<BuildExportResult> {
+  const parsedOptions = exportFestivalDataOptionsSchema.parse(options);
 
-    const parsedOptions = exportFestivalDataOptionsSchema.parse(options);
-
-    const festival = await db.query.festivals.findFirst({
-      where: eq(festivals.id, festivalId),
-      with: {
-        festivalDates: true,
-        festivalSectors: {
-          with: {
-            stands: true,
-            mapElements: true,
-          },
-          orderBy: festivalSectors.orderInFestival,
+  const festival = await db.query.festivals.findFirst({
+    where: eq(festivals.id, festivalId),
+    with: {
+      festivalDates: true,
+      festivalSectors: {
+        with: {
+          stands: { with: SECTOR_TEMPLATE_STAND_RELATIONS },
+          mapElements: true,
         },
+        orderBy: festivalSectors.orderInFestival,
       },
-    });
+    },
+  });
 
-    if (!festival) {
-      return { success: false, message: "Festival no encontrado" };
-    }
+  if (!festival) {
+    return { ok: false, message: "Festival no encontrado" };
+  }
 
-    // Build festival info template
-    let festivalInfo: FestivalInfoTemplate | undefined;
-    if (parsedOptions.includeBasicInfo) {
-      festivalInfo = {
-        name: festival.name,
-        description: festival.description,
-        address: festival.address,
-        locationLabel: festival.locationLabel,
-        locationUrl: festival.locationUrl,
-        festivalType: festival.festivalType,
-        mapsVersion: festival.mapsVersion,
-        publicRegistration: festival.publicRegistration,
-        eventDayRegistration: festival.eventDayRegistration,
-        festivalCode: festival.festivalCode,
-        dates: festival.festivalDates.map((d) => ({
+  // Build festival info template
+  let festivalInfo: FestivalInfoTemplate | undefined;
+  if (parsedOptions.includeBasicInfo) {
+    const featureRows = await db
+      .select()
+      .from(festivalReservationFeatures)
+      .where(eq(festivalReservationFeatures.festivalId, festivalId));
+
+    festivalInfo = {
+      name: festival.name,
+      description: festival.description,
+      address: festival.address,
+      locationLabel: festival.locationLabel,
+      locationUrl: festival.locationUrl,
+      festivalType: festival.festivalType,
+      mapsVersion: festival.mapsVersion,
+      publicRegistration: festival.publicRegistration,
+      eventDayRegistration: festival.eventDayRegistration,
+      festivalCode: festival.festivalCode,
+      dates: [...festival.festivalDates]
+        .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
+        .map((d) => ({
           startDate: d.startDate.toISOString(),
           endDate: d.endDate.toISOString(),
         })),
-      };
+      reservationHoldMinutes: festival.reservationHoldMinutes,
+      reservationFeatures: toReservationFeatureTemplates(featureRows),
+    };
+  }
+
+  // Build sectors template
+  let sectorTemplates: SectorTemplate[] | undefined;
+  if (parsedOptions.includeSectors) {
+    const filteredSectors = parsedOptions.sectorIds
+      ? festival.festivalSectors.filter((s) =>
+          parsedOptions.sectorIds!.includes(s.id),
+        )
+      : festival.festivalSectors;
+
+    if (filteredSectors.length === 0 && !allowNoSectors) {
+      return { ok: false, message: "No se encontraron sectores" };
     }
 
-    // Build sectors template
-    let sectorTemplates: SectorTemplate[] | undefined;
-    if (parsedOptions.includeSectors) {
-      const filteredSectors = parsedOptions.sectorIds
-        ? festival.festivalSectors.filter((s) =>
-            parsedOptions.sectorIds!.includes(s.id),
-          )
-        : festival.festivalSectors;
+    sectorTemplates = filteredSectors.map(buildSectorTemplate);
+  }
 
-      if (filteredSectors.length === 0) {
-        return { success: false, message: "No se encontraron sectores" };
-      }
-
-      sectorTemplates = filteredSectors.map((sector) => ({
-        name: sector.name,
-        description: sector.description,
-        orderInFestival: sector.orderInFestival,
-        mapBounds: {
-          originX: sector.mapOriginX,
-          originY: sector.mapOriginY,
-          width: sector.mapWidth,
-          height: sector.mapHeight,
-        },
-        stands: sector.stands.map(
-          (stand): StandTemplate => ({
-            label: stand.label,
-            standNumber: stand.standNumber,
-            standCategory: stand.standCategory,
-            zone: stand.zone,
-            orientation: stand.orientation,
-            width: stand.width,
-            height: stand.height,
-            positionLeft: stand.positionLeft ?? 0,
-            positionTop: stand.positionTop ?? 0,
-            price: stand.price,
-          }),
-        ),
-        elements:
-          sector.mapElements.length > 0
-            ? sector.mapElements.map(
-                (el): MapElementTemplate => ({
-                  type: el.type,
-                  label: el.label,
-                  labelPosition: el.labelPosition,
-                  labelFontSize: el.labelFontSize,
-                  showIcon: el.showIcon,
-                  labelFontWeight: el.labelFontWeight,
-                  rotation: el.rotation ?? 0,
-                  positionLeft: el.positionLeft,
-                  positionTop: el.positionTop,
-                  width: el.width,
-                  height: el.height,
-                }),
-              )
-            : undefined,
-      }));
-    }
-
-    const exportData: FestivalExport = {
-      version: "2.0",
+  return {
+    ok: true,
+    data: {
+      version: "2.1",
       metadata: {
-        name: `${festival.name} - Exportacion`,
+        // festivalExportSchema caps this at 100; festival names are unbounded,
+        // and an over-long label would make the file (and a duplicate built
+        // from it) fail validation. Trim the name, never the suffix.
+        name: exportMetadataName(festival.name),
         createdAt: new Date().toISOString(),
         createdFrom: {
           festivalId: festival.id,
@@ -159,11 +155,28 @@ export async function exportFestivalData(
       },
       festival: festivalInfo,
       sectors: sectorTemplates,
-    };
+    },
+  };
+}
+
+export async function exportFestivalData(
+  festivalId: number,
+  options: ExportFestivalDataOptions,
+): Promise<{ success: boolean; data?: FestivalExport; message: string }> {
+  try {
+    const actor = await requireAdminOrFestivalAdmin();
+    if (!actor) {
+      return { success: false, message: "No autorizado" };
+    }
+
+    const result = await buildFestivalExport(festivalId, options);
+    if (!result.ok) {
+      return { success: false, message: result.message };
+    }
 
     return {
       success: true,
-      data: exportData,
+      data: result.data,
       message: "Datos exportados correctamente",
     };
   } catch (error) {
@@ -236,9 +249,20 @@ export async function importFestivalData(
               // through updateFestivalRegistration, which checks the festival
               // is active and offers the visitor invitation.
               festivalCode: festivalInfo.festivalCode,
+              ...(festivalInfo.reservationHoldMinutes != null && {
+                reservationHoldMinutes: festivalInfo.reservationHoldMinutes,
+              }),
               updatedAt: new Date(),
             })
             .where(eq(festivals.id, festivalId));
+
+          if (festivalInfo.reservationFeatures) {
+            await writeReservationFeatures(tx, {
+              festivalId,
+              features: festivalInfo.reservationFeatures,
+              updatedByUserId: actor.id,
+            });
+          }
 
           // Replace dates: delete existing, insert new
           await tx
@@ -283,9 +307,8 @@ export async function importFestivalData(
 
     // Import sectors/stands using existing importTemplateToFestival
     if (parsedOptions.importSectors && parsedData.sectors) {
-      const hasElements = parsedData.sectors.some((s) => s.elements);
       const mapTemplate: MapTemplate = {
-        version: hasElements ? "1.1" : "1.0",
+        version: "1.2",
         metadata: {
           name: parsedData.metadata.name,
           createdAt: parsedData.metadata.createdAt,
@@ -341,6 +364,122 @@ export async function importFestivalData(
   }
 }
 
+type ParsedFestivalExport = z.infer<typeof festivalExportSchema>;
+
+/**
+ * Creates a draft festival from an already validated export: its info, dates,
+ * reservation features, and every sector with its stands, groups and signage.
+ * One transaction, so a failure leaves no half-built festival behind.
+ */
+async function createFestivalFromExportData(
+  parsedData: ParsedFestivalExport,
+  input: { nameOverride?: string; actorUserId: number },
+): Promise<number> {
+  const festivalInfo = parsedData.festival;
+
+  const created = await db.transaction(async (tx) => {
+    // Create festival
+    const [newFestival] = await tx
+      .insert(festivals)
+      .values({
+        name:
+          input.nameOverride ||
+          (festivalInfo?.name ?? parsedData.metadata.name),
+        description: festivalInfo?.description ?? null,
+        address: festivalInfo?.address ?? null,
+        locationLabel: festivalInfo?.locationLabel ?? null,
+        locationUrl: festivalInfo?.locationUrl ?? null,
+        status: "draft",
+        mapsVersion: festivalInfo?.mapsVersion ?? "v1",
+        // A new festival starts closed, whatever the file says; see
+        // importFestivalData.
+        publicRegistration: false,
+        eventDayRegistration: false,
+        festivalType: festivalInfo?.festivalType ?? "glitter",
+        festivalCode: festivalInfo?.festivalCode ?? null,
+        ...(festivalInfo?.reservationHoldMinutes != null && {
+          reservationHoldMinutes: festivalInfo.reservationHoldMinutes,
+        }),
+        reservationsStartDate: new Date(),
+        updatedAt: new Date(),
+        createdAt: new Date(),
+      })
+      .returning();
+
+    // Insert dates
+    if (festivalInfo?.dates && festivalInfo.dates.length > 0) {
+      await tx.insert(festivalDates).values(
+        festivalInfo.dates.map((d) => ({
+          festivalId: newFestival.id,
+          startDate: new Date(d.startDate),
+          endDate: new Date(d.endDate),
+          updatedAt: new Date(),
+          createdAt: new Date(),
+        })),
+      );
+    }
+
+    if (festivalInfo?.reservationFeatures) {
+      await writeReservationFeatures(tx, {
+        festivalId: newFestival.id,
+        features: festivalInfo.reservationFeatures,
+        updatedByUserId: input.actorUserId,
+      });
+    }
+
+    // Create sectors with stands, groups and elements
+    if (parsedData.sectors && parsedData.sectors.length > 0) {
+      const subcategoryLookup = await loadSubcategoryLookup(
+        tx,
+        parsedData.sectors,
+      );
+      for (const sectorTemplate of parsedData.sectors) {
+        const [newSector] = await tx
+          .insert(festivalSectors)
+          .values({
+            festivalId: newFestival.id,
+            name: sectorTemplate.name,
+            description: sectorTemplate.description,
+            orderInFestival: sectorTemplate.orderInFestival,
+            mapOriginX: sectorTemplate.mapBounds.originX,
+            mapOriginY: sectorTemplate.mapBounds.originY,
+            mapWidth: sectorTemplate.mapBounds.width,
+            mapHeight: sectorTemplate.mapBounds.height,
+          })
+          .returning();
+
+        await insertSectorTemplateContents(tx, {
+          festivalId: newFestival.id,
+          sectorId: newSector.id,
+          template: sectorTemplate,
+          subcategoryLookup,
+        });
+      }
+    }
+
+    await recordFestivalCreatedStatus(tx, {
+      festivalId: newFestival.id,
+      status: newFestival.status,
+      actorUserId: input.actorUserId,
+    });
+
+    return newFestival;
+  });
+
+  expireFestivalCaches();
+  revalidatePath("/dashboard/festivals");
+
+  return created.id;
+}
+
+function isDuplicateNameError(error: unknown) {
+  return (
+    error instanceof Error &&
+    error.message.includes("unique") &&
+    error.message.includes("name")
+  );
+}
+
 export async function createFestivalFromImport(
   exportData: FestivalExport,
   nameOverride?: string,
@@ -356,137 +495,20 @@ export async function createFestivalFromImport(
     }
 
     const parsedData = festivalExportSchema.parse(exportData);
-
-    const festivalInfo = parsedData.festival;
-
-    const result = await db.transaction(async (tx) => {
-      // Create festival
-      const [newFestival] = await tx
-        .insert(festivals)
-        .values({
-          name:
-            nameOverride || (festivalInfo?.name ?? parsedData.metadata.name),
-          description: festivalInfo?.description ?? null,
-          address: festivalInfo?.address ?? null,
-          locationLabel: festivalInfo?.locationLabel ?? null,
-          locationUrl: festivalInfo?.locationUrl ?? null,
-          status: "draft",
-          mapsVersion: festivalInfo?.mapsVersion ?? "v1",
-          // A new festival starts closed, whatever the file says; see
-          // importFestivalData.
-          publicRegistration: false,
-          eventDayRegistration: false,
-          festivalType: festivalInfo?.festivalType ?? "glitter",
-          festivalCode: festivalInfo?.festivalCode ?? null,
-          reservationsStartDate: new Date(),
-          updatedAt: new Date(),
-          createdAt: new Date(),
-        })
-        .returning();
-
-      // Insert dates
-      if (festivalInfo?.dates && festivalInfo.dates.length > 0) {
-        await tx.insert(festivalDates).values(
-          festivalInfo.dates.map((d) => ({
-            festivalId: newFestival.id,
-            startDate: new Date(d.startDate),
-            endDate: new Date(d.endDate),
-            updatedAt: new Date(),
-            createdAt: new Date(),
-          })),
-        );
-      }
-
-      // Create sectors with stands and elements
-      if (parsedData.sectors && parsedData.sectors.length > 0) {
-        for (const sectorTemplate of parsedData.sectors) {
-          const [newSector] = await tx
-            .insert(festivalSectors)
-            .values({
-              festivalId: newFestival.id,
-              name: sectorTemplate.name,
-              description: sectorTemplate.description,
-              orderInFestival: sectorTemplate.orderInFestival,
-              mapOriginX: sectorTemplate.mapBounds.originX,
-              mapOriginY: sectorTemplate.mapBounds.originY,
-              mapWidth: sectorTemplate.mapBounds.width,
-              mapHeight: sectorTemplate.mapBounds.height,
-            })
-            .returning();
-
-          // Create stands
-          if (sectorTemplate.stands.length > 0) {
-            await tx.insert(stands).values(
-              sectorTemplate.stands.map((stand) => ({
-                label: stand.label,
-                standNumber: stand.standNumber,
-                standCategory: stand.standCategory,
-                zone: stand.zone,
-                orientation: stand.orientation,
-                width: stand.width,
-                height: stand.height,
-                positionLeft: stand.positionLeft,
-                positionTop: stand.positionTop,
-                // Templates predate the individual/shared split, so their
-                // single price maps to the individual price and mirrors into
-                // the legacy adapter column.
-                price: stand.price,
-                individualPrice: stand.price,
-                status: "available" as const,
-                festivalId: newFestival.id,
-                festivalSectorId: newSector.id,
-              })),
-            );
-          }
-
-          // Create map elements
-          const templateElements = sectorTemplate.elements ?? [];
-          if (templateElements.length > 0) {
-            await tx.insert(mapElements).values(
-              templateElements.map((el) => ({
-                type: el.type,
-                label: el.label,
-                labelPosition: el.labelPosition ?? "bottom",
-                labelFontSize: el.labelFontSize ?? 2,
-                showIcon: el.showIcon ?? true,
-                labelFontWeight: el.labelFontWeight ?? 500,
-                rotation: el.rotation ?? 0,
-                positionLeft: el.positionLeft,
-                positionTop: el.positionTop,
-                width: el.width,
-                height: el.height,
-                festivalSectorId: newSector.id,
-              })),
-            );
-          }
-        }
-      }
-
-      await recordFestivalCreatedStatus(tx, {
-        festivalId: newFestival.id,
-        status: newFestival.status,
-        actorUserId: actor.id,
-      });
-
-      return newFestival;
+    const festivalId = await createFestivalFromExportData(parsedData, {
+      nameOverride,
+      actorUserId: actor.id,
     });
-
-    expireFestivalCaches();
-    revalidatePath("/dashboard/festivals");
 
     return {
       success: true,
       message: "Festival creado correctamente desde importacion",
-      festivalId: result.id,
+      festivalId,
     };
   } catch (error: unknown) {
     console.error("Error creating festival from import", error);
 
-    if (
-      error instanceof Error &&
-      error.message.includes("unique") &&
-      error.message.includes("name")
-    ) {
+    if (isDuplicateNameError(error)) {
       return {
         success: false,
         message:
@@ -505,5 +527,77 @@ export async function createFestivalFromImport(
       success: false,
       message: "Error al crear el festival desde importacion",
     };
+  }
+}
+
+const duplicateFestivalInputSchema = z.object({
+  festivalId: z.number().int().positive(),
+  name: z.string().trim().min(1).max(200),
+});
+
+/**
+ * Export and import in one step: a new draft festival with the source's info,
+ * dates, reservation features, sectors, stands (prices, subcategories, full
+ * tables) and map elements.
+ *
+ * It goes through the same file format as a download — built, validated and
+ * created by the same code — so a duplicate is exactly what exporting and
+ * importing by hand would give, and nothing the file leaves out (reservations,
+ * participants, images, registration) is copied either.
+ */
+export async function duplicateFestival(input: {
+  festivalId: number;
+  name: string;
+}): Promise<{ success: boolean; message: string; festivalId?: number }> {
+  try {
+    const actor = await requireAdminOrFestivalAdmin();
+    if (!actor) {
+      return { success: false, message: "No autorizado" };
+    }
+
+    const parsedInput = duplicateFestivalInputSchema.safeParse(input);
+    if (!parsedInput.success) {
+      return { success: false, message: "Ingresá un nombre para la copia." };
+    }
+
+    const built = await buildFestivalExport(
+      parsedInput.data.festivalId,
+      { includeBasicInfo: true, includeSectors: true },
+      { allowNoSectors: true },
+    );
+    if (!built.ok) {
+      return { success: false, message: built.message };
+    }
+
+    const parsedData = festivalExportSchema.parse(built.data);
+    const festivalId = await createFestivalFromExportData(parsedData, {
+      nameOverride: parsedInput.data.name,
+      actorUserId: actor.id,
+    });
+
+    return {
+      success: true,
+      message: "Festival duplicado correctamente",
+      festivalId,
+    };
+  } catch (error: unknown) {
+    console.error("Error duplicating festival", error);
+
+    if (isDuplicateNameError(error)) {
+      return {
+        success: false,
+        message: "Ya existe un festival con ese nombre. Elegí otro.",
+      };
+    }
+
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        message:
+          "El festival tiene datos que no se pueden copiar. Revisá sus espacios e intentá de nuevo.",
+      };
+    }
+
+    return { success: false, message: "Error al duplicar el festival" };
   }
 }

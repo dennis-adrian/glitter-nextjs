@@ -389,7 +389,7 @@ export default function FestivalImportDialog(props: FestivalImportDialogProps) {
                   <span className="text-sm">
                     Informacion basica
                     <span className="text-muted-foreground ml-1">
-                      (nombre, fechas, tipo, etc.)
+                      (nombre, fechas, tipo, funciones de reserva, etc.)
                     </span>
                   </span>
                 </label>
@@ -401,7 +401,12 @@ export default function FestivalImportDialog(props: FestivalImportDialogProps) {
                     onCheckedChange={(checked) => setImportSectors(!!checked)}
                     disabled={!hasSectors}
                   />
-                  <span className="text-sm">Sectores y espacios</span>
+                  <span className="text-sm">
+                    Sectores y espacios
+                    <span className="text-muted-foreground ml-1">
+                      (con precios y mesas completas)
+                    </span>
+                  </span>
                 </label>
               </div>
             </div>

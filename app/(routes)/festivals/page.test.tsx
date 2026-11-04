@@ -44,6 +44,7 @@ function festival(
     thumbnailUrl: null,
     posterUrl: null,
     festivalBannerUrl: null,
+    festivalBannerMobileUrl: null,
     festivalDates: [
       { startDate: new Date("2026-04-11T14:00:00Z") },
       { startDate: new Date("2026-04-12T14:00:00Z") },

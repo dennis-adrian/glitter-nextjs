@@ -1,16 +1,18 @@
 import { z } from "zod";
 
+const standCategorySchema = z.enum([
+  "none",
+  "illustration",
+  "gastronomy",
+  "entrepreneurship",
+  "new_artist",
+]);
+
 // Stand template schema
 export const standTemplateSchema = z.object({
   label: z.string().nullable(),
   standNumber: z.number().int().min(1),
-  standCategory: z.enum([
-    "none",
-    "illustration",
-    "gastronomy",
-    "entrepreneurship",
-    "new_artist",
-  ]),
+  standCategory: standCategorySchema,
   zone: z.enum(["main", "secondary"]),
   orientation: z.enum(["portrait", "landscape"]),
   width: z.number().nullable(),
@@ -18,6 +20,23 @@ export const standTemplateSchema = z.object({
   positionLeft: z.number().finite(),
   positionTop: z.number().finite(),
   price: z.number().min(0),
+  individualPrice: z.number().min(0).optional(),
+  sharedPrice: z.number().min(0).nullable().optional(),
+  participationType: z.enum(["standard", "live_activity"]).optional(),
+  subcategories: z
+    .array(
+      z.object({
+        category: standCategorySchema,
+        label: z.string().min(1),
+      }),
+    )
+    .optional(),
+});
+
+export const standGroupTemplateSchema = z.object({
+  type: z.enum(["visual_group", "full_table"]),
+  fullTablePrice: z.number().min(0).nullable(),
+  standIndexes: z.array(z.number().int().min(0)).min(1),
 });
 
 // Map element template schema
@@ -44,23 +63,74 @@ export const mapElementTemplateSchema = z.object({
 });
 
 // Sector template schema
-export const sectorTemplateSchema = z.object({
-  name: z.string().min(1),
-  description: z.string().nullable(),
-  orderInFestival: z.number().int().min(1),
-  mapBounds: z.object({
-    originX: z.number().nullable(),
-    originY: z.number().nullable(),
-    width: z.number().nullable(),
-    height: z.number().nullable(),
-  }),
-  stands: z.array(standTemplateSchema),
-  elements: z.array(mapElementTemplateSchema).optional(),
-});
+export const sectorTemplateSchema = z
+  .object({
+    name: z.string().min(1),
+    description: z.string().nullable(),
+    orderInFestival: z.number().int().min(1),
+    mapBounds: z.object({
+      originX: z.number().nullable(),
+      originY: z.number().nullable(),
+      width: z.number().nullable(),
+      height: z.number().nullable(),
+    }),
+    stands: z.array(standTemplateSchema),
+    elements: z.array(mapElementTemplateSchema).optional(),
+    groups: z.array(standGroupTemplateSchema).optional(),
+  })
+  // Cross-row rules a field schema cannot express. The database enforces the
+  // price ordering too; checking here turns a constraint violation halfway
+  // through an import into a file that is refused before anything is written.
+  .superRefine((sector, ctx) => {
+    sector.stands.forEach((stand, index) => {
+      const individual = stand.individualPrice ?? stand.price;
+      if (stand.sharedPrice != null && stand.sharedPrice < individual) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["stands", index, "sharedPrice"],
+          message: "El precio compartido no puede ser menor al individual",
+        });
+      }
+    });
+
+    const grouped = new Set<number>();
+    (sector.groups ?? []).forEach((group, index) => {
+      for (const standIndex of group.standIndexes) {
+        if (standIndex >= sector.stands.length) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["groups", index, "standIndexes"],
+            message: "El grupo apunta a un espacio que no existe",
+          });
+        } else if (grouped.has(standIndex)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["groups", index, "standIndexes"],
+            message: "Un espacio no puede estar en dos grupos",
+          });
+        }
+        grouped.add(standIndex);
+      }
+      if (group.type === "full_table" && group.standIndexes.length !== 2) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["groups", index, "standIndexes"],
+          message: "Una mesa completa son exactamente dos espacios",
+        });
+      }
+      if (group.type !== "full_table" && group.fullTablePrice != null) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["groups", index, "fullTablePrice"],
+          message: "Solo una mesa completa tiene precio de mesa",
+        });
+      }
+    });
+  });
 
 // Full map template schema
 export const mapTemplateSchema = z.object({
-  version: z.enum(["1.0", "1.1"]),
+  version: z.enum(["1.0", "1.1", "1.2"]),
   metadata: z.object({
     name: z.string().min(1).max(100),
     description: z.string().max(500).optional(),

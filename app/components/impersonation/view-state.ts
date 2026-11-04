@@ -96,6 +96,23 @@ const EXIT_URL = "/api/impersonation/exit";
 const EXIT_TIMEOUT_MS = 5_000;
 
 /**
+ * A signal that aborts after `ms`. `AbortSignal.timeout` is missing from
+ * older browsers (Safari before 16), where calling it would throw and the
+ * exit would never be sent; an AbortController on a timer stands in.
+ */
+export function timeoutSignal(ms: number): {
+  signal: AbortSignal;
+  clear: () => void;
+} {
+  if (typeof AbortSignal.timeout === "function") {
+    return { signal: AbortSignal.timeout(ms), clear: () => {} };
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return { signal: controller.signal, clear: () => clearTimeout(timer) };
+}
+
+/**
  * Ends this browser's view and answers where the admin goes next, or null
  * when the request failed. Idempotent: without a view it only makes sure no
  * view cookie is left.
@@ -103,14 +120,15 @@ const EXIT_TIMEOUT_MS = 5_000;
 export async function endView(
   reason: "exited" | "signed_out" = "exited",
 ): Promise<string | null> {
+  // A sign-out waits for this: a slow server must not hold it up.
+  const timeout = timeoutSignal(EXIT_TIMEOUT_MS);
   try {
     const response = await fetch(EXIT_URL, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ reason }),
       cache: "no-store",
-      // A sign-out waits for this: a slow server must not hold it up.
-      signal: AbortSignal.timeout(EXIT_TIMEOUT_MS),
+      signal: timeout.signal,
     });
     if (!response.ok) return null;
     const body = (await response.json()) as {
@@ -123,6 +141,8 @@ export async function endView(
     return typeof body.returnTo === "string" ? body.returnTo : null;
   } catch {
     return null;
+  } finally {
+    timeout.clear();
   }
 }
 

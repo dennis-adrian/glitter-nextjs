@@ -51,11 +51,7 @@ import OrderPaymentConfirmationForUserEmailTemplate from "@/app/emails/order-pay
 import OrderVoucherSubmittedForAdminsEmailTemplate from "@/app/emails/order-voucher-submitted-for-admins";
 import { getVariantLabel } from "@/app/lib/products/variants";
 import type { RentalOrderFilter } from "@/app/lib/rentals/order-filters";
-import {
-  captureServerEvent,
-  getPostHogClient,
-  POSTHOG_SHUTDOWN_TIMEOUT_MS,
-} from "@/app/lib/posthog-server";
+import { captureServerEvent } from "@/app/lib/posthog-server";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import {
   getOrderItemDisplayName,
@@ -1317,20 +1313,12 @@ export async function submitOrderPaymentVoucher(
       });
     }
 
-    try {
-      const posthog = getPostHogClient();
-      posthog.capture({
-        distinctId: currentUser.clerkId,
-        event: POSTHOG_EVENTS.ORDER_PAYMENT_VOUCHER_UPLOADED,
-        properties: { order_id: orderId },
-      });
-      await posthog.shutdown(POSTHOG_SHUTDOWN_TIMEOUT_MS);
-    } catch (posthogError) {
-      console.error("[submitOrderPaymentVoucher] PostHog capture failed", {
-        orderId,
-        error: posthogError,
-      });
-    }
+    await captureServerEvent({
+      distinctId: currentUser.clerkId,
+      event: POSTHOG_EVENTS.ORDER_PAYMENT_VOUCHER_UPLOADED,
+      properties: { order_id: orderId },
+      context: "submitOrderPaymentVoucher",
+    });
 
     return { success: true, message: "Comprobante enviado correctamente." };
   } catch (error) {
@@ -1439,20 +1427,12 @@ export async function submitGuestOrderPaymentVoucher(
       );
     }
 
-    try {
-      const posthog = getPostHogClient();
-      posthog.capture({
-        distinctId: `guest_order_${orderId}`,
-        event: POSTHOG_EVENTS.ORDER_PAYMENT_VOUCHER_UPLOADED,
-        properties: { order_id: orderId, is_guest: true },
-      });
-      await posthog.shutdown(POSTHOG_SHUTDOWN_TIMEOUT_MS);
-    } catch (posthogError) {
-      console.error("[submitGuestOrderPaymentVoucher] PostHog capture failed", {
-        orderId,
-        error: posthogError,
-      });
-    }
+    await captureServerEvent({
+      distinctId: `guest_order_${orderId}`,
+      event: POSTHOG_EVENTS.ORDER_PAYMENT_VOUCHER_UPLOADED,
+      properties: { order_id: orderId, is_guest: true },
+      context: "submitGuestOrderPaymentVoucher",
+    });
 
     return { success: true, message: "Comprobante enviado correctamente." };
   } catch (error) {

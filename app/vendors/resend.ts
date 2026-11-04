@@ -290,6 +290,9 @@ export type ResendSuppressionRemoval =
 export async function removeResendSuppression(
   address: string,
 ): Promise<ResendSuppressionRemoval> {
+  // Refused during a view as someone else, before Resend is asked, like the
+  // sends (docs/PLAN-impersonation.md §6.2).
+  await refuseDuringView();
   if (serverEnv.VERCEL_ENV === "development") return { outcome: "skipped" };
 
   const baseUrl = process.env.RESEND_BASE_URL || "https://api.resend.com";

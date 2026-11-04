@@ -1,6 +1,6 @@
-import Image from "next/image";
 import Link from "next/link";
 
+import FestivalBanner from "@/app/components/festivals/festival-banner";
 import { HubSection } from "@/app/components/participations/hub/hub-section";
 import type { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import type { FestivalOverviewCounts } from "@/app/lib/festivals/overview";
@@ -44,16 +44,11 @@ export default function AdminFestivalCard({
         href={`/dashboard/festivals/${festival.id}`}
         className="flex flex-col overflow-hidden rounded-2xl border border-brand-border bg-brand-card transition-colors hover:border-brand-primary"
       >
-        {festival.festivalBannerUrl ? (
-          <Image
-            src={festival.festivalBannerUrl}
-            alt={`${festival.name}${line ? `, ${line}` : ""}`}
-            width={2000}
-            height={667}
-            sizes="(min-width: 1024px) 560px, 100vw"
-            className="h-auto w-full"
-          />
-        ) : null}
+        <FestivalBanner
+          festival={festival}
+          alt={`${festival.name}${line ? `, ${line}` : ""}`}
+          sizes="(min-width: 1024px) 560px, 100vw"
+        />
         <div className="flex flex-col gap-3 p-4">
           <div className="flex flex-col gap-0.5">
             <span className="font-display text-xl font-bold leading-tight text-brand-ink">

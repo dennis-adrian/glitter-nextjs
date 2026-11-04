@@ -81,6 +81,9 @@
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
   --color-muted: hsl(var(--muted));
+  --color-row-hover: hsl(var(--row-hover));
+  --color-row-selected: hsl(var(--row-selected));
+  --color-row-selected-hover: hsl(var(--row-selected-hover));
   --color-muted-foreground: hsl(var(--muted-foreground));
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
@@ -297,6 +300,13 @@
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 260.3 79.6% 52%;
+    /* Table rows. Opaque, so a pinned (sticky) cell can take the same colour
+       as its row without the cells scrolling under it showing through.
+       `--muted` sits too close to the cream ground to read as hover, so hover
+       steps further down, and selection takes the primary hue. */
+    --row-hover: 36 32% 90%;
+    --row-selected: 255 90% 93%;
+    --row-selected-hover: 255 78% 89%;
     --radius: 0.75rem;
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
@@ -415,6 +425,9 @@
     --border: 260 13% 21%;
     --input: 260 12% 26%;
     --ring: 262 85% 70%;
+    --row-hover: 260 15% 14%;
+    --row-selected: 262 38% 19%;
+    --row-selected-hover: 262 40% 24%;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;

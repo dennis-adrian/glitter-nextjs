@@ -413,6 +413,7 @@ export const festivals = pgTable(
     entrepreneurshipStandUrl: text("entrepreneurship_stand_url"),
     festivalCode: text("festival_code"),
     festivalBannerUrl: text("festival_banner_url"),
+    festivalBannerMobileUrl: text("festival_banner_mobile_url"),
     termsAndConditionsUrl: text("terms_and_conditions_url"),
     thumbnailUrl: text("thumbnail_url"),
     posterUrl: text("poster_url"),

@@ -66,6 +66,7 @@ import {
 import type { StandRow } from "@/app/components/maps/admin/stand-manage/columns";
 import {
   type FullTableInfo,
+  fullTablePriceSelection,
   isBookedRow,
   rowsBookedAsTable,
 } from "@/app/components/maps/admin/stand-manage/full-table";
@@ -238,8 +239,43 @@ export default function StandBulkActionsMenu({
         ) ??
         null);
 
-  // Same selection rule as separating one: the price belongs to a single table.
-  const priceTableReason = dissolveReason;
+  // Every selected stand must be a half of some table; the price then reaches
+  // each table the selection touches, so a whole row of tables is one edit.
+  const priceTableSelection = useMemo(
+    () => fullTablePriceSelection(selectedIds, fullTableByStandId),
+    [selectedIds, fullTableByStandId],
+  );
+  const priceTableReason = priceTableSelection.reason;
+  const tablesToPrice = useMemo(() => {
+    const members = new Map<number, StandRow[]>();
+    for (const groupId of priceTableSelection.groupIds) {
+      members.set(groupId, []);
+    }
+    for (const row of rowsById.values()) {
+      const groupId = fullTableByStandId.get(row.id)?.groupId;
+      if (groupId != null) members.get(groupId)?.push(row);
+    }
+    return priceTableSelection.groupIds.map((groupId) => {
+      const rows = (members.get(groupId) ?? []).sort(
+        (a, b) => a.standNumber - b.standNumber || a.id - b.id,
+      );
+      return {
+        groupId,
+        members: rows,
+        fullTablePrice: rows[0]
+          ? (fullTableByStandId.get(rows[0].id)?.fullTablePrice ?? null)
+          : null,
+      };
+    });
+  }, [priceTableSelection, rowsById, fullTableByStandId]);
+  // Seed the field only when every table already agrees on a price; a mixed
+  // selection starts empty rather than suggesting one of the old prices.
+  const currentTablePrices = useMemo(
+    () => new Set(tablesToPrice.map((table) => table.fullTablePrice)),
+    [tablesToPrice],
+  );
+  const sharedCurrentTablePrice =
+    currentTablePrices.size === 1 ? [...currentTablePrices][0] : null;
 
   async function runBulk(
     fn: () => Promise<{
@@ -324,8 +360,8 @@ export default function StandBulkActionsMenu({
                 disabled={priceTableReason != null}
                 onSelect={() => {
                   setFullTablePrice(
-                    selectedFullTable?.fullTablePrice != null
-                      ? String(selectedFullTable.fullTablePrice)
+                    sharedCurrentTablePrice != null
+                      ? String(sharedCurrentTablePrice)
                       : "",
                   );
                   setDialog("fullTablePrice");
@@ -333,7 +369,9 @@ export default function StandBulkActionsMenu({
               >
                 <WalletIcon className="mr-2 h-4 w-4 shrink-0" />
                 <span>
-                  Precio de la mesa completa
+                  {priceTableSelection.groupIds.length > 1
+                    ? `Precio de las mesas completas (${priceTableSelection.groupIds.length})`
+                    : "Precio de la mesa completa"}
                   {priceTableReason && (
                     <DisabledReason reason={priceTableReason} />
                   )}
@@ -670,18 +708,46 @@ export default function StandBulkActionsMenu({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Precio de la mesa completa</DialogTitle>
+            <DialogTitle>
+              {tablesToPrice.length > 1
+                ? `Precio de las mesas completas (${tablesToPrice.length})`
+                : "Precio de la mesa completa"}
+            </DialogTitle>
             <DialogDescription>
               Lo que cuesta reservar la mesa entera. Reemplaza el precio
               individual de sus dos mitades en el cobro, no se suma a él. Los
               créditos de la función se cobran aparte.
+              {tablesToPrice.length > 1 &&
+                " El mismo precio se aplica a cada una de las mesas."}
             </DialogDescription>
           </DialogHeader>
 
-          {dissolveMembers.length > 0 && (
-            <p className="text-sm text-muted-foreground">
-              {dissolveMembers.map(standDisplayLabel).join(" + ")} · individual{" "}
-              {formatPrice(dissolveMembers[0].individualPrice)} cada mitad
+          {tablesToPrice.length > 0 && (
+            <ul className="max-h-56 space-y-1 overflow-y-auto text-sm">
+              {tablesToPrice.map((table) => (
+                <li
+                  key={table.groupId}
+                  className="flex flex-wrap items-baseline justify-between gap-x-3 rounded-md border px-3 py-2"
+                >
+                  <span className="font-medium">
+                    {table.members.map(standDisplayLabel).join(" + ")}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {table.members[0] &&
+                      `individual ${formatPrice(table.members[0].individualPrice)} c/u · `}
+                    {table.fullTablePrice != null
+                      ? `mesa ${formatPrice(table.fullTablePrice)}`
+                      : "sin precio de mesa"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {currentTablePrices.size > 1 && (
+            <p className="text-xs text-muted-foreground">
+              Las mesas seleccionadas no tienen el mismo precio hoy; al guardar
+              todas quedan con el que cargues.
             </p>
           )}
 
@@ -708,11 +774,11 @@ export default function StandBulkActionsMenu({
               Cancelar
             </Button>
             <Button
-              disabled={pending || dissolveGroupId == null}
+              disabled={pending || priceTableSelection.groupIds.length === 0}
               onClick={() =>
                 void runBulk(() =>
                   setFullTablePriceAction({
-                    groupId: dissolveGroupId,
+                    groupIds: priceTableSelection.groupIds,
                     price:
                       fullTablePrice.trim() === ""
                         ? null

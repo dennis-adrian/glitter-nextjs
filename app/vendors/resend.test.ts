@@ -790,4 +790,17 @@ describe("during a view of the app as a participant", () => {
     await expect(sendEmail(payload)).rejects.toBe(refusal);
     await expect(sendBatchEmails([payload])).rejects.toBe(refusal);
   });
+
+  it("leaves Resend's suppression list alone, before asking Resend", async () => {
+    const refusal = new Error("solo lectura");
+    refuseDuringViewMock.mockRejectedValue(refusal);
+    serverEnv.VERCEL_ENV = "production";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(removeResendSuppression("ana@example.com")).rejects.toBe(
+      refusal,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
 });

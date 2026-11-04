@@ -1208,6 +1208,14 @@ describe("forgetting this browser on sign-out", () => {
     expect(mocks.forgetPushDeviceAction).toHaveBeenCalledWith(ENDPOINT);
   });
 
+  it("never fails the sign-out when the server refuses or is unreachable", async () => {
+    installBrowser({ permission: "granted", subscribedWith: KEY });
+    mocks.forgetPushDeviceAction.mockRejectedValue(new Error("offline"));
+
+    await expect(forgetThisBrowserForPush()).resolves.toBeUndefined();
+    expect(mocks.forgetPushDeviceAction).toHaveBeenCalledWith(ENDPOINT);
+  });
+
   it("never holds sign-out up past its limit, even when the server does not answer", async () => {
     vi.useFakeTimers();
     installBrowser({ permission: "granted", subscribedWith: KEY });
