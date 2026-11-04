@@ -4,13 +4,19 @@
  * refused: an internal address, a third-party site, or a slow host that eats
  * the drain's time budget.
  *
- * Chrome, Edge on Android, Samsung Internet and Opera use FCM; Firefox uses
- * Mozilla's autopush. Those two are matched exactly. Safari and iPhone use
- * Apple's (`web.push.apple.com` today; Apple asks to allow
+ * Chrome, Edge on Android, Samsung Internet and Opera use FCM; some Chrome
+ * builds hand out FCM's other front end, `jmt17.google.com` (Chromium's
+ * `kPushMessagingStagingGcmEndpoint`; seen on an Infinix phone in production).
+ * Firefox uses Mozilla's autopush. Those three are matched exactly. Safari and
+ * iPhone use Apple's (`web.push.apple.com` today; Apple asks to allow
  * `*.push.apple.com`), and Edge on Windows uses WNS (`wns2-*.notify…`), so
  * those two match at a dot boundary.
  */
-const EXACT_HOSTS = ["fcm.googleapis.com", "updates.push.services.mozilla.com"];
+const EXACT_HOSTS = [
+  "fcm.googleapis.com",
+  "jmt17.google.com",
+  "updates.push.services.mozilla.com",
+];
 const SUFFIX_HOSTS = [".push.apple.com", ".notify.windows.com"];
 
 export const MAX_ENDPOINT_LENGTH = 1024;
