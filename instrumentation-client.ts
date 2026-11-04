@@ -1,5 +1,6 @@
 import posthog from "posthog-js";
 import { getClientEnv } from "./env.client";
+import { recordFirstStandaloneLaunch } from "./app/lib/install-guide/first-launch";
 import { listenForInstallPrompt } from "./app/lib/install-guide/install-prompt";
 import {
   detectInstallContext,
@@ -51,6 +52,11 @@ try {
   // Read now: Chrome on a computer may move the tab into the app's window
   // once installed, and by then it reads as the installed app.
   const platform = installPlatformGroup(detectInstallContext(window).platform);
+  // The first open of the installed app on this device: the install count
+  // iPhone can give, where no install event exists.
+  if (recordFirstStandaloneLaunch(window)) {
+    captureClientEvent(POSTHOG_EVENTS.FIRST_STANDALONE_LAUNCH, { platform });
+  }
   listenForInstallPrompt({
     onInstalled: () =>
       captureClientEvent(POSTHOG_EVENTS.APP_INSTALLED, { platform }),
