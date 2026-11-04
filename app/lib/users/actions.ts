@@ -1,9 +1,6 @@
 "use server";
 
-import {
-  getPostHogClient,
-  POSTHOG_SHUTDOWN_TIMEOUT_MS,
-} from "@/app/lib/posthog-server";
+import { captureServerEvent } from "@/app/lib/posthog-server";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import {
   BaseProfile,
@@ -99,19 +96,11 @@ export async function createUserProfile() {
     });
 
     if (newUserRes) {
-      try {
-        const posthog = getPostHogClient();
-        posthog.capture({
-          distinctId: clerkUser.id,
-          event: POSTHOG_EVENTS.USER_PROFILE_CREATED,
-        });
-        await posthog.shutdown(POSTHOG_SHUTDOWN_TIMEOUT_MS);
-      } catch (telemetryError) {
-        console.error(
-          "PostHog telemetry failed (createUserProfile)",
-          telemetryError,
-        );
-      }
+      await captureServerEvent({
+        distinctId: clerkUser.id,
+        event: POSTHOG_EVENTS.USER_PROFILE_CREATED,
+        context: "createUserProfile",
+      });
     }
 
     return {
