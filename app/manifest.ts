@@ -23,11 +23,15 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: INSTALLED_APP_START_URL,
     scope: "/",
     display: "standalone",
-    // Android's launch screen: the icon on this purple, under a status bar
-    // of the same purple. Once a page loads, its own theme-color (the
-    // navbar's) takes over the bar.
+    // Android's launch screen: the icon on this purple.
     background_color: ICON_BACKGROUND,
-    theme_color: ICON_BACKGROUND,
+    // No theme_color, on purpose. Android paints the installed app's bottom
+    // navigation bar with it, fixed when Chrome builds the app (pages cannot
+    // change it), and the manifest can hold one colour only: purple, or the
+    // navbar's light or dark, clashes with the other theme. Without it Chrome
+    // gives the bar its own background, which follows the phone's light or
+    // dark setting. The status bar still follows each page's theme-color
+    // (the navbar's, app/layout.tsx).
     icons: [
       {
         src: "/icons/glitter-192.png",
