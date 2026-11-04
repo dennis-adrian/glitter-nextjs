@@ -295,7 +295,7 @@ describe("/instalar, step 2", () => {
   /** The tutorial's three steps, as every viewer gets them. */
   function expectTutorial() {
     expect(screen.getByText("Activá las notificaciones")).toBeTruthy();
-    expect(screen.getByText(/tocá la campana/)).toBeTruthy();
+    expect(screen.getByText(/presioná la campana/)).toBeTruthy();
     expect(screen.getByAltText(/con la campana marcada/)).toBeTruthy();
     expect(
       screen.getByAltText(
