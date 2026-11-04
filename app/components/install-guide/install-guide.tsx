@@ -333,7 +333,10 @@ function InstallGuideViewTracker({
     // the server's guess.
     const context = detectInstallContext(window);
     captureClientEvent(POSTHOG_EVENTS.INSTALL_GUIDE_VIEWED, {
-      platform: context.platform,
+      // The grouped value, as the other install events send it, so one
+      // `platform` breakdown spans the funnel; the exact one alongside.
+      platform: installPlatformGroup(context.platform),
+      platform_detail: context.platform,
       browser: context.browser,
       push_available: pushAvailable,
       signed_in: signedIn,

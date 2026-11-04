@@ -282,7 +282,8 @@ describe("/instalar, step 1", () => {
     renderGuide({ signedIn: false });
     expect(mocks.capture).toHaveBeenCalledTimes(1);
     expect(mocks.capture).toHaveBeenCalledWith("install_guide_viewed", {
-      platform: "ios-safari",
+      platform: "ios",
+      platform_detail: "ios-safari",
       browser: "safari",
       push_available: true,
       signed_in: false,
