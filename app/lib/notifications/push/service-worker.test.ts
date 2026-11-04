@@ -14,11 +14,14 @@ import {
 import {
   ARRIVALS_KEPT,
   ARRIVALS_PATH,
+  INSTALLED_APP_SEEN_FRESH_DAYS,
+  INSTALLED_APP_SEEN_PATH,
   LAST_TAP_PATH,
   NOTIFICATION_STATE_CACHE,
   SW_NOTIFICATION_RECEIVED,
   SW_OPEN,
 } from "@/app/lib/notifications/push/taps";
+import { INSTALLED_APP_LAUNCH_HASH } from "@/app/lib/installed-app-mode";
 
 const ORIGIN = "https://glitter.test";
 const INBOX = "/my_notifications";
@@ -75,11 +78,12 @@ function fakeCaches() {
 }
 
 /** Runs sw.js in a fresh worker global and keeps what it listens for. */
-function installWorker() {
+function installWorker(userAgent = "Mozilla/5.0 (X11; Linux x86_64)") {
   const listeners: Record<string, Listener> = {};
   const caches = fakeCaches();
   const self = {
     location: { origin: ORIGIN },
+    navigator: { userAgent },
     registration: {
       showNotification: vi.fn<
         (title: string, options: Record<string, unknown>) => Promise<void>
@@ -269,10 +273,15 @@ describe("the worker and the page", () => {
       NOTIFICATION_STATE_CACHE,
       LAST_TAP_PATH,
       ARRIVALS_PATH,
+      INSTALLED_APP_SEEN_PATH,
+      `#${INSTALLED_APP_LAUNCH_HASH}`,
     ]) {
       expect(SW_SOURCE).toContain(`"${name}"`);
     }
     expect(SW_SOURCE).toContain(`const ARRIVALS_KEPT = ${ARRIVALS_KEPT};`);
+    expect(SW_SOURCE).toContain(
+      `const INSTALLED_APP_SEEN_FRESH_DAYS = ${INSTALLED_APP_SEEN_FRESH_DAYS};`,
+    );
   });
 });
 
@@ -779,6 +788,71 @@ function pngAlphas(file: string) {
   }
   return pixels.filter((_, index) => index % 4 === 3);
 }
+
+describe("tapping a notification on a phone whose installed app reports browser mode", () => {
+  const ANDROID =
+    "Mozilla/5.0 (Linux; Android 14; 23078PND5G) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36";
+  const DAY = 24 * 60 * 60 * 1000;
+
+  function seen(worker: Worker, daysAgo: number) {
+    const store = new Map([
+      [
+        INSTALLED_APP_SEEN_PATH,
+        JSON.stringify({ at: Date.now() - daysAgo * DAY }),
+      ],
+    ]);
+    worker.caches.stores.set(NOTIFICATION_STATE_CACHE, store);
+  }
+
+  it("opens the window with the installed app's mark, which a window it opens cannot get from the start page", async () => {
+    const android = installWorker(ANDROID);
+    seen(android, 2);
+    await tap(android, TAP);
+    expect(android.self.clients.openWindow).toHaveBeenCalledWith(
+      "/my_notifications/7/open#installed-app",
+    );
+  });
+
+  it("marks the new window it opens when a window declines too", async () => {
+    const android = installWorker(ANDROID);
+    seen(android, 2);
+    await tap(android, TAP, [openWindow("/portal", "decline")]);
+    expect(android.self.clients.openWindow).toHaveBeenCalledWith(
+      "/my_notifications/7/open#installed-app",
+    );
+  });
+
+  it(`stops marking ${INSTALLED_APP_SEEN_FRESH_DAYS} days after the app was last seen`, async () => {
+    const android = installWorker(ANDROID);
+    seen(android, INSTALLED_APP_SEEN_FRESH_DAYS + 1);
+    await tap(android, TAP);
+    expect(android.self.clients.openWindow).toHaveBeenCalledWith(
+      "/my_notifications/7/open",
+    );
+  });
+
+  it("never marks a window off Android, where a new window is a browser tab", async () => {
+    seen(worker, 2);
+    await tap(worker, TAP);
+    expect(worker.self.clients.openWindow).toHaveBeenCalledWith(
+      "/my_notifications/7/open",
+    );
+  });
+
+  it("never marks when the app was not seen, or a link going to an anchor", async () => {
+    const android = installWorker(ANDROID);
+    await tap(android, TAP);
+    expect(android.self.clients.openWindow).toHaveBeenLastCalledWith(
+      "/my_notifications/7/open",
+    );
+
+    seen(android, 2);
+    await tap(android, { ...TAP, url: "/blog/glitter#comentarios" });
+    expect(android.self.clients.openWindow).toHaveBeenLastCalledWith(
+      "/blog/glitter#comentarios",
+    );
+  });
+});
 
 describe("the notification's images", () => {
   it("ships the icon and badge the worker names, at their sizes", async () => {

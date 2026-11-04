@@ -11,6 +11,7 @@ import {
   pullDistance,
   pullProgress,
 } from "@/app/components/navbar/pull-refresh";
+import { isStandaloneApp } from "@/app/lib/notifications/push/support";
 import { cn } from "@/app/lib/utils";
 
 /** The shortest the spinner turns, so a fast refresh still reads as one. */
@@ -46,7 +47,9 @@ export default function PullToRefresh() {
   }, [router]);
 
   useEffect(() => {
-    if (!window.matchMedia?.("(display-mode: standalone)").matches) return;
+    if (!isStandaloneApp(window as Parameters<typeof isStandaloneApp>[0])) {
+      return;
+    }
 
     let startY: number | null = null;
     let startX = 0;

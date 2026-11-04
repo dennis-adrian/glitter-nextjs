@@ -1,3 +1,5 @@
+import { isMarkedInstalledApp } from "@/app/lib/installed-app-mode";
+
 /**
  * What this browser can do about avisos, decided from what the browser
  * exposes. Shared by the control and its tests; nothing here touches the
@@ -35,7 +37,7 @@ type BrowserLike = {
   matchMedia?: (query: string) => { matches: boolean };
   PushManager?: unknown;
   Notification?: { permission?: string };
-};
+} & Parameters<typeof isMarkedInstalledApp>[0];
 
 export function isAppleMobile(navigator: BrowserLike["navigator"]): boolean {
   const userAgent = navigator?.userAgent ?? "";
@@ -44,8 +46,15 @@ export function isAppleMobile(navigator: BrowserLike["navigator"]): boolean {
   return /Macintosh/.test(userAgent) && (navigator?.maxTouchPoints ?? 0) > 1;
 }
 
+/**
+ * Glitter running as the installed app: iOS says so on `navigator`, the app's
+ * start page marks its window (app/lib/installed-app-mode.ts, for phones
+ * whose installed app still reports browser mode), and elsewhere the display
+ * mode does.
+ */
 export function isStandaloneApp(browser: BrowserLike): boolean {
   if (browser.navigator?.standalone === true) return true;
+  if (isMarkedInstalledApp(browser)) return true;
   try {
     return browser.matchMedia?.("(display-mode: standalone)").matches ?? false;
   } catch {

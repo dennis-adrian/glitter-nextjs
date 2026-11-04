@@ -46,6 +46,7 @@ vi.mock("@/app/components/notifications/service-worker-messages", () => ({
 
 import InstalledAppHead from "@/app/components/installed-app-head";
 import RootLayout from "@/app/layout";
+import { MARK_INSTALLED_APP_SCRIPT } from "@/app/lib/installed-app-mode";
 import { LAUNCH_SCREENS } from "@/app/lib/launch-screens";
 import { ICON_BACKGROUND } from "@/app/lib/theme-colors";
 
@@ -74,6 +75,23 @@ async function shellHead(document: ReactNode) {
   }
   await reader.cancel();
   return new DOMParser().parseFromString(html, "text/html").head;
+}
+
+/** The shell's <body> as a browser first gets it, up to `marker`. */
+async function shellBody(document: ReactNode, marker: string) {
+  const stream = await renderToReadableStream(document, {
+    onError: () => undefined,
+  });
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let html = "";
+  while (!html.includes(marker)) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    html += decoder.decode(value, { stream: true });
+  }
+  await reader.cancel();
+  return new DOMParser().parseFromString(html, "text/html").body;
 }
 
 /** These tags first in <body>, as the root layout renders them. */
@@ -181,6 +199,16 @@ describe("InstalledAppHead", () => {
 });
 
 describe("the root layout", () => {
+  it("marks the installed app's window first in <body>, before anything paints", async () => {
+    const body = await shellBody(
+      <RootLayout>{null}</RootLayout>,
+      MARK_INSTALLED_APP_SCRIPT,
+    );
+    const first = body.firstElementChild;
+    expect(first?.tagName).toBe("SCRIPT");
+    expect(first?.textContent).toBe(MARK_INSTALLED_APP_SCRIPT);
+  });
+
   it("sends the install tags in <head> before anything that waits for data", async () => {
     const head = await shellHead(<RootLayout>{null}</RootLayout>);
     expect(head.querySelectorAll('link[rel="manifest"]')).toHaveLength(1);

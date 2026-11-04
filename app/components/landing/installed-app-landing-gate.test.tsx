@@ -29,6 +29,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  window.sessionStorage.clear();
   delete (window.navigator as Navigator & { standalone?: boolean }).standalone;
 });
 
@@ -62,6 +63,13 @@ describe("InstalledAppLandingGate", () => {
       value: true,
       configurable: true,
     });
+    renderGate();
+
+    expect(replaceMock).toHaveBeenCalledWith("/sign_in");
+  });
+
+  it("recognises the installed app its start page marked, whatever the display mode says", () => {
+    window.sessionStorage.setItem("glitter:installed-app", "browser");
     renderGate();
 
     expect(replaceMock).toHaveBeenCalledWith("/sign_in");

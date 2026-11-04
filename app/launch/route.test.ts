@@ -21,7 +21,7 @@ describe("GET /launch", () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(
-      "https://www.glitter.com.bo/portal",
+      "https://www.glitter.com.bo/portal#installed-app",
     );
   });
 
@@ -30,7 +30,7 @@ describe("GET /launch", () => {
     const response = await launch();
 
     expect(response.headers.get("location")).toBe(
-      "https://www.glitter.com.bo/sign_in",
+      "https://www.glitter.com.bo/sign_in#installed-app",
     );
   });
 });
