@@ -35,6 +35,8 @@ import { listenForInstallPrompt } from "@/app/lib/install-guide/install-prompt";
 const UA = {
   iphone:
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
+  iphoneChrome:
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/141.0.0.0 Mobile/15E148 Safari/604.1",
   iphoneInstagram:
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 320.0.0.18.94 (iPhone15,2; iOS 17_4; es_LA; es; scale=3.00; 1179x2556)",
   android:
@@ -134,9 +136,35 @@ describe("/instalar, step 1", () => {
       /«Abrir como app web» activado/,
       /ícono de Glitter en la pantalla de inicio/,
     ]) {
-      const image = screen.getByAltText(alt);
+      const [image] = screen.getAllByAltText(alt);
       expect(image.getAttribute("src")).toMatch(/install-guide/);
     }
+  });
+
+  it("tells an iPhone to use Safari only", () => {
+    useBrowser(UA.iphone);
+    renderGuide();
+    expect(
+      screen.getAllByText(
+        "En iPhone y iPad, usá solo Safari para instalar Glitter.",
+      ).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("sends Chrome on an iPhone to Safari, with the link to copy", () => {
+    useBrowser(UA.iphoneChrome);
+    renderGuide();
+    expect(
+      screen.getByText(/Glitter se instala solo desde Safari/),
+    ).toBeTruthy();
+    expect(screen.getByText(/Estás en Chrome/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copiar enlace" })).toBeTruthy();
+    expect(
+      screen.getByText("Abrí Safari y pegalo en la barra de direcciones."),
+    ).toBeTruthy();
+    // The Safari steps it needs next stay under «¿Usás otro teléfono?».
+    expect(screen.getByText("iPhone y iPad")).toBeTruthy();
+    expect(screen.getAllByText(/Ver más/).length).toBeGreaterThan(0);
   });
 
   it("asks Instagram's browser to open the page elsewhere, with the link to copy", () => {
@@ -242,6 +270,15 @@ describe("/instalar, step 1", () => {
     expect(screen.getByText("¿Usás otro teléfono?")).toBeTruthy();
     expect(screen.getByText("Android")).toBeTruthy();
     expect(screen.queryByText("iPhone y iPad")).toBe(null);
+  });
+
+  it("ends the Android steps with the icon on a home screen", () => {
+    useBrowser(UA.android);
+    renderGuide();
+    expect(
+      screen.getAllByAltText("El ícono de Glitter en la pantalla de inicio.")
+        .length,
+    ).toBeGreaterThan(0);
   });
 
   it("gives the menu steps when the browser has not offered to install", () => {

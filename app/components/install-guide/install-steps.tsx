@@ -150,6 +150,16 @@ const ANDROID_IMAGES = {
 const OPEN_FROM_ICON =
   "Abrí Glitter desde el ícono nuevo en tu pantalla de inicio. Si te lo pide, iniciá sesión.";
 
+/**
+ * The last step everywhere, with Glitter's icon on a home screen. The
+ * iPhone's screenshot serves Android too: the icon and its name look the
+ * same, and the Android one showed the owner's wallpaper.
+ */
+const OPEN_FROM_ICON_STEP: InstallStep = {
+  text: OPEN_FROM_ICON,
+  images: [IOS_IMAGES.homeIcon],
+};
+
 /** From the share sheet on, every iPhone browser shows the same screens. */
 function iosSteps(firstStep: InstallStep): InstallStep[] {
   return [
@@ -178,7 +188,7 @@ function iosSteps(firstStep: InstallStep): InstallStep[] {
       ),
       images: [IOS_IMAGES.confirm],
     },
-    { text: OPEN_FROM_ICON, images: [IOS_IMAGES.homeIcon] },
+    OPEN_FROM_ICON_STEP,
   ];
 }
 
@@ -194,6 +204,7 @@ export const IOS_SAFARI_GUIDE: InstallGuideText = {
     ),
     images: [IOS_IMAGES.addressBar, IOS_IMAGES.shareMenu],
   }),
+  note: "En iPhone y iPad, usá solo Safari para instalar Glitter.",
 };
 
 /**
@@ -226,34 +237,27 @@ export const NOTIFICATIONS_GUIDE: InstallGuideText = {
   note: "En iPhone y iPad las notificaciones llegan solo a Glitter instalado: por eso el paso 1.",
 };
 
+const IOS_BROWSER_NAMES: Partial<Record<InstallBrowser, string>> = {
+  chrome: "Chrome",
+  edge: "Edge",
+  firefox: "Firefox",
+  opera: "Opera",
+};
+
+/**
+ * Chrome, Edge or Firefox on an iPhone: Glitter is installed from Safari
+ * only (Dennis, 2026-11-04), so the page sends the person there, with the
+ * link to copy, as it does from Instagram's browser.
+ */
 function iosBrowserGuide(browser: InstallBrowser): InstallGuideText {
-  const where =
-    browser === "chrome" ? (
-      <>en la barra de direcciones</>
-    ) : (
-      <>
-        en el menú del navegador (
-        <UiLabel
-          icon={
-            browser === "firefox" ? (
-              <MenuIcon aria-hidden />
-            ) : (
-              <EllipsisIcon aria-hidden />
-            )
-          }
-          srLabel="Menú"
-        />
-        )
-      </>
-    );
+  const name = IOS_BROWSER_NAMES[browser] ?? "este navegador";
   return {
-    steps: iosSteps(
-      <>
-        Presioná <UiLabel icon={<ShareIcon aria-hidden />}>Compartir</UiLabel>,{" "}
-        {where}.
-      </>,
-    ),
-    note: "¿No aparece «Agregar a Inicio»? Abrí esta página en Safari y seguí los pasos desde ahí.",
+    steps: [
+      "En iPhone y iPad, Glitter se instala solo desde Safari. Copiá el enlace de abajo.",
+      "Abrí Safari y pegalo en la barra de direcciones.",
+      "Con la página abierta en Safari, seguí los pasos que te mostramos.",
+    ],
+    note: `Estás en ${name}: desde acá no se puede instalar Glitter en tu iPhone.`,
   };
 }
 
@@ -297,7 +301,7 @@ function androidGuide(browser: InstallBrowser): InstallGuideText {
           abajo a la derecha.
         </>,
         "Elegí «Agregar página a» y después «Pantalla de inicio».",
-        OPEN_FROM_ICON,
+        OPEN_FROM_ICON_STEP,
       ],
     };
   }
@@ -310,7 +314,7 @@ function androidGuide(browser: InstallBrowser): InstallGuideText {
           en la barra del navegador.
         </>,
         "Elegí «Instalar» o «Agregar a la pantalla de inicio».",
-        OPEN_FROM_ICON,
+        OPEN_FROM_ICON_STEP,
       ],
     };
   }
@@ -335,7 +339,7 @@ function androidGuide(browser: InstallBrowser): InstallGuideText {
         <>
           Confirmá con <UiLabel>Instalar</UiLabel>.
         </>,
-        OPEN_FROM_ICON,
+        OPEN_FROM_ICON_STEP,
       ],
     };
   }
@@ -364,7 +368,7 @@ function androidGuide(browser: InstallBrowser): InstallGuideText {
         </>,
         ANDROID_IMAGES.installDialog,
       ),
-      OPEN_FROM_ICON,
+      OPEN_FROM_ICON_STEP,
     ],
   };
 }
