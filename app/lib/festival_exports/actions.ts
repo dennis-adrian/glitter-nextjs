@@ -43,6 +43,18 @@ import {
 import { recordFestivalCreatedStatus } from "@/app/lib/festivals/status-transitions";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 
+const EXPORT_METADATA_NAME_MAX = 100;
+const EXPORT_METADATA_NAME_SUFFIX = " - Exportacion";
+
+function exportMetadataName(festivalName: string) {
+  const room = EXPORT_METADATA_NAME_MAX - EXPORT_METADATA_NAME_SUFFIX.length;
+  const base =
+    festivalName.length > room
+      ? `${festivalName.slice(0, room - 1).trimEnd()}…`
+      : festivalName;
+  return `${base}${EXPORT_METADATA_NAME_SUFFIX}`;
+}
+
 type BuildExportResult =
   | { ok: true; data: FestivalExport }
   | { ok: false; message: string };
@@ -127,7 +139,10 @@ async function buildFestivalExport(
     data: {
       version: "2.1",
       metadata: {
-        name: `${festival.name} - Exportacion`,
+        // festivalExportSchema caps this at 100; festival names are unbounded,
+        // and an over-long label would make the file (and a duplicate built
+        // from it) fail validation. Trim the name, never the suffix.
+        name: exportMetadataName(festival.name),
         createdAt: new Date().toISOString(),
         createdFrom: {
           festivalId: festival.id,

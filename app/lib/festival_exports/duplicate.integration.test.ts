@@ -295,6 +295,31 @@ describeDatabase("festival duplicate and export round trip", () => {
     );
   });
 
+  it("exports and duplicates a festival whose name exceeds the file's label cap", async () => {
+    const source = await seedSource();
+    const longName = `${"Festival de primavera ".repeat(6)}${randomUUID()}`;
+    await integrationDb!
+      .update(festivals)
+      .set({ name: longName })
+      .where(eq(festivals.id, source.festivalId));
+
+    const exported = await exportFestivalData(source.festivalId, {
+      includeBasicInfo: true,
+      includeSectors: true,
+    });
+    expect(exported.data!.metadata.name.length).toBeLessThanOrEqual(100);
+    expect(exported.data!.metadata.name).toMatch(/ - Exportacion$/);
+    // The full name still travels in the festival info.
+    expect(exported.data!.festival!.name).toBe(longName);
+
+    const result = await duplicateFestival({
+      festivalId: source.festivalId,
+      name: `copia-${randomUUID()}`,
+    });
+    expect(result).toMatchObject({ success: true });
+    festivalIds.push(result.festivalId!);
+  });
+
   it("refuses a name another festival already has", async () => {
     const source = await seedSource();
     expect(
