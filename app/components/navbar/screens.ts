@@ -402,6 +402,7 @@ export const SCREENS: Record<string, ScreenDef> = {
 
   // Staff: people
   "/dashboard/users": { title: "Participantes", parent: MENU },
+  "/dashboard/impersonate": { title: "Entrar como participante", parent: MENU },
   "/dashboard/users/[profileId]": {
     title: "Perfil",
     parent: "/dashboard/users",

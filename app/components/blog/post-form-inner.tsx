@@ -529,7 +529,7 @@ export default function PostFormInner({
         onSubmit={(e) => e.preventDefault()}
         className="flex flex-col gap-4 pb-28 md:pb-24"
       >
-        <div className="sticky top-16 md:top-20 z-40 -mx-4 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/70">
+        <div className="sticky top-[calc(4rem+var(--top-chrome-extra,0px))] md:top-[calc(5rem+var(--top-chrome-extra,0px))] z-40 -mx-4 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/70">
           <div className="px-4 py-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">

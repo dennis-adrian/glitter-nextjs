@@ -3,6 +3,8 @@
 import { z } from "zod";
 
 import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
+import { IMPERSONATION_READ_ONLY_RESULT } from "@/app/lib/impersonation/definitions";
+import { isImpersonating } from "@/app/lib/impersonation/viewer";
 import { MAX_SERIAL_ID } from "@/app/lib/notifications/definitions";
 import { pushVapidConfig } from "@/app/lib/notifications/push/config";
 import {
@@ -111,6 +113,10 @@ function cleanLabel(label: string | null | undefined) {
 export async function savePushDeviceAction(
   input: unknown,
 ): Promise<ActionResult & { deviceId?: number | null }> {
+  // This browser and its devices belong to the admin, not to the
+  // participant whose app they are viewing: nothing is saved, refreshed,
+  // released or forgotten for either of them during a view.
+  if (await isImpersonating()) return IMPERSONATION_READ_ONLY_RESULT;
   const viewer = await resolveInboxViewerWithAccess();
   if (!viewer) return UNAVAILABLE;
   const blocked = await featureFlagGuard("push_notifications", viewer);
@@ -183,6 +189,8 @@ export async function savePushDeviceAction(
 export async function removePushDeviceAction(
   id: unknown,
 ): Promise<ActionResult> {
+  // See savePushDeviceAction.
+  if (await isImpersonating()) return IMPERSONATION_READ_ONLY_RESULT;
   const viewer = await resolveInboxViewer();
   if (!viewer) return UNAVAILABLE;
   const parsed = idSchema.safeParse(id);
@@ -202,6 +210,8 @@ export async function removePushDeviceAction(
 export async function releaseForeignPushDeviceAction(
   input: unknown,
 ): Promise<ActionResult & { released?: boolean }> {
+  // See savePushDeviceAction.
+  if (await isImpersonating()) return IMPERSONATION_READ_ONLY_RESULT;
   const viewer = await resolveInboxViewer();
   if (!viewer) return UNAVAILABLE;
   const parsed = z
@@ -225,6 +235,8 @@ export async function releaseForeignPushDeviceAction(
 export async function forgetPushDeviceAction(
   endpoint: unknown,
 ): Promise<ActionResult> {
+  // See savePushDeviceAction.
+  if (await isImpersonating()) return IMPERSONATION_READ_ONLY_RESULT;
   const viewer = await resolveInboxViewer();
   if (!viewer) return UNAVAILABLE;
   const parsed = z.string().min(1).max(MAX_ENDPOINT_LENGTH).safeParse(endpoint);

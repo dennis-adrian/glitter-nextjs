@@ -229,6 +229,12 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   createdStatusEvents: many(userStatusEvents, {
     relationName: "createdUserStatusEvents",
   }),
+  impersonationsAsAdmin: many(impersonationSessions, {
+    relationName: "impersonationsAsAdmin",
+  }),
+  impersonationsAsSubject: many(impersonationSessions, {
+    relationName: "impersonationsAsSubject",
+  }),
   festivalTermsPublished: many(festivalTermsVersions, {
     relationName: "festivalTermsPublishedBy",
   }),
@@ -407,6 +413,7 @@ export const festivals = pgTable(
     entrepreneurshipStandUrl: text("entrepreneurship_stand_url"),
     festivalCode: text("festival_code"),
     festivalBannerUrl: text("festival_banner_url"),
+    festivalBannerMobileUrl: text("festival_banner_mobile_url"),
     termsAndConditionsUrl: text("terms_and_conditions_url"),
     thumbnailUrl: text("thumbnail_url"),
     posterUrl: text("poster_url"),
@@ -8090,4 +8097,93 @@ export const comunicadoResends = pgTable(
       sql`${t.essential} = (${t.essentialConfirmedByUserId} IS NOT NULL)`,
     ),
   ],
+);
+
+export const impersonationEndReasonEnum = pgEnum("impersonation_end_reason", [
+  /** The admin tapped Salir before the view ran out. */
+  "exited",
+  /** The Clerk session the view was bound to ended (the admin signed out). */
+  "signed_out",
+]);
+
+/**
+ * "Entrar como participante" (docs/PLAN-impersonation.md): one row per time a
+ * global admin viewed the app as a participant. It is both the live state the
+ * view cookie points at and the audit of who looked at whose account, when,
+ * for how long, and how many writes the read-only guard refused meanwhile.
+ *
+ * A row whose `ended_at` is null and whose `expires_at` has passed reads as
+ * expired; nothing has to run to mark it. Only the token's SHA-256 is kept, so
+ * a database read cannot be turned into a working cookie.
+ */
+export const impersonationSessions = pgTable(
+  "impersonation_sessions",
+  {
+    id: serial("id").primaryKey(),
+    adminUserId: integer("admin_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    subjectUserId: integer("subject_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    /** Kept as text so the audit still names both people once a row is gone. */
+    adminClerkId: text("admin_clerk_id").notNull(),
+    subjectClerkId: text("subject_clerk_id").notNull(),
+    /** The Clerk session the view is bound to: no other session can use it. */
+    adminClerkSessionId: text("admin_clerk_session_id").notNull(),
+    tokenHash: text("token_hash").unique().notNull(),
+    startedAt: timestamp("started_at").defaultNow().notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    endedAt: timestamp("ended_at"),
+    endReason: impersonationEndReasonEnum("end_reason"),
+    blockedWrites: integer("blocked_writes").default(0).notNull(),
+    /** The admin page the view was started from, where Salir returns to. */
+    returnTo: text("return_to"),
+  },
+  (t) => [
+    index("impersonation_sessions_admin_started_idx").on(
+      t.adminUserId,
+      t.startedAt,
+    ),
+    index("impersonation_sessions_subject_started_idx").on(
+      t.subjectUserId,
+      t.startedAt,
+    ),
+    check(
+      "impersonation_sessions_end_pair",
+      sql`(${t.endedAt} IS NULL) = (${t.endReason} IS NULL)`,
+    ),
+    check(
+      "impersonation_sessions_expires_after_start",
+      sql`${t.expiresAt} > ${t.startedAt}`,
+    ),
+    check(
+      "impersonation_sessions_not_self",
+      sql`${t.adminClerkId} <> ${t.subjectClerkId}`,
+    ),
+    check(
+      "impersonation_sessions_blocked_writes_nonnegative",
+      sql`${t.blockedWrites} >= 0`,
+    ),
+    check(
+      "impersonation_sessions_return_to_dashboard",
+      sql`${t.returnTo} IS NULL OR (${t.returnTo} LIKE '/dashboard%' AND ${t.returnTo} NOT LIKE '//%')`,
+    ),
+  ],
+);
+
+export const impersonationSessionsRelations = relations(
+  impersonationSessions,
+  ({ one }) => ({
+    admin: one(users, {
+      fields: [impersonationSessions.adminUserId],
+      references: [users.id],
+      relationName: "impersonationsAsAdmin",
+    }),
+    subject: one(users, {
+      fields: [impersonationSessions.subjectUserId],
+      references: [users.id],
+      relationName: "impersonationsAsSubject",
+    }),
+  }),
 );

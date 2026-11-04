@@ -1,4 +1,3 @@
-import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import type { Metadata } from "next";
@@ -6,6 +5,7 @@ import type { Metadata } from "next";
 import InstalledAppLandingGate from "@/app/components/landing/installed-app-landing-gate";
 import Landing from "@/app/components/landing/landing";
 import LandingSkeleton from "@/app/components/landing/skeleton";
+import { isSignedIn } from "@/app/lib/impersonation/viewer";
 import {
   getLandingDraftOrFallback,
   getPublishedLandingContent,
@@ -67,8 +67,7 @@ export default async function Home({ searchParams }: HomeProps) {
 
   // The installed app is for people with an account: without a session it
   // shows sign in instead of the marketing landing.
-  const { userId } = await auth();
-  if (userId) return landing;
+  if (await isSignedIn()) return landing;
 
   return <InstalledAppLandingGate>{landing}</InstalledAppLandingGate>;
 }

@@ -309,7 +309,7 @@ export default function FestivalVisitorExplorer({
 
       <div
         ref={stickyControlsRef}
-        className="sticky top-16 z-30 -mx-4 mt-6 space-y-1 border-y bg-background/95 px-4 py-2 shadow-sm backdrop-blur-md sm:mx-0 sm:rounded-xl sm:border md:top-20"
+        className="sticky top-[calc(4rem+var(--top-chrome-extra,0px))] z-30 -mx-4 mt-6 space-y-1 border-y bg-background/95 px-4 py-2 shadow-sm backdrop-blur-md sm:mx-0 sm:rounded-xl sm:border md:top-[calc(5rem+var(--top-chrome-extra,0px))]"
       >
         <FestivalNavSearch
           entries={visibleSearchEntries}

@@ -35,7 +35,7 @@ export default async function Layout({
           container: a page still taller than this overflows into the window as
           before, so the sticky bars positioned against the window keep
           working. */}
-      <div className="flex h-[calc(100dvh-77px-var(--announcement-strip-height,0px)-var(--app-bottom-chrome,0px))] flex-col lg:h-[calc(100dvh-85px-var(--announcement-strip-height,0px))]">
+      <div className="flex h-[calc(100dvh-77px-var(--top-chrome-extra,0px)-var(--app-bottom-chrome,0px))] flex-col lg:h-[calc(100dvh-85px-var(--top-chrome-extra,0px))]">
         {children}
       </div>
     </DashboardViewerProvider>

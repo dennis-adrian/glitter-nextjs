@@ -1,17 +1,15 @@
 import UserProfile from "@/app/components/pages/user-profile";
 import { UserProfileSkeleton } from "@/app/components/user_profile/skeleton";
-import {
-  fetchUserProfileByClerkId,
-  getCurrentClerkUser,
-} from "@/app/lib/users/queries";
+import { getViewerClerkId } from "@/app/lib/impersonation/viewer";
+import { fetchUserProfileByClerkId } from "@/app/lib/users/queries";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 export default async function ProfileVerificationPage() {
-  const user = await getCurrentClerkUser();
-  if (!user) return null;
+  const clerkId = await getViewerClerkId();
+  if (!clerkId) return null;
 
-  const profile = await fetchUserProfileByClerkId(user.id);
+  const profile = await fetchUserProfileByClerkId(clerkId);
   if (!profile) redirect("/my_profile/creation");
 
   return (

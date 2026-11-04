@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, eq, isNull, sql } from "drizzle-orm";
 
+import { isImpersonating } from "@/app/lib/impersonation/viewer";
 import type { InboxViewer } from "@/app/lib/notifications/queries";
 import { db } from "@/db";
 import { notifications } from "@/db/schema";
@@ -19,6 +20,9 @@ export const CELEBRATED_ON_READ = sql`CASE WHEN ${notifications.kind} = 'credit_
  * neither does a retracted item, whose read state stays as it was withdrawn.
  */
 export async function markNotificationRead(viewer: InboxViewer, id: number) {
+  // An admin viewing the app as the participant opens their items without
+  // reading them for them: the participant still finds them unread.
+  if (await isImpersonating()) return;
   await db
     .update(notifications)
     .set({ readAt: new Date(), celebratedAt: CELEBRATED_ON_READ })

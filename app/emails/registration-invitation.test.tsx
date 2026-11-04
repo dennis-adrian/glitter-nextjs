@@ -16,6 +16,7 @@ function festival(overrides: Partial<FestivalWithDates> = {}) {
     festivalType: "glitter",
     posterUrl: "https://cdn.test/poster.png",
     festivalBannerUrl: null,
+    festivalBannerMobileUrl: null,
     thumbnailUrl: null,
     locationLabel: "Teatro CBA",
     address: "Calle Sucre #364",

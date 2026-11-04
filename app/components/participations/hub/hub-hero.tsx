@@ -1,8 +1,9 @@
-import Image from "next/image";
 import Link from "next/link";
 
 import { MapIcon } from "lucide-react";
 
+import FestivalBanner from "@/app/components/festivals/festival-banner";
+import { hasFestivalBanner } from "@/app/lib/festivals/banner";
 import type { FullFestival } from "@/app/lib/festivals/definitions";
 import { formatDaysLeft, formatFestivalDays } from "@/app/lib/home/festival";
 import { daysUntil } from "@/app/lib/participations/hub-status";
@@ -32,20 +33,17 @@ export default function HubHero({
 
   return (
     <div className="overflow-hidden rounded-3xl border border-brand-border bg-brand-card">
-      {festival.festivalBannerUrl ? (
+      {hasFestivalBanner(festival) ? (
         <Link
           href={`/festivals/${festival.id}`}
           aria-label={`Ver ${festival.name}`}
           className="block"
         >
-          <Image
-            src={festival.festivalBannerUrl}
+          <FestivalBanner
+            festival={festival}
             alt={`${festival.name}${line ? `, ${line}` : ""}`}
-            width={2000}
-            height={667}
             sizes="(min-width: 1024px) 720px, 100vw"
-            className="h-auto w-full"
-            priority
+            highPriority
           />
         </Link>
       ) : null}

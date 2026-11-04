@@ -28,6 +28,7 @@ import {
   TicketIcon,
   ToggleLeftIcon,
   UserCheckIcon,
+  UserRoundSearchIcon,
   UsersIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -495,6 +496,16 @@ const ADMIN: NavSection = {
 
 const STAFF_HOME_HREF = "/dashboard";
 
+/** "Entrar como participante" (board R): under "Mi cuenta", for admins. */
+export const IMPERSONATE_HREF = "/dashboard/impersonate";
+const IMPERSONATE_LINK: NavLink = {
+  key: "impersonate",
+  label: "Entrar como participante",
+  description: "ver la app como cualquier cuenta",
+  href: IMPERSONATE_HREF,
+  icon: UserRoundSearchIcon,
+};
+
 /** An admin page by its key, so each entry is described once. */
 function adminLink(key: string): NavLink {
   const link = [...ADMIN.items, ...FESTIVAL_ADMIN.items].find(
@@ -686,6 +697,8 @@ function buildStaffNavigation(
         href: "/my_orders",
         icon: ShoppingBagIcon,
       },
+      // Global admins only: the page and the start both refuse anyone else.
+      ...(isAdmin ? [IMPERSONATE_LINK] : []),
     ],
   };
 

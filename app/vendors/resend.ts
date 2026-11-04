@@ -10,6 +10,7 @@ import {
   Resend,
 } from "resend";
 import { serverEnv } from "../../env";
+import { refuseDuringView } from "../../db/write-guard";
 import { retryAfterMs } from "./resend-result";
 
 export const resend = new Resend(serverEnv.RESEND_API_KEY);
@@ -137,6 +138,10 @@ export async function sendEmail(
   payload: CreateEmailOptions,
   options: SendEmailOptions = {},
 ): Promise<SendEmailResult> {
+  // No email leaves on behalf of a participant whose app an admin is viewing
+  // (docs/PLAN-impersonation.md §6.2), not even from an action that writes
+  // nothing first.
+  await refuseDuringView();
   if (serverEnv.VERCEL_ENV === "development") {
     console.log("Sending email to", payload.to);
     console.log("Subject:", payload.subject);
@@ -205,6 +210,7 @@ export async function sendBatchEmails<
   payload: CreateBatchOptions,
   options?: Options,
 ): Promise<SendBatchResult<Options>> {
+  await refuseDuringView();
   if (payload.length > RESEND_BATCH_MAX_EMAILS) {
     throw new Error(
       `Resend batches hold at most ${RESEND_BATCH_MAX_EMAILS} emails; got ${payload.length}`,
@@ -284,6 +290,9 @@ export type ResendSuppressionRemoval =
 export async function removeResendSuppression(
   address: string,
 ): Promise<ResendSuppressionRemoval> {
+  // Refused during a view as someone else, before Resend is asked, like the
+  // sends (docs/PLAN-impersonation.md §6.2).
+  await refuseDuringView();
   if (serverEnv.VERCEL_ENV === "development") return { outcome: "skipped" };
 
   const baseUrl = process.env.RESEND_BASE_URL || "https://api.resend.com";

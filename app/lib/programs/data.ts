@@ -1,5 +1,8 @@
 import "server-only";
 
+// eslint-disable-next-line no-restricted-imports -- a global default row, see below
+import { allowHousekeepingWrite } from "@/app/lib/impersonation/housekeeping";
+
 import {
   and,
   asc,
@@ -49,11 +52,15 @@ export const fetchProgramSettings = cache(
 
     if (existing.length > 0) return existing[0];
 
-    const inserted = await db
-      .insert(programSettings)
-      .values({ key: SETTINGS_KEY })
-      .onConflictDoNothing({ target: programSettings.key })
-      .returning();
+    // The default row belongs to nobody; a page needs it even while an admin
+    // views the app as a participant (docs/PLAN-impersonation.md §6.2).
+    const inserted = await allowHousekeepingWrite(() =>
+      db
+        .insert(programSettings)
+        .values({ key: SETTINGS_KEY })
+        .onConflictDoNothing({ target: programSettings.key })
+        .returning(),
+    );
 
     if (inserted.length > 0) return inserted[0];
 

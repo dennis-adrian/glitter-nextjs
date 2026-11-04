@@ -18,6 +18,9 @@ import {
   CELEBRATED_ON_READ,
   markNotificationRead,
 } from "@/app/lib/notifications/read";
+import { IMPERSONATION_READ_ONLY_RESULT } from "@/app/lib/impersonation/definitions";
+import { isImpersonating } from "@/app/lib/impersonation/viewer";
+import { countRefusal } from "@/db/write-guard";
 import { db } from "@/db";
 import { notifications } from "@/db/schema";
 
@@ -36,6 +39,16 @@ const UNAVAILABLE: ActionResult = {
   message: "Esta funcionalidad no está disponible",
 };
 
+/**
+ * An inbox action the admin chose during a view: refused, and counted in the
+ * view's audit. The automatic ones (reading on open, the gift banner) are
+ * not counted: nobody tried them.
+ */
+async function refuseInView(): Promise<typeof IMPERSONATION_READ_ONLY_RESULT> {
+  await countRefusal();
+  return IMPERSONATION_READ_ONLY_RESULT;
+}
+
 function ownedBy(viewer: InboxViewer) {
   return eq(notifications.userId, viewer.id);
 }
@@ -44,6 +57,7 @@ async function updateOne(
   idInput: unknown,
   values: Partial<typeof notifications.$inferInsert>,
 ): Promise<ActionResult> {
+  if (await isImpersonating()) return refuseInView();
   const viewer = await resolveInboxViewerWithAccess();
   if (!viewer) return UNAVAILABLE;
   const parsed = idSchema.safeParse(idInput);
@@ -95,6 +109,7 @@ export async function unarchiveNotificationAction(id: unknown) {
 export async function markAllNotificationsReadAction(
   filterInput: unknown,
 ): Promise<ActionResult & { ids?: number[] }> {
+  if (await isImpersonating()) return refuseInView();
   const viewer = await resolveInboxViewerWithAccess();
   if (!viewer) return UNAVAILABLE;
   const parsed = filterSchema.safeParse(filterInput ?? "all");
@@ -127,6 +142,7 @@ export async function markAllNotificationsReadAction(
 export async function markNotificationsUnreadAction(
   idsInput: unknown,
 ): Promise<ActionResult> {
+  if (await isImpersonating()) return refuseInView();
   const viewer = await resolveInboxViewerWithAccess();
   if (!viewer) return UNAVAILABLE;
   const parsed = idsSchema.safeParse(idsInput);
@@ -157,6 +173,9 @@ export async function markGiftsCelebratedAction(
   if (!viewer) return { success: false };
   const parsed = idsSchema.safeParse(idsInput);
   if (!parsed.success) return { success: false };
+  // During a view the banner shows and stays the participant's to see: it
+  // is called on mount, so it answers as if done rather than as refused.
+  if (await isImpersonating()) return { success: true };
   await db
     .update(notifications)
     .set({ celebratedAt: new Date() })

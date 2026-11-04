@@ -12,7 +12,7 @@ import { resolveMerchProductReturn } from "@/app/lib/merch/product-return";
 import { fetchProduct, fetchProductBySlug } from "@/app/lib/products/queries";
 import { getRentalEligibilityForCurrentUser } from "@/app/lib/rentals/eligibility";
 import { getProductVariantImageUrl } from "@/app/lib/products/variants";
-import { getCurrentClerkUser } from "@/app/lib/users/queries";
+import { isSignedIn } from "@/app/lib/impersonation/viewer";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 const ParamsSchema = z.object({
@@ -116,12 +116,11 @@ export default async function ProductDetailPage(props: {
   if (product.storeCategory === "supplies" && profile?.status !== "verified") {
     // getCurrentUserProfile() returns null both when signed out and when the
     // profile lookup fails, so authentication state comes from Clerk directly.
-    // Both calls are request-cached, so this costs no extra round trip.
-    const clerkUser = await getCurrentClerkUser();
+    const signedIn = await isSignedIn();
 
     return (
       <SuppliesAccessNotice
-        variant={clerkUser ? "unverified" : "signed_out"}
+        variant={signedIn ? "unverified" : "signed_out"}
         returnTo={`/store/products/${encodeURIComponent(product.slug)}`}
       />
     );

@@ -1,3 +1,4 @@
+import ImpersonationBanner from "@/app/components/impersonation/impersonation-banner";
 import AnnouncementStrip from "@/app/components/navbar/announcement-strip";
 import NavbarClient from "@/app/components/navbar/navbar-client";
 import {
@@ -8,7 +9,9 @@ import {
 import {
   getLayoutViewer,
   isLayoutFeatureEnabled,
+  isStaticLayoutRender,
 } from "@/app/lib/feature_flags/helpers";
+import { getImpersonation } from "@/app/lib/impersonation/viewer";
 import { layoutPushPublicKey } from "@/app/lib/notifications/push/access";
 import { getPublishedLandingContent } from "@/app/lib/landing_content/data";
 
@@ -32,13 +35,31 @@ export default async function Navbar() {
     pushPublicKey,
     landingContent,
     layoutViewer,
+    staticRender,
   ] = await Promise.all([
     resolveNavFlags(),
     isLayoutFeatureEnabled("notifications"),
     layoutPushPublicKey(),
     getPublishedLandingContent(),
     getLayoutViewer(),
+    isStaticLayoutRender(),
   ]);
+  // While an admin views the app as a participant, `layoutViewer` is the
+  // participant, so the whole shell below is theirs; the banner says so.
+  const view = staticRender ? null : await getImpersonation().catch(() => null);
+  const bannerView = view
+    ? {
+        secondsLeft: view.secondsLeft,
+        subject: {
+          id: view.subject.id,
+          displayName: view.subject.displayName,
+          firstName: view.subject.firstName,
+          lastName: view.subject.lastName,
+          email: view.subject.email,
+          imageUrl: view.subject.imageUrl,
+        },
+      }
+    : null;
 
   // Only the two fields the app shell decides on cross to the client.
   const viewer = layoutViewer
@@ -51,6 +72,9 @@ export default async function Navbar() {
 
   return (
     <div data-site-navbar data-sticky-top className="sticky top-0 z-50">
+      {/* First, above the strip, the installed app's top bar and the
+          header: a view as someone else is never out of sight. */}
+      <ImpersonationBanner initial={bannerView} probe={staticRender} />
       <AnnouncementStrip announcement={landingContent.announcement} />
       <NavbarClient
         programsHref={programsHref}

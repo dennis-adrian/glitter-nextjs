@@ -151,18 +151,18 @@ describe("UserDropdown", () => {
     unmount();
 
     render(
-      <UserDropdown profile={profile} creditsEnabled isProfileLoading={false} />,
+      <UserDropdown
+        profile={profile}
+        creditsEnabled
+        isProfileLoading={false}
+      />,
     );
     expect(within(await openMenu()).getByText("Mis créditos")).toBeTruthy();
   });
 
   it("shows a reduced menu when the profile resolved to null", async () => {
     render(
-      <UserDropdown
-        profile={null}
-        creditsEnabled
-        isProfileLoading={false}
-      />,
+      <UserDropdown profile={null} creditsEnabled isProfileLoading={false} />,
     );
 
     const menu = await openMenu();
@@ -233,5 +233,41 @@ describe("UserDropdown", () => {
     );
 
     expect(container.innerHTML).toBe("");
+  });
+
+  describe("Entrar como participante", () => {
+    it("is offered to a global admin", async () => {
+      render(
+        <UserDropdown
+          profile={{ ...profile, role: "admin" } as NavbarProfile}
+          creditsEnabled={false}
+          isProfileLoading={false}
+        />,
+      );
+      const menu = await openMenu();
+      const item = within(menu).getByRole("menuitem", {
+        name: "Entrar como participante",
+      });
+      expect(item.getAttribute("href")).toBe("/dashboard/impersonate");
+    });
+
+    it.each(["user", "festival_admin"] as const)(
+      "is not offered to %s, nor inside a view (the profile is the participant's)",
+      async (role) => {
+        render(
+          <UserDropdown
+            profile={{ ...profile, role } as NavbarProfile}
+            creditsEnabled={false}
+            isProfileLoading={false}
+          />,
+        );
+        const menu = await openMenu();
+        expect(
+          within(menu).queryByRole("menuitem", {
+            name: "Entrar como participante",
+          }),
+        ).toBeNull();
+      },
+    );
   });
 });

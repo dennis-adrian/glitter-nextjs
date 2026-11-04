@@ -5,6 +5,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { authMock } = vi.hoisted(() => ({ authMock: vi.fn() }));
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: authMock }));
+// Signed in is signed in, whoever the app is drawn for.
+vi.mock("@/app/lib/impersonation/viewer", () => ({
+  isSignedIn: async () =>
+    Boolean(((await authMock()) as { userId: string | null }).userId),
+}));
 
 import { GET } from "@/app/launch/route";
 

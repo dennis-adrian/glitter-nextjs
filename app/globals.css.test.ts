@@ -56,4 +56,12 @@ describe("the installed app's styles", () => {
       "display:none!important",
     );
   });
+
+  it("let the impersonation banner take the safe area in a marked window too", () => {
+    const rule = rulesFor(
+      `body:has([data-impersonation-banner]) [data-screen-bar]${MARK}`,
+    ).join("");
+    expect(rule).toContain("height:76px");
+    expect(rule).toContain("padding-top:0");
+  });
 });

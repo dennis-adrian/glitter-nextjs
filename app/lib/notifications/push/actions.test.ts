@@ -36,6 +36,10 @@ const consumeActionRateLimitMock = vi.hoisted(() => vi.fn());
 vi.mock("@/app/lib/rate-limit", () => ({
   consumeActionRateLimit: consumeActionRateLimitMock,
 }));
+const isImpersonatingMock = vi.hoisted(() => vi.fn(async () => false));
+vi.mock("@/app/lib/impersonation/viewer", () => ({
+  isImpersonating: isImpersonatingMock,
+}));
 
 import { MAX_SERIAL_ID } from "@/app/lib/notifications/definitions";
 import {
@@ -104,6 +108,27 @@ function expectNothingStored() {
   expect(savePushSubscriptionMock).not.toHaveBeenCalled();
   expect(refreshPushSubscriptionMock).not.toHaveBeenCalled();
 }
+
+describe("while an admin views the app as the participant", () => {
+  afterEach(() => isImpersonatingMock.mockResolvedValue(false));
+
+  it.each([
+    ["savePushDeviceAction", () => savePushDeviceAction({})],
+    ["removePushDeviceAction", () => removePushDeviceAction(1)],
+    [
+      "releaseForeignPushDeviceAction",
+      () => releaseForeignPushDeviceAction({}),
+    ],
+    ["forgetPushDeviceAction", () => forgetPushDeviceAction("x")],
+  ])("%s saves, releases and forgets nothing", async (_, run) => {
+    isImpersonatingMock.mockResolvedValue(true);
+    expect(await run()).toEqual({
+      success: false,
+      message: "Estás viendo la app como otra cuenta: solo lectura.",
+    });
+    expect(consumeActionRateLimitMock).not.toHaveBeenCalled();
+  });
+});
 
 describe("savePushDeviceAction", () => {
   it("is unavailable when signed out or the inbox is off for the person", async () => {

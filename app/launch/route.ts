@@ -1,8 +1,8 @@
-import { auth } from "@clerk/nextjs/server";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { INSTALLED_APP_SIGN_IN_HREF } from "@/app/components/landing/installed-app";
 import { PORTAL_HREF } from "@/app/components/navbar/app-navigation";
+import { isSignedIn } from "@/app/lib/impersonation/viewer";
 import { INSTALLED_APP_LAUNCH_HASH } from "@/app/lib/installed-app-mode";
 
 /**
@@ -18,8 +18,9 @@ import { INSTALLED_APP_LAUNCH_HASH } from "@/app/lib/installed-app-mode";
  * the manifest links here, so any visit is the app's.
  */
 export async function GET(request: NextRequest) {
-  const { userId } = await auth();
-  const destination = userId ? PORTAL_HREF : INSTALLED_APP_SIGN_IN_HREF;
+  const destination = (await isSignedIn())
+    ? PORTAL_HREF
+    : INSTALLED_APP_SIGN_IN_HREF;
 
   return NextResponse.redirect(
     new URL(`${destination}#${INSTALLED_APP_LAUNCH_HASH}`, request.url),

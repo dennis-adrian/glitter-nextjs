@@ -1,14 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useRef } from "react";
-
+import { useFestivalArtworkUpload } from "@/app/components/festivals/use-festival-artwork-upload";
 import { FESTIVAL_ARTWORK_ACCEPT } from "@/app/lib/festivals/artwork";
-import { useUploadThing } from "@/app/vendors/uploadthing";
 import { SingleImageUploadField } from "@/stories/uploads/components/single-image-upload-field";
-import type {
-  ImageUploadAdapter,
-  UploadedImage,
-} from "@/stories/uploads/components/upload-types";
 
 type FestivalPosterUploadProps = {
   value: string | null;
@@ -23,38 +17,9 @@ export default function FestivalPosterUpload({
   onUploadingChange,
   disabled = false,
 }: FestivalPosterUploadProps) {
-  const progressRef = useRef<(progress: number) => void>(() => undefined);
-  const { startUpload } = useUploadThing("festivalArtwork", {
-    onUploadProgress: (progress) => progressRef.current(progress),
-  });
-
-  const currentImage = useMemo<UploadedImage | null>(
-    () =>
-      value
-        ? {
-            id: value,
-            name: "Póster actual",
-            size: 0,
-            url: value,
-          }
-        : null,
-    [value],
-  );
-
-  const upload = useCallback<ImageUploadAdapter>(
-    async (files, options) => {
-      progressRef.current = options.onProgress;
-      const uploaded = await startUpload(files);
-      if (!uploaded) throw new Error("La carga no devolvió ninguna imagen.");
-
-      return uploaded.map((file) => ({
-        id: file.key,
-        name: file.name,
-        size: file.size,
-        url: file.ufsUrl,
-      }));
-    },
-    [startUpload],
+  const { currentImage, upload } = useFestivalArtworkUpload(
+    value,
+    "Póster actual",
   );
 
   return (

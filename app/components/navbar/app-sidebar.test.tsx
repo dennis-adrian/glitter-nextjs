@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -171,6 +172,36 @@ describe("AppSidebar", () => {
         .textContent,
     ).toContain("Administración");
   });
+
+  it.each([
+    ["a global admin", admin, true],
+    [
+      "a festival admin",
+      { role: "festival_admin", status: "verified" } as NavViewer,
+      false,
+    ],
+    ["a participant, or an admin viewing as one", participant, false],
+  ])(
+    "offers Entrar como participante in the account menu to %s: %s",
+    async (_, viewer, offered) => {
+      window.HTMLElement.prototype.scrollIntoView = vi.fn();
+      Element.prototype.hasPointerCapture = vi.fn().mockReturnValue(false);
+      Element.prototype.setPointerCapture = vi.fn();
+      Element.prototype.releasePointerCapture = vi.fn();
+      renderSidebar(viewer);
+      fireEvent.pointerDown(
+        screen.getByRole("button", { name: "Cuenta de Camila Rojas" }),
+        new MouseEvent("pointerdown", { bubbles: true, button: 0 }),
+      );
+      const menu = await within(document.body).findByRole("menu");
+      const item = within(menu).queryByRole("menuitem", {
+        name: "Entrar como participante",
+      });
+      expect(item != null).toBe(offered);
+      if (item)
+        expect(item.getAttribute("href")).toBe("/dashboard/impersonate");
+    },
+  );
 
   it("shows Tiendita as a heading over its two stores, with no duplicate link", () => {
     pathnameMock.mockReturnValue("/supplies");
