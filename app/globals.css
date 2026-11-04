@@ -11,8 +11,19 @@
 
 /* The installed app. Navigation that only makes sense outside a browser tab
  * (the bottom tab bar) keys off this rather than off JavaScript, so it is
- * never painted and then removed. */
-@custom-variant standalone (@media (display-mode: standalone));
+ * never painted and then removed. Either the display mode says so, or the
+ * app's start page marked the window: some Android phones open the installed
+ * app full screen while it still reports browser mode, and the mark is set
+ * before the page paints (app/lib/installed-app-mode.ts). */
+@custom-variant standalone {
+  @media (display-mode: standalone) {
+    @slot;
+  }
+
+  &:where([data-installed-app], [data-installed-app] *) {
+    @slot;
+  }
+}
 
 @theme inline {
   --font-sans: var(--font-figtree), sans-serif;
@@ -856,11 +867,13 @@
   }
 }
 
-@media (display-mode: standalone) and (width < 64rem) {
-  body:has([data-app-tabbar]) {
-    /* Read by pages sized to the viewport, like the dashboard. */
-    --app-bottom-chrome: calc(4rem + env(safe-area-inset-bottom));
-    padding-bottom: var(--app-bottom-chrome);
+body:has([data-app-tabbar]) {
+  @variant standalone {
+    @variant max-lg {
+      /* Read by pages sized to the viewport, like the dashboard. */
+      --app-bottom-chrome: calc(4rem + env(safe-area-inset-bottom));
+      padding-bottom: var(--app-bottom-chrome);
+    }
   }
 }
 
@@ -869,12 +882,14 @@
  * back links and breadcrumbs step aside ([data-installed-hidden]) and a
  * heading that repeats the title stays for screen readers only
  * ([data-installed-title]). In a browser tab none of this applies. */
-@media (display-mode: standalone) {
-  body:has([data-screen-bar]) [data-installed-hidden] {
+body:has([data-screen-bar]) [data-installed-hidden] {
+  @variant standalone {
     display: none !important;
   }
+}
 
-  body:has([data-screen-bar]) [data-installed-title] {
+body:has([data-screen-bar]) [data-installed-title] {
+  @variant standalone {
     position: absolute !important;
     width: 1px;
     height: 1px;
@@ -889,15 +904,17 @@
 
 /* The installed app refreshes on pull with its own gesture (PullToRefresh);
  * the browser's own pull-to-refresh, where it still fires, stays out. */
-@media (display-mode: standalone) {
-  html {
+html {
+  @variant standalone {
     overscroll-behavior-y: contain;
   }
 }
 
-@media (display-mode: standalone) and (width < 64rem) {
-  body:has([data-screen-bar]) [data-announcement-strip] {
-    display: none;
+body:has([data-screen-bar]) [data-announcement-strip] {
+  @variant standalone {
+    @variant max-lg {
+      display: none;
+    }
   }
 }
 

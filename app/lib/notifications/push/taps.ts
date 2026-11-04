@@ -17,6 +17,17 @@ export const ARRIVALS_PATH = "/__glitter/arrivals";
 export const ARRIVALS_KEPT = 5;
 
 /**
+ * When an Android phone last ran the installed app in a window that reports
+ * the browser's display mode (app/lib/installed-app-mode.ts), as
+ * `{ at: number }`. The page writes it; the worker reads it to open a tapped
+ * notification with the installed app's mark, since a window it opens skips
+ * the app's start page.
+ */
+export const INSTALLED_APP_SEEN_PATH = "/__glitter/installed-app-seen";
+/** How long after that the worker still marks the windows it opens. */
+export const INSTALLED_APP_SEEN_FRESH_DAYS = 30;
+
+/**
  * Set by the open route for a couple of minutes: the page then knows that
  * tap's link already loaded and does not open it again.
  */

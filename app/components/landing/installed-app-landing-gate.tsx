@@ -6,16 +6,12 @@ import { useEffect } from "react";
 import { Loader2Icon } from "lucide-react";
 
 import { INSTALLED_APP_SIGN_IN_HREF } from "@/app/components/landing/installed-app";
+import { isStandaloneApp } from "@/app/lib/notifications/push/support";
 
 /** Whether this page is running as the installed app rather than in a tab. */
 export function isInstalledApp(): boolean {
   if (typeof window === "undefined") return false;
-  return (
-    window.matchMedia("(display-mode: standalone)").matches ||
-    // iOS reports a home-screen web app here too, older versions only here.
-    (window.navigator as Navigator & { standalone?: boolean }).standalone ===
-      true
-  );
+  return isStandaloneApp(window as Parameters<typeof isStandaloneApp>[0]);
 }
 
 /**

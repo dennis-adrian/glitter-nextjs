@@ -13,6 +13,7 @@ import { figtree, gabarito } from "@/ui/fonts";
 
 import CreditGiftCelebration from "@/app/components/credit_gifts/credit-gift-celebration";
 import InstalledAppHead from "@/app/components/installed-app-head";
+import InstalledAppMark from "@/app/components/installed-app-mark";
 import Navbar from "@/app/components/navbar/navbar";
 import { ScreenBarProvider } from "@/app/components/navbar/screen-bar";
 import ScrollToTopOnNavigation from "@/app/components/navbar/scroll-to-top";
@@ -66,6 +67,7 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <body className={`${figtree.variable} ${gabarito.variable} font-sans`}>
         <InstalledAppHead />
+        <InstalledAppMark />
         {/* Outside every Suspense boundary: a tapped notification's message
             can arrive as soon as the page loads. */}
         <ServiceWorkerMessages />
