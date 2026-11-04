@@ -1,27 +1,25 @@
 "use client";
 
 import {
-  BellRingIcon,
   CheckIcon,
   CircleCheckIcon,
   CopyIcon,
   DownloadIcon,
+  SmartphoneIcon,
 } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import {
   InstallStepList,
   installGuideFor,
-  OTHER_DEVICE_GUIDES,
-  UiLabel,
+  NOTIFICATIONS_GUIDE,
+  PHONE_GUIDES,
 } from "@/app/components/install-guide/install-steps";
 import {
   useInstallContext,
   useInstallPromptStatus,
 } from "@/app/components/install-guide/use-install-guide";
 import {
-  ENABLE_PUSH_LABEL,
   PushControl,
   type PushDeviceRow,
 } from "@/app/components/notifications/push-control";
@@ -34,6 +32,7 @@ import {
   promptInstall,
 } from "@/app/lib/install-guide/install-prompt";
 import {
+  detectInstallContext,
   type InstallContext,
   installPlatformGroup,
 } from "@/app/lib/install-guide/platform";
@@ -43,24 +42,22 @@ import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 export const INSTALL_BUTTON_LABEL = "Instalar Glitter";
 
 /**
- * The other-device guide this device's own steps already cover. An in-app
- * browser keeps them all: its next stop is Safari or Chrome.
+ * The phone guide this phone's own steps already cover. An in-app browser
+ * keeps both: its next stop is Safari or Chrome.
  */
 const OWN_GUIDE: Partial<Record<InstallContext["platform"], string>> = {
   "ios-safari": "ios",
   "ios-browser": "ios",
   "android-chromium": "android",
   "android-firefox": "android",
-  "desktop-chromium": "desktop",
-  "desktop-safari": "mac",
 };
 
-/** Where the prompt can be shown: Chromium, on a phone or a computer. */
+/**
+ * Where the Instalar button shows the browser's prompt: Chromium on Android.
+ * A computer's Chrome offers it too, but Glitter is installed on phones.
+ */
 function canOfferPrompt(context: InstallContext) {
-  return (
-    context.platform === "android-chromium" ||
-    context.platform === "desktop-chromium"
-  );
+  return context.platform === "android-chromium";
 }
 
 function StepHeading({
@@ -132,8 +129,62 @@ function CopyLinkButton() {
   );
 }
 
+/**
+ * Step 1 on a computer: Glitter is installed on phones, so the page sends
+ * the person to theirs, with a code the phone's camera opens.
+ */
+function OpenOnPhone({
+  installUrl,
+  qrSvg,
+}: {
+  installUrl: string;
+  qrSvg: string | null;
+}) {
+  const shownUrl = installUrl.replace(/^https?:\/\//, "");
+  return (
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+      {qrSvg && (
+        <div
+          role="img"
+          aria-label={`Código QR que abre ${shownUrl}`}
+          // White whatever the theme: a phone's camera reads dark on light.
+          className="size-40 shrink-0 self-center rounded-lg bg-white p-2 sm:self-auto [&_svg]:size-full"
+          // Drawn on the server by the qrcode library from our own address.
+          dangerouslySetInnerHTML={{ __html: qrSvg }}
+        />
+      )}
+      <div className="space-y-2 text-sm leading-relaxed">
+        <p className="flex items-start gap-2 font-medium">
+          <SmartphoneIcon
+            className="mt-0.5 size-4 shrink-0 text-primary"
+            aria-hidden
+          />
+          Glitter se instala en tu teléfono.
+        </p>
+        <p className="text-muted-foreground">
+          {qrSvg
+            ? "Escaneá este código con la cámara de tu teléfono y seguí los pasos que te aparecen ahí."
+            : "Abrí esta página en tu teléfono y seguí los pasos que te aparecen ahí."}
+        </p>
+        <p className="text-muted-foreground">
+          {qrSvg ? "O entrá desde el teléfono a " : "Entrá a "}
+          <span className="font-medium text-foreground">{shownUrl}</span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /** Step 1 for this device: the button where the browser offers one. */
-function ThisDeviceInstall({ context }: { context: InstallContext }) {
+function ThisDeviceInstall({
+  context,
+  installUrl,
+  qrSvg,
+}: {
+  context: InstallContext;
+  installUrl: string;
+  qrSvg: string | null;
+}) {
   const status = useInstallPromptStatus();
   const [outcome, setOutcome] = useState<InstallPromptOutcome | null>(null);
   const [asking, setAsking] = useState(false);
@@ -146,6 +197,10 @@ function ThisDeviceInstall({ context }: { context: InstallContext }) {
         <Skeleton className="h-4 w-1/2" />
       </div>
     );
+  }
+
+  if (context.platform === "desktop") {
+    return <OpenOnPhone installUrl={installUrl} qrSvg={qrSvg} />;
   }
 
   if (context.platform === "installed") {
@@ -167,9 +222,8 @@ function ThisDeviceInstall({ context }: { context: InstallContext }) {
           className="mt-0.5 size-5 shrink-0 text-emerald-600"
           aria-hidden
         />
-        {context.platform === "desktop-chromium"
-          ? "¡Listo! Glitter quedó instalado y se abre en su propia ventana."
-          : "¡Listo! Glitter quedó instalado. Abrilo desde su ícono en tu pantalla de inicio."}
+        ¡Listo! Glitter quedó instalado. Abrilo desde su ícono en tu pantalla de
+        inicio.
       </p>
     );
   }
@@ -227,97 +281,109 @@ function ThisDeviceInstall({ context }: { context: InstallContext }) {
   );
 }
 
-/** Step 2: turning notifications on, once the app can receive them. */
+/**
+ * Step 2: the tutorial, for everyone and whatever the flags say. Nobody is
+ * asked to sign in here; that happens once they open the app. When this
+ * phone can already turn notifications on (signed in, notifications open to
+ * them, and not an iPhone outside the installed app), the control follows as
+ * a shortcut.
+ */
 function NotificationsStep({
+  context,
+  pushAvailable,
   signedIn,
   publicKey,
   devices,
 }: {
+  context: InstallContext;
+  pushAvailable: boolean;
   signedIn: boolean;
   publicKey: string | null;
   devices: PushDeviceRow[];
 }) {
   const support = usePushSupport();
+  const canTurnOnHere =
+    pushAvailable &&
+    signedIn &&
+    context.platform !== "desktop" &&
+    support !== "unknown" &&
+    support !== "ios-needs-install" &&
+    support !== "ios-in-app-browser";
 
-  if (!signedIn) {
-    return (
-      <div className="space-y-3 text-sm">
-        <p>
-          Iniciá sesión con tu cuenta de Glitter y activá las notificaciones en
-          este dispositivo.
-        </p>
-        <Button asChild variant="outline">
-          <Link
-            href={`/sign_in?redirect_url=${encodeURIComponent(INSTALL_GUIDE_PATH)}`}
-          >
-            Iniciar sesión
-          </Link>
-        </Button>
-      </div>
-    );
-  }
-
-  // On an iPhone, the notifications control only works inside the installed
-  // app: say where to find it there instead of repeating step 1.
-  if (support === "ios-needs-install" || support === "ios-in-app-browser") {
-    return (
-      <p className="text-sm leading-relaxed">
-        Cuando abras Glitter desde su ícono, tocá la campana{" "}
-        <UiLabel icon={<BellRingIcon aria-hidden />} srLabel="Notificaciones" />{" "}
-        y elegí «{ENABLE_PUSH_LABEL}». En iPhone y iPad las notificaciones
-        llegan solo a Glitter instalado.
-      </p>
-    );
-  }
-
-  return <PushControl publicKey={publicKey} devices={devices} />;
+  return (
+    <div className="space-y-4">
+      <InstallStepList guide={NOTIFICATIONS_GUIDE} />
+      {canTurnOnHere && <PushControl publicKey={publicKey} devices={devices} />}
+    </div>
+  );
 }
 
 function InstallGuideViewTracker({
-  context,
   pushAvailable,
   signedIn,
 }: {
-  context: InstallContext;
   pushAvailable: boolean;
   signedIn: boolean;
 }) {
   const captured = useRef(false);
   useEffect(() => {
-    if (captured.current || context.platform === "unknown") return;
+    if (captured.current) return;
     captured.current = true;
+    // Read here rather than from the render, whose first pass may still be
+    // the server's guess.
+    const context = detectInstallContext(window);
     captureClientEvent(POSTHOG_EVENTS.INSTALL_GUIDE_VIEWED, {
-      platform: context.platform,
+      // The grouped value, as the other install events send it, so one
+      // `platform` breakdown spans the funnel; the exact one alongside.
+      platform: installPlatformGroup(context.platform),
+      platform_detail: context.platform,
       browser: context.browser,
       push_available: pushAvailable,
       signed_in: signedIn,
     });
-  }, [context, pushAvailable, signedIn]);
+  }, [pushAvailable, signedIn]);
   return null;
 }
 
+/** Only on a phone's browser can "otro teléfono" be said. */
+function isPhoneBrowser(context: InstallContext) {
+  return (
+    context.platform.startsWith("ios-") ||
+    context.platform.startsWith("android-")
+  );
+}
+
 /**
- * `/instalar`: install Glitter on this device, then turn on its
- * notifications. The steps follow the device; the others are one tap away.
+ * `/instalar`: install Glitter on this phone, then turn on its
+ * notifications. The steps follow the phone; the other one is a tap away. A
+ * computer is sent to its phone.
  */
 export default function InstallGuide({
   pushAvailable,
   signedIn,
   publicKey,
   devices,
+  installUrl,
+  qrSvg,
+  serverGuess,
 }: {
   /** Notifications are open to this viewer and configured here. */
   pushAvailable: boolean;
   signedIn: boolean;
   publicKey: string | null;
   devices: PushDeviceRow[];
+  /** This page's absolute address, for a computer to open on its phone. */
+  installUrl: string;
+  /** A QR code of `installUrl`, as SVG markup; null if it could not be drawn. */
+  qrSvg: string | null;
+  /** What the request's user agent says, until the browser can be asked. */
+  serverGuess?: InstallContext;
 }) {
-  const context = useInstallContext();
+  const context = useInstallContext(serverGuess);
 
   return (
     <div className="space-y-4">
       <InstallGuideViewTracker
-        context={context}
         pushAvailable={pushAvailable}
         signedIn={signedIn}
       />
@@ -329,31 +395,39 @@ export default function InstallGuide({
         <StepHeading number={1} id="install-step-heading">
           Instalá Glitter
         </StepHeading>
-        <ThisDeviceInstall context={context} />
+        <ThisDeviceInstall
+          context={context}
+          installUrl={installUrl}
+          qrSvg={qrSvg}
+        />
       </section>
 
-      {pushAvailable && (
-        <section
-          aria-labelledby="notifications-step-heading"
-          className="space-y-4 rounded-lg border p-4 md:p-5"
-        >
-          <StepHeading number={2} id="notifications-step-heading">
-            Activá las notificaciones
-          </StepHeading>
-          <NotificationsStep
-            signedIn={signedIn}
-            publicKey={publicKey}
-            devices={devices}
-          />
-        </section>
-      )}
+      {/* Always explained, flags or not; on a computer it is what to do on
+          the phone. */}
+      <section
+        aria-labelledby="notifications-step-heading"
+        className="space-y-4 rounded-lg border p-4 md:p-5"
+      >
+        <StepHeading number={2} id="notifications-step-heading">
+          Activá las notificaciones
+        </StepHeading>
+        <NotificationsStep
+          context={context}
+          pushAvailable={pushAvailable}
+          signedIn={signedIn}
+          publicKey={publicKey}
+          devices={devices}
+        />
+      </section>
 
       <section aria-labelledby="other-devices-heading" className="pt-2">
         <h2 id="other-devices-heading" className="mb-2 font-semibold">
-          ¿Usás otro dispositivo?
+          {isPhoneBrowser(context)
+            ? "¿Usás otro teléfono?"
+            : "Los pasos en cada teléfono"}
         </h2>
         <div className="divide-y rounded-lg border">
-          {OTHER_DEVICE_GUIDES.filter(
+          {PHONE_GUIDES.filter(
             ({ key }) => key !== OWN_GUIDE[context.platform],
           ).map(({ key, title, guide }) => (
             <details key={key} className="px-4 py-3">

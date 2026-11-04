@@ -6,6 +6,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ capture: vi.fn() }));
@@ -82,6 +83,8 @@ function renderGuide(
       signedIn
       publicKey="key"
       devices={[]}
+      installUrl="https://www.glitter.com.bo/instalar"
+      qrSvg='<svg data-testid="qr"></svg>'
       {...props}
     />,
   );
@@ -111,8 +114,29 @@ describe("/instalar, step 1", () => {
   it("shows an iPhone the home-screen steps, with no button it could not use", () => {
     useBrowser(UA.iphone);
     renderGuide();
-    expect(screen.getAllByText(/Agregar a inicio/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Agregar a Inicio/).length).toBeGreaterThan(0);
     expect(installButton()).toBe(null);
+  });
+
+  it("shows each iPhone step with its screenshot, as iOS 26 Safari has it", () => {
+    useBrowser(UA.iphone);
+    renderGuide();
+    const step1 = document
+      .getElementById("install-step-heading")
+      ?.closest("section")
+      ?.querySelector("ol > li");
+    expect(step1?.textContent).toMatch(/a la izquierda de la dirección/);
+    for (const alt of [
+      /ícono a la izquierda de la dirección marcado/,
+      /con «Compartir» marcado/,
+      /con «Ver más» marcado/,
+      /con «Agregar a Inicio» marcado/,
+      /«Abrir como app web» activado/,
+      /ícono de Glitter en la pantalla de inicio/,
+    ]) {
+      const image = screen.getByAltText(alt);
+      expect(image.getAttribute("src")).toMatch(/install-guide/);
+    }
   });
 
   it("asks Instagram's browser to open the page elsewhere, with the link to copy", () => {
@@ -143,7 +167,7 @@ describe("/instalar, step 1", () => {
   });
 
   it("falls back to the menu steps when the prompt is dismissed", async () => {
-    useBrowser(UA.windows);
+    useBrowser(UA.android);
     renderGuide();
     offerInstall("dismissed");
     fireEvent.click(installButton()!);
@@ -151,14 +175,97 @@ describe("/instalar, step 1", () => {
     await waitFor(() => expect(screen.getByText(/No pasa nada/)).toBeTruthy());
     expect(installButton()).toBe(null);
     expect(
-      screen.getAllByText(/Instalar página como app/).length,
+      screen.getAllByText(/Agregar a la pantalla principal/).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("sends a computer to its phone with a QR code, even when Chrome offers to install", () => {
+    useBrowser(UA.windows);
+    renderGuide();
+    offerInstall("accepted");
+
+    expect(screen.getByText("Glitter se instala en tu teléfono.")).toBeTruthy();
+    expect(
+      screen.getByRole("img", {
+        name: "Código QR que abre www.glitter.com.bo/instalar",
+      }),
+    ).toBeTruthy();
+    expect(screen.getByText("www.glitter.com.bo/instalar")).toBeTruthy();
+    // The server's drawing, inside the labelled frame.
+    expect(screen.getByTestId("qr")).toBeTruthy();
+    expect(installButton()).toBe(null);
+    // The steps for both phones, and nothing about computers.
+    expect(screen.getByText("Los pasos en cada teléfono")).toBeTruthy();
+    expect(screen.getByText("iPhone y iPad")).toBeTruthy();
+    expect(screen.getByText("Android")).toBeTruthy();
+    expect(screen.queryByText(/Computadora|Mac/)).toBe(null);
+  });
+
+  it("gives a computer the address alone when the QR code could not be drawn", () => {
+    useBrowser(UA.windows);
+    renderGuide({ qrSvg: null });
+    expect(screen.queryByRole("img", { name: /Código QR/ })).toBe(null);
+    expect(screen.getByText(/Abrí esta página en tu teléfono/)).toBeTruthy();
+    expect(screen.getByText("www.glitter.com.bo/instalar")).toBeTruthy();
+  });
+
+  it("draws a computer as one from the server", () => {
+    const html = renderToString(
+      <InstallGuide
+        pushAvailable
+        signedIn={false}
+        publicKey="key"
+        devices={[]}
+        installUrl="https://www.glitter.com.bo/instalar"
+        qrSvg="<svg></svg>"
+        serverGuess={{ platform: "desktop", browser: "chrome" }}
+      />,
+    );
+    expect(html).toContain("Glitter se instala en tu teléfono.");
+    expect(html).toContain("Los pasos en cada teléfono");
+    expect(html).not.toContain("¿Usás otro teléfono?");
+    // The notifications tutorial, for the phone, but never the control.
+    expect(html).toContain("Activá las notificaciones");
+    expect(html).not.toContain("push-control");
+  });
+
+  it("does not call the installed app a phone, which may be a computer", () => {
+    useBrowser(UA.windows, { standalone: true });
+    renderGuide();
+    expect(screen.getByText(/Ya estás usando Glitter instalado/)).toBeTruthy();
+    expect(screen.getByText("Los pasos en cada teléfono")).toBeTruthy();
+  });
+
+  it("lists only the other phone's steps on a phone", () => {
+    useBrowser(UA.iphone);
+    renderGuide();
+    expect(screen.getByText("¿Usás otro teléfono?")).toBeTruthy();
+    expect(screen.getByText("Android")).toBeTruthy();
+    expect(screen.queryByText("iPhone y iPad")).toBe(null);
   });
 
   it("gives the menu steps when the browser has not offered to install", () => {
     useBrowser(UA.android);
     renderGuide();
     expect(screen.getByText(/Si ya instalaste Glitter/)).toBeTruthy();
+    // Current Chrome's labels: the menu entry, then «Instalar», not the
+    // shortcut.
+    expect(
+      screen.getAllByText(/«Instalar y crear acceso directo»/).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(/no «Crear acceso directo»/).length,
+    ).toBeGreaterThan(0);
+    for (const alt of [
+      /botón de menú \(tres puntos\) marcado/,
+      /con «Instalar y crear acceso directo» marcado/,
+      /con «Instalar» marcado y «Crear acceso directo» debajo/,
+      /«Instalar aplicación» de Glitter/,
+    ]) {
+      expect(screen.getAllByAltText(alt)[0].getAttribute("src")).toMatch(
+        /android-\d-[a-z-]+\.webp/,
+      );
+    }
     expect(
       screen.getAllByText(/Agregar a la pantalla principal/).length,
     ).toBeGreaterThan(0);
@@ -175,7 +282,8 @@ describe("/instalar, step 1", () => {
     renderGuide({ signedIn: false });
     expect(mocks.capture).toHaveBeenCalledTimes(1);
     expect(mocks.capture).toHaveBeenCalledWith("install_guide_viewed", {
-      platform: "ios-safari",
+      platform: "ios",
+      platform_detail: "ios-safari",
       browser: "safari",
       push_available: true,
       signed_in: false,
@@ -184,31 +292,55 @@ describe("/instalar, step 1", () => {
 });
 
 describe("/instalar, step 2", () => {
-  it("leaves notifications out before they launch for this viewer", () => {
-    useBrowser(UA.windows);
-    renderGuide({ pushAvailable: false });
-    expect(screen.queryByText("Activá las notificaciones")).toBe(null);
-  });
-
-  it("asks a signed-out visitor to sign in, coming back here", () => {
-    useBrowser(UA.windows);
-    renderGuide({ signedIn: false });
+  /** The tutorial's three steps, as every viewer gets them. */
+  function expectTutorial() {
+    expect(screen.getByText("Activá las notificaciones")).toBeTruthy();
+    expect(screen.getByText(/tocá la campana/)).toBeTruthy();
+    expect(screen.getByAltText(/con la campana marcada/)).toBeTruthy();
     expect(
-      screen.getByRole("link", { name: "Iniciar sesión" }).getAttribute("href"),
-    ).toBe("/sign_in?redirect_url=%2Finstalar");
+      screen.getByAltText(
+        /con el botón «Recibir notificaciones en este dispositivo» marcado/,
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/Cuando tu teléfono te pregunte/).textContent,
+    ).toMatch(/Permitir/);
+  }
+
+  it("explains notifications before they launch, without the control", () => {
+    useBrowser(UA.android);
+    renderGuide({ pushAvailable: false });
+    expectTutorial();
     expect(screen.queryByTestId("push-control")).toBe(null);
   });
 
-  it("tells an iPhone where the control is once installed", () => {
+  it("never asks a signed-out visitor to sign in: the tutorial only", () => {
+    useBrowser(UA.android);
+    renderGuide({ signedIn: false });
+    expectTutorial();
+    expect(screen.queryByRole("link", { name: /Iniciar sesión/ })).toBe(null);
+    expect(screen.queryByText(/Iniciá sesión con tu cuenta/)).toBe(null);
+    expect(screen.queryByTestId("push-control")).toBe(null);
+  });
+
+  it("gives an iPhone outside the installed app the tutorial, not the control", () => {
     useBrowser(UA.iphone);
     renderGuide();
-    expect(screen.getByText(/tocá la campana/)).toBeTruthy();
+    expectTutorial();
     expect(screen.queryByTestId("push-control")).toBe(null);
   });
 
-  it("shows the notifications control where it can be used", () => {
+  it("adds the control as a shortcut where it can be used", () => {
+    useBrowser(UA.android);
+    renderGuide();
+    expectTutorial();
+    expect(screen.getByTestId("push-control")).toBeTruthy();
+  });
+
+  it("gives a computer the tutorial for the phone, without the control", () => {
     useBrowser(UA.windows);
     renderGuide();
-    expect(screen.getByTestId("push-control")).toBeTruthy();
+    expectTutorial();
+    expect(screen.queryByTestId("push-control")).toBe(null);
   });
 });

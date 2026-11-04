@@ -549,7 +549,9 @@ describe("the avisos control on /my_notifications", () => {
         pushManager: false,
       });
       render(<PushControl publicKey={KEY} devices={[]} />);
-      expect(screen.getByText(/«Agregar a inicio»/).textContent).toBeTruthy();
+      expect(screen.getByText(/«Agregar a Inicio»/).textContent).toMatch(
+        /En Safari, elegí Compartir y después «Agregar a Inicio»/,
+      );
       expect(
         screen
           .getByRole("link", { name: "Ver los pasos" })
@@ -565,7 +567,7 @@ describe("the avisos control on /my_notifications", () => {
       installBrowser({ userAgent: IPHONE, standalone: true });
       render(<PushControl publicKey={KEY} devices={[]} />);
       await enabledButton();
-      expect(screen.queryByText(/«Agregar a inicio»/)).toBe(null);
+      expect(screen.queryByText(/«Agregar a Inicio»/)).toBe(null);
     });
 
     it("asks for iOS 16.4 on an older iPhone", () => {

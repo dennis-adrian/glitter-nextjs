@@ -24,7 +24,7 @@ function FestivalRow({
     : null;
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex min-w-0 items-center gap-3">
       <span className="relative block aspect-3/4 w-12 shrink-0 overflow-hidden rounded-lg bg-brand-lavender/40 shadow-sm">
         {festival.posterUrl ? (
           <Image
@@ -38,7 +38,9 @@ function FestivalRow({
       </span>
       <span className="flex min-w-0 flex-col">
         <span className="text-xs text-brand-neutral">{label}</span>
-        <span className="truncate font-display text-lg font-bold leading-tight text-brand-ink">
+        {/* Two lines, then an ellipsis: long names ("Festicker 4ta Edición -
+            Halloween") stay readable on a phone. */}
+        <span className="line-clamp-2 break-words font-display text-lg font-bold leading-tight text-brand-ink">
           {festival.name}
         </span>
         <span className="text-xs text-brand-neutral">
@@ -87,11 +89,14 @@ export default function HomeHistoryCard({
     >
       <div
         className={cn(
-          "grid gap-4 rounded-2xl border border-brand-border bg-brand-card p-4",
+          // `grid-cols-1` is minmax(0, 1fr): without a template the single
+          // column grew to the longest name and pushed everything past the
+          // card on a phone.
+          "grid grid-cols-1 gap-4 rounded-2xl border border-brand-border bg-brand-card p-4",
           wide && "md:grid-cols-2 md:gap-6",
         )}
       >
-        <div className="flex flex-col gap-3">
+        <div className="flex min-w-0 flex-col gap-3">
           {last ? (
             <>
               <FestivalRow label="Tu primer festival" festival={first} />
@@ -107,7 +112,7 @@ export default function HomeHistoryCard({
 
         <div
           className={cn(
-            "flex flex-col gap-4 border-t border-brand-border pt-4",
+            "flex min-w-0 flex-col gap-4 border-t border-brand-border pt-4",
             wide && "md:border-l md:border-t-0 md:pl-6 md:pt-0",
           )}
         >
@@ -127,7 +132,9 @@ export default function HomeHistoryCard({
 
           <div className="flex flex-col gap-1.5">
             <Label>
-              {stands.length === 1 ? "Stand que ocupaste" : "Stands que ocupaste"}
+              {stands.length === 1
+                ? "Stand que ocupaste"
+                : "Stands que ocupaste"}
             </Label>
             <ul className="flex flex-wrap gap-1.5">
               {stands.map((stand) => (

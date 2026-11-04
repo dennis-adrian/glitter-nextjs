@@ -65,10 +65,10 @@ describe("detectInstallContext", () => {
     ["androidFirefox", "android-firefox", "firefox"],
     ["androidInstagram", "android-in-app", "other"],
     ["androidWebView", "android-in-app", "other"],
-    ["windowsChrome", "desktop-chromium", "chrome"],
-    ["windowsEdge", "desktop-chromium", "edge"],
-    ["macSafari", "desktop-safari", "safari"],
-    ["macFirefox", "desktop-firefox", "firefox"],
+    ["windowsChrome", "desktop", "chrome"],
+    ["windowsEdge", "desktop", "edge"],
+    ["macSafari", "desktop", "safari"],
+    ["macFirefox", "desktop", "firefox"],
   ] as const)("reads %s as %s", (name, platform, browser) => {
     expect(detectInstallContext(browserWith(UA[name]))).toEqual({
       platform,
@@ -106,7 +106,7 @@ describe("installPlatformGroup", () => {
   it("groups platforms for analytics", () => {
     expect(installPlatformGroup("ios-in-app")).toBe("ios");
     expect(installPlatformGroup("android-chromium")).toBe("android");
-    expect(installPlatformGroup("desktop-safari")).toBe("desktop");
+    expect(installPlatformGroup("desktop")).toBe("desktop");
     expect(installPlatformGroup("installed")).toBe("installed");
     expect(installPlatformGroup("unknown")).toBe("other");
   });

@@ -1,12 +1,16 @@
 import {
+  BellIcon,
+  ChevronDownIcon,
   EllipsisIcon,
   EllipsisVerticalIcon,
   MenuIcon,
-  MonitorDownIcon,
   ShareIcon,
   SquarePlusIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import Image from "next/image";
+import { isValidElement, type ReactNode } from "react";
+
+import { ENABLE_PUSH_LABEL } from "@/app/components/notifications/push-control";
 
 import type {
   InstallBrowser,
@@ -14,9 +18,10 @@ import type {
 } from "@/app/lib/install-guide/platform";
 
 /**
- * The install steps for each browser, as they read on screen. Kept apart
- * from the page so the guide for this device and the ones under «¿Usás otro
- * dispositivo?» are the same text.
+ * The install steps for each phone browser, as they read on screen. Kept
+ * apart from the page so the guide for this phone and the ones under «¿Usás
+ * otro teléfono?» are the same text. Computers get no steps: Glitter is
+ * installed on phones.
  *
  * Labels follow each browser's Latin American Spanish menus; when a browser
  * has used more than one label, both are named.
@@ -42,40 +47,182 @@ export function UiLabel({
   );
 }
 
+/**
+ * A screenshot under a step, from `public/img/install-guide/`. Taken on an
+ * iPhone (iOS 26, Safari) and on Android (Chrome), and cropped to the part
+ * that matters, with the control to tap ringed; nothing personal is left in
+ * them.
+ */
+type StepImage = { src: string; width: number; height: number; alt: string };
+
+export type InstallStep = ReactNode | { text: ReactNode; images: StepImage[] };
+
 export type InstallGuideText = {
-  steps: ReactNode[];
+  steps: InstallStep[];
   /** A line under the steps: a fallback, or what this browser cannot do. */
   note?: ReactNode;
 };
 
-const OPEN_FROM_ICON =
-  "Abrí Glitter desde el ícono nuevo en tu pantalla de inicio.";
+const IMAGES = "/img/install-guide";
 
-function iosSteps(firstStep: ReactNode): ReactNode[] {
+const IOS_IMAGES = {
+  addressBar: {
+    src: `${IMAGES}/ios-1-address-bar.webp`,
+    width: 804,
+    height: 136,
+    alt: "La barra de Safari, con el ícono a la izquierda de la dirección marcado.",
+  },
+  shareMenu: {
+    src: `${IMAGES}/ios-2-share-menu.webp`,
+    width: 556,
+    height: 410,
+    alt: "El menú que se abre, con «Compartir» marcado.",
+  },
+  more: {
+    src: `${IMAGES}/ios-3-more.webp`,
+    width: 864,
+    height: 290,
+    alt: "Los botones de Compartir, con «Ver más» marcado.",
+  },
+  addToHome: {
+    src: `${IMAGES}/ios-4-add-to-home.webp`,
+    width: 864,
+    height: 610,
+    alt: "La lista de opciones, con «Agregar a Inicio» marcado.",
+  },
+  confirm: {
+    src: `${IMAGES}/ios-5-confirm.webp`,
+    width: 924,
+    height: 740,
+    alt: "La pantalla «Agregar a Inicio», con «Abrir como app web» activado y el botón «Agregar» marcado.",
+  },
+  homeIcon: {
+    src: `${IMAGES}/ios-6-home-icon.webp`,
+    width: 420,
+    height: 270,
+    alt: "El ícono de Glitter en la pantalla de inicio.",
+  },
+  bell: {
+    src: `${IMAGES}/ios-7-bell.webp`,
+    width: 798,
+    height: 170,
+    alt: "La barra de arriba de Glitter, con la campana marcada.",
+  },
+  enablePush: {
+    src: `${IMAGES}/ios-8-enable-push.webp`,
+    width: 884,
+    height: 410,
+    alt: `La tarjeta «Notificaciones en este dispositivo», con el botón «${ENABLE_PUSH_LABEL}» marcado.`,
+  },
+} satisfies Record<string, StepImage>;
+
+/**
+ * Chrome on Android (Dennis's screenshots, 2026-11-03), cropped the same way:
+ * no status bar, the open-tab count painted over, and no home screen.
+ */
+const ANDROID_IMAGES = {
+  menuButton: {
+    src: `${IMAGES}/android-1-menu-button.webp`,
+    width: 878,
+    height: 124,
+    alt: "La barra de Chrome, con el botón de menú (tres puntos) marcado.",
+  },
+  installMenu: {
+    src: `${IMAGES}/android-2-install-menu.webp`,
+    width: 774,
+    height: 350,
+    alt: "El menú de Chrome, con «Instalar y crear acceso directo» marcado.",
+  },
+  installSheet: {
+    src: `${IMAGES}/android-3-install-sheet.webp`,
+    width: 878,
+    height: 490,
+    alt: "La ventana «Instalar y crear acceso directo», con «Instalar» marcado y «Crear acceso directo» debajo.",
+  },
+  installDialog: {
+    src: `${IMAGES}/android-4-install-dialog.webp`,
+    width: 834,
+    height: 502,
+    alt: "La ventana «Instalar aplicación» de Glitter, con el botón «Instalar» marcado.",
+  },
+} satisfies Record<string, StepImage>;
+
+const OPEN_FROM_ICON =
+  "Abrí Glitter desde el ícono nuevo en tu pantalla de inicio. Si te lo pide, iniciá sesión.";
+
+/** From the share sheet on, every iPhone browser shows the same screens. */
+function iosSteps(firstStep: InstallStep): InstallStep[] {
   return [
     firstStep,
-    <>
-      Bajá en la lista y tocá{" "}
-      <UiLabel icon={<SquarePlusIcon aria-hidden />}>Agregar a inicio</UiLabel>.
-    </>,
-    <>
-      Si ves la opción «Abrir como app web», dejala activada. Después tocá{" "}
-      <UiLabel>Agregar</UiLabel>.
-    </>,
-    OPEN_FROM_ICON,
+    {
+      text: (
+        <>
+          Tocá <UiLabel icon={<ChevronDownIcon aria-hidden />}>Ver más</UiLabel>{" "}
+          y después{" "}
+          <UiLabel icon={<SquarePlusIcon aria-hidden />}>
+            Agregar a Inicio
+          </UiLabel>
+          . Si no ves «Ver más», desplazate hacia abajo en la lista hasta
+          «Agregar a Inicio».
+        </>
+      ),
+      images: [IOS_IMAGES.more, IOS_IMAGES.addToHome],
+    },
+    {
+      text: (
+        <>
+          Dejá activada la opción «Abrir como app web», si aparece, y tocá{" "}
+          <UiLabel>Agregar</UiLabel>.
+        </>
+      ),
+      images: [IOS_IMAGES.confirm],
+    },
+    { text: OPEN_FROM_ICON, images: [IOS_IMAGES.homeIcon] },
   ];
 }
 
 export const IOS_SAFARI_GUIDE: InstallGuideText = {
-  steps: iosSteps(
+  steps: iosSteps({
+    text: (
+      <>
+        En la barra de Safari, tocá el ícono que está a la izquierda de la
+        dirección y elegí{" "}
+        <UiLabel icon={<ShareIcon aria-hidden />}>Compartir</UiLabel>. Si ves el
+        botón Compartir directo en la barra, tocalo.
+      </>
+    ),
+    images: [IOS_IMAGES.addressBar, IOS_IMAGES.shareMenu],
+  }),
+};
+
+/**
+ * Step 2, for everyone: where the control is inside the installed app. Shown
+ * whatever the flags say, so the page explains notifications before they
+ * launch too; the screenshots are of Glitter's own screens, the same on any
+ * phone.
+ */
+export const NOTIFICATIONS_GUIDE: InstallGuideText = {
+  steps: [
+    {
+      text: (
+        <>
+          Abrí Glitter desde su ícono y tocá la campana{" "}
+          <UiLabel icon={<BellIcon aria-hidden />} srLabel="Notificaciones" />,
+          arriba.
+        </>
+      ),
+      images: [IOS_IMAGES.bell],
+    },
+    {
+      text: `Tocá el botón «${ENABLE_PUSH_LABEL}».`,
+      images: [IOS_IMAGES.enablePush],
+    },
     <>
-      Tocá <UiLabel icon={<ShareIcon aria-hidden />}>Compartir</UiLabel>, el
-      cuadrado con una flecha hacia arriba, en la barra de Safari (abajo en
-      iPhone, arriba en iPad). Si no lo ves, tocá{" "}
-      <UiLabel icon={<EllipsisIcon aria-hidden />} srLabel="Más opciones" />{" "}
-      primero.
+      Cuando tu teléfono te pregunte si Glitter puede enviarte notificaciones,
+      tocá <UiLabel>Permitir</UiLabel>.
     </>,
-  ),
+  ],
+  note: "En iPhone y iPad las notificaciones llegan solo a Glitter instalado: por eso el paso 1.",
 };
 
 function iosBrowserGuide(browser: InstallBrowser): InstallGuideText {
@@ -105,7 +252,7 @@ function iosBrowserGuide(browser: InstallBrowser): InstallGuideText {
         {where}.
       </>,
     ),
-    note: "¿No aparece «Agregar a inicio»? Abrí esta página en Safari y seguí los pasos desde ahí.",
+    note: "¿No aparece «Agregar a Inicio»? Abrí esta página en Safari y seguí los pasos desde ahí.",
   };
 }
 
@@ -179,82 +326,60 @@ function androidGuide(browser: InstallBrowser): InstallGuideText {
         arriba a la derecha.
       </>
     );
+  if (browser === "edge") {
+    return {
+      steps: [
+        menu,
+        "Elegí «Agregar al teléfono» o «Instalar app».",
+        <>
+          Confirmá con <UiLabel>Instalar</UiLabel>.
+        </>,
+        OPEN_FROM_ICON,
+      ],
+    };
+  }
+  // As current Chrome has it (Dennis's screenshots, 2026-11-03), with the
+  // labels older versions used. The screenshots are Chrome's own; Opera
+  // shares the steps but not the look.
+  const shot = (text: ReactNode, image: StepImage): InstallStep =>
+    browser === "chrome" ? { text, images: [image] } : text;
   return {
     steps: [
-      menu,
-      browser === "edge"
-        ? "Elegí «Agregar al teléfono» o «Instalar app»."
-        : "Elegí «Instalar app» o «Agregar a la pantalla principal».",
-      <>
-        Confirmá con <UiLabel>Instalar</UiLabel>.
-      </>,
+      shot(menu, ANDROID_IMAGES.menuButton),
+      shot(
+        "Elegí «Instalar y crear acceso directo» (en algunas versiones, «Instalar app» o «Agregar a la pantalla principal»).",
+        ANDROID_IMAGES.installMenu,
+      ),
+      shot(
+        <>
+          Tocá <UiLabel>Instalar</UiLabel>, no «Crear acceso directo»: el acceso
+          directo abre Glitter dentro de Chrome.
+        </>,
+        ANDROID_IMAGES.installSheet,
+      ),
+      shot(
+        <>
+          En «Instalar aplicación», confirmá con <UiLabel>Instalar</UiLabel>.
+        </>,
+        ANDROID_IMAGES.installDialog,
+      ),
       OPEN_FROM_ICON,
     ],
   };
 }
-
-function desktopChromiumGuide(browser: InstallBrowser): InstallGuideText {
-  if (browser === "edge") {
-    return {
-      steps: [
-        <>
-          Hacé clic en{" "}
-          <UiLabel icon={<EllipsisIcon aria-hidden />} srLabel="Más opciones" />{" "}
-          arriba a la derecha.
-        </>,
-        "Elegí «Aplicaciones» y después «Instalar este sitio como una aplicación».",
-        <>
-          Confirmá con <UiLabel>Instalar</UiLabel>. Glitter se abre en su propia
-          ventana.
-        </>,
-      ],
-    };
-  }
-  return {
-    steps: [
-      <>
-        Hacé clic en{" "}
-        <UiLabel icon={<MonitorDownIcon aria-hidden />}>Instalar</UiLabel>, al
-        final de la barra de direcciones.
-      </>,
-      <>
-        Si no aparece, abrí el menú{" "}
-        <UiLabel icon={<EllipsisVerticalIcon aria-hidden />} srLabel="Menú" /> y
-        elegí «Transmitir, guardar y compartir» › «Instalar página como app».
-      </>,
-      <>
-        Confirmá con <UiLabel>Instalar</UiLabel>. Glitter se abre en su propia
-        ventana.
-      </>,
-    ],
-  };
-}
-
-const DESKTOP_SAFARI_GUIDE: InstallGuideText = {
-  steps: [
-    "En la barra de menú, elegí Archivo › «Agregar al Dock».",
-    <>
-      Confirmá con <UiLabel>Agregar</UiLabel>. Glitter queda en el Dock, como
-      cualquier otra app.
-    </>,
-  ],
-  note: "Necesitás macOS Sonoma (14) o posterior.",
-};
-
-const DESKTOP_FIREFOX_GUIDE: InstallGuideText = {
-  steps: [],
-  note: "Firefox no instala apps en la computadora. Para instalar Glitter, abrí esta página en Chrome o Edge.",
-};
 
 const OTHER_GUIDE: InstallGuideText = {
   steps: [
     "Abrí el menú del navegador.",
     "Buscá «Instalar», «Instalar app» o «Agregar a la pantalla de inicio».",
   ],
-  note: "Si no aparece, probá con Chrome en Android o en la computadora, o con Safari en iPhone.",
+  note: "Si no aparece, probá con Chrome en Android o con Safari en iPhone.",
 };
 
-/** The steps for this browser. Null when there is nothing to install. */
+/**
+ * The steps for this browser. Null when there is nothing to install here: the
+ * installed app, or a computer, which is sent to its phone instead.
+ */
 export function installGuideFor(
   platform: InstallPlatform,
   browser: InstallBrowser,
@@ -262,6 +387,7 @@ export function installGuideFor(
   switch (platform) {
     case "unknown":
     case "installed":
+    case "desktop":
       return null;
     case "ios-safari":
       return IOS_SAFARI_GUIDE;
@@ -274,49 +400,74 @@ export function installGuideFor(
     case "android-chromium":
     case "android-firefox":
       return androidGuide(browser);
-    case "desktop-chromium":
-      return desktopChromiumGuide(browser);
-    case "desktop-safari":
-      return DESKTOP_SAFARI_GUIDE;
-    case "desktop-firefox":
-      return DESKTOP_FIREFOX_GUIDE;
     case "other":
       return OTHER_GUIDE;
   }
 }
 
-/** For «¿Usás otro dispositivo?»: the most common browser on each. */
-export const OTHER_DEVICE_GUIDES: {
-  key: string;
+/** For «¿Usás otro teléfono?»: the most common browser on each. */
+export const PHONE_GUIDES: {
+  key: "ios" | "android";
   title: string;
   guide: InstallGuideText;
 }[] = [
   { key: "ios", title: "iPhone y iPad", guide: IOS_SAFARI_GUIDE },
   { key: "android", title: "Android", guide: androidGuide("chrome") },
-  {
-    key: "desktop",
-    title: "Computadora (Chrome o Edge)",
-    guide: desktopChromiumGuide("chrome"),
-  },
-  { key: "mac", title: "Mac (Safari)", guide: DESKTOP_SAFARI_GUIDE },
 ];
+
+/** Screenshots are 924 px wide for a 390-point iPhone screen. */
+const SCREENSHOT_SCALE = 924 / 390;
+
+function isStepWithImages(
+  step: InstallStep,
+): step is { text: ReactNode; images: StepImage[] } {
+  return (
+    typeof step === "object" &&
+    step !== null &&
+    !isValidElement(step) &&
+    "images" in step
+  );
+}
 
 export function InstallStepList({ guide }: { guide: InstallGuideText }) {
   return (
     <div className="space-y-3">
       {guide.steps.length > 0 && (
-        <ol className="space-y-3">
-          {guide.steps.map((step, index) => (
-            <li key={index} className="flex gap-3 text-sm leading-relaxed">
-              <span
-                aria-hidden
-                className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary"
-              >
-                {index + 1}
-              </span>
-              <span className="min-w-0 pt-0.5">{step}</span>
-            </li>
-          ))}
+        <ol className="space-y-4">
+          {guide.steps.map((step, index) => {
+            const { text, images } = isStepWithImages(step)
+              ? step
+              : { text: step, images: [] };
+            return (
+              <li key={index} className="flex gap-3 text-sm leading-relaxed">
+                <span
+                  aria-hidden
+                  className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary"
+                >
+                  {index + 1}
+                </span>
+                <div className="min-w-0 flex-1 space-y-2 pt-0.5">
+                  <p>{text}</p>
+                  {images.map((image) => (
+                    <Image
+                      key={image.src}
+                      src={image.src}
+                      width={image.width}
+                      height={image.height}
+                      alt={image.alt}
+                      // As large as on the phone itself, never wider than
+                      // the step.
+                      style={{
+                        width: Math.round(image.width / SCREENSHOT_SCALE),
+                      }}
+                      sizes={`${Math.round(image.width / SCREENSHOT_SCALE)}px`}
+                      className="h-auto max-w-full rounded-lg border"
+                    />
+                  ))}
+                </div>
+              </li>
+            );
+          })}
         </ol>
       )}
       {guide.note && (
