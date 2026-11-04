@@ -67,6 +67,13 @@ export const POSTHOG_EVENTS = {
   INSTALL_PROMPT_ANSWERED: "install_prompt_answered",
   /** The browser installed Glitter, from our button or its own menu. */
   APP_INSTALLED: "app_installed",
+  /**
+   * This device opened the installed app for the first time. Chromium alone
+   * reports installs; iPhone's home-screen app reports nothing, so this is
+   * the install count that spans every platform (once per device, kept in
+   * localStorage: app/lib/install-guide/first-launch.ts).
+   */
+  FIRST_STANDALONE_LAUNCH: "first_standalone_launch",
   PUSH_ENABLED: "push_enabled",
   PUSH_DISABLED: "push_disabled",
 } as const;
