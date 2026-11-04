@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   detectInstallContext,
+  deviceSystemGroup,
   installPlatformGroup,
 } from "@/app/lib/install-guide/platform";
 
@@ -109,5 +110,42 @@ describe("installPlatformGroup", () => {
     expect(installPlatformGroup("desktop")).toBe("desktop");
     expect(installPlatformGroup("installed")).toBe("installed");
     expect(installPlatformGroup("unknown")).toBe("other");
+  });
+});
+
+describe("deviceSystemGroup", () => {
+  it("names the device inside the installed app", () => {
+    const standalone = { standalone: true };
+    expect(deviceSystemGroup(browserWith(UA.iphoneSafari, standalone))).toBe(
+      "ios",
+    );
+    expect(deviceSystemGroup(browserWith(UA.androidChrome, standalone))).toBe(
+      "android",
+    );
+    expect(deviceSystemGroup(browserWith(UA.windowsEdge, standalone))).toBe(
+      "desktop",
+    );
+  });
+
+  it("names an iPhone's home-screen app, which reports itself on navigator", () => {
+    expect(
+      deviceSystemGroup({
+        navigator: { userAgent: UA.iphoneSafari, standalone: true },
+      }),
+    ).toBe("ios");
+  });
+
+  it("names an iPad that reports a Mac by its touch screen", () => {
+    expect(
+      deviceSystemGroup(
+        browserWith(UA.ipadAsMac, { standalone: true, touchPoints: 5 }),
+      ),
+    ).toBe("ios");
+  });
+
+  it("matches the browser-tab grouping outside the app", () => {
+    expect(deviceSystemGroup(browserWith(UA.androidInstagram))).toBe("android");
+    expect(deviceSystemGroup(browserWith(UA.macSafari))).toBe("desktop");
+    expect(deviceSystemGroup({ navigator: { userAgent: "" } })).toBe("other");
   });
 });

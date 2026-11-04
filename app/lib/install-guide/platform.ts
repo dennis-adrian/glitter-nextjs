@@ -122,3 +122,25 @@ export function installPlatformGroup(
   if (platform === "desktop") return "desktop";
   return "other";
 }
+
+/**
+ * The device's group (`ios`, `android`, `desktop` or `other`), even inside
+ * the installed app, where `detectInstallContext` only says `installed`. For
+ * analytics on events that fire there, such as the first launch.
+ */
+export function deviceSystemGroup(
+  browser: BrowserLike,
+): "ios" | "android" | "desktop" | "other" {
+  // The same user agent and touch screen, without what marks the installed
+  // app (the display mode and iOS's `navigator.standalone`).
+  const asBrowserTab: BrowserLike = {
+    navigator: {
+      userAgent: browser.navigator?.userAgent,
+      maxTouchPoints: browser.navigator?.maxTouchPoints,
+    },
+  };
+  const group = installPlatformGroup(
+    detectInstallContext(asBrowserTab).platform,
+  );
+  return group === "installed" ? "other" : group;
+}

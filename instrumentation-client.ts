@@ -4,6 +4,7 @@ import { recordFirstStandaloneLaunch } from "./app/lib/install-guide/first-launc
 import { listenForInstallPrompt } from "./app/lib/install-guide/install-prompt";
 import {
   detectInstallContext,
+  deviceSystemGroup,
   installPlatformGroup,
 } from "./app/lib/install-guide/platform";
 import { isStandaloneApp } from "./app/lib/notifications/push/support";
@@ -53,9 +54,13 @@ try {
   // once installed, and by then it reads as the installed app.
   const platform = installPlatformGroup(detectInstallContext(window).platform);
   // The first open of the installed app on this device: the install count
-  // iPhone can give, where no install event exists.
+  // iPhone can give, where no install event exists. It always runs in the
+  // installed app, where `platform` above reads `installed`, so it names the
+  // device instead.
   if (recordFirstStandaloneLaunch(window)) {
-    captureClientEvent(POSTHOG_EVENTS.FIRST_STANDALONE_LAUNCH, { platform });
+    captureClientEvent(POSTHOG_EVENTS.FIRST_STANDALONE_LAUNCH, {
+      platform: deviceSystemGroup(window),
+    });
   }
   listenForInstallPrompt({
     onInstalled: () =>
