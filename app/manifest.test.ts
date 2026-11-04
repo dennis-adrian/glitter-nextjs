@@ -60,10 +60,15 @@ describe("the web app manifest", () => {
     }
   });
 
+  it("leaves the theme colour out, so Android's bottom bar follows light or dark mode", () => {
+    // Android paints the installed app's navigation bar with the manifest's
+    // one theme_color; without it, the bar follows the phone's theme.
+    expect(manifest()).not.toHaveProperty("theme_color");
+  });
+
   it("opens on the brand purple, as the icons are drawn", async () => {
     expect(manifest()).toMatchObject({
       background_color: ICON_BACKGROUND,
-      theme_color: ICON_BACKGROUND,
     });
     for (const icon of manifest().icons ?? []) {
       const corner = await sharp(path.join(process.cwd(), "public", icon.src))
