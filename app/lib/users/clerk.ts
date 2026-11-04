@@ -1,6 +1,8 @@
 import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
 import { clerkClient } from "@clerk/nextjs/server";
 
+import { refuseDuringView } from "@/db/write-guard";
+
 type DeleteClerkUserResult =
   | {
       success: true;
@@ -16,6 +18,9 @@ type DeleteClerkUserResult =
 export async function deleteClerkUser(
   clerkId: string,
 ): Promise<DeleteClerkUserResult> {
+  // Refused before Clerk is asked while an admin views the app as someone
+  // (docs/PLAN-impersonation.md §6.2); it throws, like a refused write.
+  await refuseDuringView();
   try {
     const clerk = await clerkClient();
     const existingUser = await clerk.users.getUser(clerkId);
