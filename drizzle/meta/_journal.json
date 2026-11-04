@@ -2164,6 +2164,13 @@
       "when": 1793590074771,
       "tag": "0309_impersonation_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 310,
+      "version": "7",
+      "when": 1793810304718,
+      "tag": "0310_festival_banner_mobile_url",
+      "breakpoints": true
     }
   ]
 }
