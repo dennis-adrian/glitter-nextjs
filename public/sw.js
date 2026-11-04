@@ -31,6 +31,17 @@ const ARRIVALS = "/__glitter/arrivals";
 const ARRIVALS_KEPT = 5;
 
 /**
+ * Written by the page (app/components/installed-app-mark.tsx) when an Android
+ * phone runs the installed app in a window that reports the browser's display
+ * mode. A window this worker opens skips the app's start page, which is what
+ * marks the app's windows there, so it adds the mark itself while this is
+ * recent. The page reads the mark from the address.
+ */
+const INSTALLED_APP_SEEN = "/__glitter/installed-app-seen";
+const INSTALLED_APP_SEEN_FRESH_DAYS = 30;
+const INSTALLED_APP_HASH = "#installed-app";
+
+/**
  * How long a window may take to say whether it opens a tap itself. Short:
  * focusing or opening a window afterwards must still fit in the second
  * Firefox allows after a tap.
@@ -271,9 +282,29 @@ async function tryFocus(client) {
   }
 }
 
+/**
+ * Where a new window opens for `url`. On Android, Chrome opens a link to
+ * Glitter in the installed app when there is one, so a phone whose installed
+ * app reports browser mode gets the mark (never added to a link that already
+ * goes to an anchor, which it would replace).
+ */
+async function windowUrl(url) {
+  try {
+    const userAgent = (self.navigator && self.navigator.userAgent) || "";
+    if (!/Android/.test(userAgent) || url.includes("#")) return url;
+    const seen = await readState(INSTALLED_APP_SEEN, null);
+    const at = seen && typeof seen.at === "number" ? seen.at : null;
+    const freshFor = INSTALLED_APP_SEEN_FRESH_DAYS * 24 * 60 * 60 * 1000;
+    if (at == null || Date.now() - at > freshFor) return url;
+    return url + INSTALLED_APP_HASH;
+  } catch {
+    return url;
+  }
+}
+
 async function tryOpenWindow(url) {
   try {
-    await self.clients.openWindow(url);
+    await self.clients.openWindow(await windowUrl(url));
     return true;
   } catch {
     return false;

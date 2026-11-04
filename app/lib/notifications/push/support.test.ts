@@ -155,7 +155,7 @@ describe("isStandaloneApp", () => {
   });
 
   it("trusts the start page's mark when the display mode says browser", () => {
-    const storage = new Map([["glitter:installed-app", "1"]]);
+    const storage = new Map([["glitter:installed-app", "browser"]]);
     expect(
       isStandaloneApp({
         ...browser(),

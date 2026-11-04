@@ -69,7 +69,7 @@ describe("InstalledAppLandingGate", () => {
   });
 
   it("recognises the installed app its start page marked, whatever the display mode says", () => {
-    window.sessionStorage.setItem("glitter:installed-app", "1");
+    window.sessionStorage.setItem("glitter:installed-app", "browser");
     renderGate();
 
     expect(replaceMock).toHaveBeenCalledWith("/sign_in");
