@@ -187,6 +187,12 @@ const FIXTURES = {
     reservationsStartDate: null,
     reservationsOpen: true,
   },
+  festival_participant_invitation: {
+    festivalId: 3,
+    festivalName: "Glitter Vol. 9",
+    reservationsStartDate: "2026-11-20T14:00:00.000Z",
+    reservationsOpen: false,
+  },
   festival_participation_rejected: {
     festivalId: 3,
     festivalName: "Glitter Vol. 9",
@@ -249,6 +255,47 @@ const FIXTURES = {
   },
 } satisfies Record<NotificationKind, unknown>;
 
+describe("festival_participant_invitation", () => {
+  const data = {
+    festivalId: 3,
+    festivalName: "Glitter Vol. 9",
+    reservationsStartDate: "2026-11-20T14:00:00.000Z",
+    reservationsOpen: false,
+  };
+
+  it("says what the activation email says, and links to the terms", () => {
+    expect(buildInAppCopy("festival_participant_invitation", data)).toEqual({
+      title: "Te invitamos a participar en Glitter Vol. 9",
+      body: "Las reservas se habilitarán el 20 de noviembre de 2026 a las 10:00 AM. Hasta mientras, leé con atención los términos y condiciones.",
+      actionPath: "/festivals/3/terms",
+      actionLabel: "Leer términos y condiciones",
+    });
+  });
+
+  it("gives no date once reservations are open", () => {
+    expect(
+      buildInAppCopy("festival_participant_invitation", {
+        ...data,
+        reservationsOpen: true,
+      }).body,
+    ).toBe(
+      "Las reservas ya están habilitadas. Leé con atención los términos y condiciones para participar.",
+    );
+  });
+
+  it("has no email, and pushes only when the admin asks", () => {
+    expect(hasEmail("festival_participant_invitation")).toBe(false);
+    expect(notificationPushes("festival_participant_invitation", data)).toBe(
+      false,
+    );
+    expect(
+      notificationPushes("festival_participant_invitation", data, {
+        push: true,
+      }),
+    ).toBe(true);
+  });
+});
+
 describe("every kind", () => {
   it.each(NOTIFICATION_KINDS)(
     "%s reads back its snapshot and renders",
@@ -308,7 +355,8 @@ describe("every kind", () => {
         (kind) =>
           notificationCategory(kind) !== "admin" &&
           (notificationStartsRead(kind, FIXTURES[kind] as never) ||
-            kind === "comunicado"),
+            kind === "comunicado" ||
+            kind === "festival_participant_invitation"),
       ),
     );
     // Every sensitive kind pushes, with the generic text.

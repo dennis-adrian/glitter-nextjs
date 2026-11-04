@@ -4,6 +4,7 @@ import {
   processPendingNotificationDeliveries,
   sendDuePushDeliveries,
 } from "@/app/lib/notifications/deliveries";
+import { sendFestivalBulkPushes } from "@/app/lib/notifications/festival-bulk-pushes";
 
 /** Leaves room under the 100-second limit for one last slow request. */
 const RUN_BUDGET_MS = 75_000;
@@ -12,7 +13,9 @@ const RUN_BUDGET_MS = 75_000;
  * Every five minutes: finishes any credit gift a request left half done, then
  * sends the deliveries that are due. Gifts go first because they create
  * deliveries of their own; pushes go before email because they are quick and
- * not spaced, so a long email queue never holds an alert back.
+ * not spaced, so a long email queue never holds an alert back. Festival
+ * notices sent to many at once keep their pushes in the bulk lane; their
+ * send drains them, and this pass takes whatever it left.
  */
 export async function GET(request: Request) {
   if (!isAuthorizedCronRequest(request)) {
@@ -35,6 +38,9 @@ export async function GET(request: Request) {
       limit: 100,
       budgetMs: budget(10_000),
     });
+    const festivalPushes = await sendFestivalBulkPushes({
+      budgetMs: budget(10_000),
+    });
     const deliveries = await processPendingNotificationDeliveries({
       budgetMs: budget(50_000),
     });
@@ -43,6 +49,7 @@ export async function GET(request: Request) {
         data: {
           gifts: { gifts: gifts.gifts, granted: gifts.granted },
           pushes,
+          festivalPushes,
           deliveries,
         },
       }),

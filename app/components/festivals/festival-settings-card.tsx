@@ -212,6 +212,7 @@ export default function FestivalSettingsCard({
                   `Invitar por correo a ${people(audience.recipients, "participante verificado", "participantes verificados")} de las categorías del festival`,
                 audienceNote: skippedNote,
               } satisfies FestivalSettingInvitation,
+              notification: { festivalId: festival.id },
             }
           : {
               title: "Desactivar festival",

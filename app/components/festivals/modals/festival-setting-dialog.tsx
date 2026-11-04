@@ -4,6 +4,7 @@ import { CircleAlertIcon, Loader2Icon } from "lucide-react";
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
+import ActivationNotificationPreview from "@/app/components/festivals/invitations/activation-notification-preview";
 import InvitationEmailPreview from "@/app/components/festivals/invitations/invitation-email-preview";
 import InvitationProgress from "@/app/components/festivals/invitations/invitation-progress";
 import { useInvitationSender } from "@/app/components/festivals/invitations/use-invitation-sender";
@@ -19,7 +20,13 @@ import {
 import { Label } from "@/app/components/ui/label";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
+import {
+  fetchActivationNotificationAudience,
+  sendActivationNotifications,
+} from "@/app/lib/festivals/activation-notifications";
 import type {
+  ActivationNotificationAudience,
+  ActivationNotificationSendResult,
   InvitationAudience,
   InvitationKind,
 } from "@/app/lib/festivals/invitation-definitions";
@@ -34,6 +41,34 @@ export type FestivalSettingInvitation = {
   /** Extra lines under the checkbox: who is left out, and why. */
   audienceNote?: (audience: InvitationAudience) => string | null;
 };
+
+/**
+ * Offer the activation invitation in Glitter too: an inbox item and, if
+ * ticked, a push. Only next to a change (`onConfirm`), after it is saved.
+ */
+export type FestivalSettingNotification = {
+  festivalId: number;
+};
+
+function participants(count: number) {
+  return `${count.toLocaleString("es-BO")} ${count === 1 ? "participante" : "participantes"}`;
+}
+
+/** What the toast says once the notices are written. */
+export function notificationSentMessage(
+  result: Extract<ActivationNotificationSendResult, { success: true }>,
+) {
+  if (result.notified === 0) {
+    return result.alreadyNotified > 0
+      ? "Los participantes ya habían recibido la notificación en Glitter."
+      : "No había participantes a quienes notificar en Glitter.";
+  }
+  const pushes =
+    result.pushes > 0
+      ? `, con push a ${result.pushes.toLocaleString("es-BO")} ${result.pushes === 1 ? "dispositivo" : "dispositivos"}`
+      : "";
+  return `Notificamos en Glitter a ${participants(result.notified)}${pushes}.`;
+}
 
 type FestivalSettingDialogProps = {
   open: boolean;
@@ -54,6 +89,8 @@ type FestivalSettingDialogProps = {
   }>;
   /** Offer to mail an audience once the change is saved. */
   invitation?: FestivalSettingInvitation;
+  /** Offer to notify participants in Glitter once the change is saved. */
+  notification?: FestivalSettingNotification;
   /** Something to know before confirming, such as a broken email link. */
   notice?: string | null;
 };
@@ -61,6 +98,11 @@ type FestivalSettingDialogProps = {
 type AudienceState =
   | { status: "loading" }
   | { status: "ready"; audience: InvitationAudience }
+  | { status: "error"; message: string };
+
+type NotificationAudienceState =
+  | { status: "loading" }
+  | { status: "ready"; audience: ActivationNotificationAudience }
   | { status: "error"; message: string };
 
 /**
@@ -80,10 +122,19 @@ export default function FestivalSettingDialog({
   destructive = false,
   onConfirm,
   invitation,
+  notification: notificationOption,
   notice,
 }: FestivalSettingDialogProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const checkboxId = useId();
+  const inAppId = useId();
+  const pushId = useId();
+  // A notice goes with a change only; a send-only dialog is the email's.
+  const notification = onConfirm ? notificationOption : undefined;
+  const [notifyInApp, setNotifyInApp] = useState(true);
+  const [notifyPush, setNotifyPush] = useState(true);
+  const [notificationAudience, setNotificationAudience] =
+    useState<NotificationAudienceState>({ status: "loading" });
   const [pending, setPending] = useState(false);
   const [sendInvitation, setSendInvitation] = useState(true);
   const [audience, setAudience] = useState<AudienceState>({
@@ -125,10 +176,40 @@ export default function FestivalSettingDialog({
     };
   }, [open, invitationFestivalId, invitationKind]);
 
+  const notificationFestivalId = notification?.festivalId;
+  useEffect(() => {
+    if (!open || notificationFestivalId === undefined) return;
+    // Starts as "loading", and closing the dialog puts it back there.
+    let cancelled = false;
+    fetchActivationNotificationAudience(notificationFestivalId)
+      .then((result) => {
+        if (cancelled) return;
+        setNotificationAudience(
+          result.success
+            ? { status: "ready", audience: result.audience }
+            : { status: "error", message: result.message },
+        );
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setNotificationAudience({
+            status: "error",
+            message: "No se pudo calcular a quiénes se enviará la notificación.",
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, notificationFestivalId]);
+
   useEffect(() => {
     if (!open) {
       reset();
       setSendInvitation(true);
+      setNotifyInApp(true);
+      setNotifyPush(true);
+      setNotificationAudience({ status: "loading" });
       setPending(false);
     }
   }, [open, reset]);
@@ -147,6 +228,35 @@ export default function FestivalSettingDialog({
     audience.status === "ready" &&
     recipients > 0;
   const sendOnly = !onConfirm;
+  const inAppRecipients =
+    notificationAudience.status === "ready"
+      ? notificationAudience.audience.recipients
+      : 0;
+  const pushRecipients =
+    notificationAudience.status === "ready"
+      ? notificationAudience.audience.withPush
+      : 0;
+  const willNotify =
+    !!notification &&
+    notifyInApp &&
+    notificationAudience.status === "ready" &&
+    inAppRecipients > 0;
+  // A push is the inbox item on the device: never one without the other.
+  const willPush = willNotify && notifyPush && pushRecipients > 0;
+
+  async function notifyInGlitter() {
+    if (!notification) return;
+    try {
+      const result = await sendActivationNotifications({
+        festivalId: notification.festivalId,
+        push: willPush,
+      });
+      if (result.success) toast.success(notificationSentMessage(result));
+      else toast.error(result.message);
+    } catch {
+      toast.error("No se pudieron enviar las notificaciones en Glitter.");
+    }
+  }
 
   async function handleConfirm() {
     setPending(true);
@@ -164,6 +274,18 @@ export default function FestivalSettingDialog({
           return;
         }
         toast.success(result.message);
+      }
+      // Before the email: it is one quick call, and the email's progress
+      // then keeps the dialog open.
+      if (willNotify) await notifyInGlitter();
+      if (
+        notification &&
+        notifyInApp &&
+        notificationAudience.status === "error"
+      ) {
+        toast.warning(
+          "No se enviaron notificaciones: no se pudo calcular a quiénes enviarlas.",
+        );
       }
       if (willSend) {
         await sender.start();
@@ -266,10 +388,85 @@ export default function FestivalSettingDialog({
             </div>
           ) : null}
 
+          {notification && !sendingOrDone ? (
+            <div className="space-y-3 rounded-lg border p-3">
+              {notificationAudience.status === "loading" ? (
+                <div className="space-y-2" aria-busy="true">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
+                </div>
+              ) : notificationAudience.status === "error" ? (
+                <p className="text-sm text-destructive">
+                  {notificationAudience.message}
+                </p>
+              ) : (
+                <>
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      id={inAppId}
+                      checked={notifyInApp && inAppRecipients > 0}
+                      disabled={inAppRecipients === 0 || busy}
+                      onCheckedChange={(value) => setNotifyInApp(!!value)}
+                      className="mt-0.5"
+                    />
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor={inAppId}
+                        className="text-sm font-medium leading-snug"
+                      >
+                        Notificar en Glitter a {participants(inAppRecipients)}{" "}
+                        verificados de las categorías del festival
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Les llega a sus notificaciones, aunque se hayan dado de
+                        baja de los correos.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="ml-7 flex items-start gap-3">
+                    <Checkbox
+                      id={pushId}
+                      checked={willPush}
+                      disabled={
+                        !notifyInApp ||
+                        inAppRecipients === 0 ||
+                        pushRecipients === 0 ||
+                        busy
+                      }
+                      onCheckedChange={(value) => setNotifyPush(!!value)}
+                      className="mt-0.5"
+                    />
+                    <div className="space-y-1">
+                      <Label
+                        htmlFor={pushId}
+                        className="text-sm font-medium leading-snug"
+                      >
+                        También como push
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        {pushRecipients === 0
+                          ? "Ninguno de ellos activó los avisos en su dispositivo."
+                          : `A ${participants(pushRecipients)} con los avisos activados en su dispositivo.`}
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : null}
+
           {invitation && !sendingOrDone ? (
             <InvitationEmailPreview
               festivalId={invitation.festivalId}
               kind={invitation.kind}
+              disabled={busy}
+            />
+          ) : null}
+
+          {notification && !sendingOrDone ? (
+            <ActivationNotificationPreview
+              festivalId={notification.festivalId}
+              showPush={willPush}
               disabled={busy}
             />
           ) : null}
@@ -310,6 +507,8 @@ export default function FestivalSettingDialog({
                     // Wait for the audience: confirming earlier would apply
                     // the change and silently skip the mailing.
                     (!!invitation && audience.status === "loading") ||
+                    (!!notification &&
+                      notificationAudience.status === "loading") ||
                     (sendOnly &&
                       (audience.status !== "ready" || recipients === 0))
                   }

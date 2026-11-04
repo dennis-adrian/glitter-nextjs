@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
 
 import RetryButton from "@/app/components/comunicados/admin/composer/retry-button";
@@ -12,6 +11,7 @@ import { useLiveResult } from "@/app/components/comunicados/admin/composer/use-l
 import RichTextHtml from "@/app/components/molecules/rich-text-html";
 import NotificationIcon from "@/app/components/notifications/notification-icon";
 import NotificationItem from "@/app/components/notifications/notification-item";
+import PushDevicePreview from "@/app/components/notifications/push-device-preview";
 import { buttonVariants } from "@/app/components/ui/button";
 import {
   Card,
@@ -223,7 +223,7 @@ export default function PreviewPanel({
 
               {sendPush && (
                 <TabsContent value="device">
-                  <DevicePreview
+                  <PushDevicePreview
                     title={title}
                     body={input.previewText?.trim() || WRITTEN_TEXT_PUSH_BODY}
                   />
@@ -283,31 +283,3 @@ function DetailPreview({
   );
 }
 
-/** A lock screen with the push as it arrives (H4). */
-function DevicePreview({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-2xl bg-gradient-to-b from-slate-800 to-slate-950 p-4 pb-10">
-      <p
-        className="mb-4 text-center text-3xl font-light tabular-nums text-white/90"
-        aria-hidden
-      >
-        9:41
-      </p>
-      <div className="rounded-2xl bg-white/85 p-3 text-slate-900 shadow-lg backdrop-blur">
-        <div className="flex items-center gap-2 text-xs text-slate-600">
-          <Image
-            src="/icons/glitter-192.png"
-            alt=""
-            width={20}
-            height={20}
-            className="h-5 w-5 rounded-md"
-          />
-          <span className="font-semibold uppercase tracking-wide">Glitter</span>
-          <span className="ml-auto">ahora</span>
-        </div>
-        <p className="mt-1.5 text-sm font-semibold leading-snug">{title}</p>
-        <p className="text-sm leading-snug text-slate-700">{body}</p>
-      </div>
-    </div>
-  );
-}

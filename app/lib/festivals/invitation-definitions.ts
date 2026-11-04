@@ -86,3 +86,43 @@ export type InvitationBatchResult =
 export type InvitationPreviewResult =
   | { success: true; from: string; subject: string; html: string }
   | { success: false; message: string };
+
+/**
+ * The activation invitation in Glitter (`activation-notifications.ts`): who
+ * gets the inbox item, and how many of them have a device for its push.
+ */
+export type ActivationNotificationAudience = {
+  recipients: number;
+  /** Recipients with at least one device that takes pushes. */
+  withPush: number;
+};
+
+export type ActivationNotificationAudienceResult =
+  | { success: true; audience: ActivationNotificationAudience }
+  | { success: false; message: string };
+
+export type ActivationNotificationPreviewResult =
+  | {
+      success: true;
+      item: {
+        title: string;
+        body: string;
+        actionPath: string | null;
+        actionLabel: string | null;
+      };
+      /** What the lock screen shows. */
+      push: { title: string; body: string };
+    }
+  | { success: false; message: string };
+
+export type ActivationNotificationSendResult =
+  | {
+      success: true;
+      /** Inbox items this call wrote. */
+      notified: number;
+      /** Participants who already had it for this festival. */
+      alreadyNotified: number;
+      /** Push deliveries queued, one per device. */
+      pushes: number;
+    }
+  | { success: false; message: string };
