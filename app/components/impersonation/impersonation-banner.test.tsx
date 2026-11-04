@@ -22,6 +22,7 @@ import ImpersonationBanner from "@/app/components/impersonation/impersonation-ba
 import {
   prepareSignOut,
   setViewState,
+  timeoutSignal,
   useViewState,
 } from "@/app/components/impersonation/view-state";
 
@@ -329,5 +330,48 @@ describe("prepareSignOut", () => {
     fetchMock.mockRejectedValue(new Error("offline"));
     await expect(prepareSignOut()).resolves.toBeUndefined();
     expect(forgetMock).toHaveBeenCalled();
+  });
+});
+
+describe("without AbortSignal.timeout (older browsers)", () => {
+  const original = AbortSignal.timeout;
+  afterEach(() => {
+    AbortSignal.timeout = original;
+  });
+
+  function dropTimeout() {
+    // @ts-expect-error: the browsers this stands in for have none.
+    AbortSignal.timeout = undefined;
+  }
+
+  it("still sends the exit, with a signal", async () => {
+    dropTimeout();
+    fetchMock.mockReturnValue(respond({ returnTo: "/dashboard/users/2" }));
+    render(<ImpersonationBanner initial={VIEW} />);
+    fireEvent.click(screen.getByRole("button", { name: "Salir" }));
+    await waitFor(() =>
+      expect(replaceMock).toHaveBeenCalledWith("/dashboard/users/2"),
+    );
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("aborts after the same five seconds", () => {
+    dropTimeout();
+    vi.useFakeTimers();
+    const { signal } = timeoutSignal(5_000);
+    vi.advanceTimersByTime(4_999);
+    expect(signal.aborted).toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(signal.aborted).toBe(true);
+  });
+
+  it("stops its timer once the request is done", () => {
+    dropTimeout();
+    vi.useFakeTimers();
+    const { signal, clear } = timeoutSignal(5_000);
+    clear();
+    vi.advanceTimersByTime(10_000);
+    expect(signal.aborted).toBe(false);
   });
 });
