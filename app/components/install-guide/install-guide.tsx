@@ -42,12 +42,12 @@ import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 export const INSTALL_BUTTON_LABEL = "Instalar Glitter";
 
 /**
- * The phone guide this phone's own steps already cover. An in-app browser
- * keeps both: its next stop is Safari or Chrome.
+ * The phone guide this phone's own steps already cover. An in-app browser,
+ * and another browser on an iPhone, keep both: their next stop is Safari or
+ * Chrome, whose steps are the ones they need.
  */
 const OWN_GUIDE: Partial<Record<InstallContext["platform"], string>> = {
   "ios-safari": "ios",
-  "ios-browser": "ios",
   "android-chromium": "android",
   "android-firefox": "android",
 };
@@ -229,8 +229,11 @@ function ThisDeviceInstall({
   }
 
   const guide = installGuideFor(context.platform, context.browser);
+  // Pages that send the person to another browser offer the link to copy.
   const inApp =
-    context.platform === "ios-in-app" || context.platform === "android-in-app";
+    context.platform === "ios-in-app" ||
+    context.platform === "android-in-app" ||
+    context.platform === "ios-browser";
 
   if (canOfferPrompt(context) && (status === "ready" || asking)) {
     return (
