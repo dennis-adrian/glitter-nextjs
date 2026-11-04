@@ -157,8 +157,9 @@ function iosSteps(firstStep: InstallStep): InstallStep[] {
     {
       text: (
         <>
-          Tocá <UiLabel icon={<ChevronDownIcon aria-hidden />}>Ver más</UiLabel>{" "}
-          y después{" "}
+          Presioná{" "}
+          <UiLabel icon={<ChevronDownIcon aria-hidden />}>Ver más</UiLabel> y
+          después{" "}
           <UiLabel icon={<SquarePlusIcon aria-hidden />}>
             Agregar a Inicio
           </UiLabel>
@@ -171,7 +172,7 @@ function iosSteps(firstStep: InstallStep): InstallStep[] {
     {
       text: (
         <>
-          Dejá activada la opción «Abrir como app web», si aparece, y tocá{" "}
+          Dejá activada la opción «Abrir como app web», si aparece, y presioná{" "}
           <UiLabel>Agregar</UiLabel>.
         </>
       ),
@@ -185,10 +186,10 @@ export const IOS_SAFARI_GUIDE: InstallGuideText = {
   steps: iosSteps({
     text: (
       <>
-        En la barra de Safari, tocá el ícono que está a la izquierda de la
+        En la barra de Safari, presioná el ícono que está a la izquierda de la
         dirección y elegí{" "}
         <UiLabel icon={<ShareIcon aria-hidden />}>Compartir</UiLabel>. Si ves el
-        botón Compartir directo en la barra, tocalo.
+        botón Compartir directo en la barra, presionalo.
       </>
     ),
     images: [IOS_IMAGES.addressBar, IOS_IMAGES.shareMenu],
@@ -206,7 +207,7 @@ export const NOTIFICATIONS_GUIDE: InstallGuideText = {
     {
       text: (
         <>
-          Abrí Glitter desde su ícono y tocá la campana{" "}
+          Abrí Glitter desde su ícono y presioná la campana{" "}
           <UiLabel icon={<BellIcon aria-hidden />} srLabel="Notificaciones" />,
           arriba.
         </>
@@ -214,12 +215,12 @@ export const NOTIFICATIONS_GUIDE: InstallGuideText = {
       images: [IOS_IMAGES.bell],
     },
     {
-      text: `Tocá el botón «${ENABLE_PUSH_LABEL}».`,
+      text: `Presioná el botón «${ENABLE_PUSH_LABEL}».`,
       images: [IOS_IMAGES.enablePush],
     },
     <>
       Cuando tu teléfono te pregunte si Glitter puede enviarte notificaciones,
-      tocá <UiLabel>Permitir</UiLabel>.
+      presioná <UiLabel>Permitir</UiLabel>.
     </>,
   ],
   note: "En iPhone y iPad las notificaciones llegan solo a Glitter instalado: por eso el paso 1.",
@@ -248,7 +249,7 @@ function iosBrowserGuide(browser: InstallBrowser): InstallGuideText {
   return {
     steps: iosSteps(
       <>
-        Tocá <UiLabel icon={<ShareIcon aria-hidden />}>Compartir</UiLabel>,{" "}
+        Presioná <UiLabel icon={<ShareIcon aria-hidden />}>Compartir</UiLabel>,{" "}
         {where}.
       </>,
     ),
@@ -262,14 +263,14 @@ function inAppGuide(system: "ios" | "android"): InstallGuideText {
     steps: [
       system === "ios" ? (
         <>
-          Tocá{" "}
+          Presioná{" "}
           <UiLabel icon={<EllipsisIcon aria-hidden />} srLabel="Más opciones" />{" "}
           arriba a la derecha y elegí «Abrir en navegador externo» o «Abrir en
           Safari».
         </>
       ) : (
         <>
-          Tocá{" "}
+          Presioná{" "}
           <UiLabel icon={<EllipsisVerticalIcon aria-hidden />} srLabel="Menú" />{" "}
           arriba a la derecha y elegí «Abrir en Chrome» o «Abrir en el
           navegador».
@@ -292,8 +293,8 @@ function androidGuide(browser: InstallBrowser): InstallGuideText {
     return {
       steps: [
         <>
-          Tocá <UiLabel icon={<MenuIcon aria-hidden />} srLabel="Menú" /> abajo
-          a la derecha.
+          Presioná <UiLabel icon={<MenuIcon aria-hidden />} srLabel="Menú" />{" "}
+          abajo a la derecha.
         </>,
         "Elegí «Agregar página a» y después «Pantalla de inicio».",
         OPEN_FROM_ICON,
@@ -304,7 +305,7 @@ function androidGuide(browser: InstallBrowser): InstallGuideText {
     return {
       steps: [
         <>
-          Tocá{" "}
+          Presioná{" "}
           <UiLabel icon={<EllipsisVerticalIcon aria-hidden />} srLabel="Menú" />{" "}
           en la barra del navegador.
         </>,
@@ -316,12 +317,12 @@ function androidGuide(browser: InstallBrowser): InstallGuideText {
   const menu =
     browser === "edge" ? (
       <>
-        Tocá <UiLabel icon={<MenuIcon aria-hidden />} srLabel="Menú" /> abajo,
-        en la barra de Edge.
+        Presioná <UiLabel icon={<MenuIcon aria-hidden />} srLabel="Menú" />{" "}
+        abajo, en la barra de Edge.
       </>
     ) : (
       <>
-        Tocá{" "}
+        Presioná{" "}
         <UiLabel icon={<EllipsisVerticalIcon aria-hidden />} srLabel="Menú" />{" "}
         arriba a la derecha.
       </>
@@ -352,8 +353,8 @@ function androidGuide(browser: InstallBrowser): InstallGuideText {
       ),
       shot(
         <>
-          Tocá <UiLabel>Instalar</UiLabel>, no «Crear acceso directo»: el acceso
-          directo abre Glitter dentro de Chrome.
+          Presioná <UiLabel>Instalar</UiLabel>, no «Crear acceso directo»: el
+          acceso directo abre Glitter dentro de Chrome.
         </>,
         ANDROID_IMAGES.installSheet,
       ),
