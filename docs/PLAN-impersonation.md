@@ -238,7 +238,7 @@ The banner already says **solo lectura**. Most actions catch their own errors an
 - **Offsets:** the banner publishes `--impersonation-banner-height`. `globals.css` sums it with the strip's into `--top-chrome-extra`, which every sticky offset below the navbar now uses (store subheader, program tabs and agenda, session aside, section scroll margins, the dashboard frame).
   - In the installed app the banner takes the top safe area, and the top bar stops padding for it a second time.
 - **Client state:** `app/components/impersonation/view-state.ts` holds the view on the client (`useViewState`).
-  - The avisos controls (`PushControl`, `PushOffer`) render nothing during a view, and the foreign-device release check is skipped.
+  - The avisos controls (`PushControl`, `PushOffer`, and Inicio's `HomePushBanner`) render nothing during a view, and the foreign-device release check is skipped.
   - Every sign-out (account menu, Más, mobile menu, the profile retry) calls `prepareSignOut()`. It ends the view first as `signed_out`, then forgets this browser's avisos, now for the admin who is really signed in. It always asks the server, which knows of a view before the banner has loaded, and a failure never holds the sign-out up.
 
 ### 7.5 Design board T (done in step 7)

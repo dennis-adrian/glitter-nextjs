@@ -927,8 +927,8 @@ body:has([data-screen-bar]) [data-announcement-strip] {
 
 /* During a view, the banner sits above the installed app's top bar and takes
  * the safe area itself; the bar must not pad for it a second time. */
-@media (display-mode: standalone) {
-  body:has([data-impersonation-banner]) [data-screen-bar] {
+body:has([data-impersonation-banner]) [data-screen-bar] {
+  @variant standalone {
     height: 76px;
     padding-top: 0;
   }

@@ -120,11 +120,13 @@ describe("getCurrentUserProfile", () => {
   beforeEach(() => {
     currentClerkUserMock.mockReset();
     fetchProfileByClerkIdMock.mockReset();
+    // The viewer is the one lookup getCurrentUserProfile makes.
+    viewerClerkIdMock.mockReset();
   });
 
   it("reads a failed lookup as signed out", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    currentClerkUserMock.mockRejectedValue(new Error("network down"));
+    viewerClerkIdMock.mockRejectedValue(new Error("network down"));
 
     await expect(getCurrentUserProfile()).resolves.toBeNull();
   });
@@ -132,12 +134,12 @@ describe("getCurrentUserProfile", () => {
   // A redirect or a 404 thrown underneath must reach Next, not turn into a
   // signed-out visitor who then sees "no access" until a reload.
   it("lets Next's own control-flow errors through", async () => {
-    currentClerkUserMock.mockImplementation(async () => redirect("/sign_in"));
+    viewerClerkIdMock.mockImplementation(async () => redirect("/sign_in"));
     await expect(getCurrentUserProfile()).rejects.toMatchObject({
       digest: expect.stringContaining("NEXT_REDIRECT"),
     });
 
-    currentClerkUserMock.mockImplementation(async () => notFound());
+    viewerClerkIdMock.mockImplementation(async () => notFound());
     await expect(getCurrentUserProfile()).rejects.toMatchObject({
       digest: expect.stringContaining("NEXT_HTTP_ERROR_FALLBACK"),
     });

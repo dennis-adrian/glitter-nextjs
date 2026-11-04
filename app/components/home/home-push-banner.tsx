@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useId, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
+import { useViewState } from "@/app/components/impersonation/view-state";
 import { ENABLE_PUSH_LABEL } from "@/app/components/notifications/push-control";
 import {
   usePushDevice,
@@ -76,12 +77,19 @@ function useDismissed(): boolean {
  * here), or when notifications are not open to this person (`publicKey`
  * null). «Ahora no» hides it on this device for 30 days.
  */
-export default function HomePushBanner({
-  publicKey,
-}: {
+export default function HomePushBanner(props: HomePushBannerProps) {
+  // This browser's push belongs to whoever is really signed in: while an
+  // admin views the app as a participant, it is the admin's, so nothing here
+  // may ask for permission or subscribe (docs/PLAN-impersonation.md §7.4).
+  return useViewState() ? null : <HomePushBannerInner {...props} />;
+}
+
+type HomePushBannerProps = {
   /** Null when notifications are not open to this person here. */
   publicKey: string | null;
-}) {
+};
+
+function HomePushBannerInner({ publicKey }: HomePushBannerProps) {
   const support = usePushSupport();
   const device = usePushDevice({ publicKey, support, refresh: false });
   const dismissed = useDismissed();
