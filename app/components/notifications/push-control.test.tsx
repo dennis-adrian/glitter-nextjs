@@ -549,7 +549,14 @@ describe("the avisos control on /my_notifications", () => {
         pushManager: false,
       });
       render(<PushControl publicKey={KEY} devices={[]} />);
-      expect(screen.getByText(/«Agregar a inicio»/).textContent).toBeTruthy();
+      expect(screen.getByText(/«Agregar a Inicio»/).textContent).toMatch(
+        /En Safari, elegí Compartir y después «Agregar a Inicio»/,
+      );
+      expect(
+        screen
+          .getByRole("link", { name: "Ver los pasos" })
+          .getAttribute("href"),
+      ).toBe("/instalar");
       // The steps instead of a button it could never use there.
       expect(screen.queryByRole("button", { name: ENABLE_PUSH_LABEL })).toBe(
         null,
@@ -560,7 +567,7 @@ describe("the avisos control on /my_notifications", () => {
       installBrowser({ userAgent: IPHONE, standalone: true });
       render(<PushControl publicKey={KEY} devices={[]} />);
       await enabledButton();
-      expect(screen.queryByText(/«Agregar a inicio»/)).toBe(null);
+      expect(screen.queryByText(/«Agregar a Inicio»/)).toBe(null);
     });
 
     it("asks for iOS 16.4 on an older iPhone", () => {
@@ -1079,14 +1086,14 @@ describe("the short avisos offer", () => {
     expect(mocks.toastError).not.toHaveBeenCalled();
   });
 
-  it("links an iPhone in a Safari tab to the steps on /my_notifications", () => {
+  it("links an iPhone in a Safari tab to the install steps on /instalar", () => {
     installBrowser({ userAgent: IPHONE, pushManager: false });
     render(<PushOffer publicKey={KEY} />);
     expect(
       screen
         .getByRole("link", { name: "Cómo activar las notificaciones" })
         .getAttribute("href"),
-    ).toBe("/my_notifications");
+    ).toBe("/instalar");
     expect(enableButton()).toBe(null);
   });
 

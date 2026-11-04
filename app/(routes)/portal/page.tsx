@@ -8,6 +8,7 @@ import HomeCredits from "@/app/components/home/home-credits";
 import HomeFestivalCard from "@/app/components/home/home-festival-card";
 import HomeGreeting from "@/app/components/home/home-greeting";
 import HomeHistoryCard from "@/app/components/home/home-history-card";
+import HomePushBanner from "@/app/components/home/home-push-banner";
 import HomeReviewNote from "@/app/components/home/home-review-note";
 import HomeStoreStrip from "@/app/components/home/home-store-strip";
 import HomeTasks from "@/app/components/home/home-tasks";
@@ -27,6 +28,7 @@ import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import type { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { getActiveFestivalBase } from "@/app/lib/festivals/helpers";
 import { participationSentence } from "@/app/lib/home/festival";
+import { pushPublicKeyFor } from "@/app/lib/notifications/push/access";
 import {
   loadHistorySummary,
   loadHomeStore,
@@ -55,7 +57,10 @@ export const metadata: Metadata = {
 
 const NOTIFICATIONS_ON_HOME = 3;
 
-function firstDayLeft(festival: Pick<FestivalWithDates, "festivalDates">, now: Date) {
+function firstDayLeft(
+  festival: Pick<FestivalWithDates, "festivalDates">,
+  now: Date,
+) {
   const start = [...festival.festivalDates].sort(
     (a, b) => a.startDate.getTime() - b.startDate.getTime(),
   )[0]?.startDate;
@@ -155,7 +160,7 @@ async function VerifiedHome({
   const now = new Date();
   const isStaff = profile.role === "admin" || profile.role === "festival_admin";
 
-  const [showBlogCta, balances, notifications, upcoming, history] =
+  const [showBlogCta, balances, notifications, upcoming, history, pushKey] =
     await Promise.all([
       // Staff reach the blog through the dashboard; contributors only here.
       isStaff ? false : canAuthorPosts(profile),
@@ -165,6 +170,7 @@ async function VerifiedHome({
       loadNotifications(),
       hub ? Promise.resolve(null) : loadUpcomingFestival(),
       loadHistorySummary(profile, hub?.festival.id ?? null),
+      pushPublicKeyFor(profile),
     ]);
 
   const [tasks, store] = await Promise.all([
@@ -189,6 +195,7 @@ async function VerifiedHome({
       always={
         <>
           <HomeTasks tasks={tasks} now={now} />
+          <HomePushBanner publicKey={pushKey} />
           {balances ? <HomeCredits balances={balances} /> : null}
         </>
       }
@@ -225,10 +232,11 @@ async function VerifiedHome({
  */
 async function UnverifiedHome({ profile }: { profile: ProfileType }) {
   const now = new Date();
-  const [active, notifications, store] = await Promise.all([
+  const [active, notifications, store, pushKey] = await Promise.all([
     getActiveFestivalBase(),
     loadNotifications(),
     loadHomeStore("merch"),
+    pushPublicKeyFor(profile),
   ]);
   const festival = active ?? (await loadUpcomingFestival());
   const tasks = profileReviewTasks(profile);
@@ -239,6 +247,7 @@ async function UnverifiedHome({ profile }: { profile: ProfileType }) {
       always={
         <>
           <HomeTasks tasks={tasks} now={now} />
+          <HomePushBanner publicKey={pushKey} />
           <HomeReviewNote profile={profile} hasTasks={tasks.length > 0} />
         </>
       }
@@ -284,9 +293,6 @@ export default async function HomePage() {
   }
 
   return (
-    <VerifiedHome
-      profile={hub.profile}
-      hub={hub.kind === "hub" ? hub : null}
-    />
+    <VerifiedHome profile={hub.profile} hub={hub.kind === "hub" ? hub : null} />
   );
 }

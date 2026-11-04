@@ -17,6 +17,8 @@ import {
   urlBase64ToUint8Array,
 } from "@/app/lib/notifications/push/support";
 import { forgetNotificationState } from "@/app/lib/notifications/push/taps";
+import { captureClientEvent } from "@/app/lib/posthog-capture";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 
 const SERVICE_WORKER_URL = "/sw.js";
 /** How long a freshly registered worker may take to become active. */
@@ -259,7 +261,12 @@ export function usePushDevice({
       inFlight.current = false;
     }
     // Once done, so the checks this sets off do not take it as in flight.
-    if (result.ok) announcePushDeviceChanged();
+    if (result.ok) {
+      announcePushDeviceChanged();
+      captureClientEvent(POSTHOG_EVENTS.PUSH_ENABLED, {
+        device: pushDeviceLabel(navigator),
+      });
+    }
     return result;
   }
 
@@ -325,7 +332,12 @@ export function usePushDevice({
     } finally {
       inFlight.current = false;
     }
-    if (result.ok) announcePushDeviceChanged();
+    if (result.ok) {
+      announcePushDeviceChanged();
+      captureClientEvent(POSTHOG_EVENTS.PUSH_DISABLED, {
+        device: pushDeviceLabel(navigator),
+      });
+    }
     return result;
   }
 

@@ -16,6 +16,7 @@ import {
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { Skeleton } from "@/app/components/ui/skeleton";
+import { INSTALL_GUIDE_PATH } from "@/app/lib/install-guide/definitions";
 import { removePushDeviceAction } from "@/app/lib/notifications/push/actions";
 import type { PushSupport } from "@/app/lib/notifications/push/support";
 import { cn } from "@/lib/utils";
@@ -45,7 +46,7 @@ function blockedReason(
 ): string | null {
   switch (support) {
     case "ios-needs-install":
-      return "En iPhone y iPad, las notificaciones llegan solo si agregás Glitter a la pantalla de inicio. En Safari, tocá Compartir y después «Agregar a inicio». Después abrí Glitter desde ese ícono y tocá la campana para activarlas.";
+      return "En iPhone y iPad, las notificaciones llegan solo si agregás Glitter a la pantalla de inicio. En Safari, elegí Compartir y después «Agregar a Inicio». Después abrí Glitter desde ese ícono y tocá la campana para activarlas.";
     case "ios-in-app-browser":
       return "Abrí esta página en Safari para poder agregar Glitter a la pantalla de inicio y recibir notificaciones.";
     case "ios-outdated":
@@ -123,6 +124,22 @@ export function PushControl({
   let status: ReactNode;
   if (support === "unknown" || (!reason && device.phase === "checking")) {
     status = <Skeleton className="h-4 w-3/4" />;
+  } else if (
+    support === "ios-needs-install" ||
+    support === "ios-in-app-browser"
+  ) {
+    // The full steps, for every browser, are on /instalar.
+    status = (
+      <>
+        {reason}{" "}
+        <Link
+          href={INSTALL_GUIDE_PATH}
+          className="font-medium text-primary hover:underline"
+        >
+          Ver los pasos
+        </Link>
+      </>
+    );
   } else if (reason) {
     status = reason;
   } else if (on) {
@@ -240,8 +257,8 @@ export function PushControl({
  * The short offer, for the bell and for moments worth being told about (a
  * reservation in review or confirmed, a gift). Renders only when this device
  * could turn avisos on and has not: the reasons and steps belong on
- * `/my_notifications`. On an iPhone outside the home-screen app it links
- * there instead.
+ * `/my_notifications`. On an iPhone outside the home-screen app it links to
+ * the install steps on `/instalar` instead.
  *
  * `showBlocked`, for the bell: a desktop browser that blocked avisos says so
  * in a line that leads to the explanation, rather than showing nothing.
@@ -266,9 +283,9 @@ export function PushOffer({
 
   if (!publicKey) return null;
 
-  const helpLink = (label: string) => (
+  const helpLink = (label: string, href = "/my_notifications") => (
     <Link
-      href="/my_notifications"
+      href={href}
       onClick={onNavigate}
       className="font-medium text-primary hover:underline"
     >
@@ -278,7 +295,7 @@ export function PushOffer({
 
   let content: ReactNode = null;
   if (support === "ios-needs-install" || support === "ios-in-app-browser") {
-    content = helpLink("Cómo activar las notificaciones");
+    content = helpLink("Cómo activar las notificaciones", INSTALL_GUIDE_PATH);
   } else if (
     (support === "default" || support === "granted") &&
     (device.phase === "off" || device.phase === "working")
