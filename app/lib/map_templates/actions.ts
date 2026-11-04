@@ -3,7 +3,6 @@
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { standsHaveReservations } from "@/app/lib/reservations/members";
-import { DrizzleTransactionScope } from "@/db/drizzleTransactionScope";
 import {
   festivals,
   festivalSectors,
@@ -14,13 +13,16 @@ import {
 import { eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { MapTemplate, MapTemplateRecord, SectorTemplate } from "./definitions";
 import {
-  MapElementTemplate,
-  MapTemplate,
-  MapTemplateRecord,
-  SectorTemplate,
-  StandTemplate,
-} from "./definitions";
+  deleteSectorStandGroups,
+  insertSectorTemplateContents,
+  loadSubcategoryLookup,
+} from "./sector-import";
+import {
+  buildSectorTemplate,
+  SECTOR_TEMPLATE_STAND_RELATIONS,
+} from "./sector-template";
 import {
   exportOptionsSchema,
   importOptionsSchema,
@@ -91,16 +93,14 @@ export async function exportFestivalMapAsTemplate(
     }
 
     // Fetch sectors with stands and elements
-    const sectorsQuery = db.query.festivalSectors.findMany({
+    const sectors = await db.query.festivalSectors.findMany({
       where: eq(festivalSectors.festivalId, festivalId),
       with: {
-        stands: true,
+        stands: { with: SECTOR_TEMPLATE_STAND_RELATIONS },
         mapElements: true,
       },
       orderBy: festivalSectors.orderInFestival,
     });
-
-    const sectors = await sectorsQuery;
 
     // Filter sectors if sectorIds provided
     const filteredSectors = parsedOptions.sectorIds
@@ -111,55 +111,11 @@ export async function exportFestivalMapAsTemplate(
       return { success: false, message: "No se encontraron sectores" };
     }
 
-    // Build template
-    const sectorTemplates: SectorTemplate[] = filteredSectors.map((sector) => ({
-      name: sector.name,
-      description: sector.description,
-      orderInFestival: sector.orderInFestival,
-      mapBounds: {
-        originX: sector.mapOriginX,
-        originY: sector.mapOriginY,
-        width: sector.mapWidth,
-        height: sector.mapHeight,
-      },
-      stands: sector.stands.map(
-        (stand): StandTemplate => ({
-          label: stand.label,
-          standNumber: stand.standNumber,
-          standCategory: stand.standCategory,
-          zone: stand.zone,
-          orientation: stand.orientation,
-          width: stand.width,
-          height: stand.height,
-          positionLeft: stand.positionLeft ?? 0,
-          positionTop: stand.positionTop ?? 0,
-          price: stand.price,
-        }),
-      ),
-      elements:
-        sector.mapElements.length > 0
-          ? sector.mapElements.map(
-              (el): MapElementTemplate => ({
-                type: el.type,
-                label: el.label,
-                labelPosition: el.labelPosition,
-                labelFontSize: el.labelFontSize,
-                showIcon: el.showIcon,
-                labelFontWeight: el.labelFontWeight,
-                rotation: el.rotation ?? 0,
-                positionLeft: el.positionLeft,
-                positionTop: el.positionTop,
-                width: el.width,
-                height: el.height,
-              }),
-            )
-          : undefined,
-    }));
-
-    const hasElements = sectorTemplates.some((s) => s.elements);
+    const sectorTemplates: SectorTemplate[] =
+      filteredSectors.map(buildSectorTemplate);
 
     const template: MapTemplate = {
-      version: hasElements ? "1.1" : "1.0",
+      version: "1.2",
       metadata: {
         name: `${festival.name} - Plantilla`,
         createdAt: new Date().toISOString(),
@@ -194,7 +150,7 @@ export async function exportSectorAsTemplate(
     const sector = await db.query.festivalSectors.findFirst({
       where: eq(festivalSectors.id, sectorId),
       with: {
-        stands: true,
+        stands: { with: SECTOR_TEMPLATE_STAND_RELATIONS },
         mapElements: true,
         festival: true,
       },
@@ -204,54 +160,10 @@ export async function exportSectorAsTemplate(
       return { success: false, message: "Sector no encontrado" };
     }
 
-    const sectorTemplate: SectorTemplate = {
-      name: sector.name,
-      description: sector.description,
-      orderInFestival: sector.orderInFestival,
-      mapBounds: {
-        originX: sector.mapOriginX,
-        originY: sector.mapOriginY,
-        width: sector.mapWidth,
-        height: sector.mapHeight,
-      },
-      stands: sector.stands.map(
-        (stand): StandTemplate => ({
-          label: stand.label,
-          standNumber: stand.standNumber,
-          standCategory: stand.standCategory,
-          zone: stand.zone,
-          orientation: stand.orientation,
-          width: stand.width,
-          height: stand.height,
-          positionLeft: stand.positionLeft ?? 0,
-          positionTop: stand.positionTop ?? 0,
-          price: stand.price,
-        }),
-      ),
-      elements:
-        sector.mapElements.length > 0
-          ? sector.mapElements.map(
-              (el): MapElementTemplate => ({
-                type: el.type,
-                label: el.label,
-                labelPosition: el.labelPosition,
-                labelFontSize: el.labelFontSize,
-                showIcon: el.showIcon,
-                labelFontWeight: el.labelFontWeight,
-                rotation: el.rotation ?? 0,
-                positionLeft: el.positionLeft,
-                positionTop: el.positionTop,
-                width: el.width,
-                height: el.height,
-              }),
-            )
-          : undefined,
-    };
-
-    const hasElements = sectorTemplate.elements !== undefined;
+    const sectorTemplate = buildSectorTemplate(sector);
 
     const template: MapTemplate = {
-      version: hasElements ? "1.1" : "1.0",
+      version: "1.2",
       metadata: {
         name: `${sector.name} - Plantilla`,
         createdAt: new Date().toISOString(),
@@ -406,6 +318,11 @@ export async function importTemplateToFestival(
           await tx.delete(stands).where(inArray(stands.id, standIds));
         }
 
+        // Its groups went empty with the stands above.
+        if (parsedOptions.mode === "replace") {
+          await deleteSectorStandGroups(tx, [targetSector.id]);
+        }
+
         // Delete existing elements if replace mode
         if (
           parsedOptions.mode === "replace" &&
@@ -429,51 +346,12 @@ export async function importTemplateToFestival(
           })
           .where(eq(festivalSectors.id, targetSector.id));
 
-        // Create stands
-        if (templateSector.stands.length > 0) {
-          await tx.insert(stands).values(
-            templateSector.stands.map((stand) => ({
-              label: stand.label,
-              standNumber: stand.standNumber,
-              standCategory: stand.standCategory,
-              zone: stand.zone,
-              orientation: stand.orientation,
-              width: stand.width,
-              height: stand.height,
-              positionLeft: stand.positionLeft,
-              positionTop: stand.positionTop,
-              // Templates predate the individual/shared split, so their single
-              // price maps to the individual price and mirrors into the legacy
-              // adapter column.
-              price: stand.price,
-              individualPrice: stand.price,
-              status: "available" as const,
-              festivalId,
-              festivalSectorId: targetSector.id,
-            })),
-          );
-        }
-
-        // Create elements from template
-        const templateElements = templateSector.elements ?? [];
-        if (templateElements.length > 0) {
-          await tx.insert(mapElements).values(
-            templateElements.map((el) => ({
-              type: el.type,
-              label: el.label,
-              labelPosition: el.labelPosition ?? "bottom",
-              labelFontSize: el.labelFontSize ?? 2,
-              showIcon: el.showIcon ?? true,
-              labelFontWeight: el.labelFontWeight ?? 500,
-              rotation: el.rotation ?? 0,
-              positionLeft: el.positionLeft,
-              positionTop: el.positionTop,
-              width: el.width,
-              height: el.height,
-              festivalSectorId: targetSector.id,
-            })),
-          );
-        }
+        await insertSectorTemplateContents(tx, {
+          festivalId,
+          sectorId: targetSector.id,
+          template: templateSector,
+          subcategoryLookup: await loadSubcategoryLookup(tx, [templateSector]),
+        });
 
         revalidatePath("/dashboard/festivals");
         revalidatePath("/", "layout");
@@ -513,6 +391,12 @@ export async function importTemplateToFestival(
 
         await tx.delete(stands).where(inArray(stands.id, standIds));
       }
+
+      // 1a. Their groups went empty with them, full tables included.
+      await deleteSectorStandGroups(
+        tx,
+        targetSectors.map((s) => s.id),
+      );
 
       // 1b. Delete all existing elements across all sectors
       const allExistingElements = targetSectors.flatMap((s) => s.mapElements);
@@ -574,56 +458,18 @@ export async function importTemplateToFestival(
         }
       }
 
-      // 4. Create stands and elements for each sector
+      // 4. Create stands, groups and elements for each sector
+      const subcategoryLookup = await loadSubcategoryLookup(
+        tx,
+        template.sectors,
+      );
       for (let i = 0; i < template.sectors.length; i++) {
-        const templateSector = template.sectors[i];
-        const sectorId = sectorIds[i];
-
-        if (templateSector.stands.length > 0) {
-          await tx.insert(stands).values(
-            templateSector.stands.map((stand) => ({
-              label: stand.label,
-              standNumber: stand.standNumber,
-              standCategory: stand.standCategory,
-              zone: stand.zone,
-              orientation: stand.orientation,
-              width: stand.width,
-              height: stand.height,
-              positionLeft: stand.positionLeft,
-              positionTop: stand.positionTop,
-              // Templates predate the individual/shared split, so their single
-              // price maps to the individual price and mirrors into the legacy
-              // adapter column.
-              price: stand.price,
-              individualPrice: stand.price,
-              status: "available" as const,
-              festivalId,
-              festivalSectorId: sectorId,
-            })),
-          );
-          totalCreated += templateSector.stands.length;
-        }
-
-        // Create elements from template
-        const templateElements = templateSector.elements ?? [];
-        if (templateElements.length > 0) {
-          await tx.insert(mapElements).values(
-            templateElements.map((el) => ({
-              type: el.type,
-              label: el.label,
-              labelPosition: el.labelPosition ?? "bottom",
-              labelFontSize: el.labelFontSize ?? 2,
-              showIcon: el.showIcon ?? true,
-              labelFontWeight: el.labelFontWeight ?? 500,
-              rotation: el.rotation ?? 0,
-              positionLeft: el.positionLeft,
-              positionTop: el.positionTop,
-              width: el.width,
-              height: el.height,
-              festivalSectorId: sectorId,
-            })),
-          );
-        }
+        totalCreated += await insertSectorTemplateContents(tx, {
+          festivalId,
+          sectorId: sectorIds[i],
+          template: template.sectors[i],
+          subcategoryLookup,
+        });
       }
 
       revalidatePath("/dashboard/festivals");

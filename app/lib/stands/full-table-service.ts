@@ -415,29 +415,40 @@ export async function dissolveFullTablePair(input: {
   });
 }
 
+type SetFullTablePriceRefusal = {
+  ok: false;
+  code: "GROUP_NOT_FOUND" | "NOT_A_FULL_TABLE" | "INVALID_PRICE";
+};
+
+export type SetFullTablePricesResult =
+  | { ok: true; groupIds: number[] }
+  | SetFullTablePriceRefusal;
+
 export type SetFullTablePriceResult =
   | { ok: true; groupId: number }
-  | {
-      ok: false;
-      code: "GROUP_NOT_FOUND" | "NOT_A_FULL_TABLE" | "INVALID_PRICE";
-    };
+  | SetFullTablePriceRefusal;
 
 /**
- * Sets what booking a whole table costs.
+ * Sets what booking a whole table costs, for one table or many at once.
  *
  * Priced per table rather than per category: stand prices already vary by
  * sector, so one number for every table in a category would sell an expensive
- * table for the same as a cheap one. Clearing it withdraws the table from
- * participants rather than falling back to a guess — a table nobody has priced
- * is not something to sell.
+ * table for the same as a cheap one. Setting several at once is the admin
+ * choosing the same number for each of them, not a category price. Clearing it
+ * withdraws the table from participants rather than falling back to a guess —
+ * a table nobody has priced is not something to sell.
+ *
+ * All or nothing: if any group is missing or is not a full table, none is
+ * repriced, so a partial write never leaves the admin guessing which tables
+ * took the new price.
  *
  * Live reservations keep their own snapshot, so repricing never rewrites what
  * someone was already billed.
  */
-export async function setFullTablePrice(input: {
-  groupId: number;
+export async function setFullTablePrices(input: {
+  groupIds: readonly number[];
   price: number | null;
-}): Promise<SetFullTablePriceResult> {
+}): Promise<SetFullTablePricesResult> {
   if (input.price != null) {
     const rounded = Math.round(input.price * 100) / 100;
     if (
@@ -449,23 +460,42 @@ export async function setFullTablePrice(input: {
     }
   }
 
+  // Sorted so two concurrent bulk edits lock their shared groups in the same
+  // order and cannot deadlock.
+  const groupIds = [...new Set(input.groupIds)].sort((a, b) => a - b);
+  if (groupIds.length === 0) return { ok: false, code: "GROUP_NOT_FOUND" };
+
   return db.transaction(async (tx) => {
-    const [group] = await tx
+    const groups = await tx
       .select({ id: standGroups.id, type: standGroups.type })
       .from(standGroups)
-      .where(eq(standGroups.id, input.groupId))
-      .limit(1)
+      .where(inArray(standGroups.id, groupIds))
+      .orderBy(standGroups.id)
       .for("update");
-    if (!group) return { ok: false as const, code: "GROUP_NOT_FOUND" as const };
-    if (group.type !== "full_table") {
+    if (groups.length !== groupIds.length) {
+      return { ok: false as const, code: "GROUP_NOT_FOUND" as const };
+    }
+    if (groups.some((group) => group.type !== "full_table")) {
       return { ok: false as const, code: "NOT_A_FULL_TABLE" as const };
     }
 
     await tx
       .update(standGroups)
       .set({ fullTablePrice: input.price, updatedAt: new Date() })
-      .where(eq(standGroups.id, input.groupId));
+      .where(inArray(standGroups.id, groupIds));
 
-    return { ok: true as const, groupId: input.groupId };
+    return { ok: true as const, groupIds };
   });
+}
+
+/** `setFullTablePrices` for a single table. */
+export async function setFullTablePrice(input: {
+  groupId: number;
+  price: number | null;
+}): Promise<SetFullTablePriceResult> {
+  const result = await setFullTablePrices({
+    groupIds: [input.groupId],
+    price: input.price,
+  });
+  return result.ok ? { ok: true, groupId: input.groupId } : result;
 }

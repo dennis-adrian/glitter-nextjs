@@ -195,7 +195,8 @@ export default function FestivalExportDialog({
                   <span className="text-sm">
                     Todo
                     <span className="text-muted-foreground ml-1">
-                      (informacion basica + sectores + espacios)
+                      (informacion basica + sectores + espacios + mesas
+                      completas)
                     </span>
                   </span>
                 </label>
@@ -204,7 +205,7 @@ export default function FestivalExportDialog({
                   <span className="text-sm">
                     Solo informacion basica
                     <span className="text-muted-foreground ml-1">
-                      (nombre, fechas, tipo, etc.)
+                      (nombre, fechas, tipo, funciones de reserva, etc.)
                     </span>
                   </span>
                 </label>
@@ -213,7 +214,8 @@ export default function FestivalExportDialog({
                   <span className="text-sm">
                     Solo sectores
                     <span className="text-muted-foreground ml-1">
-                      (sectores, espacios y elementos)
+                      (sectores, espacios con sus precios, mesas completas y
+                      elementos)
                     </span>
                   </span>
                 </label>

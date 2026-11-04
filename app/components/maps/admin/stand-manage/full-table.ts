@@ -127,3 +127,47 @@ export function rowsBookedAsTable<T extends BookableRow>(
     ),
   );
 }
+
+export type FullTablePriceSelection =
+  | { groupIds: number[]; reason: null }
+  | { groupIds: []; reason: string };
+
+/**
+ * Which full tables a "Precio de la mesa completa" edit would reprice, or why
+ * the selection cannot take one.
+ *
+ * Every selected stand has to be a half of some table: a selection that also
+ * holds a stand outside any table is ambiguous — the admin may expect the
+ * price to reach that stand too — so it is refused rather than silently
+ * narrowed. Picking one half is enough to reach its table, which is what lets
+ * an admin select a whole row of tables and price them in one step.
+ */
+export function fullTablePriceSelection(
+  selectedIds: readonly number[],
+  fullTableByStandId: ReadonlyMap<number, Pick<FullTableInfo, "groupId">>,
+): FullTablePriceSelection {
+  const groupIds = new Set<number>();
+  let outside = 0;
+  for (const id of selectedIds) {
+    const groupId = fullTableByStandId.get(id)?.groupId;
+    if (groupId == null) outside += 1;
+    else groupIds.add(groupId);
+  }
+
+  if (groupIds.size === 0) {
+    return {
+      groupIds: [],
+      reason: "Ningún espacio seleccionado es mitad de una mesa completa.",
+    };
+  }
+  if (outside > 0) {
+    return {
+      groupIds: [],
+      reason:
+        outside === 1
+          ? "Hay un espacio seleccionado que no es parte de una mesa completa."
+          : `Hay ${outside} espacios seleccionados que no son parte de una mesa completa.`,
+    };
+  }
+  return { groupIds: [...groupIds].sort((a, b) => a - b), reason: null };
+}
