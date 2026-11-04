@@ -56,6 +56,7 @@ const describeDatabase = integrationDb ? describe : describe.skip;
 
 let setStandGroupFullTable: (typeof import("@/app/lib/stands/full-table-service"))["setStandGroupFullTable"];
 let setFullTablePrice: (typeof import("@/app/lib/stands/full-table-service"))["setFullTablePrice"];
+let setFullTablePrices: (typeof import("@/app/lib/stands/full-table-service"))["setFullTablePrices"];
 let resolveFullTableCompanion: (typeof import("@/app/lib/reservations/full-table-access"))["resolveFullTableCompanion"];
 let declareFullTablePair: (typeof import("@/app/lib/stands/full-table-service"))["declareFullTablePair"];
 let dissolveFullTablePair: (typeof import("@/app/lib/stands/full-table-service"))["dissolveFullTablePair"];
@@ -125,6 +126,7 @@ describeDatabase("setStandGroupFullTable", () => {
       declareFullTablePair,
       dissolveFullTablePair,
       setFullTablePrice,
+      setFullTablePrices,
     } = await import("@/app/lib/stands/full-table-service"));
     ({ resolveFullTableCompanion } =
       await import("@/app/lib/reservations/full-table-access"));
@@ -931,6 +933,41 @@ describeDatabase("setStandGroupFullTable", () => {
           resolveFullTableCompanion(tx, standIds[0]),
         ),
       ).toBeNull();
+    });
+
+    it("prices several tables in one step", async () => {
+      const first = await createPair();
+      const second = await createPair();
+      await setStandGroupFullTable({ groupId: first.groupId, enabled: true });
+      await setStandGroupFullTable({ groupId: second.groupId, enabled: true });
+      await setFullTablePrice({ groupId: first.groupId, price: 500 });
+
+      expect(
+        await setFullTablePrices({
+          groupIds: [second.groupId, first.groupId, second.groupId],
+          price: 820,
+        }),
+      ).toEqual({
+        ok: true,
+        groupIds: [first.groupId, second.groupId].sort((a, b) => a - b),
+      });
+      expect(await fullTablePriceOf(first.groupId)).toBe(820);
+      expect(await fullTablePriceOf(second.groupId)).toBe(820);
+    });
+
+    it("reprices none of the tables when one of the groups is not a table", async () => {
+      const table = await createPair();
+      const visual = await createPair();
+      await setStandGroupFullTable({ groupId: table.groupId, enabled: true });
+      await setFullTablePrice({ groupId: table.groupId, price: 500 });
+
+      expect(
+        await setFullTablePrices({
+          groupIds: [table.groupId, visual.groupId],
+          price: 820,
+        }),
+      ).toMatchObject({ ok: false, code: "NOT_A_FULL_TABLE" });
+      expect(await fullTablePriceOf(table.groupId)).toBe(500);
     });
 
     it("refuses a price on a group that is not a full table", async () => {
