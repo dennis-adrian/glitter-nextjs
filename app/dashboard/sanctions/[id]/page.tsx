@@ -130,7 +130,9 @@ export default async function SanctionDetailPage({
         <section className="space-y-3 rounded-md border p-4">
           <h2 className="font-medium">Participante</h2>
           <p className="font-medium">{participantDisplayName(sanction.user)}</p>
-          <p className="text-sm text-muted-foreground">{sanction.user.email}</p>
+          <p className="text-sm text-muted-foreground break-all">
+            {sanction.user.email}
+          </p>
           <Link
             href={`/dashboard/users/${sanction.userId}`}
             className="text-sm text-primary hover:underline"

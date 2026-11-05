@@ -163,7 +163,8 @@ export default async function GuestOrderPage(props: {
               </Heading>
               <p className="text-sm text-amber-900 dark:text-amber-100 mt-2">
                 Recibimos tu comprobante y lo estamos revisando. Te
-                notificaremos al correo <strong>{order.guestEmail}</strong>{" "}
+                notificaremos al correo{" "}
+                <strong className="wrap-anywhere">{order.guestEmail}</strong>{" "}
                 cuando confirmemos el pago.
               </p>
             </CardContent>

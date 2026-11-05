@@ -61,16 +61,19 @@ export default function ComboboxInput<T extends FieldValues>({
                 <Button
                   variant="outline"
                   role="combobox"
+                  wrap
                   className={cn(
-                    "w-full justify-between",
+                    "w-full justify-between gap-2",
                     !field.value && "text-muted-foreground",
                   )}
                 >
-                  {field.value
-                    ? options.find((option) => option.value === field.value)
-                        ?.label
-                    : placeholder}
-                  <ChevronsUpDownIcon className="opacity-50" />
+                  <span className="min-w-0 break-words text-left">
+                    {field.value
+                      ? options.find((option) => option.value === field.value)
+                          ?.label
+                      : placeholder}
+                  </span>
+                  <ChevronsUpDownIcon className="shrink-0 opacity-50" />
                 </Button>
               </FormControl>
             </PopoverTrigger>

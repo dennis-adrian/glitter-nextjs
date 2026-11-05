@@ -27,9 +27,10 @@ export function ShowField({ label, value }: UserProfileFieldProps) {
   value = value?.trim().length ? value : "No especificado";
   return (
     <div className="flex w-full justify-between">
-      <div>
+      <div className="min-w-0">
         <h3 className="font-bold">{label}</h3>
-        <div className="text-muted-foreground max-w-48 truncate sm:max-w-80">
+        {/* Wrapped, not truncated: an email is shown nowhere else here. */}
+        <div className="text-muted-foreground wrap-anywhere">
           {value}
         </div>
       </div>

@@ -35,7 +35,7 @@ export default function UserParticipationCard({
 
   return (
     <div className="bg-card p-3 rounded-md shadow-md border flex gap-3 items-center">
-      <div className="relative w-12 h-12 md:w-16 md:h-16 aspect-square rounded-full">
+      <div className="relative w-12 h-12 shrink-0 md:w-16 md:h-16 aspect-square rounded-full">
         <Image
           src={
             participation.reservation.festival.festivalBannerUrl ||

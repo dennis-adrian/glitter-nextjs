@@ -388,7 +388,7 @@ export default function PaidRegistrationForm({
       <DialogTrigger asChild>
         <Button
           variant="cta"
-          className="flex h-auto min-h-10 w-full gap-1 whitespace-normal px-5 py-2 text-center @[44rem]:w-auto"
+          className="flex h-auto min-h-10 w-full flex-wrap gap-1 whitespace-normal px-5 py-2 text-center @[44rem]:w-auto"
         >
           {reserveLabel}
         </Button>
@@ -423,7 +423,8 @@ export default function PaidRegistrationForm({
                 variant="cta"
                 disabled={!acceptsPolicy || isSubmitting}
                 onClick={() => submit(null)}
-                className="flex gap-1"
+                wrap
+                className="flex flex-wrap gap-1"
               >
                 {isSubmitting ? "Reservando..." : reserveLabel}
               </Button>
@@ -472,7 +473,8 @@ export default function PaidRegistrationForm({
                   type="submit"
                   variant="cta"
                   disabled={!acceptsPolicy || isSubmitting}
-                  className="flex gap-1"
+                  wrap
+                  className="flex flex-wrap gap-1"
                 >
                   {isSubmitting ? "Reservando..." : reserveLabel}
                 </Button>

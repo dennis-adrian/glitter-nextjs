@@ -409,7 +409,7 @@ export default function ParticipationStatusCard({
           : "border-brand-border",
       )}
     >
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <span className="text-xs font-semibold text-brand-primary">
           {confirmed ? "Tu reserva" : "Tu participación"}
         </span>

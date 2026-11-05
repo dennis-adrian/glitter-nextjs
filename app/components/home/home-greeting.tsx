@@ -21,7 +21,7 @@ export default function HomeGreeting({
     <header className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <VerificationStatusLabel status={profile.status} />
-        <h1 className="font-display text-3xl font-bold tracking-tight text-brand-ink md:text-4xl">
+        <h1 className="break-words font-display text-3xl font-bold tracking-tight text-brand-ink md:text-4xl">
           Hola, {profile.firstName ?? profile.displayName ?? "artista"}
         </h1>
       </div>

@@ -104,6 +104,7 @@ export default function ReleaseReservationButton({
       <Button
         type="button"
         variant="outline"
+        wrap
         className="w-full sm:w-auto"
         onClick={() => setOpen(true)}
       >

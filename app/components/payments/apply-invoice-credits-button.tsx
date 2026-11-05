@@ -54,6 +54,8 @@ export default function ApplyInvoiceCreditsButton({
       <Button
         type="button"
         variant="outline"
+        // "Usar Bs1250.00 de mis créditos" outgrows a 320px card.
+        wrap
         className="w-full"
         onClick={applyCredits}
         disabled={isPending || Boolean(disabledReason)}

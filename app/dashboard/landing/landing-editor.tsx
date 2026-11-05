@@ -1444,7 +1444,7 @@ function LandingEditorForm({
                   <label className="grid gap-1.5">
                     <span className="text-sm font-medium">Festival</span>
                     <select
-                      className="h-10 rounded-md border bg-background px-3"
+                      className="h-10 min-w-0 rounded-md border bg-background px-3"
                       {...register("sections.eventSpotlight.festivalId", {
                         setValueAs: (value) => (value ? Number(value) : null),
                       })}

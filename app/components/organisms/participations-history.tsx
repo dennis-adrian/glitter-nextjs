@@ -72,7 +72,7 @@ export default function ParticipationsHistory({
       {!!currentParticipation && !!activeFestival && (
         <Card className="shadow-md hover:shadow-lg transition-shadow duration-300">
           <CardContent className="flex p-4 gap-2 w-full">
-            <div className="relative w-20 h-30 md:w-30 md:h-40 rounded-md">
+            <div className="relative w-20 h-30 shrink-0 md:w-30 md:h-40 rounded-md">
               <Image
                 src={
                   activeFestival.festivalBannerUrl ||

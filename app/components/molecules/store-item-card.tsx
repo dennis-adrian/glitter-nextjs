@@ -326,6 +326,7 @@ export default function StoreItemCard({
           ) : (
             <Button
               size="sm"
+              wrap
               variant={presentation === "merch" ? "outline" : "default"}
               className={
                 presentation === "merch"
