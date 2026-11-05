@@ -67,6 +67,8 @@ export default function ReleaseFeatureCreditsButton({
       type="button"
       variant="outline"
       size="sm"
+      // The label names the festival, which can be long.
+      wrap
       disabled={isPending || disabledReason != null}
       title={disabledReason}
       onClick={release}
