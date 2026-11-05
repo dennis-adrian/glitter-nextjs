@@ -1,3 +1,4 @@
+import ActivationReportCard from "@/app/components/festivals/activation-report/activation-report-card";
 import FestivalDetailHeader from "@/app/components/festivals/festival-detail-header";
 import FestivalFeatureConfigPanel from "@/app/components/festivals/festival-feature-config-panel";
 import FestivalInfoCard from "@/app/components/festivals/festival-info-card";
@@ -8,6 +9,7 @@ import {
   fetchActiveFestivalBase,
   fetchFestivalWithDates,
 } from "@/app/lib/festivals/actions";
+import { fetchActivationReport } from "@/app/lib/festivals/activation-report";
 import { fetchFestivalOverviewCounts } from "@/app/lib/festivals/overview";
 import { isFestivalDay } from "@/app/lib/festivals/utils";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
@@ -45,11 +47,13 @@ export default async function Page({ params }: PageProps) {
   if (!parsed.success) return notFound();
 
   const { id } = parsed.data;
-  const [festival, counts, activeFestival] = await Promise.all([
-    loadFestival(id),
-    fetchFestivalOverviewCounts(id),
-    fetchActiveFestivalBase(),
-  ]);
+  const [festival, counts, activeFestival, activationReport] =
+    await Promise.all([
+      loadFestival(id),
+      fetchFestivalOverviewCounts(id),
+      fetchActiveFestivalBase(),
+      fetchActivationReport(id),
+    ]);
 
   if (!festival) {
     return notFound();
@@ -76,6 +80,10 @@ export default async function Page({ params }: PageProps) {
         </div>
         <div className="min-w-0 space-y-6 lg:col-start-3 lg:row-span-2 lg:row-start-1">
           <FestivalInfoCard festival={festival} />
+          {/* Only once the activation notice went out. */}
+          {activationReport ? (
+            <ActivationReportCard festivalId={id} report={activationReport} />
+          ) : null}
           <FestivalParticipantTermsSummary
             festivalStatus={festival.status}
             participantTermsEnabled={festival.participantTermsEnabled}

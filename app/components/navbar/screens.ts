@@ -280,6 +280,10 @@ export const SCREENS: Record<string, ScreenDef> = {
     title: "Participantes habilitados",
     parent: FEST,
   },
+  [`${FEST}/activation_notifications`]: {
+    title: "Invitación en Glitter",
+    parent: FEST,
+  },
   [`${FEST}/map`]: { title: "Mapa", parent: FEST },
   [`${FEST}/stands`]: { title: "Editor del mapa", parent: FEST },
   [`${FEST}/stands/manage`]: { title: "Gestionar espacios", parent: FEST },
