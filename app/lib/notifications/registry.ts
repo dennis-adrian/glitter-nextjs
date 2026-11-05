@@ -7,6 +7,7 @@ import CreditGiftReceivedEmail from "@/app/emails/credit-gift-received";
 import CreditGiftRevokedEmail from "@/app/emails/credit-gift-revoked";
 import { comunicadoKinds } from "@/app/lib/notifications/kinds/comunicado";
 import { disciplinaryKinds } from "@/app/lib/notifications/kinds/disciplinary";
+import { festivalInvitationKinds } from "@/app/lib/notifications/kinds/festival-invitation";
 import { reservationOutboxKinds } from "@/app/lib/notifications/kinds/reservation-outbox";
 import type {
   EmailCopy,
@@ -159,6 +160,7 @@ const kinds = {
   ...reservationOutboxKinds,
   ...disciplinaryKinds,
   ...comunicadoKinds,
+  ...festivalInvitationKinds,
 } as const;
 
 export type NotificationKind = keyof typeof kinds;
