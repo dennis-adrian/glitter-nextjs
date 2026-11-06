@@ -296,6 +296,18 @@ describe("buildFestivalReservationMapDto", () => {
     expect(held?.status).toBe("available");
   });
 
+  it("serialises the viewer's hold with every stand it covers", () => {
+    const dto = sampleDto({
+      activeHold: { id: 20, standId: 21, standIds: [21, 22], expiresAt: now },
+    });
+    expect(dto.activeHold).toEqual({
+      id: 20,
+      standId: 21,
+      standIds: [21, 22],
+      expiresAt: "2026-08-31T12:00:00.000Z",
+    });
+  });
+
   it("maps sector price to the minimum stand price regardless of stand order", () => {
     const cheaperFirst = sampleDto({
       stands: [

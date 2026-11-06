@@ -137,21 +137,6 @@ export async function fetchHoldWithStand(
   });
 }
 
-export async function getActiveHold(
-  userId: number,
-  festivalId: number,
-): Promise<{ id: number; standId: number } | null> {
-  const hold = await db.query.standHolds.findFirst({
-    where: and(
-      eq(standHolds.userId, userId),
-      eq(standHolds.festivalId, festivalId),
-      gt(standHolds.expiresAt, new Date()),
-    ),
-    columns: { id: true, standId: true },
-  });
-  return hold ? { id: hold.id, standId: hold.standId } : null;
-}
-
 async function reconcileExpiredHolds(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   input: { standId: number; userId: number; festivalId: number; now: Date },

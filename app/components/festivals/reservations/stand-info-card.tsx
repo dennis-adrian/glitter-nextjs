@@ -28,9 +28,13 @@ import {
 } from "@/app/lib/stands/hold-intent";
 import { toast } from "sonner";
 
-type ActiveHold =
+/**
+ * The viewer's live hold as the map knows it: the DTO's, or the one a
+ * selection on this map just created (which has no `expiresAt` yet).
+ */
+export type ActiveHold =
   | ReservationActiveHoldDto
-  | { id: number; standId: number; standIds?: number[] }
+  | { id: number; standId: number; standIds: number[]; expiresAt?: undefined }
   | null;
 
 /**
@@ -42,8 +46,7 @@ type ActiveHold =
  */
 function heldByViewer(standId: number, hold: ActiveHold): boolean {
   if (!hold) return false;
-  const held = "standIds" in hold && hold.standIds ? hold.standIds : [];
-  return hold.standId === standId || held.includes(standId);
+  return hold.standId === standId || hold.standIds.includes(standId);
 }
 
 type StandInfoCardProps = {
@@ -287,7 +290,24 @@ export function StandInfoCard({
           return;
         }
         if (res.success && res.data.holdId) {
-          onHoldChange?.({ id: res.data.holdId, standId: stand.id });
+          // What the server actually took — never `fullTableSelection`,
+          // which only describes what the card offered.
+          const heldStandIds =
+            res.data.isFullTable && stand.standGroupId != null
+              ? [
+                  ...new Set([
+                    stand.id,
+                    ...(sectorStands ?? [])
+                      .filter((s) => s.standGroupId === stand.standGroupId)
+                      .map((s) => s.id),
+                  ]),
+                ]
+              : [stand.id];
+          onHoldChange?.({
+            id: res.data.holdId,
+            standId: stand.id,
+            standIds: heldStandIds,
+          });
           onClose();
           router.replace(
             `/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${stand.festivalSectorId}/confirm/${res.data.holdId}`,
