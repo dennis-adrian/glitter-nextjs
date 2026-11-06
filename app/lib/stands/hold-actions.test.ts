@@ -606,6 +606,20 @@ describe("stand hold authorization and eligibility wiring", () => {
     expect(select).toHaveBeenCalledTimes(3);
   });
 
+  it("answers a thrown confirm transaction with CONFLICT_RETRY", async () => {
+    authMock.mockResolvedValue({ id: 3, role: "user", status: "verified" });
+    transactionMock.mockRejectedValueOnce(new Error("timeout"));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await confirmStandHold({
+      holdId: 20,
+      idempotencyKey: CONFIRM_KEY,
+    });
+
+    expect(result).toMatchObject({ success: false, code: "CONFLICT_RETRY" });
+    error.mockRestore();
+  });
+
   it("replays a confirmation from the request registry before resolving the hold", async () => {
     authMock.mockResolvedValue({ id: 3, role: "user", status: "verified" });
     claimRequestMock.mockResolvedValue({

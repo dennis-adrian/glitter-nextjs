@@ -39,10 +39,19 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace, back: vi.fn(), refresh: vi.fn() }),
 }));
 vi.mock("@/app/components/festivals/reservations/partner-selection", () => ({
-  default: () => null,
+  default: ({
+    onSelectPartner,
+  }: {
+    onSelectPartner: (partnerId?: number) => void;
+  }) => (
+    <button type="button" onClick={() => onSelectPartner(4)}>
+      Elegir a Bea
+    </button>
+  ),
 }));
 
 import HoldConfirmationClient from "@/app/components/festivals/reservations/hold-confirmation-client";
+import { RESERVATION_ERROR_MESSAGES } from "@/app/lib/reservations/errors";
 import { remainingSecondsAt } from "@/app/components/festivals/reservations/use-hold-countdown";
 import {
   AppScreenBar,
@@ -75,7 +84,10 @@ function confirmScreen(options: ConfirmOptions = {}) {
         }}
       />
       <HoldConfirmationClient
-        recentPartners={[]}
+        // Bea (4) is a known option, so selecting her sticks.
+        recentPartners={[
+          { id: 4, displayName: "Bea", imageUrl: null, selectable: true },
+        ]}
         hold={{
           id: 55,
           expiresAt:
@@ -341,6 +353,134 @@ describe("HoldConfirmationClient", () => {
       act(() => root.unmount());
       container.remove();
     });
+  });
+
+  describe("a confirm that can be retried", () => {
+    const RETRY_COPY =
+      "No pudimos confirmar tu reserva. Tu espacio sigue en espera: intentá de nuevo.";
+    const conflict = {
+      success: false,
+      code: "CONFLICT_RETRY",
+      message: "Hubo un conflicto",
+    };
+    const confirmed = {
+      success: true,
+      message: "Reserva confirmada",
+      data: { reservationId: 88 },
+    };
+    const confirmButton = () =>
+      screen.getByRole("button", { name: /Confirmar Reserva/ });
+    /** Reintentar, once the failed attempt has settled and it is enabled. */
+    const retryButton = async () => {
+      const button = await screen.findByRole("button", { name: "Reintentar" });
+      await waitFor(() => expect(button).toHaveProperty("disabled", false));
+      return button;
+    };
+
+    it("stays on the screen with Reintentar, and retries with the same key", async () => {
+      confirmStandHold
+        .mockResolvedValueOnce(conflict)
+        .mockResolvedValueOnce(confirmed);
+      renderConfirm();
+      fireEvent.click(confirmButton());
+
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toContain(RETRY_COPY);
+      expect(replace).not.toHaveBeenCalled();
+      expect(toast.info).not.toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
+      expect(confirmButton()).toHaveProperty("disabled", false);
+
+      fireEvent.click(await retryButton());
+      await waitFor(() =>
+        expect(replace).toHaveBeenCalledWith(
+          "/profiles/3/festivals/10/reservations/88/payments",
+        ),
+      );
+      expect(confirmStandHold).toHaveBeenCalledTimes(2);
+      const [first, second] = confirmStandHold.mock.calls.map(
+        (call) => call[0],
+      );
+      expect(second.idempotencyKey).toBe(first.idempotencyKey);
+      expect(second.holdId).toBe(55);
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("treats a thrown confirm the same way", async () => {
+      confirmStandHold.mockRejectedValueOnce(new Error("timeout"));
+      renderConfirm();
+      fireEvent.click(confirmButton());
+
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toContain(RETRY_COPY);
+      expect(replace).not.toHaveBeenCalled();
+    });
+
+    it("keeps the reload notice for a tab on an old build", async () => {
+      const stale = new Error("gone");
+      stale.name = "UnrecognizedActionError";
+      confirmStandHold.mockRejectedValueOnce(stale);
+      renderConfirm();
+      fireEvent.click(confirmButton());
+
+      await waitFor(() => expect(toast.error).toHaveBeenCalled());
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("falls back to the map on the third failure in a row", async () => {
+      confirmStandHold.mockResolvedValue(conflict);
+      renderConfirm();
+
+      fireEvent.click(confirmButton());
+      await screen.findByRole("alert");
+      fireEvent.click(await retryButton());
+      await waitFor(() => expect(confirmStandHold).toHaveBeenCalledTimes(2));
+      await screen.findByRole("alert");
+      expect(replace).not.toHaveBeenCalled();
+
+      fireEvent.click(await retryButton());
+      await waitFor(() => expect(replace).toHaveBeenCalledWith(MAP_URL));
+      expect(toast.info).toHaveBeenCalledWith(
+        RESERVATION_ERROR_MESSAGES.CONFLICT_RETRY,
+        { duration: 8000 },
+      );
+      expect(replace).toHaveBeenCalledTimes(1);
+    });
+
+    it("sends a new key once the partner changes", async () => {
+      confirmStandHold
+        .mockResolvedValueOnce(conflict)
+        .mockResolvedValueOnce(confirmed);
+      renderConfirm();
+      fireEvent.click(confirmButton());
+      await screen.findByRole("alert");
+
+      fireEvent.click(screen.getByRole("button", { name: "Elegir a Bea" }));
+      expect(screen.queryByRole("alert")).toBeNull();
+      fireEvent.click(confirmButton());
+
+      await waitFor(() => expect(confirmStandHold).toHaveBeenCalledTimes(2));
+      const [first, second] = confirmStandHold.mock.calls.map(
+        (call) => call[0],
+      );
+      expect(second.partnerId).toBe(4);
+      expect(second.idempotencyKey).not.toBe(first.idempotencyKey);
+    });
+
+    it.each(["HOLD_EXPIRED", "STAND_UNAVAILABLE"])(
+      "still returns to the map on %s",
+      async (code) => {
+        confirmStandHold.mockResolvedValue({
+          success: false,
+          code,
+          message: "Ya no está",
+        });
+        renderConfirm();
+        fireEvent.click(confirmButton());
+        await waitFor(() => expect(replace).toHaveBeenCalledWith(MAP_URL));
+        expect(screen.queryByRole("alert")).toBeNull();
+      },
+    );
   });
 });
 
