@@ -106,7 +106,11 @@ export default async function MapReservationPage(
             </div>
           </div>
         ) : null}
-        <ReservationNotAllowed festival={festival} policyCode={denial.code} />
+        <ReservationNotAllowed
+          festival={festival}
+          policyCode={denial.code}
+          serverNow={new Date().toISOString()}
+        />
       </>
     );
   }

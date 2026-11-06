@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import type { ProfileType } from "@/app/api/users/definitions";
 import DashboardNotifications from "@/app/components/home/dashboard-notifications";
 import HomeCredits from "@/app/components/home/home-credits";
+import OpensAtRefresh from "@/app/components/festivals/reservations/opens-at-refresh";
 import HomeFestivalCard from "@/app/components/home/home-festival-card";
 import HomeGreeting from "@/app/components/home/home-greeting";
 import HomeHistoryCard from "@/app/components/home/home-history-card";
@@ -123,7 +124,7 @@ function hubFestivalCard(hub: ParticipationHub, now: Date) {
       .filter((user) => user.id !== hub.profile.id)
       .map((user) => user.displayName ?? "tu compañero") ?? [];
 
-  return (
+  const card = (
     <HomeFestivalCard
       title="Festival en curso"
       festival={hub.festival}
@@ -143,6 +144,19 @@ function hubFestivalCard(hub: ParticipationHub, now: Date) {
         blockedUntil: hub.reservationBlock?.eligibleAt ?? null,
       })}
     />
+  );
+  if (hub.status !== "waiting_for_reservations") return card;
+
+  // Swaps in the open state at the opening instant, without a reload.
+  return (
+    <>
+      {card}
+      <OpensAtRefresh
+        startsAt={hub.festival.reservationsStartDate.toISOString()}
+        serverNow={now.toISOString()}
+        className="-mt-4 text-xs text-brand-neutral"
+      />
+    </>
   );
 }
 

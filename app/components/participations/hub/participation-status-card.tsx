@@ -12,6 +12,7 @@ import {
   AvatarImage,
 } from "@/app/components/ui/avatar-radix";
 import { Badge } from "@/app/components/ui/badge";
+import OpensAtRefresh from "@/app/components/festivals/reservations/opens-at-refresh";
 import { CATEGORY_LABELS } from "@/app/lib/festival-terms/copy";
 import { formatDisplayDate, formatFullDate } from "@/app/lib/formatters";
 import { PARTICIPANT_SUPPORT_EMAIL } from "@/app/lib/participants/helpers";
@@ -109,6 +110,10 @@ function copyFor(hub: ParticipationHub, tasks: HomeTask[]): Copy {
     festival.reservationsStartDate,
     DateTime.DATE_FULL,
   );
+  const opensAtTime = formatDisplayDate(
+    festival.reservationsStartDate,
+    DateTime.TIME_SIMPLE,
+  );
   const category = categoryName(profile.category);
   const released = hub.releasedReservation;
   const releasedNote = released
@@ -144,8 +149,8 @@ function copyFor(hub: ParticipationHub, tasks: HomeTask[]): Copy {
       };
     case "waiting_for_reservations":
       return {
-        title: `Las reservas abren el ${opensOn}`,
-        body: "Ya completaste tu inscripción. Te avisamos cuando puedas elegir tu espacio.",
+        title: `Las reservas abren el ${opensOn} a las ${opensAtTime}`,
+        body: "Ya completaste tu inscripción. Cuando llegue la hora, esta pantalla se actualiza sola y vas a poder elegir tu espacio.",
         actions: [],
       };
     case "approved_enrollment":
@@ -441,6 +446,13 @@ export default function ParticipationStatusCard({
             <p className="text-sm leading-relaxed text-brand-neutral">
               {copy.body}
             </p>
+          ) : null}
+          {hub.status === "waiting_for_reservations" ? (
+            <OpensAtRefresh
+              startsAt={hub.festival.reservationsStartDate.toISOString()}
+              serverNow={new Date().toISOString()}
+              className="text-xs text-brand-neutral"
+            />
           ) : null}
         </div>
       )}

@@ -1,5 +1,13 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+// The waiting state renders a client child that refreshes the page at the
+// opening instant.
+const refreshMock = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh: refreshMock }),
+}));
 
 import ParticipationStatusCard from "@/app/components/participations/hub/participation-status-card";
 import type { ParticipationHub } from "@/app/lib/participations/hub";
@@ -78,6 +86,25 @@ describe("ParticipationStatusCard", () => {
       screen.getByRole("heading", { name: "Inscribite a Festicker 2026" }),
     ).toBeTruthy();
     expect(href("Inscribirme")).toBe("/profiles/3/festivals/9/terms");
+  });
+
+  it("says the hour reservations open and that the screen updates itself", () => {
+    // A past date on purpose: a future one would arm a real refresh timer.
+    render(<ParticipationStatusCard hub={hub("waiting_for_reservations")} />);
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Las reservas abren el 31 de diciembre de 2025 a las 8:00 PM",
+      }),
+    ).toBeTruthy();
+    expect(screen.getByText(/esta pantalla se actualiza sola/)).toBeTruthy();
+    expect(
+      screen.getByText(
+        "En la app también podés deslizar hacia abajo para actualizar.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 
   it("counts the stands left and links reserving", () => {
