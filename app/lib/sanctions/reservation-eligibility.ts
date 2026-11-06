@@ -32,48 +32,52 @@ export async function getReservationEligibility(
 ): Promise<ReservationEligibility> {
   const now = input.now ?? new Date();
 
-  const festival = await executor.query.festivals.findFirst({
-    where: eq(festivals.id, input.festivalId),
-    columns: { id: true },
-  });
+  // One round trip: the sanctions query keys only on the input ids, so it
+  // need not wait for the festival probe. Its rows are discarded when the
+  // festival does not exist.
+  const [festival, rows] = await Promise.all([
+    executor.query.festivals.findFirst({
+      where: eq(festivals.id, input.festivalId),
+      columns: { id: true },
+    }),
+    executor
+      .select({
+        id: sanctions.id,
+        type: sanctions.type,
+        status: sanctions.status,
+        startsAt: sanctions.startsAt,
+        endsAt: sanctions.endsAt,
+        reservationEligibleAt: sanctionFestivals.reservationEligibleAt,
+      })
+      .from(sanctions)
+      .innerJoin(
+        sanctionFestivals,
+        and(
+          eq(sanctionFestivals.sanctionId, sanctions.id),
+          eq(sanctionFestivals.festivalId, input.festivalId),
+        ),
+      )
+      .where(
+        and(
+          eq(sanctions.userId, input.userId),
+          inArray(sanctions.status, ["active", "scheduled"]),
+          inArray(sanctions.type, ["ban", "reservation_delay"]),
+          lte(sanctions.startsAt, now),
+          // `utcTimestamp` because this bound is a raw template: interpolating a
+          // `Date` directly sends it in the process's local zone, which Postgres
+          // then truncates against a UTC wall-clock column. The `lte` above goes
+          // through drizzle's column mapper and is already correct.
+          or(
+            isNull(sanctions.endsAt),
+            sql`${sanctions.endsAt} > ${utcTimestamp(now)}`,
+          ),
+        ),
+      ),
+  ]);
 
   if (!festival) {
     throw new Error("Festival no encontrado");
   }
-
-  const rows = await executor
-    .select({
-      id: sanctions.id,
-      type: sanctions.type,
-      status: sanctions.status,
-      startsAt: sanctions.startsAt,
-      endsAt: sanctions.endsAt,
-      reservationEligibleAt: sanctionFestivals.reservationEligibleAt,
-    })
-    .from(sanctions)
-    .innerJoin(
-      sanctionFestivals,
-      and(
-        eq(sanctionFestivals.sanctionId, sanctions.id),
-        eq(sanctionFestivals.festivalId, input.festivalId),
-      ),
-    )
-    .where(
-      and(
-        eq(sanctions.userId, input.userId),
-        inArray(sanctions.status, ["active", "scheduled"]),
-        inArray(sanctions.type, ["ban", "reservation_delay"]),
-        lte(sanctions.startsAt, now),
-        // `utcTimestamp` because this bound is a raw template: interpolating a
-        // `Date` directly sends it in the process's local zone, which Postgres
-        // then truncates against a UTC wall-clock column. The `lte` above goes
-        // through drizzle's column mapper and is already correct.
-        or(
-          isNull(sanctions.endsAt),
-          sql`${sanctions.endsAt} > ${utcTimestamp(now)}`,
-        ),
-      ),
-    );
 
   return resolveReservationEligibility(rows, now);
 }

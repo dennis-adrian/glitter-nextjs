@@ -9,6 +9,7 @@ import {
   fetchSelfServiceTargetProfile,
 } from "@/app/lib/reservations/map-queries";
 import { getCurrentBaseProfile, protectRoute } from "@/app/lib/users/helpers";
+import { started } from "@/app/lib/started";
 import { notFound, redirect } from "next/navigation";
 
 type HoldConfirmationPageProps = {
@@ -21,12 +22,29 @@ type HoldConfirmationPageProps = {
 export default async function HoldConfirmationPage(
   props: HoldConfirmationPageProps,
 ) {
+  // Keyed on the route's ids and started before the session check so they
+  // overlap it. The confirmation is scoped to `profileId`, which
+  // `protectRoute` proves is the viewer or an admin before it is awaited.
+  const festivalPromise = started(
+    fetchSelfServiceFestivalSnapshot(props.festivalId),
+  );
+  const forProfilePromise = started(
+    fetchSelfServiceTargetProfile(props.profileId, props.festivalId),
+  );
+
   const currentProfile = await getCurrentBaseProfile();
   await protectRoute(currentProfile || undefined, props.profileId);
 
+  const confirmationPromise = started(
+    fetchFestivalReservationConfirmationDto({
+      festivalId: props.festivalId,
+      profileId: props.profileId,
+      holdId: props.holdId,
+    }),
+  );
   const [festival, forProfile] = await Promise.all([
-    fetchSelfServiceFestivalSnapshot(props.festivalId),
-    fetchSelfServiceTargetProfile(props.profileId, props.festivalId),
+    festivalPromise,
+    forProfilePromise,
   ]);
   if (!festival || !forProfile) notFound();
 
@@ -50,11 +68,7 @@ export default async function HoldConfirmationPage(
     );
   }
 
-  const confirmation = await fetchFestivalReservationConfirmationDto({
-    festivalId: props.festivalId,
-    profileId: props.profileId,
-    holdId: props.holdId,
-  });
+  const confirmation = await confirmationPromise;
 
   if (!confirmation) {
     redirect(

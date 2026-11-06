@@ -782,6 +782,109 @@ describeDatabase("full table", () => {
     });
   });
 
+  it("has no confirmation screen for an expired hold", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+
+    const held = await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+    });
+    expect(held.success).toBe(true);
+
+    const [hold] = await integrationDb!
+      .update(standHolds)
+      .set({
+        createdAt: new Date(Date.now() - 120_000),
+        expiresAt: new Date(Date.now() - 60_000),
+      })
+      .where(eq(standHolds.festivalId, festival.id))
+      .returning({ id: standHolds.id });
+
+    const confirmation = await fetchFestivalReservationConfirmationDto({
+      festivalId: festival.id,
+      profileId: owner.id,
+      holdId: hold.id,
+    });
+
+    expect(confirmation).toBeNull();
+  });
+
+  it("does not show somebody else's hold on the confirmation screen", async () => {
+    const {
+      festival,
+      users: [viewer, holder],
+      standIds,
+    } = await seed({ userCount: 2 });
+    asUser(holder);
+
+    const held = await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+    });
+    expect(held.success).toBe(true);
+
+    const [hold] = await integrationDb!
+      .select({ id: standHolds.id, userId: standHolds.userId })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+    expect(hold.userId).toBe(holder.id);
+
+    const confirmation = await fetchFestivalReservationConfirmationDto({
+      festivalId: festival.id,
+      profileId: viewer.id,
+      holdId: hold.id,
+    });
+
+    expect(confirmation).toBeNull();
+  });
+
+  it("flags a one-stand hold under active access as the half-table fallback", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+
+    const held = await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+      singleStandOnly: true,
+    });
+    expect(held.success).toBe(true);
+
+    const [hold] = await integrationDb!
+      .select({ id: standHolds.id })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+
+    const confirmation = await fetchFestivalReservationConfirmationDto({
+      festivalId: festival.id,
+      profileId: owner.id,
+      holdId: hold.id,
+    });
+
+    expect(confirmation?.fullTable).toMatchObject({
+      isFullTable: false,
+      isHalfTableFallback: true,
+      standIds: [standIds[0]],
+    });
+    expect(confirmation?.stand).toMatchObject({
+      price: STAND_PRICE,
+      sharedPrice: SHARED_PRICE,
+    });
+  });
+
   /**
    * Access means a participant *may* take the pair, not that they must. §7.3
    * lists "confirm only one stand" as a normal outcome, so the map has to be
