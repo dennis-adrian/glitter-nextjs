@@ -99,7 +99,7 @@ export function getStandFillColor(
     case "held":
       return mapColor("held-fill", "rgba(251, 191, 36, 0.6)"); // amber-400 — en espera
     case "reserved":
-      return "rgba(91, 33, 182, 0.85)"; // violet-800 — seleccionado
+      return mapColor("reserved-fill", "rgba(253, 164, 175, 0.7)"); // rose-300 — reservado (pago pendiente)
     case "confirmed":
       return mapColor("taken-fill", "rgba(209, 213, 219, 0.5)"); // gray-300 — ocupado
     case "disabled":
@@ -119,7 +119,7 @@ export function getStandHoverFillColor(
     case "held":
       return mapColor("held-hover", "rgba(245, 158, 11, 0.7)"); // amber-500 — en espera hover
     case "reserved":
-      return "rgba(91, 33, 182, 0.95)"; // violet-800 darker
+      return mapColor("reserved-hover", "rgba(251, 113, 133, 0.75)"); // rose-400
     case "confirmed":
       return mapColor("taken-hover", "rgba(209, 213, 219, 0.65)"); // gray-300
     case "disabled":
@@ -139,7 +139,7 @@ export function getStandStrokeColor(
     case "held":
       return mapColor("held-stroke", "rgba(217, 119, 6, 0.8)"); // amber-600 — en espera
     case "reserved":
-      return "rgba(91, 33, 182, 1)"; // violet-800
+      return mapColor("reserved-stroke", "rgba(225, 29, 72, 0.85)"); // rose-600
     case "confirmed":
       return mapColor("taken-stroke", "rgba(156, 163, 175, 0.6)"); // gray-400
     case "disabled":
@@ -159,7 +159,7 @@ export function getStandTextColor(
     case "held":
       return mapColor("held-text", "#92400E"); // amber-800 — en espera
     case "reserved":
-      return "#ffffff"; // white on dark purple
+      return mapColor("reserved-text", "#881337"); // rose-900
     case "confirmed":
       return mapColor("taken-text", "#6B7280"); // gray-500
     case "disabled":

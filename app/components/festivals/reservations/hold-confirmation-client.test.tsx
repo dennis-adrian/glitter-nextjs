@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
 
 import {
+  act,
   cleanup,
   fireEvent,
   render,
   screen,
   waitFor,
 } from "@testing-library/react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { cancelStandHold, confirmStandHold, replace, pathname, toast } =
@@ -35,12 +38,21 @@ vi.mock("next/navigation", () => ({
   usePathname: pathname,
   useRouter: () => ({ replace, back: vi.fn(), refresh: vi.fn() }),
 }));
-vi.mock(
-  "@/app/components/festivals/reservations/partner-selection",
-  () => ({ default: () => null }),
-);
+vi.mock("@/app/components/festivals/reservations/partner-selection", () => ({
+  default: ({
+    onSelectPartner,
+  }: {
+    onSelectPartner: (partnerId?: number) => void;
+  }) => (
+    <button type="button" onClick={() => onSelectPartner(4)}>
+      Elegir a Bea
+    </button>
+  ),
+}));
 
 import HoldConfirmationClient from "@/app/components/festivals/reservations/hold-confirmation-client";
+import { RESERVATION_ERROR_MESSAGES } from "@/app/lib/reservations/errors";
+import { remainingSecondsAt } from "@/app/components/festivals/reservations/use-hold-countdown";
 import {
   AppScreenBar,
   ScreenBarProvider,
@@ -48,9 +60,20 @@ import {
 
 const MAP_URL = "/profiles/3/festivals/10/reservations/new";
 
-function renderConfirm(options: { fullTable?: boolean } = {}) {
+type ConfirmOptions = {
+  fullTable?: boolean;
+  expiresAt?: string;
+  serverNow?: string;
+};
+
+function renderConfirm(options: ConfirmOptions = {}) {
+  return render(confirmScreen(options));
+}
+
+function confirmScreen(options: ConfirmOptions = {}) {
   const isFullTable = options.fullTable ?? false;
-  return render(
+  const serverNow = options.serverNow ?? new Date().toISOString();
+  return (
     <ScreenBarProvider>
       <AppScreenBar
         screen={{
@@ -61,10 +84,16 @@ function renderConfirm(options: { fullTable?: boolean } = {}) {
         }}
       />
       <HoldConfirmationClient
-        recentPartners={[]}
+        // Bea (4) is a known option, so selecting her sticks.
+        recentPartners={[
+          { id: 4, displayName: "Bea", imageUrl: null, selectable: true },
+        ]}
         hold={{
           id: 55,
-          expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+          expiresAt:
+            options.expiresAt ??
+            new Date(Date.parse(serverNow) + 5 * 60_000).toISOString(),
+          serverNow,
         }}
         fullTable={{
           isFullTable,
@@ -100,12 +129,14 @@ function renderConfirm(options: { fullTable?: boolean } = {}) {
         }}
         sectorId={7}
       />
-    </ScreenBarProvider>,
+    </ScreenBarProvider>
   );
 }
 
 beforeEach(() => {
-  pathname.mockReturnValue("/profiles/3/festivals/10/reservations/new/sectors/7/confirm/55");
+  pathname.mockReturnValue(
+    "/profiles/3/festivals/10/reservations/new/sectors/7/confirm/55",
+  );
   window.sessionStorage.clear();
 });
 
@@ -122,14 +153,14 @@ describe("HoldConfirmationClient", () => {
     expect(cancelStandHold).not.toHaveBeenCalled();
   });
 
-  it("goes back to the map from \"Volver al mapa\" and keeps the hold", () => {
+  it('goes back to the map from "Volver al mapa" and keeps the hold', () => {
     renderConfirm();
     fireEvent.click(screen.getByRole("button", { name: "Volver al mapa" }));
     expect(replace).toHaveBeenCalledWith(MAP_URL);
     expect(cancelStandHold).not.toHaveBeenCalled();
   });
 
-  it("asks before releasing, and keeps the hold on \"Seguir con mi reserva\"", () => {
+  it('asks before releasing, and keeps the hold on "Seguir con mi reserva"', () => {
     renderConfirm();
     fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
 
@@ -152,7 +183,7 @@ describe("HoldConfirmationClient", () => {
     expect(dialog.textContent).toContain("Otra persona podrá reservarlos.");
   });
 
-  it("releases the hold on \"Liberar\"", async () => {
+  it('releases the hold on "Liberar"', async () => {
     cancelStandHold.mockResolvedValue({
       success: true,
       message: "Reserva temporal cancelada",
@@ -198,5 +229,272 @@ describe("HoldConfirmationClient", () => {
       }),
     );
     expect(replace).toHaveBeenCalledWith(MAP_URL);
+  });
+
+  describe("countdown", () => {
+    const T = Date.UTC(2026, 10, 7, 0, 0, 0);
+    const at = (ms: number) => new Date(T + ms).toISOString();
+
+    beforeEach(() => {
+      vi.useFakeTimers({
+        toFake: [
+          "Date",
+          "setTimeout",
+          "clearTimeout",
+          "setInterval",
+          "clearInterval",
+        ],
+      });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      delete (document as { visibilityState?: unknown }).visibilityState;
+    });
+
+    const advance = (ms: number) =>
+      act(() => {
+        vi.advanceTimersByTime(ms);
+      });
+
+    it("counts the server's time on a phone five minutes fast and never cancels", () => {
+      vi.setSystemTime(T + 5 * 60_000);
+      renderConfirm({ serverNow: at(0), expiresAt: at(3 * 60_000) });
+
+      expect(screen.getByText("3:00")).toBeTruthy();
+      advance(0);
+      expect(screen.getByText("3:00")).toBeTruthy();
+      expect(replace).not.toHaveBeenCalled();
+      expect(cancelStandHold).not.toHaveBeenCalled();
+
+      advance(180_000);
+      expect(screen.getByText("0:00")).toBeTruthy();
+    });
+
+    it("returns to the map at 0:00 without a server round trip", () => {
+      vi.setSystemTime(T);
+      renderConfirm({ serverNow: at(0), expiresAt: at(10_000) });
+
+      advance(10_000);
+      expect(toast.info).toHaveBeenCalledWith("Tu reserva temporal expiró", {
+        duration: 8000,
+      });
+      expect(replace).toHaveBeenCalledTimes(1);
+      expect(replace).toHaveBeenCalledWith(MAP_URL);
+      advance(5_000);
+      expect(replace).toHaveBeenCalledTimes(1);
+      expect(cancelStandHold).not.toHaveBeenCalled();
+    });
+
+    it("catches up when a backgrounded tab becomes visible", () => {
+      vi.setSystemTime(T);
+      renderConfirm({ serverNow: at(0), expiresAt: at(3 * 60_000) });
+      advance(0);
+
+      // Background timers stall: move the clock without firing them.
+      vi.setSystemTime(T + 4 * 60_000);
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        get: () => "visible",
+      });
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+
+      expect(screen.getByText("0:00")).toBeTruthy();
+      expect(replace).toHaveBeenCalledTimes(1);
+      expect(replace).toHaveBeenCalledWith(MAP_URL);
+    });
+
+    it("lets a confirm pending at 0:00 land on payments, once", async () => {
+      vi.setSystemTime(T);
+      let resolveConfirm!: (value: unknown) => void;
+      confirmStandHold.mockImplementation(
+        () => new Promise((resolve) => (resolveConfirm = resolve)),
+      );
+      renderConfirm({ serverNow: at(0), expiresAt: at(5_000) });
+      advance(3_000);
+      fireEvent.click(
+        screen.getByRole("button", { name: /Confirmar Reserva/ }),
+      );
+
+      advance(5_000);
+      expect(replace).not.toHaveBeenCalled();
+
+      await act(async () => {
+        resolveConfirm({
+          success: true,
+          message: "Reserva confirmada",
+          data: { reservationId: 88 },
+        });
+      });
+      expect(replace).toHaveBeenCalledTimes(1);
+      expect(replace).toHaveBeenCalledWith(
+        "/profiles/3/festivals/10/reservations/88/payments",
+      );
+    });
+
+    it("hydrates a hard reload without a mismatch on a skewed phone", async () => {
+      // Server rendered with 3:00 left; the phone's clock reads 5 min later.
+      vi.setSystemTime(T + 5 * 60_000);
+      const options = { serverNow: at(0), expiresAt: at(3 * 60_000) };
+      const html = renderToString(confirmScreen(options));
+      expect(html).toContain("3:00");
+
+      const container = document.createElement("div");
+      container.innerHTML = html;
+      document.body.appendChild(container);
+      const onRecoverableError = vi.fn();
+      const root = await act(async () =>
+        hydrateRoot(container, confirmScreen(options), { onRecoverableError }),
+      );
+      expect(onRecoverableError).not.toHaveBeenCalled();
+      expect(container.textContent).toContain("3:00");
+      act(() => root.unmount());
+      container.remove();
+    });
+  });
+
+  describe("a confirm that can be retried", () => {
+    const RETRY_COPY =
+      "No pudimos confirmar tu reserva. Tu espacio sigue en espera: intentá de nuevo.";
+    const conflict = {
+      success: false,
+      code: "CONFLICT_RETRY",
+      message: "Hubo un conflicto",
+    };
+    const confirmed = {
+      success: true,
+      message: "Reserva confirmada",
+      data: { reservationId: 88 },
+    };
+    const confirmButton = () =>
+      screen.getByRole("button", { name: /Confirmar Reserva/ });
+    /** Reintentar, once the failed attempt has settled and it is enabled. */
+    const retryButton = async () => {
+      const button = await screen.findByRole("button", { name: "Reintentar" });
+      await waitFor(() => expect(button).toHaveProperty("disabled", false));
+      return button;
+    };
+
+    it("stays on the screen with Reintentar, and retries with the same key", async () => {
+      confirmStandHold
+        .mockResolvedValueOnce(conflict)
+        .mockResolvedValueOnce(confirmed);
+      renderConfirm();
+      fireEvent.click(confirmButton());
+
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toContain(RETRY_COPY);
+      expect(replace).not.toHaveBeenCalled();
+      expect(toast.info).not.toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
+      expect(confirmButton()).toHaveProperty("disabled", false);
+
+      fireEvent.click(await retryButton());
+      await waitFor(() =>
+        expect(replace).toHaveBeenCalledWith(
+          "/profiles/3/festivals/10/reservations/88/payments",
+        ),
+      );
+      expect(confirmStandHold).toHaveBeenCalledTimes(2);
+      const [first, second] = confirmStandHold.mock.calls.map(
+        (call) => call[0],
+      );
+      expect(second.idempotencyKey).toBe(first.idempotencyKey);
+      expect(second.holdId).toBe(55);
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("treats a thrown confirm the same way", async () => {
+      confirmStandHold.mockRejectedValueOnce(new Error("timeout"));
+      renderConfirm();
+      fireEvent.click(confirmButton());
+
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toContain(RETRY_COPY);
+      expect(replace).not.toHaveBeenCalled();
+    });
+
+    it("keeps the reload notice for a tab on an old build", async () => {
+      const stale = new Error("gone");
+      stale.name = "UnrecognizedActionError";
+      confirmStandHold.mockRejectedValueOnce(stale);
+      renderConfirm();
+      fireEvent.click(confirmButton());
+
+      await waitFor(() => expect(toast.error).toHaveBeenCalled());
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("falls back to the map on the third failure in a row", async () => {
+      confirmStandHold.mockResolvedValue(conflict);
+      renderConfirm();
+
+      fireEvent.click(confirmButton());
+      await screen.findByRole("alert");
+      fireEvent.click(await retryButton());
+      await waitFor(() => expect(confirmStandHold).toHaveBeenCalledTimes(2));
+      await screen.findByRole("alert");
+      expect(replace).not.toHaveBeenCalled();
+
+      fireEvent.click(await retryButton());
+      await waitFor(() => expect(replace).toHaveBeenCalledWith(MAP_URL));
+      expect(toast.info).toHaveBeenCalledWith(
+        RESERVATION_ERROR_MESSAGES.CONFLICT_RETRY,
+        { duration: 8000 },
+      );
+      expect(replace).toHaveBeenCalledTimes(1);
+    });
+
+    it("sends a new key once the partner changes", async () => {
+      confirmStandHold
+        .mockResolvedValueOnce(conflict)
+        .mockResolvedValueOnce(confirmed);
+      renderConfirm();
+      fireEvent.click(confirmButton());
+      await screen.findByRole("alert");
+
+      fireEvent.click(screen.getByRole("button", { name: "Elegir a Bea" }));
+      expect(screen.queryByRole("alert")).toBeNull();
+      fireEvent.click(confirmButton());
+
+      await waitFor(() => expect(confirmStandHold).toHaveBeenCalledTimes(2));
+      const [first, second] = confirmStandHold.mock.calls.map(
+        (call) => call[0],
+      );
+      expect(second.partnerId).toBe(4);
+      expect(second.idempotencyKey).not.toBe(first.idempotencyKey);
+    });
+
+    it.each(["HOLD_EXPIRED", "STAND_UNAVAILABLE"])(
+      "still returns to the map on %s",
+      async (code) => {
+        confirmStandHold.mockResolvedValue({
+          success: false,
+          code,
+          message: "Ya no está",
+        });
+        renderConfirm();
+        fireEvent.click(confirmButton());
+        await waitFor(() => expect(replace).toHaveBeenCalledWith(MAP_URL));
+        expect(screen.queryByRole("alert")).toBeNull();
+      },
+    );
+  });
+});
+
+describe("remainingSecondsAt", () => {
+  it("rounds a partial second up and floors at zero", () => {
+    expect(remainingSecondsAt(10_000, 0)).toBe(10);
+    expect(remainingSecondsAt(10_000, 1)).toBe(10);
+    expect(remainingSecondsAt(10_000, 9_001)).toBe(1);
+    expect(remainingSecondsAt(10_000, 10_000)).toBe(0);
+    expect(remainingSecondsAt(10_000, 60_000)).toBe(0);
+  });
+
+  it("treats an unparsable time as expired", () => {
+    expect(remainingSecondsAt(Number.NaN, 0)).toBe(0);
+    expect(remainingSecondsAt(10_000, Number.NaN)).toBe(0);
   });
 });

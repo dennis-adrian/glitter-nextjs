@@ -9,7 +9,7 @@
 
 ## 1. Resumen
 
-El sistema de reserva de stands permite a participantes verificados de un festival seleccionar y reservar un espacio (stand) a través de un flujo guiado de 4 pasos. Incluye un mecanismo de hold temporal de 3 minutos para evitar conflictos entre usuarios, y polling en tiempo real cada 4 segundos para reflejar la disponibilidad actualizada del mapa.
+El sistema de reserva de stands permite a participantes verificados de un festival seleccionar y reservar un espacio (stand) a través de un flujo guiado de 4 pasos. Incluye un mecanismo de hold temporal (configurable por festival con `reservationHoldMinutes`, 5 minutos por defecto) para evitar conflictos entre usuarios, y polling en tiempo real cada 4 segundos para reflejar la disponibilidad actualizada del mapa.
 
 ---
 
@@ -21,11 +21,11 @@ El sistema de reserva de stands permite a participantes verificados de un festiv
 | ----- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | US-01 | Como participante verificado, quiero ver los sectores disponibles filtrados por mi categoría para elegir dónde reservar           | Sectores sin stands disponibles para mi categoría aparecen deshabilitados. Se muestra cantidad de stands libres y precio por espacio                               |
 | US-02 | Como participante, quiero ver un mapa interactivo del sector con el estado actual de cada stand en tiempo real                    | Los stands se colorean por estado (verde=disponible, rojo=reservado, ámbar=en hold). El estado se actualiza cada 4 segundos sin recargar la página                 |
-| US-03 | Como participante, quiero seleccionar un stand y que se reserve temporalmente por 3 minutos mientras confirmo                     | Al seleccionar, se crea un hold de 3 min. El stand se muestra como "held" para otros usuarios. Si tengo un hold previo en otro stand, se libera automáticamente    |
+| US-03 | Como participante, quiero seleccionar un stand y que se reserve temporalmente mientras confirmo                                   | Al seleccionar, se crea un hold de `reservationHoldMinutes` del festival (5 min por defecto). El stand se muestra como "held" para otros usuarios. Si tengo un hold previo en otro stand, se libera automáticamente    |
 | US-04 | Como participante, quiero ver un resumen con countdown antes de confirmar mi reserva                                              | Se muestra: stand seleccionado, sector, precio, mapa miniatura, y un temporizador de cuenta regresiva. El banner cambia de ámbar a rojo cuando quedan ≤30 segundos |
 | US-05 | Como participante de categoría ilustración/nuevo artista, quiero poder agregar un compañero de stand al confirmar                 | Se muestra un selector de partners opcional. El partner se agrega como participante de la reserva                                                                  |
 | US-06 | Como participante, quiero que al confirmar la reserva se genere automáticamente una factura y se me redirija a la página de pagos | Se crea la reserva, la factura con el precio del stand, y una tarea programada con vencimiento a 5 días                                                            |
-| US-07 | Como participante, quiero que si mi hold expira, el stand se libere automáticamente y yo sea redirigido al mapa                   | Al llegar el timer a 0, se cancela el hold, se muestra un toast informativo y se redirige a la selección de stand                                                  |
+| US-07 | Como participante, quiero que si mi hold expira, el stand se libere automáticamente y yo sea redirigido al mapa                   | El servidor decide la expiración; al llegar el timer a 0 se muestra un toast informativo y se redirige a la selección de stand, sin cancelar el hold desde el teléfono |
 
 ### Administrador
 
@@ -62,12 +62,12 @@ Selección de Sector  -->  Selección de Stand    -->  Confirmación         -->
 
 ### Paso 3 — Confirmación de Reserva
 
-- Countdown de 3 minutos (MM:SS) con cambio de color visual
+- Countdown (MM:SS) de la duración del hold (`reservationHoldMinutes`, 5 minutos por defecto) con cambio de color visual
 - Resumen: stand, sector, mapa miniatura, precio total (BOB)
 - Selector opcional de partner (solo para illustration/new_artist)
 - Botones: "Cancelar" / "Confirmar Reserva"
 - Confirmación ejecuta `confirmStandHold()`, muestra confetti y redirige al Paso 4
-- Si expira: cancela hold automáticamente y redirige al Paso 2
+- Si expira: muestra el aviso y redirige al Paso 2. La expiración es del servidor (el hold deja de contar al pasar `expiresAt` y el cron lo borra); el cliente nunca cancela el hold por su reloj
 
 ### Paso 4 — Pago
 
@@ -93,12 +93,12 @@ Selección de Sector  -->  Selección de Stand    -->  Confirmación         -->
 
 ### 4.2 Mecanismo de Hold Temporal
 
-- **Duración:** 3 minutos (`HOLD_DURATION_MINUTES = 3`)
+- **Duración:** configurable por festival con `festivals.reservationHoldMinutes` (entre 1 y 30, 5 minutos por defecto; `HOLD_DURATION_MINUTES = 5` es el respaldo en código). `expiresAt` = `created_at` + `reservationHoldMinutes`
 - **Concurrencia:** Un solo hold activo por usuario por festival
 - **Bloqueo:** `SELECT FOR UPDATE` en la fila del stand para prevenir race conditions
 - **Reemplazo:** Si el usuario selecciona otro stand, el hold anterior se libera en la misma transacción
 - **Expiración server-side:** `cleanupExpiredHolds()` ejecutado como fire-and-forget cada 2 min máximo (throttled via `lastCleanupTime`)
-- **Expiración client-side:** Timer de 1 segundo que redirige al mapa cuando llega a 0
+- **Expiración client-side:** Timer de 1 segundo, medido con el reloj del servidor (`serverNow` del DTO de confirmación), que redirige al mapa cuando llega a 0; solo muestra el tiempo, no cancela
 
 ### 4.3 Polling en Tiempo Real
 
@@ -158,7 +158,7 @@ Remitente: `Reservas Glitter <reservas@productoraglitter.com>`
 | standId    | integer FK | Stand en hold (cascade delete)             |
 | userId     | integer FK | Usuario que hizo el hold (cascade delete)  |
 | festivalId | integer FK | Festival (cascade delete)                  |
-| expiresAt  | timestamp  | Momento de expiración (created_at + 3 min) |
+| expiresAt  | timestamp  | Momento de expiración (created_at + `reservationHoldMinutes`, por defecto 5 min) |
 
 **Índices:** `stand_holds_stand_idx(standId)`, `stand_holds_user_festival_idx(userId, festivalId)`
 
@@ -231,7 +231,7 @@ Retorna el estado actual de todos los stands de un sector. Usado por el polling.
 
 #### `createStandHold(standId, userId, festivalId)`
 
-Crea un hold temporal de 3 minutos sobre un stand.
+Crea un hold temporal de `reservationHoldMinutes` (5 minutos por defecto) sobre un stand.
 
 ```typescript
 // Request
@@ -373,12 +373,12 @@ Elimina una reserva y sus tareas programadas. Resetea stand a `available`.
 
 | #   | Problema                                                                                                                                                   | Impacto                                                   | Severidad |
 | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | --------- |
-| 7   | **Hold de 3 minutos es corto para decisiones complejas** — Usuarios con conexión lenta o que necesitan consultar con su partner pueden quedarse sin tiempo | Frustración del usuario; necesita reiniciar el flujo      | Baja      |
+| 7   | **Un hold corto (5 minutos por defecto) puede no alcanzar para decisiones complejas** — Usuarios con conexión lenta o que necesitan consultar con su partner pueden quedarse sin tiempo | Frustración del usuario; necesita reiniciar el flujo      | Baja      |
 | 8   | **Sin persistencia de selección entre sesiones** — Si el usuario cierra la pestaña durante el hold, pierde la selección al volver (hold puede expirar)     | El usuario debe reiniciar el flujo si cierra el navegador | Baja      |
 
 ### Configuración
 
 | #   | Problema                                                                                                                                         | Impacto                                                    | Severidad |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- | --------- |
-| 9   | **Valores hardcoded** — `HOLD_DURATION_MINUTES = 3`, `CLEANUP_INTERVAL_MS = 2min`, polling interval `4000ms` están hardcoded en el código fuente | Requiere deploy para cambiar cualquier parámetro de timing | Baja      |
+| 9   | **Valores hardcoded** — `CLEANUP_INTERVAL_MS = 2min` y el polling interval `4000ms` están hardcoded (la duración del hold ya es configurable por festival) en el código fuente | Requiere deploy para cambiar cualquier parámetro de timing | Baja      |
 | 10  | **Precio en moneda fija (BOB)** — El sistema asume bolivianos como moneda sin configuración                                                      | No soporta multi-moneda sin cambios de código              | Baja      |

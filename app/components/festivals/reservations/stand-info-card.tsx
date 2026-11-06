@@ -66,6 +66,12 @@ type StandInfoCardProps = {
   /** Set when the viewer could activate full-table access without buying. */
   fullTableActivationPrice?: number | null;
   onHoldChange?: (hold: ActiveHold) => void;
+  /**
+   * A take failed in a way that says the map is out of date. The ids are
+   * stands the server just said are gone (mark them taken now); an empty
+   * array only asks for a fresh poll.
+   */
+  onStandUnavailable?: (standIds: number[]) => void;
   onClose: () => void;
   isPending: boolean;
   startTransition: (callback: () => void | Promise<void>) => void;
@@ -137,6 +143,7 @@ export function StandInfoCard({
   fullTableAccessActive = false,
   fullTableActivationPrice = null,
   onHoldChange,
+  onStandUnavailable,
   onClose,
   isPending,
   startTransition,
@@ -314,9 +321,17 @@ export function StandInfoCard({
             `/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${stand.festivalSectorId}/confirm/${res.data.holdId}`,
           );
         } else {
+          if (!res.success && res.code === "STAND_UNAVAILABLE") {
+            // Authoritative: the stand was taken under lock.
+            onStandUnavailable?.([stand.id]);
+          } else if (!res.success && res.code === "CONFLICT_RETRY") {
+            onStandUnavailable?.([]);
+          }
           toast.error(res.message, { duration: 8000 });
         }
       } catch (error) {
+        // The hold may exist server-side; let the poll say.
+        onStandUnavailable?.([]);
         toastActionError(error, "No se pudo seleccionar el espacio", {
           duration: 8000,
         });
@@ -360,10 +375,14 @@ export function StandInfoCard({
                     className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
                       stand.effectiveStatus === "held"
                         ? "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400"
-                        : "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400"
+                        : "bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400"
                     }`}
                   >
-                    {stand.effectiveStatus === "held" ? "EN ESPERA" : "OCUPADO"}
+                    {stand.effectiveStatus === "held"
+                      ? "EN ESPERA"
+                      : stand.effectiveStatus === "reserved"
+                        ? "RESERVADO"
+                        : "OCUPADO"}
                   </span>
                 )}
               </div>

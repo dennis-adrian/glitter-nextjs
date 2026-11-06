@@ -760,7 +760,13 @@ export async function fetchFestivalReservationConfirmationDto(input: {
     },
     festival,
     profile,
-    hold: { id: hold.id, expiresAt: hold.expiresAt.toISOString() },
+    hold: {
+      id: hold.id,
+      expiresAt: hold.expiresAt.toISOString(),
+      // The `now` the expiry check above used: the client never shows time
+      // the server already denied.
+      serverNow: now.toISOString(),
+    },
     stand: {
       id: stand.id,
       label: stand.label,

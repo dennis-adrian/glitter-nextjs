@@ -14,6 +14,11 @@ const legendItems = [
       "bg-amber-400/60 border-amber-600/80 dark:bg-(--map-held-fill) dark:border-(--map-held-stroke)",
   },
   {
+    label: "Reservado",
+    color:
+      "bg-rose-300/70 border-rose-600/80 dark:bg-(--map-reserved-fill) dark:border-(--map-reserved-stroke)",
+  },
+  {
     label: "Ocupado",
     color:
       "bg-gray-300/50 border-gray-400/60 dark:bg-(--map-taken-fill) dark:border-(--map-taken-stroke)",
@@ -31,7 +36,7 @@ const legendItems = [
 
 export default function MapLegend() {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-x-3 gap-y-1">
       {legendItems.map((item) => (
         <div key={item.label} className="flex items-center gap-2">
           <div className={`w-3 h-3 rounded-sm border ${item.color}`} />
