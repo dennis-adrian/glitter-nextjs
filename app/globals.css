@@ -470,8 +470,8 @@
        mapColor() in app/components/maps/map-utils.ts; only the dark sheet is
        defined here. Translucent fills are tuned over --card, and every stand
        label clears 6.5:1 on its fill. Solid fills that carry white text
-       (occupied, selected, confirmed, external) work on both sheets and have
-       no override. */
+       (selected, confirmed, external) work on both sheets and have no
+       override; `reserved` is a rose tint with its own dark values. */
     --map-ground: hsl(var(--card));
     --map-grid: rgb(255 255 255 / 0.16);
     --map-grid-line: rgb(255 255 255 / 0.1);
@@ -490,6 +490,10 @@
     --map-taken-hover: rgb(156 163 175 / 0.32);
     --map-taken-stroke: rgb(156 163 175 / 0.5);
     --map-taken-text: #d1d5db;
+    --map-reserved-fill: rgb(244 63 94 / 0.32);
+    --map-reserved-hover: rgb(244 63 94 / 0.44);
+    --map-reserved-stroke: rgb(251 113 133 / 0.9);
+    --map-reserved-text: #ffe4e6;
     --map-unavailable-fill: rgb(255 255 255 / 0.04);
     --map-unavailable-hover: rgb(255 255 255 / 0.07);
     --map-unavailable-stroke: rgb(255 255 255 / 0.14);

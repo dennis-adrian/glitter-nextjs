@@ -77,7 +77,12 @@ function renderCard(options: {
         participationType: "standard",
         imageUrl: null,
       }}
-      festival={{ id: 10, name: "Glitter", holdMinutes: 5, generalMapUrl: null }}
+      festival={{
+        id: 10,
+        name: "Glitter",
+        holdMinutes: 5,
+        generalMapUrl: null,
+      }}
       alreadyReserved={false}
       subcategoryIds={[]}
       activeHold={options.activeHold ?? null}
@@ -179,6 +184,16 @@ describe("StandInfoCard", () => {
         { duration: 8000 },
       ),
     );
+  });
+
+  it.each([
+    ["reserved", "RESERVADO"],
+    ["confirmed", "OCUPADO"],
+    ["held", "EN ESPERA"],
+  ] as const)("badges a %s stand as %s", (status, badge) => {
+    const a1 = stand(21, "A1", { effectiveStatus: status, status });
+    renderCard({ target: a1, sectorStands: [a1] });
+    expect(screen.getByText(badge)).toBeTruthy();
   });
 
   it("gives Cerrar a 44 px hit area", () => {

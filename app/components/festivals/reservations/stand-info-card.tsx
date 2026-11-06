@@ -360,10 +360,14 @@ export function StandInfoCard({
                     className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
                       stand.effectiveStatus === "held"
                         ? "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400"
-                        : "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400"
+                        : "bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400"
                     }`}
                   >
-                    {stand.effectiveStatus === "held" ? "EN ESPERA" : "OCUPADO"}
+                    {stand.effectiveStatus === "held"
+                      ? "EN ESPERA"
+                      : stand.effectiveStatus === "reserved"
+                        ? "RESERVADO"
+                        : "OCUPADO"}
                   </span>
                 )}
               </div>
