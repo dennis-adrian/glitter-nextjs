@@ -101,6 +101,10 @@ async function topUp(
   > = { intendedUseType: "debt" },
 ) {
   const now = new Date();
+  // A minute back. Ledger rows take the database's clock, which can run a few
+  // ms behind this one, so a spend posted straight after a voucher stamped
+  // `now` could land before it and drop out of what the review counts.
+  const openedAt = new Date(now.getTime() - 60 * 1000);
   const [row] = await integrationDb!
     .insert(creditTopUps)
     .values({
@@ -110,7 +114,8 @@ async function topUp(
       ...purpose,
       uploadDeadlineAt: new Date(now.getTime() + 10 * 60 * 1000),
       voucherUrl: status === "awaiting_voucher" ? null : "https://x/v.png",
-      submittedAt: status === "awaiting_voucher" ? null : now,
+      createdAt: openedAt,
+      submittedAt: status === "awaiting_voucher" ? null : openedAt,
       reviewedAt: reviewedByUserId ? now : null,
       reviewedByUserId: reviewedByUserId ?? null,
       idempotencyKey: randomUUID(),
