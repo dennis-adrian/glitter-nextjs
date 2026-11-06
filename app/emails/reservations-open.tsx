@@ -49,8 +49,8 @@ export default function ReservationsOpenEmailTemplate({
               {name ? `¡Hola, ${name}!` : "¡Hola!"}
             </Text>
             <Text style={styles.text}>
-              Las reservas para el festival <strong>{festival.name}</strong> ya
-              están habilitadas. Ya podés elegir y reservar tu espacio.
+              Las reservas para <strong>{festival.name}</strong> ya están
+              habilitadas. Ya podés elegir y reservar tu espacio.
             </Text>
             <Text style={styles.text}>
               Antes de reservar, leé con atención los términos y condiciones
