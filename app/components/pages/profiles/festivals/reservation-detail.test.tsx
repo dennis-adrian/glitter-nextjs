@@ -47,7 +47,7 @@ vi.mock("@/app/lib/credits/purchase-actions", () => ({
   createFeatureCreditTopUpAction: vi.fn(),
 }));
 vi.mock("@/app/lib/users/helpers", () => ({
-  getCurrentUserProfile: currentProfileMock,
+  getCurrentBaseProfile: currentProfileMock,
   protectRoute: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({

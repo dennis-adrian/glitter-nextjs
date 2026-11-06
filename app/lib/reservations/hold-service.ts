@@ -56,7 +56,7 @@ import {
   denyIfStandNotEligibleForProfile,
   denySelfServiceMutation,
 } from "@/app/lib/reservations/tx-eligibility";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
   festivals,
@@ -76,7 +76,7 @@ const HOLD_DURATION_MINUTES = 5;
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 async function requireSelfServiceActor() {
-  const actor = await getCurrentUserProfile();
+  const actor = await getCurrentBaseProfile();
   if (!actor)
     return { actor: null, denial: reservationFailure("UNAUTHENTICATED") };
   return { actor, denial: null };

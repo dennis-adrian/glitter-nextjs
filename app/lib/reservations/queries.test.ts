@@ -9,7 +9,7 @@ const findFirstMock = vi.hoisted(() => vi.fn());
 const findManyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/helpers", () => ({
-  getCurrentUserProfile: currentProfileMock,
+  getCurrentBaseProfile: currentProfileMock,
 }));
 
 vi.mock("@/db", () => ({

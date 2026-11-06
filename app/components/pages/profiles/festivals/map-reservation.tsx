@@ -14,7 +14,7 @@ import {
 import { fetchFullTableOffer } from "@/app/lib/reservations/full-table-queries";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { canViewAdminReservationData } from "@/app/lib/reservations/policy";
-import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
+import { getCurrentBaseProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound } from "next/navigation";
 
 type MapReservationPageProps = {
@@ -58,7 +58,7 @@ async function preOpenFullTableOffer(input: {
 export default async function MapReservationPage(
   props: MapReservationPageProps,
 ) {
-  const currentProfile = await getCurrentUserProfile();
+  const currentProfile = await getCurrentBaseProfile();
   await protectRoute(currentProfile || undefined, props.profileId);
 
   const [festival, forProfile] = await Promise.all([
@@ -145,7 +145,7 @@ export default async function MapReservationPage(
           category: forProfile.category,
         })
       : null,
-    isFeatureEnabled("credits"),
+    isFeatureEnabled("credits", currentProfile ?? null),
   ]);
   if (!map) notFound();
 

@@ -34,6 +34,7 @@ vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 const currentProfile = vi.hoisted(() => ({ value: null as unknown }));
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: vi.fn(async () => currentProfile.value),
+  getCurrentBaseProfile: vi.fn(async () => currentProfile.value),
 }));
 
 /**

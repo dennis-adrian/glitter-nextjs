@@ -6,7 +6,7 @@ const currentProfileMock = vi.hoisted(() => vi.fn());
 const submitZeroValueMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/helpers", () => ({
-  getCurrentUserProfile: currentProfileMock,
+  getCurrentBaseProfile: currentProfileMock,
 }));
 
 vi.mock("@/app/lib/reservations/payment-service", () => ({

@@ -8,7 +8,7 @@ import {
   fetchSelfServiceFestivalSnapshot,
   fetchSelfServiceTargetProfile,
 } from "@/app/lib/reservations/map-queries";
-import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
+import { getCurrentBaseProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound, redirect } from "next/navigation";
 
 type HoldConfirmationPageProps = {
@@ -21,7 +21,7 @@ type HoldConfirmationPageProps = {
 export default async function HoldConfirmationPage(
   props: HoldConfirmationPageProps,
 ) {
-  const currentProfile = await getCurrentUserProfile();
+  const currentProfile = await getCurrentBaseProfile();
   await protectRoute(currentProfile || undefined, props.profileId);
 
   const [festival, forProfile] = await Promise.all([
