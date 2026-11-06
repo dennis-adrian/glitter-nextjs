@@ -70,20 +70,10 @@ import {
   stands,
 } from "@/db/schema";
 import { and, eq, gt, inArray, lte, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 
 const HOLD_DURATION_MINUTES = 5;
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-
-function guardedRevalidate() {
-  try {
-    revalidatePath("/profiles");
-    revalidatePath("/my_profile");
-  } catch (error) {
-    console.error("[stand-hold] revalidatePath failed", error);
-  }
-}
 
 async function requireSelfServiceActor() {
   const actor = await getCurrentUserProfile();
@@ -556,7 +546,6 @@ export async function createStandHold(standIdInput: unknown): Promise<
       );
     });
 
-    guardedRevalidate();
     return result;
   } catch (error) {
     console.error("Error creating stand hold", error);
@@ -638,7 +627,6 @@ export async function cancelStandHold(
       return reservationSuccess(undefined, "Reserva temporal cancelada");
     });
 
-    guardedRevalidate();
     return outcome;
   } catch (error) {
     console.error("Error cancelling stand hold", error);
@@ -1097,10 +1085,7 @@ export async function confirmStandHold(
       );
     });
 
-    if (!result.success) {
-      guardedRevalidate();
-      return result;
-    }
+    if (!result.success) return result;
 
     const payload = result as {
       data?: { reservationId: number; jobIds?: number[] };
@@ -1109,14 +1094,10 @@ export async function confirmStandHold(
       message: string;
     };
     const reservationId = payload.reservationId ?? payload.data?.reservationId;
-    if (reservationId == null) {
-      guardedRevalidate();
-      return reservationFailure("CONFLICT_RETRY");
-    }
+    if (reservationId == null) return reservationFailure("CONFLICT_RETRY");
     scheduleReservationNotificationJobs(
       payload.jobIds ?? payload.data?.jobIds ?? [],
     );
-    guardedRevalidate();
     return reservationSuccess({ reservationId }, payload.message);
   } catch (error) {
     console.error("Error confirming stand hold", error);
