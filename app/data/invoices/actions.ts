@@ -31,7 +31,7 @@ import {
   canViewInvoiceRecord,
 } from "@/app/lib/reservations/policy";
 import { submitZeroValueInvoiceForReview } from "@/app/lib/reservations/payment-service";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 import { countOutstandingInvoices } from "@/app/lib/payments/helpers";
 
 export async function confirmFreeInvoice(
@@ -62,7 +62,7 @@ export type InvoiceTenderSummary = {
 export async function fetchInvoiceTenderSummary(
   invoiceId: number,
 ): Promise<InvoiceTenderSummary | null> {
-  const actor = await getCurrentUserProfile();
+  const actor = await getCurrentBaseProfile();
   if (!actor) return null;
 
   const [invoice] = await db
@@ -108,7 +108,7 @@ export async function fetchInvoiceTenderSummary(
 export async function fetchInvoicesByReservation(
   reservationId: number,
 ): Promise<InvoiceWithPaymentsAndStand[]> {
-  const actor = await getCurrentUserProfile();
+  const actor = await getCurrentBaseProfile();
   if (!actor) return [];
 
   try {
@@ -164,7 +164,7 @@ export async function fetchInvoicesByReservation(
 export async function fetchInvoice(
   id: number,
 ): Promise<InvoiceWithPaymentsAndStand | undefined | null> {
-  const actor = await getCurrentUserProfile();
+  const actor = await getCurrentBaseProfile();
   if (!actor) return null;
 
   try {
@@ -211,7 +211,7 @@ export async function fetchReservationsWithInvoicesByProfileAndFestival(
   profileId: number,
   festivalId: number,
 ): Promise<ReservationWithStandAndInvoicesAndFestival[]> {
-  const actor = await getCurrentUserProfile();
+  const actor = await getCurrentBaseProfile();
   if (!actor) return [];
   if (
     actor.id !== profileId &&
@@ -296,7 +296,7 @@ export async function fetchOutstandingInvoiceCountByProfileAndFestival(
 export async function fetchPendingInvoicesByProfile(
   profileId: number,
 ): Promise<InvoiceWithPaymentsAndStand[]> {
-  const actor = await getCurrentUserProfile();
+  const actor = await getCurrentBaseProfile();
   if (!actor) return [];
   if (
     actor.id !== profileId &&
@@ -340,7 +340,7 @@ export async function fetchPendingInvoicesByProfile(
 export async function fetchInvoicesByFestival(
   festivalId: number,
 ): Promise<InvoiceWithTender[]> {
-  const actor = await getCurrentUserProfile();
+  const actor = await getCurrentBaseProfile();
   if (
     !actor ||
     !canViewAdminReservationData({ id: actor.id, role: actor.role })

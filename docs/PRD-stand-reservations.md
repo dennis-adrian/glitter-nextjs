@@ -299,17 +299,9 @@ cancelStandHold(holdId: number, userId: number)
 
 ---
 
-#### `getActiveHold(userId, festivalId)`
+#### Hold activo del participante
 
-Consulta si el usuario tiene un hold activo en el festival.
-
-```typescript
-// Request
-getActiveHold(userId: number, festivalId: number)
-
-// Response
-{ id: number; standId: number } | null
-```
+No hay una acción para consultarlo: el cliente lee el hold de `FestivalReservationMapDto.activeHold` (`id, standId, standIds, expiresAt`); el poll de estado y `expiresAt` lo mantienen al día.
 
 ---
 

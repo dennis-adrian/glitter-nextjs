@@ -2,10 +2,7 @@ import FullTablePanel from "@/app/components/festivals/reservations/full-table-p
 import MapTabsClient from "@/app/components/festivals/reservations/map-tabs-client";
 import ReservationNotAllowed from "@/app/components/pages/profiles/festivals/reservation-not-allowed";
 import TermsReacceptanceRequired from "@/app/components/festival-terms/reacceptance-required";
-import {
-  getSelfServiceDenialAtOpen,
-  getSelfServicePageDenial,
-} from "@/app/lib/reservations/entry";
+import { getSelfServicePageDenial } from "@/app/lib/reservations/entry";
 import {
   fetchFestivalReservationMapDto,
   fetchSelfServiceFestivalSnapshot,
@@ -14,7 +11,8 @@ import {
 import { fetchFullTableOffer } from "@/app/lib/reservations/full-table-queries";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { canViewAdminReservationData } from "@/app/lib/reservations/policy";
-import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
+import { getCurrentBaseProfile, protectRoute } from "@/app/lib/users/helpers";
+import { started } from "@/app/lib/started";
 import { notFound } from "next/navigation";
 
 type MapReservationPageProps = {
@@ -22,55 +20,51 @@ type MapReservationPageProps = {
   festivalId: number;
 };
 
-/**
- * The full-table offer for someone the clock alone is holding back, or null
- * when a second rule blocks them too.
- */
-async function preOpenFullTableOffer(input: {
-  actor: { id: number; role: string } | null;
-  profile: { id: number; category: string };
-  festivalId: number;
-}) {
-  // Same rule as the open map below: the panel's actions resolve the actor from
-  // the session, so showing it to an admin viewing someone else's countdown
-  // would put that participant's balance over a button spending the admin's own
-  // credits.
-  if (input.actor?.id !== input.profile.id) return null;
-
-  const remaining = await getSelfServiceDenialAtOpen({
-    actor: input.actor,
-    profileId: input.profile.id,
-    festivalId: input.festivalId,
-  });
-  if (remaining) return null;
-
-  const [fullTableOffer, creditsEnabled] = await Promise.all([
-    fetchFullTableOffer({
-      userId: input.profile.id,
-      festivalId: input.festivalId,
-      category: input.profile.category,
-    }),
-    isFeatureEnabled("credits"),
-  ]);
-  return { fullTableOffer, creditsEnabled };
-}
-
 export default async function MapReservationPage(
   props: MapReservationPageProps,
 ) {
-  const currentProfile = await getCurrentUserProfile();
+  // Keyed on the route's ids, a row each: started before the session check so
+  // they overlap it. A visitor the check redirects costs two tiny queries.
+  const festivalPromise = started(
+    fetchSelfServiceFestivalSnapshot(props.festivalId),
+  );
+  const forProfilePromise = started(
+    fetchSelfServiceTargetProfile(props.profileId, props.festivalId),
+  );
+
+  const currentProfile = await getCurrentBaseProfile();
   await protectRoute(currentProfile || undefined, props.profileId);
+  const actor = currentProfile
+    ? { id: currentProfile.id, role: currentProfile.role }
+    : null;
 
   const [festival, forProfile] = await Promise.all([
-    fetchSelfServiceFestivalSnapshot(props.festivalId),
-    fetchSelfServiceTargetProfile(props.profileId, props.festivalId),
+    festivalPromise,
+    forProfilePromise,
   ]);
   if (!festival || !forProfile) notFound();
 
+  // The full-table panel is only for the participant themselves. Its actions
+  // resolve the actor from the session, so an admin viewing someone else's map
+  // would be shown that participant's balance over a button spending their own
+  // credits. Neither the offer nor the flag depends on the denial, so both
+  // start now and are fetched once per render.
+  const viewingOwnMap = currentProfile?.id === forProfile.id;
+  const offerPromise = started(
+    viewingOwnMap
+      ? fetchFullTableOffer({
+          userId: forProfile.id,
+          festivalId: festival.id,
+          category: forProfile.category,
+        })
+      : Promise.resolve(null),
+  );
+  const creditsEnabledPromise = started(
+    isFeatureEnabled("credits", currentProfile ?? null),
+  );
+
   const denial = await getSelfServicePageDenial({
-    actor: currentProfile
-      ? { id: currentProfile.id, role: currentProfile.role }
-      : null,
+    actor,
     targetProfile: forProfile,
     festival,
   });
@@ -81,32 +75,40 @@ export default async function MapReservationPage(
   // participants are meant to settle the money question, and this countdown is
   // the page they land on. The offer rides along beneath it (PRD §7.2) —
   // `activateFullTableAccess` has no window of its own, so nothing else has to
-  // move. Only the clock may be lifted: `getSelfServiceDenialAtOpen` re-runs
-  // every other rule at the opening instant, because RESERVATIONS_NOT_OPEN is
-  // evaluated first and would otherwise hide an unenrolled participant.
+  // move. Only the clock may be lifted: the denial is evaluated again at the
+  // opening instant, because RESERVATIONS_NOT_OPEN is evaluated first and
+  // would otherwise hide an unenrolled participant.
   if (denial?.code === "RESERVATIONS_NOT_OPEN") {
-    const offer = await preOpenFullTableOffer({
-      actor: currentProfile
-        ? { id: currentProfile.id, role: currentProfile.role }
-        : null,
-      profile: forProfile,
-      festivalId: festival.id,
-    });
+    const remaining = viewingOwnMap
+      ? await getSelfServicePageDenial({
+          actor,
+          targetProfile: forProfile,
+          festival,
+          now: festival.reservationsStartDate,
+        })
+      : denial;
+    const [fullTableOffer, creditsEnabled] = remaining
+      ? [null, false]
+      : await Promise.all([offerPromise, creditsEnabledPromise]);
 
     return (
       <>
-        {offer ? (
+        {fullTableOffer ? (
           <div className="container px-4 pt-4 md:px-6 md:pt-6">
             <div className="mx-auto max-w-[600px]">
               <FullTablePanel
-                offer={offer.fullTableOffer}
+                offer={fullTableOffer}
                 festivalId={festival.id}
-                creditsEnabled={offer.creditsEnabled}
+                creditsEnabled={creditsEnabled}
               />
             </div>
           </div>
         ) : null}
-        <ReservationNotAllowed festival={festival} policyCode={denial.code} />
+        <ReservationNotAllowed
+          festival={festival}
+          policyCode={denial.code}
+          serverNow={new Date().toISOString()}
+        />
       </>
     );
   }
@@ -121,31 +123,21 @@ export default async function MapReservationPage(
   }
 
   // The full-table decision happens here, before the map: the map is for
-  // choosing a space, never for financial setup (PRD §7.2).
-  // Only for the participant themselves. Its actions resolve the actor from
-  // the session, so an admin viewing someone else's map would be shown that
-  // participant's balance while spending their own credits.
-  // The offer and the flag do not depend on the map, so they load with it.
-  const viewingOwnMap = currentProfile?.id === forProfile.id;
+  // choosing a space, never for financial setup (PRD §7.2). The map quotes
+  // the activation price only when credits are visible to this viewer — they
+  // pay for it — and the offer is already null for anyone else's map.
+  const activationOfferPromise = started(
+    creditsEnabledPromise.then((on) => (on ? offerPromise : null)),
+  );
   const [map, fullTableOffer, creditsEnabled] = await Promise.all([
     fetchFestivalReservationMapDto({
       festivalId: festival.id,
       profileId: forProfile.id,
-      actorProfileId: currentProfile?.id ?? null,
-      revealHiddenIdentities: canViewAdminReservationData(
-        currentProfile
-          ? { id: currentProfile.id, role: currentProfile.role }
-          : null,
-      ),
+      revealHiddenIdentities: canViewAdminReservationData(actor),
+      activationOffer: activationOfferPromise,
     }),
-    viewingOwnMap
-      ? fetchFullTableOffer({
-          userId: forProfile.id,
-          festivalId: festival.id,
-          category: forProfile.category,
-        })
-      : null,
-    isFeatureEnabled("credits"),
+    offerPromise,
+    creditsEnabledPromise,
   ]);
   if (!map) notFound();
 

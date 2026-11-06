@@ -30,7 +30,17 @@ import {
   SELECTED_TEXT,
   STAND_SIZE,
 } from "@/app/components/maps/map-utils";
-import { Button } from "@/app/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/app/components/ui/alert-dialog";
+import { Button, buttonVariants } from "@/app/components/ui/button";
 import { type SearchOption } from "@/app/components/ui/search-input/search-content";
 import { LatestRequest } from "@/app/lib/reservations/latest-request";
 import { searchPotentialPartners } from "@/app/lib/reservations/participant-actions";
@@ -211,7 +221,9 @@ export default function HoldConfirmationClient({
   const lastSearchTermRef = useRef("");
   const searchTrackerRef = useRef(new LatestRequest());
 
-  const mapUrl = `/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${sectorId}`;
+  // The map itself: `/sectors/{id}` only redirects here, a wasted round trip.
+  const mapUrl = `/profiles/${profile.id}/festivals/${festival.id}/reservations/new`;
+  const [releaseOpen, setReleaseOpen] = useState(false);
 
   const handlePartnerSearch = useCallback(
     async (term: string) => {
@@ -375,13 +387,15 @@ export default function HoldConfirmationClient({
           (res.code === "PARTNER_NOT_ELIGIBLE" ||
             res.code === "PARTNER_ALREADY_RESERVED")
         ) {
-          toast.error(res.message);
+          toast.error(res.message, { duration: 8000 });
         } else {
-          toast.info(res.message);
+          toast.info(res.message, { duration: 8000 });
           router.replace(mapUrl);
         }
       } catch (error) {
-        toastActionError(error, "Error al confirmar la reserva");
+        toastActionError(error, "Error al confirmar la reserva", {
+          duration: 8000,
+        });
       }
     });
   };
@@ -421,9 +435,14 @@ export default function HoldConfirmationClient({
     router,
     mapUrl,
   ]);
-  // Back in the installed app's top bar frees the held stand too, like the
-  // in-page "Volver al mapa".
-  useScreenBack(handleCancel);
+  // Back goes to the map and keeps the hold: the held stand offers
+  // "Continuar con tu reserva" there. Releasing is "Cancelar", which asks
+  // first. The top bar needs the override — its default `router.back()`
+  // would skip the map, which was reached with `replace`.
+  const goToMap = useCallback(() => {
+    router.replace(mapUrl);
+  }, [router, mapUrl]);
+  useScreenBack(goToMap);
 
   const isExpired = remainingSeconds === 0;
   const allKnownPartnerOptions = useMemo(
@@ -459,7 +478,7 @@ export default function HoldConfirmationClient({
         step={2}
         totalSteps={3}
         backLabel="Volver al mapa"
-        onBack={() => handleCancel()}
+        onBack={goToMap}
       />
       <div className="flex-1 px-4 py-4 md:py-6">
         <div className="mx-auto max-w-2xl">
@@ -566,12 +585,12 @@ export default function HoldConfirmationClient({
       </div>
 
       {/* Action buttons */}
-      <div className="sticky bottom-0 border-t bg-background p-4">
-        <div className="mx-auto max-w-lg flex gap-1">
+      <div className="sticky bottom-0 border-t bg-background px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        <div className="mx-auto max-w-lg flex gap-3">
           <Button
             className="shrink"
-            variant="outline"
-            onClick={handleCancel}
+            variant="ghost"
+            onClick={() => setReleaseOpen(true)}
             disabled={isSubmitting}
           >
             <span>Cancelar</span>
@@ -586,6 +605,35 @@ export default function HoldConfirmationClient({
           </Button>
         </div>
       </div>
+
+      <AlertDialog open={releaseOpen} onOpenChange={setReleaseOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {fullTable.isFullTable
+                ? `¿Liberar los stands ${fullTable.standLabels.join(" y ")}?`
+                : `¿Liberar el stand ${formatStandLabel(stand)}?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {fullTable.isFullTable
+                ? "Otra persona podrá reservarlos."
+                : "Otra persona podrá reservarlo."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Seguir con mi reserva</AlertDialogCancel>
+            <AlertDialogAction
+              className={buttonVariants({ variant: "destructive" })}
+              onClick={() => {
+                setReleaseOpen(false);
+                handleCancel();
+              }}
+            >
+              Liberar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

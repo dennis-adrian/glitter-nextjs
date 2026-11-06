@@ -14,7 +14,7 @@ import {
   isFeatureVisible,
   type FeatureFlagViewer,
 } from "@/app/lib/feature_flags/visibility";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 
 /** Resolved flag values for the current viewer, for handing to client code. */
 export type FeatureFlagMap = Record<FeatureFlagKey, boolean>;
@@ -32,7 +32,7 @@ export async function isFeatureEnabled(
 ): Promise<boolean> {
   const [rule, profile] = await Promise.all([
     fetchFeatureFlagRule(key),
-    viewer === undefined ? getCurrentUserProfile() : Promise.resolve(viewer),
+    viewer === undefined ? getCurrentBaseProfile() : Promise.resolve(viewer),
   ]);
 
   return isFeatureVisible(rule, profile);
@@ -69,7 +69,7 @@ export async function isLayoutFeatureEnabled(
 const resolveLayoutFlagViewer = cache(async () => {
   if (await isStaticLayoutRender()) return null;
 
-  return getCurrentUserProfile();
+  return getCurrentBaseProfile();
 });
 
 /**
@@ -143,7 +143,7 @@ export async function featureFlagGuard(
 export async function resolveFeatureFlagMap(
   viewer?: FeatureFlagViewer,
 ): Promise<FeatureFlagMap> {
-  const profile = viewer === undefined ? await getCurrentUserProfile() : viewer;
+  const profile = viewer === undefined ? await getCurrentBaseProfile() : viewer;
 
   const entries = await Promise.all(
     FEATURE_FLAG_KEYS.map(

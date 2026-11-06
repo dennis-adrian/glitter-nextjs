@@ -11,23 +11,19 @@ import {
 import { Loader2Icon } from "lucide-react";
 
 import type {
-  ReservationActiveHoldDto,
   ReservationMapFestivalDto,
   ReservationMapProfileDto,
   ReservationMapStandDto,
 } from "@/app/lib/reservations/dto";
 import type { ReservationMapElementDto } from "@/app/lib/reservations/dto";
 import UserMap from "@/app/components/maps/user/user-map";
-import { StandInfoCard } from "@/app/components/festivals/reservations/stand-info-card";
+import {
+  StandInfoCard,
+  type ActiveHold,
+} from "@/app/components/festivals/reservations/stand-info-card";
 import { useStandPolling } from "@/app/hooks/use-stand-polling";
-import { getActiveHold } from "@/app/lib/stands/hold-actions";
 import { findJointGroup } from "@/app/lib/stands/groups";
 import { mergePolledStandStatuses } from "@/app/lib/stands/status-poll";
-
-type ActiveHold =
-  | ReservationActiveHoldDto
-  | { id: number; standId: number }
-  | null;
 
 export default function ClientMap({
   festival,
@@ -89,24 +85,17 @@ export default function ClientMap({
     setActiveHold(hold);
   }, []);
 
-  useEffect(() => {
-    if (!profile) return;
-    let cancelled = false;
-    getActiveHold(festival.id)
-      .then((hold) => {
-        if (!cancelled) setActiveHold(hold);
-      })
-      .catch((error) => {
-        console.error("Error fetching active hold", error);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [profile, festival.id]);
-
+  // The hold comes from the map DTO (rebuilt on every arrival) and from
+  // selections made here; each poll drops it once it has expired. Judged on
+  // the server's clock — `version` is its timestamp — so a phone whose clock
+  // is off agrees with the server, which already ignores expired holds.
   const { stale } = useStandPolling(sectorId ?? null, 4000, (result) => {
     setStands((prev) => mergePolledStandStatuses(prev, result.stands));
+    setActiveHold((hold) =>
+      hold?.expiresAt != null && Date.parse(hold.expiresAt) <= result.version
+        ? null
+        : hold,
+    );
   });
 
   const handleStandSelect = useCallback(
@@ -117,9 +106,41 @@ export default function ClientMap({
     [isPending],
   );
 
+  // Tapping the map's background closes the card. No backdrop (the map must
+  // stay pannable with the card open) and no document listener (it would
+  // fire inside the card's portaled dialogs): a tap is a press and release on
+  // this wrapper that moved under 10 px — the stands' own threshold — and
+  // landed on neither a stand nor a button.
+  const backgroundPress = useRef<{ x: number; y: number } | null>(null);
+  const handleBackgroundPointerDown = (event: React.PointerEvent) => {
+    backgroundPress.current = { x: event.clientX, y: event.clientY };
+  };
+  const handleBackgroundPointerUp = (event: React.PointerEvent) => {
+    const start = backgroundPress.current;
+    backgroundPress.current = null;
+    if (!start || selectedStandId == null) return;
+    if (
+      Math.abs(event.clientX - start.x) >= 10 ||
+      Math.abs(event.clientY - start.y) >= 10
+    ) {
+      return;
+    }
+    if ((event.target as Element).closest("[data-map-stand-id], button")) {
+      return;
+    }
+    setSelectedStandId(null);
+  };
+
   return (
     <>
-      <div className="relative">
+      <div
+        className="relative"
+        onPointerDown={handleBackgroundPointerDown}
+        onPointerUp={handleBackgroundPointerUp}
+        onPointerCancel={() => {
+          backgroundPress.current = null;
+        }}
+      >
         <UserMap
           stands={stands}
           mapElements={mapElements}
