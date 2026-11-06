@@ -65,6 +65,7 @@ function renderCard(options: {
   sectorStands: ReservationMapStandDto[];
   activeHold?: ActiveHold;
   onHoldChange?: (hold: ActiveHold) => void;
+  onStandUnavailable?: (standIds: number[]) => void;
 }) {
   return render(
     <StandInfoCard
@@ -89,6 +90,7 @@ function renderCard(options: {
       sectorStands={options.sectorStands}
       fullTableAccessActive
       onHoldChange={options.onHoldChange}
+      onStandUnavailable={options.onStandUnavailable}
       onClose={vi.fn()}
       isPending={false}
       startTransition={(callback) => {
@@ -194,6 +196,54 @@ describe("StandInfoCard", () => {
     const a1 = stand(21, "A1", { effectiveStatus: status, status });
     renderCard({ target: a1, sectorStands: [a1] });
     expect(screen.getByText(badge)).toBeTruthy();
+  });
+
+  describe("reports what a failed take says about the map", () => {
+    const single = () =>
+      stand(21, "A1", { standGroupId: null, isFullTableHalf: false });
+
+    async function take(outcome: "resolve" | "reject", value: unknown) {
+      if (outcome === "resolve") createStandHold.mockResolvedValue(value);
+      else createStandHold.mockRejectedValue(value);
+      const onStandUnavailable = vi.fn();
+      const a1 = single();
+      renderCard({ target: a1, sectorStands: [a1], onStandUnavailable });
+      fireEvent.click(screen.getByRole("button", { name: /Seleccionar/i }));
+      await waitFor(() => expect(toast.error).toHaveBeenCalled());
+      return onStandUnavailable;
+    }
+
+    it("names the stand on STAND_UNAVAILABLE", async () => {
+      const spy = await take("resolve", {
+        success: false,
+        code: "STAND_UNAVAILABLE",
+        message: "Este espacio ya no está disponible",
+      });
+      expect(spy).toHaveBeenCalledWith([21]);
+    });
+
+    it("asks only for a poll on CONFLICT_RETRY", async () => {
+      const spy = await take("resolve", {
+        success: false,
+        code: "CONFLICT_RETRY",
+        message: "Reintentá",
+      });
+      expect(spy).toHaveBeenCalledWith([]);
+    });
+
+    it("says nothing for a failure about the participant", async () => {
+      const spy = await take("resolve", {
+        success: false,
+        code: "STAND_NOT_ELIGIBLE",
+        message: "No podés reservar este espacio",
+      });
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("asks for a poll when the action itself fails", async () => {
+      const spy = await take("reject", new Error("network"));
+      expect(spy).toHaveBeenCalledWith([]);
+    });
   });
 
   it("gives Cerrar a 44 px hit area", () => {

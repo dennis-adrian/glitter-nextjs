@@ -87,14 +87,38 @@ export default function ClientMap({
 
   // The hold comes from the map DTO (rebuilt on every arrival) and from
   // selections made here; each poll drops it once it has expired.
-  const { stale } = useStandPolling(sectorId ?? null, 4000, (result) => {
-    setStands((prev) => mergePolledStandStatuses(prev, result.stands));
-    setActiveHold((hold) =>
-      hold?.expiresAt != null && Date.parse(hold.expiresAt) <= Date.now()
-        ? null
-        : hold,
-    );
-  });
+  const { stale, pollNow } = useStandPolling(
+    sectorId ?? null,
+    4000,
+    (result) => {
+      setStands((prev) => mergePolledStandStatuses(prev, result.stands));
+      setActiveHold((hold) =>
+        hold?.expiresAt != null && Date.parse(hold.expiresAt) <= Date.now()
+          ? null
+          : hold,
+      );
+    },
+  );
+
+  // A lost race: paint the stands the server said are gone as taken in this
+  // frame (the next poll overwrites the mark with their real status) and ask
+  // for that poll now rather than in up to 4 s.
+  const handleStandUnavailable = useCallback(
+    (standIds: number[]) => {
+      setStands((prev) =>
+        mergePolledStandStatuses(
+          prev,
+          standIds.map((standId) => ({
+            standId,
+            effectiveStatus: "held" as const,
+            updatedAt: null,
+          })),
+        ),
+      );
+      pollNow();
+    },
+    [pollNow],
+  );
 
   const handleStandSelect = useCallback(
     (stand: ReservationMapStandDto) => {
@@ -184,6 +208,7 @@ export default function ClientMap({
           fullTableAccessActive={fullTableAccessActive}
           fullTableActivationPrice={fullTableActivationPrice}
           onHoldChange={handleHoldChange}
+          onStandUnavailable={handleStandUnavailable}
           onClose={() => setSelectedStandId(null)}
           isPending={isPending}
           startTransition={startTransition}
