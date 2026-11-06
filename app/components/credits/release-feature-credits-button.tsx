@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/app/components/ui/button";
 import { deactivateFullTableAccessAction } from "@/app/lib/reservations/full-table-actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 /**
  * Gives back the credits held against an activated feature.
@@ -57,7 +58,10 @@ export default function ReleaseFeatureCreditsButton({
         router.refresh();
       } catch (error) {
         console.error("Error releasing feature credits", error);
-        toast.error("No se pudieron liberar los créditos. Intentá nuevamente.");
+        toastActionError(
+          error,
+          "No se pudieron liberar los créditos. Intentá nuevamente.",
+        );
       }
     });
   }

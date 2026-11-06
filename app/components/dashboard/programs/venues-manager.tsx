@@ -23,6 +23,7 @@ import {
   venueFormSchema,
   type VenueFormValues,
 } from "@/app/lib/programs/form-schemas";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   venues: Venue[];
@@ -80,7 +81,7 @@ export default function VenuesManager({ venues }: Props) {
       router.refresh();
     } catch (error) {
       console.error(error);
-      toast.error("No se pudo guardar el lugar");
+      toastActionError(error, "No se pudo guardar el lugar");
     }
   });
 

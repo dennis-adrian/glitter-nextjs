@@ -26,6 +26,7 @@ import {
 } from "@/app/components/ui/form";
 import { Textarea } from "@/app/components/ui/textarea";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 const FormSchema = z.object({
   reason: z.string().trim().min(1, "El motivo es requerido"),
@@ -65,8 +66,11 @@ export default function RemoveParticipantModal({
       form.reset();
       setOpen(false);
       router.refresh();
-    } catch {
-      toast.error("No se pudo remover al participante. Intentá nuevamente.");
+    } catch (error) {
+      toastActionError(
+        error,
+        "No se pudo remover al participante. Intentá nuevamente.",
+      );
     }
   });
 

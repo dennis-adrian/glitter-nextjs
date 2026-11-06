@@ -53,6 +53,7 @@ import PartnerSelection from "./partner-selection";
 import type { PartnerSearchResultDto } from "@/app/lib/reservations/dto";
 import { cn } from "@/app/lib/utils";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 function partnerDisabledReason(
   denialCode: PartnerSearchResultDto["denialCode"],
@@ -314,7 +315,7 @@ export default function HoldConfirmationClient({
           toast.info("Tu reserva temporal expiró");
         } catch (error) {
           console.error("Error expiring hold", error);
-          toast.error("No se pudo cancelar la reserva temporal");
+          toastActionError(error, "No se pudo cancelar la reserva temporal");
         } finally {
           if (!cancelled) {
             router.replace(mapUrl);
@@ -391,8 +392,10 @@ export default function HoldConfirmationClient({
           toast.info(res.message, { duration: 8000 });
           router.replace(mapUrl);
         }
-      } catch {
-        toast.error("Error al confirmar la reserva", { duration: 8000 });
+      } catch (error) {
+        toastActionError(error, "Error al confirmar la reserva", {
+          duration: 8000,
+        });
       }
     });
   };
@@ -417,8 +420,8 @@ export default function HoldConfirmationClient({
         } else {
           toast.error(res.message);
         }
-      } catch {
-        toast.error("Error al cancelar");
+      } catch (error) {
+        toastActionError(error, "Error al cancelar");
       }
     });
   }, [

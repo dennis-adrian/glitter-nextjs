@@ -20,6 +20,7 @@ import {
 import { Button } from "@/app/components/ui/button";
 import { deleteFestivalActivityParticipantProof } from "@/app/lib/festival_activites/actions";
 import { cn } from "@/app/lib/utils";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type RemoveProofImageButtonProps = {
   proofId: number;
@@ -71,8 +72,11 @@ export default function RemoveProofImageButton({
       } else {
         toast.error(result.message);
       }
-    } catch {
-      toast.error("Ocurrió un error al eliminar la imagen. Intentá de nuevo.");
+    } catch (error) {
+      toastActionError(
+        error,
+        "Ocurrió un error al eliminar la imagen. Intentá de nuevo.",
+      );
     } finally {
       setIsDeleting(false);
     }

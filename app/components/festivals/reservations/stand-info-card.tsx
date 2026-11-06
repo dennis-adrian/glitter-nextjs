@@ -27,6 +27,7 @@ import {
   type HoldIntentCache,
 } from "@/app/lib/stands/hold-intent";
 import { toast } from "sonner";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 /**
  * The viewer's live hold as the map knows it: the DTO's, or the one a
@@ -251,7 +252,7 @@ export function StandInfoCard({
         }
       } catch (error) {
         console.error("Error activating full table", error);
-        toast.error("No se pudo activar la mesa completa.");
+        toastActionError(error, "No se pudo activar la mesa completa.");
         return;
       }
       takeStand();
@@ -315,8 +316,10 @@ export function StandInfoCard({
         } else {
           toast.error(res.message, { duration: 8000 });
         }
-      } catch {
-        toast.error("No se pudo seleccionar el espacio", { duration: 8000 });
+      } catch (error) {
+        toastActionError(error, "No se pudo seleccionar el espacio", {
+          duration: 8000,
+        });
       }
     });
   };

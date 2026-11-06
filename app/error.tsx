@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 
 import { Button } from "@/app/components/ui/button";
+import StaleDeploymentNotice from "@/app/components/common/stale-deployment-notice";
+import { isStaleDeploymentError } from "@/app/lib/errors/action-error";
 
 /**
  * The last boundary before a blank page.
@@ -22,6 +24,8 @@ export default function RootError({
   useEffect(() => {
     console.error(error);
   }, [error]);
+
+  if (isStaleDeploymentError(error)) return <StaleDeploymentNotice />;
 
   return (
     <main className="container mx-auto flex min-h-[50vh] items-center justify-center p-4 md:p-6">

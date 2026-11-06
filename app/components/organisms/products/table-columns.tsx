@@ -24,6 +24,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 const STATUS_LABELS: Record<string, string> = {
   available: "Disponible",
@@ -60,7 +61,7 @@ function VisibilityToggle({ product }: { product: BaseProductWithImages }) {
     } catch (error) {
       setVisible(prev);
       console.error(error);
-      toast.error("No se pudo actualizar la visibilidad.");
+      toastActionError(error, "No se pudo actualizar la visibilidad.");
     } finally {
       setLoading(false);
     }
@@ -129,9 +130,9 @@ function StockCell({ product }: { product: BaseProductWithImages }) {
         setStock(prev);
         toast.error(result.message);
       }
-    } catch {
+    } catch (error) {
       setStock(prev);
-      toast.error("No se pudo actualizar el stock.");
+      toastActionError(error, "No se pudo actualizar el stock.");
     } finally {
       setLoading(false);
     }

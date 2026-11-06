@@ -16,6 +16,7 @@ import {
 } from "@/app/components/ui/alert-dialog";
 import { Button } from "@/app/components/ui/button";
 import { downgradeFullTableReservationAction } from "@/app/lib/reservations/full-table-actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 /**
  * Reduces a full table to the half the participant originally selected
@@ -68,7 +69,10 @@ export default function FullTableDowngradeButton({
         });
       } catch (error) {
         console.error("Error downgrading full table", error);
-        toast.error("No se pudo reducir la mesa. Intentá nuevamente.");
+        toastActionError(
+          error,
+          "No se pudo reducir la mesa. Intentá nuevamente.",
+        );
         return;
       }
 
