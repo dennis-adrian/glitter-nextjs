@@ -1,7 +1,7 @@
 "use server";
 
 import { render } from "react-email";
-import { and, asc, eq, exists, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 
 import type { BaseProfile } from "@/app/api/users/definitions";
@@ -9,8 +9,11 @@ import FestivalActivationEmailTemplate from "@/app/emails/festival-activation";
 import RegistrationInvitationEmailTemplate, {
   registrationInvitationSubject,
 } from "@/app/emails/registration-invitation";
-import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/helpers";
 import type { FestivalWithDates } from "@/app/lib/festivals/definitions";
+import {
+  festivalCategories,
+  invitableParticipant,
+} from "@/app/lib/festivals/participant-audience";
 import {
   INVITATION_KINDS,
   type InvitationAudience,
@@ -43,8 +46,6 @@ import { sendBatchEmails } from "@/app/vendors/resend";
 import { db } from "@/db";
 import {
   festivals,
-  festivalSectors,
-  profileSubcategories,
   users,
   visitors,
 } from "@/db/schema";
@@ -128,42 +129,6 @@ function sendBlocker(
     }
   }
   return null;
-}
-
-/**
- * The participant categories a festival has stands for: who the activation
- * mail is for. Leaves out the retired `new_artist` and `none`, which no
- * participant can reserve under.
- */
-async function festivalCategories(festivalId: number) {
-  const sectors = await db.query.festivalSectors.findMany({
-    columns: { id: true },
-    with: { stands: { columns: { standCategory: true } } },
-    where: eq(festivalSectors.festivalId, festivalId),
-  });
-  return [
-    ...new Set(
-      sectors.flatMap((sector) => getFestivalSectorAllowedCategories(sector)),
-    ),
-  ].filter((category) => category !== "none");
-}
-
-/**
- * Who can act on the activation mail. Its button opens the festival's terms
- * page, which turns away a profile without subcategories, so mailing one
- * would only send them to an error.
- */
-function invitableParticipant(categories: BaseProfile["category"][]) {
-  return and(
-    eq(users.status, "verified"),
-    inArray(users.category, categories),
-    exists(
-      db
-        .select({ one: sql`1` })
-        .from(profileSubcategories)
-        .where(eq(profileSubcategories.profileId, users.id)),
-    ),
-  );
 }
 
 /**

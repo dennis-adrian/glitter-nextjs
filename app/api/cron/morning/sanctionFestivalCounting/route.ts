@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "crypto";
 
 import { processPendingDisciplinaryNotificationJobs } from "@/app/lib/infractions/notifications";
+import { drainDuePushDeliveries } from "@/app/lib/notifications/deliveries";
 import { reconcileSanctionFestivalCounting } from "@/app/lib/sanctions/festival-counting";
 
 function isAuthorizedCronRequest(request: Request): boolean {
@@ -34,6 +35,9 @@ export async function GET(request: Request) {
   try {
     const reconciliation = await reconcileSanctionFestivalCounting();
     const notifications = await processPendingDisciplinaryNotificationJobs();
+    // Notices written above may push ("ya podés reservar"): send those now
+    // rather than at the next notifications cron.
+    await drainDuePushDeliveries();
     return new Response(
       JSON.stringify({ data: { reconciliation, notifications } }),
       { status: 200 },

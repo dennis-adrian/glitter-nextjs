@@ -112,7 +112,9 @@ export default async function PurchaseAccessPage({
         }}
       />
       <header className="space-y-2">
-        <h1 className="text-2xl font-bold">Tu inscripción</h1>
+        <h1 className="text-2xl font-bold" data-installed-title="">
+          Tu inscripción
+        </h1>
         <p className="text-sm text-muted-foreground">
           {purchaseLabel ? `${purchaseLabel} · ` : null}
           {SESSION_PURCHASE_STATUS_LABELS[purchase.status]}

@@ -89,7 +89,9 @@ describe("ReviewRequestForm", () => {
     choose("Rechazado");
     expect(reasonField()).not.toBeNull();
     expect(
-      screen.getByText("Lo va a ver el participante en el correo."),
+      screen.getByText(
+        "Lo va a ver el participante en el correo y en sus notificaciones.",
+      ),
     ).toBeTruthy();
 
     typeReason("  El cupo está completo.  ");

@@ -3,11 +3,17 @@ import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 
 const sendEmailMock = vi.hoisted(() => vi.fn());
+const mirrorMock = vi.hoisted(() => vi.fn());
 
+vi.mock("server-only", () => ({}));
 vi.mock("@/app/vendors/resend", () => ({
   sendEmail: sendEmailMock,
 }));
 vi.mock("@/db", () => ({ db: {} }));
+// The inbox copy has its own tests; here, only whether and how it is asked for.
+vi.mock("@/app/lib/notifications/mirrors/disciplinary-jobs", () => ({
+  mirrorDisciplinaryNotificationJob: mirrorMock,
+}));
 
 import { getInfractionEmailSubject } from "@/app/emails/infraction-lifecycle";
 import { getSanctionEmailSubject } from "@/app/emails/sanction-lifecycle";
@@ -129,6 +135,7 @@ describe("disciplinary email subjects", () => {
 describe("disciplinary notification delivery", () => {
   beforeEach(() => {
     sendEmailMock.mockReset();
+    mirrorMock.mockReset();
   });
 
   it("deduplicates the same lifecycle notification key", async () => {
@@ -152,6 +159,19 @@ describe("disciplinary notification delivery", () => {
     expect(firstId).toBe(secondId);
     expect(jobs.size).toBe(1);
     expect(tx.delete).toHaveBeenCalled();
+    // One inbox copy, written with the job and keyed on it; the duplicate
+    // that queued no email writes none.
+    expect(mirrorMock).toHaveBeenCalledTimes(1);
+    expect(mirrorMock).toHaveBeenCalledWith(tx, {
+      deduplicationKey: "infraction:42:registered",
+      userId: profile.id,
+      payload: expect.objectContaining({
+        entityType: "infraction",
+        kind: "registered",
+        infractionId: 42,
+      }),
+      festivalId: undefined,
+    });
   });
 
   it("persists failed sanction enqueue details for worker retry", async () => {
@@ -181,6 +201,8 @@ describe("disciplinary notification delivery", () => {
       userId: profile.id,
       lastError: "Missing participant",
     });
+    // No snapshot yet: the worker writes the copy when it hydrates the row.
+    expect(mirrorMock).not.toHaveBeenCalled();
   });
 
   it("repairs the owner on a deduplicated legacy sanction retry", async () => {
@@ -271,6 +293,10 @@ describe("disciplinary notification delivery", () => {
       delete: vi.fn(() => ({
         where: vi.fn().mockResolvedValue(undefined),
       })),
+      // Each candidate gets a savepoint; the fake runs it on itself.
+      transaction(callback: (inner: unknown) => unknown) {
+        return callback(this);
+      },
       insert: vi.fn(() => ({
         values: vi.fn((values: Record<string, unknown>) => {
           insertedValues.push(values);
@@ -297,6 +323,17 @@ describe("disciplinary notification delivery", () => {
       festivalName: "Glitter Fest",
       reservationEligibleAt: "2026-08-01T12:00:00.000Z",
     });
+    // The festival reaches the inbox copy, for its link, but not the email.
+    expect(insertedValues[0]?.payload).not.toHaveProperty("festivalId");
+    expect(mirrorMock).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        deduplicationKey:
+          "sanction:8:festival:20:reservation-access:2026-08-01T12:00:00.000Z",
+        userId: profile.id,
+        festivalId: 20,
+      }),
+    );
   });
 
   it("continues reservation-access notifications after one missing profile", async () => {
@@ -369,6 +406,10 @@ describe("disciplinary notification delivery", () => {
       delete: vi.fn(() => ({
         where: vi.fn().mockResolvedValue(undefined),
       })),
+      // Each candidate gets a savepoint; the fake runs it on itself.
+      transaction(callback: (inner: unknown) => unknown) {
+        return callback(this);
+      },
       insert: vi.fn(() => ({
         values: vi.fn(() => ({
           onConflictDoNothing: vi.fn(() => ({

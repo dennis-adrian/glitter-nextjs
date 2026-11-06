@@ -32,6 +32,7 @@ vi.mock("@/app/lib/users/queries", () => ({
   fetchAdminUsers: fetchAdminUsersMock,
   fetchUserProfileById: fetchUserProfileByIdMock,
   getCurrentClerkUser: clerkUserMock,
+  getCurrentClerkUserDetails: clerkUserMock,
 }));
 
 vi.mock("@/db", () => ({
@@ -64,7 +65,7 @@ vi.mock("@/app/lib/users/status-events", () => ({
 vi.mock("@clerk/nextjs/server", () => ({ currentUser: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/app/lib/posthog-server", () => ({
-  getPostHogClient: vi.fn(),
+  captureServerEvent: vi.fn(),
   POSTHOG_SHUTDOWN_TIMEOUT_MS: 1,
 }));
 

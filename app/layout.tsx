@@ -1,21 +1,29 @@
 import { Analytics } from "@vercel/analytics/react";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 
 import { esMX } from "@clerk/localizations";
 import { ClerkProvider } from "@clerk/nextjs";
 
 import PostHogAuthIdentify from "@/app/components/providers/posthog-identify";
+import StaleDeploymentListener from "@/app/components/providers/stale-deployment-listener";
 import { ThemeProvider } from "@/app/components/theme-provider";
 
 import { Toaster } from "@/components/ui/sonner";
 import { figtree, gabarito } from "@/ui/fonts";
 
+import CreditGiftCelebration from "@/app/components/credit_gifts/credit-gift-celebration";
+import InstalledAppHead from "@/app/components/installed-app-head";
+import InstalledAppMark from "@/app/components/installed-app-mark";
 import Navbar from "@/app/components/navbar/navbar";
+import { ScreenBarProvider } from "@/app/components/navbar/screen-bar";
+import ScrollToTopOnNavigation from "@/app/components/navbar/scroll-to-top";
+import ServiceWorkerMessages from "@/app/components/notifications/service-worker-messages";
 import FooterServer from "@/app/components/footer-server";
 
 import "./globals.css";
 import { getEnvLabel } from "./lib/config";
+import { THEME_COLORS } from "./lib/theme-colors";
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
@@ -31,6 +39,23 @@ export const metadata: Metadata = {
     title: "Productora Glitter",
     description: "Creamos festivales para que los artistas brillen",
   },
+  // No `appleWebApp` or apple icon here: InstalledAppHead renders those tags.
+};
+
+/**
+ * The browser bar matches the navbar. These follow the device's light or dark
+ * setting; ThemeProvider switches them to the theme the person picked in
+ * Glitter once the page loads.
+ */
+export const viewport: Viewport = {
+  // Lets the installed app's tab bar sit above the home indicator by
+  // padding itself with `env(safe-area-inset-bottom)`, which reads zero
+  // without it.
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: THEME_COLORS.light },
+    { media: "(prefers-color-scheme: dark)", color: THEME_COLORS.dark },
+  ],
 };
 
 export default function RootLayout({
@@ -40,8 +65,15 @@ export default function RootLayout({
 }) {
   return (
     // next-themes sets the theme class on <html> before React hydrates.
-    <html lang="es" suppressHydrationWarning>
+    // data-scroll-behavior tells the router that globals.css scrolls smoothly,
+    // so it can switch that off while it jumps to the top of a new route.
+    <html lang="es" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body className={`${figtree.variable} ${gabarito.variable} font-sans`}>
+        <InstalledAppHead />
+        <InstalledAppMark />
+        {/* Outside every Suspense boundary: a tapped notification's message
+            can arrive as soon as the page loads. */}
+        <ServiceWorkerMessages />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -56,17 +88,27 @@ export default function RootLayout({
                 elements: { headerTitle: "font-display" },
               }}
             >
-              <Suspense fallback={<div className="h-[76px] lg:h-[84px]" />}>
-                <Navbar />
-              </Suspense>
-              <main className="min-h-[calc(100vh-76px-180px)] md:min-h-[calc(100vh-76px-290px)] lg:min-h-[calc(100vh-84px-290px)]">
-                {children}
-              </main>
-              <Suspense fallback={<div className="h-[180px] md:h-[290px]" />}>
-                <FooterServer />
-              </Suspense>
+              {/* Lets a page give the installed app's top bar its title. */}
+              <ScreenBarProvider>
+                {/* Every new screen opens at its top, whatever the last
+                    one's scroll was. */}
+                <ScrollToTopOnNavigation />
+                <Suspense fallback={<div className="h-[76px] lg:h-[84px]" />}>
+                  <Navbar />
+                </Suspense>
+                <Suspense fallback={null}>
+                  <CreditGiftCelebration />
+                </Suspense>
+                <main className="min-h-[calc(100vh-76px-180px)] md:min-h-[calc(100vh-76px-290px)] lg:min-h-[calc(100vh-84px-290px)]">
+                  {children}
+                </main>
+                <Suspense fallback={<div className="h-[180px] md:h-[290px]" />}>
+                  <FooterServer />
+                </Suspense>
+              </ScreenBarProvider>
               <PostHogAuthIdentify />
               <Toaster richColors />
+              <StaleDeploymentListener />
               <Analytics />
             </ClerkProvider>
           </Suspense>

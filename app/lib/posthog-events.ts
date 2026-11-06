@@ -1,6 +1,8 @@
 export const POSTHOG_EVENTS = {
   // User lifecycle
   USER_PROFILE_CREATED: "user_profile_created",
+  // An admin starts viewing the app as a participant (read-only).
+  IMPERSONATION_STARTED: "impersonation_started",
   // Festival flows
   FESTIVAL_TERMS_ACCEPTED: "festival_terms_accepted",
   FESTIVAL_CREATED: "festival_created",
@@ -56,6 +58,28 @@ export const POSTHOG_EVENTS = {
   PROGRAM_VOUCHER_SUBMITTED: "program_voucher_submitted",
   PROGRAM_VOUCHER_FAILED: "program_voucher_failed",
   PROGRAM_HOLD_EXPIRED: "program_hold_expired",
+  /**
+   * Installing Glitter and turning on notifications, the funnel `/instalar`
+   * is for. Every event also carries `display_mode` ("standalone" in the
+   * installed app, "browser" otherwise), registered in
+   * instrumentation-client.ts.
+   */
+  INSTALL_GUIDE_VIEWED: "install_guide_viewed",
+  /** The Instalar button's prompt was answered: `outcome` says how. */
+  INSTALL_PROMPT_ANSWERED: "install_prompt_answered",
+  /** The browser installed Glitter, from our button or its own menu. */
+  APP_INSTALLED: "app_installed",
+  /**
+   * This device opened the installed app for the first time. Chromium alone
+   * reports installs; iPhone's home-screen app reports nothing, so this is
+   * the install count that spans every platform (once per device, kept in
+   * localStorage: app/lib/install-guide/first-launch.ts). `platform` is the
+   * device (`ios`, `android`, `desktop`, `other`); before 2026-11-04 it was
+   * always `installed`.
+   */
+  FIRST_STANDALONE_LAUNCH: "first_standalone_launch",
+  PUSH_ENABLED: "push_enabled",
+  PUSH_DISABLED: "push_disabled",
 } as const;
 
 export type PostHogEvent = (typeof POSTHOG_EVENTS)[keyof typeof POSTHOG_EVENTS];

@@ -60,6 +60,9 @@ export default function RevokeSanctionActions({
             placeholder="Motivo de revocación (obligatorio)"
             maxLength={2000}
           />
+          <p className="text-xs text-muted-foreground">
+            Lo va a ver el participante en el correo y en sus notificaciones.
+          </p>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"

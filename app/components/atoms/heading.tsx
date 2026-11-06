@@ -22,7 +22,7 @@ export default function Heading({
   level = 1,
   children,
   className = "",
-  style,
+  ...rest
 }: HeadingProps) {
   const Tag = `h${level}` as keyof JSX.IntrinsicElements;
   const baseStyles = headingStyles[level];
@@ -30,8 +30,8 @@ export default function Heading({
   return React.createElement(
     Tag,
     {
+      ...rest,
       className: cn(baseStyles, "text-foreground font-display", className),
-      style,
     },
     children,
   );

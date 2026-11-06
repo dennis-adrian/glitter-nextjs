@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import MerchStorefront from "@/app/components/organisms/store/merch-storefront";
 import StoreSectionGate from "@/app/components/organisms/store/store-section-gate";
 import { fetchPublicMerchCollection } from "@/app/lib/merch/collections";
@@ -49,18 +50,21 @@ async function CollectionCatalog({ slug }: { slug: string }) {
     getRentalEligibilityForCurrentUser().catch(() => null),
   ]);
   return (
-    <MerchStorefront
-      products={products.filter((product) =>
-        collection.productIds.includes(product.id),
-      )}
-      collections={[collection]}
-      collection={collection}
-      bundles={bundles.filter((bundle) =>
-        bundle.collectionIds.includes(collection.id),
-      )}
-      rentalEligible={eligibility?.eligible ?? false}
-      rentalContexts={eligibility?.eligible ? eligibility.contexts : []}
-    />
+    <>
+      <ScreenTitle title={collection.name} />
+      <MerchStorefront
+        products={products.filter((product) =>
+          collection.productIds.includes(product.id),
+        )}
+        collections={[collection]}
+        collection={collection}
+        bundles={bundles.filter((bundle) =>
+          bundle.collectionIds.includes(collection.id),
+        )}
+        rentalEligible={eligibility?.eligible ?? false}
+        rentalContexts={eligibility?.eligible ? eligibility.contexts : []}
+      />
+    </>
   );
 }
 

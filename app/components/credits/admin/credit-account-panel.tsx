@@ -132,6 +132,11 @@ export default async function CreditAccountPanel({
                         {entry.reason}
                       </p>
                     )}
+                    {entry.internalNote && (
+                      <p className="text-xs text-muted-foreground">
+                        Nota interna: {entry.internalNote}
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       {formatDateWithTime(entry.createdAt)}
                     </p>
@@ -152,7 +157,24 @@ export default async function CreditAccountPanel({
                         another — an undo, or credits handed back from a
                         cancelled invoice — is not offered either; see
                         `canRevertCreditEntry`. */}
-                    {canAdjust &&
+                    {canAdjust && entry.creditGiftId != null ? (
+                      <>
+                        {entry.isReverted && (
+                          <span className="text-xs text-muted-foreground">
+                            Revertido
+                          </span>
+                        )}
+                        <Link
+                          href={`/dashboard/credits/gifts/${entry.creditGiftId}`}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          {entry.gift && !entry.isReverted
+                            ? "Retirar desde el regalo"
+                            : "Ver el regalo"}
+                        </Link>
+                      </>
+                    ) : (
+                      canAdjust &&
                       (entry.type === "admin_grant" ||
                         entry.type === "admin_adjustment") &&
                       entry.reversesEntryId == null &&
@@ -166,7 +188,8 @@ export default async function CreditAccountPanel({
                           entryId={entry.id}
                           amount={entry.amount}
                         />
-                      ))}
+                      ))
+                    )}
                   </div>
                 </li>
               ))}

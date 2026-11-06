@@ -4,6 +4,8 @@ import { notFound, redirect } from "next/navigation";
 
 import OccurrenceRosterTable from "@/app/components/dashboard/programs/occurrence-roster-table";
 import OccurrenceSeatSummary from "@/app/components/dashboard/programs/occurrence-seat-summary";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import ProgramStatusBadge from "@/app/components/programs/program-status-badge";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -58,21 +60,24 @@ export default async function OccurrenceDashboardPage({ params }: Props) {
     rescheduledAt: occurrence.rescheduledAt,
   });
 
+  const when = `${formatDisplayDate(occurrence.startsAt, DateTime.DATETIME_MED)} — ${formatDisplayDate(occurrence.endsAt, DateTime.TIME_SIMPLE)}`;
+
   return (
     <div className="container mx-auto space-y-6 p-3 md:p-6">
+      {/* The bar names the session; the date stays as the page's heading. */}
+      <ScreenTitle title={session.title} backHref={sessionAdminPath(session)} />
       <div className="space-y-2">
-        <Link
-          href={sessionAdminPath(session)}
-          className="text-sm text-muted-foreground underline-offset-2 hover:underline"
-        >
-          ← {session.title}
-        </Link>
+        <PageBreadcrumbs
+          current={when}
+          labels={{
+            [sessionAdminPath(session)]: session.title,
+            ...(program
+              ? { [`/dashboard/programs/${program.id}`]: program.name }
+              : {}),
+          }}
+        />
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-bold">
-            {formatDisplayDate(occurrence.startsAt, DateTime.DATETIME_MED)}
-            {" — "}
-            {formatDisplayDate(occurrence.endsAt, DateTime.TIME_SIMPLE)}
-          </h1>
+          <h1 className="text-2xl font-bold">{when}</h1>
           <ProgramStatusBadge
             state={resolved.state}
             wasRescheduled={resolved.wasRescheduled}

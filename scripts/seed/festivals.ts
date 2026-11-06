@@ -59,6 +59,21 @@ const SCHEDULE: Record<string, Schedule> = {
   twinkler: { startsInDays: -180, occupancy: 1 },
 };
 
+/**
+ * Demo banner pair (illustrative fixtures under public/img/seed-festivals/),
+ * so the upcoming festival exercises the 3:2 phone banner and the 3:1 one.
+ * Other festivals keep no banner, which exercises the poster fallback.
+ */
+const DEMO_BANNERS: Record<
+  string,
+  { festivalBannerUrl: string; festivalBannerMobileUrl: string }
+> = {
+  glitter: {
+    festivalBannerUrl: "/img/seed-festivals/glitter-banner-wide.png",
+    festivalBannerMobileUrl: "/img/seed-festivals/glitter-banner-mobile.png",
+  },
+};
+
 /** Statuses that take a stand out of circulation. */
 const OCCUPYING = new Set(["pending", "verification_payment", "accepted"]);
 
@@ -261,6 +276,7 @@ export async function seedFestivals(
           fixtureFestival.reservationsStartOffset != null
             ? offsetToDate(anchor, fixtureFestival.reservationsStartOffset)
             : anchor,
+        ...DEMO_BANNERS[fixtureFestival.festivalType],
       })
       .returning({ id: festivals.id });
 

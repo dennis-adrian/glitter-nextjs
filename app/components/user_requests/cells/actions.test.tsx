@@ -108,7 +108,9 @@ describe("ActionsCell", () => {
       within(dialog).getByRole("textbox", { name: "Motivo (opcional)" }),
     ).toBeTruthy();
     expect(
-      within(dialog).getByText("Lo va a ver el participante en el correo."),
+      within(dialog).getByText(
+        "Lo va a ver el participante en el correo y en sus notificaciones.",
+      ),
     ).toBeTruthy();
     expect(dialog.textContent).toContain("Ana");
     expect(dialog.textContent).toContain("Glitter 10");

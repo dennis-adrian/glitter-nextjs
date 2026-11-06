@@ -71,7 +71,7 @@ export default function RejectRequestDialog({
               <>
                 ¿Rechazar la solicitud de <strong>{name}</strong> para
                 participar en <strong>{request.festival?.name}</strong>? Le
-                vamos a avisar por correo.
+                vamos a avisar por correo y en sus notificaciones.
               </>
             ) : (
               <>
@@ -90,7 +90,7 @@ export default function RejectRequestDialog({
                 label="Motivo (opcional)"
                 placeholder="Ej: El cupo del sector de ilustración ya está completo."
                 maxLength={1000}
-                description="Lo va a ver el participante en el correo."
+                description="Lo va a ver el participante en el correo y en sus notificaciones."
               />
             )}
             <DialogFooter>

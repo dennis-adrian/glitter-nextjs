@@ -20,6 +20,7 @@ import {
 } from "@/app/lib/orders/actions";
 import type { OrderWithRelations } from "@/app/lib/orders/definitions";
 import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 export default function AdminReturnOrderForm({
   order,
@@ -63,8 +64,8 @@ export default function AdminReturnOrderForm({
       }
       toast.success(result.message);
       router.push(`/dashboard/store/orders/${order.id}`);
-    } catch {
-      toast.error("No se pudo registrar la devolución.");
+    } catch (error) {
+      toastActionError(error, "No se pudo registrar la devolución.");
     } finally {
       setPending(false);
     }

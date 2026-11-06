@@ -35,6 +35,7 @@ import {
 } from "@/app/lib/products/variants";
 import { isAllowedProgramArtworkUrl } from "@/app/lib/programs/artwork";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
+import { actionErrorMessage } from "@/app/lib/errors/action-error";
 
 type EditableComponent = {
   uid: string;
@@ -193,8 +194,13 @@ export default function BundleForm({
       }
       router.push("/dashboard/store/bundles");
       router.refresh();
-    } catch {
-      setError("No se pudo eliminar el combo. Intenta nuevamente.");
+    } catch (caught) {
+      setError(
+        actionErrorMessage(
+          caught,
+          "No se pudo eliminar el combo. Intenta nuevamente.",
+        ),
+      );
     } finally {
       setPending(false);
       setConfirmingDelete(false);
@@ -235,8 +241,13 @@ export default function BundleForm({
           }
           router.push("/dashboard/store/bundles");
           router.refresh();
-        } catch {
-          setError("No se pudo guardar el combo. Intenta nuevamente.");
+        } catch (caught) {
+          setError(
+            actionErrorMessage(
+              caught,
+              "No se pudo guardar el combo. Intenta nuevamente.",
+            ),
+          );
         } finally {
           setPending(false);
         }

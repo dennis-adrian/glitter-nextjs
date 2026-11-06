@@ -16,7 +16,9 @@ export default async function PortalBlogPage() {
     <div className="container mx-auto px-4 py-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Mis artículos</h1>
+          <h1 className="text-2xl font-bold" data-installed-title="">
+            Mis artículos
+          </h1>
           <p className="text-sm text-muted-foreground">
             Escribe artículos para el blog y envíalos a revisión.
           </p>

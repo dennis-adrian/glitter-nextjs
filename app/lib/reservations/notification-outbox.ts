@@ -21,11 +21,14 @@ import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/defin
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { getUserName } from "@/app/lib/users/utils";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
+import { drainDuePushDeliveries } from "@/app/lib/notifications/deliveries";
 import { sendEmail } from "@/app/vendors/resend";
 import { assertSent } from "@/app/vendors/resend-result";
 import { db } from "@/db";
 import {
   enqueueReservationNotification,
+  enqueueReservationNotifications,
+  type ReservationNotificationInput,
   type ReservationNotificationKind,
 } from "@/app/lib/reservations/notification-queue";
 import {
@@ -50,7 +53,7 @@ const MAX_BACKOFF_MS = 24 * 60 * 60 * 1000;
 // live in `notification-queue` so a writer can enqueue without importing every
 // email template.
 export { RESERVATION_NOTIFICATION_KINDS } from "@/app/lib/reservations/notification-queue";
-export { enqueueReservationNotification };
+export { enqueueReservationNotification, enqueueReservationNotifications };
 export type { ReservationNotificationKind };
 
 function computeNextAttemptAt(attemptCount: number, now = new Date()) {
@@ -66,11 +69,16 @@ export function scheduleReservationNotificationJobs(jobIds: readonly number[]) {
     ...new Set(jobIds.filter((id) => Number.isInteger(id) && id > 0)),
   ];
   if (unique.length === 0) return;
-  after(() => {
-    void Promise.all(
-      unique.map((jobId) => attemptReservationNotificationJob(jobId)),
-    );
-  });
+  // Returned, so the platform keeps the function alive until every attempt
+  // settles; allSettled, so one failed claim does not end that early. The
+  // jobs' inbox copies may have queued pushes, whose ids no caller sees: the
+  // drain sends the fresh ones.
+  after(() =>
+    Promise.allSettled([
+      ...unique.map((jobId) => attemptReservationNotificationJob(jobId)),
+      drainDuePushDeliveries(),
+    ]),
+  );
 }
 
 async function claimJob(jobId: number, owner: string) {
@@ -719,30 +727,38 @@ export async function enqueueAdminAndOwnerNotifications(
     ownerEmail: string | null | undefined;
     adminEmails: Array<{ id: number; email: string | null }>;
     payload?: Record<string, unknown>;
+    /**
+     * Who did it. Their own admin inbox does not hear about it, and an
+     * owner's copy of something an admin did for them is not a receipt.
+     */
+    actorUserId?: number | null;
   },
 ): Promise<number[]> {
-  const jobIds: number[] = [];
+  const inputs: ReservationNotificationInput[] = [];
   if (input.ownerEmail) {
-    const id = await enqueueReservationNotification(tx, {
+    inputs.push({
       kind: input.kind,
       reservationId: input.reservationId,
       userId: input.ownerUserId,
       recipientEmail: input.ownerEmail,
       payload: input.payload,
+      audience: "participant",
+      actorUserId: input.actorUserId,
     });
-    if (id) jobIds.push(id);
   }
   for (const admin of input.adminEmails) {
     if (!admin.email) continue;
-    const id = await enqueueReservationNotification(tx, {
+    inputs.push({
       kind: input.kind,
       reservationId: input.reservationId,
       userId: admin.id,
       recipientEmail: admin.email,
       payload: input.payload,
       deduplicationKey: `${input.kind}:${input.reservationId}:admin:${admin.id}`,
+      audience: "admin",
+      actorUserId: input.actorUserId,
     });
-    if (id) jobIds.push(id);
   }
-  return jobIds;
+  const jobIds = await enqueueReservationNotifications(tx, inputs);
+  return jobIds.filter((id): id is number => id != null);
 }

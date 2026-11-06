@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({ params: "", push: vi.fn() }));
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(state.params),
   useRouter: () => ({ push: state.push }),
+  usePathname: () => "/merch",
 }));
 vi.mock("@/app/components/molecules/store-item-card", () => ({
   default: ({
@@ -202,11 +203,6 @@ it("keeps the collection scope when filtering and clearing filters", () => {
   expect(screen.getByText("Producto 1").getAttribute("data-return-to")).toBe(
     "/merch/collections/clasicos?q=Producto#catalogo",
   );
-  expect(
-    screen
-      .getByRole("link", { name: "Volver a la tienda" })
-      .getAttribute("href"),
-  ).toBe("/merch");
   expect(screen.queryByRole("navigation")).toBeNull();
   expect(
     screen.getByRole("link", { name: "Limpiar filtros" }).getAttribute("href"),

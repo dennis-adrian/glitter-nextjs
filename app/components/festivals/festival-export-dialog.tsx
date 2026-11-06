@@ -19,6 +19,7 @@ import {
 import { exportFestivalData } from "@/app/lib/festival_exports/actions";
 import { fetchFestivalWithDatesAndSectors } from "@/app/lib/festivals/actions";
 import { FestivalWithDatesAndSectors } from "@/app/lib/festivals/definitions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type ExportScope = "all" | "basic_info" | "sectors_only";
 
@@ -53,7 +54,7 @@ export default function FestivalExportDialog({
       }
     } catch (error) {
       console.error("Error loading festival data", error);
-      toast.error("Error al cargar los datos del festival");
+      toastActionError(error, "Error al cargar los datos del festival");
     } finally {
       setIsLoading(false);
     }
@@ -134,7 +135,7 @@ export default function FestivalExportDialog({
       onOpenChange(false);
     } catch (error) {
       console.error("Error downloading export", error);
-      toast.error("Error al exportar los datos");
+      toastActionError(error, "Error al exportar los datos");
     } finally {
       setIsExporting(false);
     }
@@ -195,7 +196,8 @@ export default function FestivalExportDialog({
                   <span className="text-sm">
                     Todo
                     <span className="text-muted-foreground ml-1">
-                      (informacion basica + sectores + espacios)
+                      (informacion basica + sectores + espacios + mesas
+                      completas)
                     </span>
                   </span>
                 </label>
@@ -204,7 +206,7 @@ export default function FestivalExportDialog({
                   <span className="text-sm">
                     Solo informacion basica
                     <span className="text-muted-foreground ml-1">
-                      (nombre, fechas, tipo, etc.)
+                      (nombre, fechas, tipo, funciones de reserva, etc.)
                     </span>
                   </span>
                 </label>
@@ -213,7 +215,8 @@ export default function FestivalExportDialog({
                   <span className="text-sm">
                     Solo sectores
                     <span className="text-muted-foreground ml-1">
-                      (sectores, espacios y elementos)
+                      (sectores, espacios con sus precios, mesas completas y
+                      elementos)
                     </span>
                   </span>
                 </label>

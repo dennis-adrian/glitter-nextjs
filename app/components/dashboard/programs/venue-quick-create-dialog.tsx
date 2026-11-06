@@ -17,6 +17,7 @@ import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { createVenue } from "@/app/lib/programs/catalog-actions";
 import type { Venue } from "@/app/lib/programs/definitions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   /** Receives the created venue so the caller can select it immediately. */
@@ -60,7 +61,7 @@ export default function VenueQuickCreateDialog({ onCreated }: Props) {
         setOpen(false);
       } catch (error) {
         console.error(error);
-        toast.error("No se pudo crear el lugar");
+        toastActionError(error, "No se pudo crear el lugar");
       }
     });
   }

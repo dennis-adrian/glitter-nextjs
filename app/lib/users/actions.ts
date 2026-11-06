@@ -1,9 +1,6 @@
 "use server";
 
-import {
-  getPostHogClient,
-  POSTHOG_SHUTDOWN_TIMEOUT_MS,
-} from "@/app/lib/posthog-server";
+import { captureServerEvent } from "@/app/lib/posthog-server";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import {
   BaseProfile,
@@ -32,7 +29,8 @@ import { profileReviewBlocker } from "@/app/lib/users/profile-review";
 import {
   fetchAdminUsers,
   fetchUserProfileById,
-  getCurrentClerkUser,
+  // eslint-disable-next-line no-restricted-imports -- createUserProfile needs the Clerk account itself
+  getCurrentClerkUserDetails,
 } from "@/app/lib/users/queries";
 import {
   latestRejectionReason,
@@ -63,7 +61,9 @@ import { revalidatePath } from "next/cache";
  * create a row under another Clerk id or pick their own role or status.
  */
 export async function createUserProfile() {
-  const clerkUser = await getCurrentClerkUser();
+  // The Clerk account itself, not a viewer: a profile is only ever created
+  // for the account that is signed in.
+  const clerkUser = await getCurrentClerkUserDetails();
   const email = clerkUser?.emailAddresses[0]?.emailAddress;
   if (!clerkUser || !email) {
     return { success: false, message: "No autorizado" };
@@ -96,19 +96,11 @@ export async function createUserProfile() {
     });
 
     if (newUserRes) {
-      try {
-        const posthog = getPostHogClient();
-        posthog.capture({
-          distinctId: clerkUser.id,
-          event: POSTHOG_EVENTS.USER_PROFILE_CREATED,
-        });
-        await posthog.shutdown(POSTHOG_SHUTDOWN_TIMEOUT_MS);
-      } catch (telemetryError) {
-        console.error(
-          "PostHog telemetry failed (createUserProfile)",
-          telemetryError,
-        );
-      }
+      await captureServerEvent({
+        distinctId: clerkUser.id,
+        event: POSTHOG_EVENTS.USER_PROFILE_CREATED,
+        context: "createUserProfile",
+      });
     }
 
     return {

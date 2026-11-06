@@ -1,8 +1,10 @@
 import "server-only";
 
+import { isImpersonating } from "@/app/lib/impersonation/viewer";
+
 import { createHash } from "node:crypto";
 
-import { lt, sql } from "drizzle-orm";
+import { and, eq, lt, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { actionRateLimits } from "@/db/schema";
@@ -47,16 +49,23 @@ async function cleanupStaleRateLimits(now: Date) {
   }
 }
 
+/** The fixed window `now` falls in. */
+function windowStart(now: Date, windowMs: number) {
+  return new Date(Math.floor(now.getTime() / windowMs) * windowMs);
+}
+
 export async function consumeActionRateLimit(input: {
   key: string;
   limit: number;
   windowMs: number;
   now?: Date;
 }): Promise<boolean> {
+  // An admin viewing the app as a participant is not rate limited, and does
+  // not spend the participant's own allowance: the counter is a write, and
+  // a page that polls (the stand map) would otherwise go stale on 429s.
+  if (await isImpersonating()) return true;
   const now = input.now ?? new Date();
-  const windowStartedAt = new Date(
-    Math.floor(now.getTime() / input.windowMs) * input.windowMs,
-  );
+  const windowStartedAt = windowStart(now, input.windowMs);
 
   const [bucket] = await db
     .insert(actionRateLimits)
@@ -83,4 +92,35 @@ export async function consumeActionRateLimit(input: {
   await cleanupStaleRateLimits(now);
 
   return (bucket?.requestCount ?? input.limit + 1) <= input.limit;
+}
+
+/**
+ * Gives back a request `consumeActionRateLimit` allowed, when what it guarded
+ * never happened, so the next try is not refused for it. Pass what the
+ * consume took, `now` included: only that window is touched, and the
+ * requests it refused, counted past `limit`, stop counting.
+ */
+export async function releaseActionRateLimit(input: {
+  key: string;
+  limit: number;
+  windowMs: number;
+  now: Date;
+}): Promise<void> {
+  // Nothing was counted during a view (see consumeActionRateLimit).
+  if (await isImpersonating()) return;
+  const inWindow = and(
+    eq(actionRateLimits.key, input.key),
+    eq(
+      actionRateLimits.windowStartedAt,
+      windowStart(input.now, input.windowMs),
+    ),
+  );
+  const allowed = sql`least(${actionRateLimits.requestCount}, ${input.limit}::int)`;
+  // The count stays positive (its CHECK), so the last one goes with its row.
+  // The delete runs first: the update can then never take a second one off.
+  await db.delete(actionRateLimits).where(and(inWindow, sql`${allowed} <= 1`));
+  await db
+    .update(actionRateLimits)
+    .set({ requestCount: sql`${allowed} - 1` })
+    .where(and(inWindow, sql`${allowed} > 1`));
 }

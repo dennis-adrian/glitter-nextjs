@@ -32,6 +32,7 @@ import {
 } from "@/app/components/ui/select";
 import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import { cn } from "@/app/lib/utils";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type AdminOverviewStandDrawerProps = {
   stand: StandWithReservationsWithParticipants | null;
@@ -122,8 +123,8 @@ export default function AdminOverviewStandDrawer({
         toast.error(res.message);
         setSelectedStatus(stand.status);
       }
-    } catch {
-      toast.error("Error al actualizar el estado");
+    } catch (error) {
+      toastActionError(error, "Error al actualizar el estado");
       setSelectedStatus(stand.status);
     } finally {
       setIsSavingStatus(false);

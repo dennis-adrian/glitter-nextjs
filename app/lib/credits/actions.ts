@@ -25,18 +25,25 @@ const resolveCreditDebtSchema = z.object({
   reason: z.string().trim().min(1).max(1_000),
   idempotencyKey: z.uuid(),
 });
-const adjustCreditAccountSchema = z.object({
-  userId: z.coerce.number().int().positive(),
-  amount: z.coerce
-    .number()
-    .multipleOf(0.01)
-    .min(-99_999_999.99)
-    .max(99_999_999.99),
-  reason: z.string().trim().min(1).max(1_000),
-  idempotencyKey: z.uuid(),
-  /** Set when this adjustment undoes an earlier admin entry. */
-  reversesEntryId: z.coerce.number().int().positive().optional(),
-});
+const adjustCreditAccountSchema = z
+  .object({
+    userId: z.coerce.number().int().positive(),
+    amount: z.coerce
+      .number()
+      .multipleOf(0.01)
+      .min(-99_999_999.99)
+      .max(99_999_999.99),
+    /** Shown to the participant in their movements; optional with a note. */
+    reason: z.string().trim().max(1_000).default(""),
+    /** Admin history only. */
+    internalNote: z.string().trim().max(1_000).optional(),
+    idempotencyKey: z.uuid(),
+    /** Set when this adjustment undoes an earlier admin entry. */
+    reversesEntryId: z.coerce.number().int().positive().optional(),
+  })
+  .refine((value) => value.reason || value.internalNote, {
+    message: "reason_or_note_required",
+  });
 
 /**
  * Finds any participant, credit history or not, so an admin can open the

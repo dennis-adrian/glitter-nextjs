@@ -52,6 +52,7 @@ vi.mock("@/app/lib/users/helpers", () => ({
 vi.mock("@/app/lib/reservations/notification-outbox", () => ({
   enqueueAdminAndOwnerNotifications: vi.fn().mockResolvedValue([]),
   enqueueReservationNotification: vi.fn(),
+  enqueueReservationNotifications: vi.fn().mockResolvedValue([]),
   scheduleReservationNotificationJobs: vi.fn(),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));

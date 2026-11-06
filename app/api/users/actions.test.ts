@@ -16,6 +16,13 @@ vi.mock("@/app/lib/users/queries", () => ({
   cachedFetchBaseUserProfileByClerkId: vi.fn(),
 }));
 
+// Whoever Clerk says is signed in is the viewer: nobody is viewing as
+// someone else in these tests.
+vi.mock("@/app/lib/impersonation/viewer", () => ({
+  getViewerClerkId: async () =>
+    ((await currentClerkUserMock()) as { id: string } | null)?.id ?? null,
+}));
+
 vi.mock("@/app/lib/users/navbar-profile", () => ({
   cachedFetchNavbarProfileByClerkId: vi.fn(),
 }));
@@ -53,6 +60,9 @@ vi.mock("@/app/lib/festivals/utils", () => ({
 }));
 vi.mock("@/app/lib/infractions/notifications", () => ({
   scrubDisciplinaryNotificationJobsForUser: vi.fn(),
+}));
+vi.mock("@/app/lib/notifications/scrub", () => ({
+  scrubNotificationsNamingUser: vi.fn(),
 }));
 vi.mock("@/app/lib/programs/anonymization", () => ({
   anonymizeProgramPurchasesForUser: vi.fn(),

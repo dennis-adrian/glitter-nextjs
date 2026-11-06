@@ -7,6 +7,7 @@ import { useUser } from "@clerk/nextjs";
 import { InfoIcon, LogInIcon, UserPlusIcon } from "lucide-react";
 
 import { NavbarProfile } from "@/app/api/users/definitions";
+import { useViewState } from "@/app/components/impersonation/view-state";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -16,24 +17,45 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/app/components/ui/dialog";
+import NotificationBell, {
+  NotificationBellPlaceholder,
+} from "@/app/components/notifications/notification-bell";
+import { useReleaseForeignPushDevice } from "@/app/components/notifications/use-push-device";
 import UserDropdown from "@/app/components/ui/user-dropdown";
-import { isNoNavigationPage, isStoreFlowPage } from "@/app/lib/utils";
+import { cn, isNoNavigationPage, isStoreFlowPage } from "@/app/lib/utils";
 import { UserDropdownSkeleton } from "@/app/components/user_dropdown/skeleton";
 
 export default function SessionButtons({
   profile,
   creditsEnabled,
+  notificationsEnabled = false,
+  pushPublicKey = null,
   isProfileLoading,
+  accountMenuClassName,
 }: {
   profile?: NavbarProfile | null;
   creditsEnabled: boolean;
+  /** The bell, for whoever the `notifications` flag lets in. */
+  notificationsEnabled?: boolean;
+  /** Offers avisos in the bell's popover; null when they are not open. */
+  pushPublicKey?: string | null;
   /** Forwarded to the dropdown so a `null` profile is not read as loading. */
   isProfileLoading: boolean;
+  /**
+   * Classes for the account menu's wrapper. The desktop sidebar carries the
+   * account card, so the header hides its own menu where the sidebar shows.
+   */
+  accountMenuClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const { isLoaded, isSignedIn } = useUser();
+  // Not during a view: this browser's devices are the admin's, not theirs.
+  const view = useViewState();
+  useReleaseForeignPushDevice(
+    isSignedIn && profile && !view ? profile.id : null,
+  );
 
   if (isNoNavigationPage(pathname)) {
     return null;
@@ -105,11 +127,36 @@ export default function SessionButtons({
     );
   }
 
-  return (
+  const userDropdown = (
     <UserDropdown
       profile={profile}
       creditsEnabled={creditsEnabled}
       isProfileLoading={isProfileLoading}
     />
+  );
+  const dropdown = accountMenuClassName ? (
+    <div className={cn("flex items-center", accountMenuClassName)}>
+      {userDropdown}
+    </div>
+  ) : (
+    userDropdown
+  );
+
+  // A Clerk session without a profile row (sign-up still finishing) has no
+  // inbox: its unread count and page would only answer "not found". The bell
+  // waits for the profile, holding its place meanwhile.
+  if (!notificationsEnabled || !isSignedIn || (!isProfileLoading && !profile)) {
+    return dropdown;
+  }
+
+  return (
+    <div className="flex items-center gap-1 sm:gap-2">
+      {profile ? (
+        <NotificationBell pushPublicKey={pushPublicKey} />
+      ) : (
+        <NotificationBellPlaceholder />
+      )}
+      {dropdown}
+    </div>
   );
 }

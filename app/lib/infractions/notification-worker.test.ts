@@ -4,9 +4,13 @@ const updateMock = vi.hoisted(() => vi.fn());
 const sendEmailMock = vi.hoisted(() => vi.fn());
 const sanctionFindFirstMock = vi.hoisted(() => vi.fn());
 const userFindFirstMock = vi.hoisted(() => vi.fn());
+const mirrorMock = vi.hoisted(() => vi.fn());
+const dbMock = vi.hoisted(() => ({}) as Record<string, unknown>);
 
 vi.mock("@/db", () => ({
-  db: {
+  db: Object.assign(dbMock, {
+    // Hydration commits the snapshot and its inbox copy in one transaction.
+    transaction: (callback: (tx: unknown) => unknown) => callback(dbMock),
     update: updateMock,
     query: {
       sanctions: {
@@ -16,10 +20,14 @@ vi.mock("@/db", () => ({
         findFirst: userFindFirstMock,
       },
     },
-  },
+  }),
 }));
+vi.mock("server-only", () => ({}));
 vi.mock("@/app/vendors/resend", () => ({
   sendEmail: sendEmailMock,
+}));
+vi.mock("@/app/lib/notifications/mirrors/disciplinary-jobs", () => ({
+  mirrorDisciplinaryNotificationJob: mirrorMock,
 }));
 
 import {
@@ -90,6 +98,7 @@ describe("disciplinary notification worker", () => {
     sendEmailMock.mockReset();
     sanctionFindFirstMock.mockReset();
     userFindFirstMock.mockReset();
+    mirrorMock.mockReset();
   });
 
   it("reschedules a durable job when the email provider rejects it", async () => {
@@ -279,6 +288,13 @@ describe("disciplinary notification worker", () => {
     });
     expect(sendEmailMock.mock.calls[0]?.[1]).toEqual({
       idempotencyKey: retryJob.deduplicationKey,
+    });
+    // The inbox copy the failed enqueue could not write, under the same key.
+    expect(mirrorMock).toHaveBeenCalledTimes(1);
+    expect(mirrorMock).toHaveBeenCalledWith(dbMock, {
+      deduplicationKey: "sanction:11:expired",
+      userId: payload.profile.id,
+      payload: preparedPayload,
     });
   });
 });

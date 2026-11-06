@@ -5,14 +5,7 @@ import { fetchFestivalSectors } from "@/app/lib/festival_sectors/queries";
 import { fetchInvoicesByFestival } from "@/app/data/invoices/actions";
 import { getFestivalById } from "@/app/lib/festivals/helpers";
 import AdminOverviewMap from "@/app/components/maps/admin/admin-overview-map";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 
 const ParamsSchema = z.object({
   id: z.coerce.number(),
@@ -42,19 +35,10 @@ export default async function FestivalMapPage(props: {
 
   return (
     <div className="container p-4 md:p-6">
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink href="/dashboard/festivals">
-              Festivales
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>Mapa — {festival.name}</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+      {/* The installed app's top bar carries back and the title. */}
+      <PageBreadcrumbs
+        labels={{ [`/dashboard/festivals/${festival.id}`]: festival.name }}
+      />
       <h1 className="my-2 text-2xl font-bold md:text-3xl">
         Mapa del festival — {festival.name}
       </h1>

@@ -53,7 +53,10 @@ export default async function ProgramsIndexPage() {
         />
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div className="space-y-3">
-            <h1 className="max-w-[18ch] text-balance font-display text-4xl font-extrabold leading-[1.02] tracking-[-1px] sm:text-5xl">
+            <h1
+              className="max-w-[18ch] text-balance font-display text-4xl font-extrabold leading-[1.02] tracking-[-1px] sm:text-5xl"
+              data-installed-title=""
+            >
               Charlas y Talleres
             </h1>
             <p className="text-lg leading-8 text-brand-ink/75">

@@ -4,7 +4,11 @@ import { Suspense, cache } from "react";
 import { z } from "zod";
 
 import FestivalPageHero from "@/app/components/festivals/festival-page-hero";
-import FestivalVisitorDiscovery from "@/app/components/festivals/festival-visitor-discovery";
+import { ScreenRoot, ScreenTitle } from "@/app/components/navbar/screen-bar";
+import { FestivalGuideSkeleton } from "@/app/components/festivals/festival-guide";
+import FestivalVisitorDiscovery, {
+  FestivalGuideSection,
+} from "@/app/components/festivals/festival-visitor-discovery";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { fetchPublicFestivalPage } from "@/app/lib/festivals/actions";
 
@@ -72,9 +76,23 @@ export default async function Page({ params }: PageProps) {
 
   return (
     <article>
+      {/* A deeper screen for verified participants: the bar names it. */}
+      <ScreenTitle title={festival.name} />
+      {/* Festivales opens the festival in progress for whoever has that tab
+          (verified participants reach it from Participaciones instead). */}
+      {festival.status === "active" ? <ScreenRoot tab="festivals" /> : null}
       <FestivalPageHero festival={festival} hasFastPass={false} />
 
-      <div className="container mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
+      <div className="container mx-auto flex max-w-7xl flex-col gap-12 px-4 pb-10 pt-6 sm:gap-16 sm:px-6 sm:pb-14 lg:px-8">
+        <Suspense fallback={<FestivalGuideSkeleton />}>
+          <FestivalGuideSection
+            festivalId={festival.id}
+            locationLabel={festival.locationLabel}
+            locationUrl={festival.locationUrl}
+          />
+        </Suspense>
+        {/* Outside the loading boundary, so a link to #mapa always finds it
+            where the map will be, even before the map has loaded. */}
         <section id="mapa" tabIndex={-1} className="scroll-mt-24">
           <Suspense fallback={<VisitorDiscoveryFallback />}>
             <FestivalVisitorDiscovery

@@ -11,7 +11,9 @@ export default async function TicketsLayout(props: {
   return (
     <div className="container min-h-full p-4 md:px-6">
       <div className="my-2 flex items-center justify-between">
-        <h1 className="text-2xl font-bold md:text-3xl">Entradas</h1>
+        <h1 className="text-2xl font-bold md:text-3xl" data-installed-title="">
+          Entradas
+        </h1>
         <RedirectButton href={`/festivals/${festivalId}/registration`}>
           Nueva entrada
         </RedirectButton>

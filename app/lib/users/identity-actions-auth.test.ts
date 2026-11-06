@@ -61,6 +61,7 @@ vi.mock("@/app/lib/users/queries", () => {
   };
   return {
     getCurrentClerkUser: clerkUserMock,
+    getCurrentClerkUserDetails: clerkUserMock,
     fetchAdminUsers: touch,
     fetchUserProfileById: touch,
   };
@@ -383,6 +384,7 @@ describe("server-only lookups are not server actions", () => {
 
   it.each([
     "getCurrentClerkUser",
+    "getCurrentClerkUserDetails",
     "fetchUserProfileByClerkId",
     "cachedFetchUserProfileByClerkId",
     "fetchBaseUserProfileByClerkId",

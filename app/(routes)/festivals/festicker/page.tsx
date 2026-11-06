@@ -60,7 +60,10 @@ export default async function Page() {
           priority
         />
         <div className="container absolute inset-0 z-10 flex flex-col items-center justify-center text-center text-white">
-          <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
+          <h1
+            className="text-4xl font-extrabold tracking-tight sm:text-5xl md:text-6xl lg:text-7xl"
+            data-installed-title=""
+          >
             Festicker
           </h1>
           <p className="mt-4 max-w-3xl text-xl text-white/90">

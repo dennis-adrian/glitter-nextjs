@@ -21,7 +21,9 @@ export default async function PurchaseReviewQueuePage() {
   return (
     <div className="container mx-auto max-w-3xl space-y-6 px-4 py-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-bold">Pagos por revisar</h1>
+        <h1 className="text-2xl font-bold" data-installed-title="">
+          Pagos por revisar
+        </h1>
         <p className="text-sm text-muted-foreground">
           {purchases.length === 0
             ? "No hay comprobantes esperando revisión."

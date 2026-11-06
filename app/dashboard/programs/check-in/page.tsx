@@ -43,7 +43,9 @@ export default async function CheckInAgendaPage() {
   return (
     <div className="container mx-auto max-w-3xl space-y-6 p-3 md:p-6">
       <header className="space-y-1">
-        <h1 className="text-2xl font-bold">Registrar ingresos</h1>
+        <h1 className="text-2xl font-bold" data-installed-title="">
+          Registrar ingresos
+        </h1>
         <p className="text-sm text-muted-foreground">
           Elige el horario y escanea las entradas en la puerta.
         </p>

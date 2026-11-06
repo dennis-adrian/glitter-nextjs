@@ -41,7 +41,10 @@ export default async function InfractionsPage(props: {
   return (
     <div className="container mx-auto min-h-full min-w-0 overflow-x-hidden p-3 md:p-6">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-xl font-bold sm:text-2xl md:text-3xl">
+        <h1
+          className="text-xl font-bold sm:text-2xl md:text-3xl"
+          data-installed-title=""
+        >
           Infracciones
         </h1>
         <div className="flex flex-wrap gap-2">

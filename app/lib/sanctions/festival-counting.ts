@@ -371,7 +371,11 @@ export async function reconcileSanctionFestivalCounting(input?: {
       now,
     };
     try {
-      await enqueueSanctionLifecycleNotification(db, notification);
+      // In a transaction of its own, so the job and its inbox copy commit
+      // together; a failure still falls through to the retry record.
+      await db.transaction((tx) =>
+        enqueueSanctionLifecycleNotification(tx, notification),
+      );
     } catch (error) {
       try {
         const retryJobId =

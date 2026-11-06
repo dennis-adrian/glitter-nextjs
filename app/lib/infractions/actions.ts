@@ -2,6 +2,7 @@
 
 import { and, desc, eq, gte, isNull, sql, asc, ilike, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 
 import { fetchActiveInfractionTypes } from "@/app/lib/infraction-types/actions";
 import { INFRACTION_DUPLICATE_WINDOW_HOURS } from "@/app/lib/infractions/constants";
@@ -18,6 +19,7 @@ import {
   attemptDisciplinaryNotificationJob,
   enqueueInfractionLifecycleNotification,
 } from "@/app/lib/infractions/notifications";
+import { drainDuePushDeliveries } from "@/app/lib/notifications/deliveries";
 import {
   changeInfractionStatusSchema,
   editInfractionSchema,
@@ -376,6 +378,7 @@ export async function registerInfraction(
 
     if (created.notificationJobId != null) {
       await attemptDisciplinaryNotificationJob(created.notificationJobId);
+      after(drainDuePushDeliveries);
     }
 
     return {
@@ -529,6 +532,7 @@ export async function editInfraction(rawInput: EditInfractionInput) {
     });
 
     await attemptDisciplinaryNotificationJob(result.notificationJobId);
+    after(drainDuePushDeliveries);
 
     return {
       success: true as const,
@@ -644,6 +648,7 @@ export async function changeInfractionStatus(
 
     if (result.notificationJobId != null) {
       await attemptDisciplinaryNotificationJob(result.notificationJobId);
+      after(drainDuePushDeliveries);
     }
 
     return {

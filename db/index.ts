@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
 import "@/app/lib/config";
+import { installWriteGuard } from "@/db/write-guard";
 import { getPostgresUrl } from "@/env";
 
 /**
@@ -16,7 +17,21 @@ import { getPostgresUrl } from "@/env";
  */
 const SHARE_TOKEN_RE = /^[0-9a-f]{64}$/;
 
+/**
+ * A push subscription's endpoint and keys let whoever holds our VAPID key show
+ * text on that device as Glitter. Every string written to the table is
+ * masked; reads never take them as params.
+ */
+const PUSH_SUBSCRIPTION_WRITE_RE =
+  /^\s*(?:insert\s+into|update|delete\s+from)\s+"?push_subscriptions"?/i;
+
 function redactQueryParams(query: string, params: unknown[]): unknown[] {
+  if (PUSH_SUBSCRIPTION_WRITE_RE.test(query)) {
+    return params.map((param) =>
+      typeof param === "string" ? "[REDACTED_PUSH]" : param,
+    );
+  }
+
   if (/post_share_links/i.test(query)) {
     return params.map((param) =>
       typeof param === "string" && SHARE_TOKEN_RE.test(param)
@@ -152,6 +167,12 @@ function createPool(): Pool {
   created.on("error", (error) => {
     console.error("Postgres pool error (client discarded)", error);
   });
+
+  // While an admin views the app as a participant, nothing is written
+  // (docs/PLAN-impersonation.md §6.1). Every statement, `pool.query`
+  // included, runs on a client this hands out, so one hook covers them all.
+  // Installed here, with the pool, so both module copies share it.
+  installWriteGuard(created);
 
   return created;
 }

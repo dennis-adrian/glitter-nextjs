@@ -45,6 +45,7 @@ import {
   parseActivityDate,
 } from "./activity-form-schema";
 import SectorImageUpload from "@/app/components/festivals/sectors/sector-image-upload";
+import { actionErrorMessage } from "@/app/lib/errors/action-error";
 
 const CATEGORY_SELECT_OPTIONS = [
   { value: "illustration", label: "Ilustración" },
@@ -244,9 +245,12 @@ export default function FestivalActivityForm({
           setSaveError(result.message);
           toast.error(result.message);
         }
-      } catch {
+      } catch (error) {
         setSaveError(
-          "No se pudo guardar la actividad. Tus cambios siguen aquí; intentá nuevamente.",
+          actionErrorMessage(
+            error,
+            "No se pudo guardar la actividad. Tus cambios siguen aquí; intentá nuevamente.",
+          ),
         );
       }
     },

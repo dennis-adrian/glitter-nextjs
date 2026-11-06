@@ -166,7 +166,7 @@ export default async function ProgramPage({ params }: Props) {
             <>
               <nav
                 aria-label="Días del programa"
-                className="no-scrollbar sticky top-[calc(77px+var(--announcement-strip-height,0px))] z-20 -mx-5 mb-8 flex gap-2 overflow-x-auto border-b border-brand-ink/10 bg-brand-elevated/95 px-5 py-3 backdrop-blur sm:-mx-1 sm:px-1 lg:top-[calc(85px+var(--announcement-strip-height,0px))]"
+                className="no-scrollbar sticky top-[calc(77px+var(--top-chrome-extra,0px))] z-20 -mx-5 mb-8 flex gap-2 overflow-x-auto border-b border-brand-ink/10 bg-brand-elevated/95 px-5 py-3 backdrop-blur sm:-mx-1 sm:px-1 lg:top-[calc(85px+var(--top-chrome-extra,0px))]"
               >
                 {agendaDays.map((day, index) => (
                   <SmoothScrollLink

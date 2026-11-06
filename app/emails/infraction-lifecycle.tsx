@@ -86,6 +86,11 @@ export function getInfractionEmailSubject(kind: InfractionEmailKind) {
   return copy[kind].subject;
 }
 
+/** The wording the inbox item shares with this email (its title and note label). */
+export function getInfractionEmailCopy(kind: InfractionEmailKind) {
+  return copy[kind];
+}
+
 export default function InfractionLifecycleEmail(
   props: InfractionLifecycleEmailProps,
 ) {

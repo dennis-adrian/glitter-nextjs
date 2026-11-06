@@ -60,6 +60,11 @@ export const visitorDetailsSchema = z.object({
   birthdate,
   phoneNumber: phoneValidator(),
   gender: z.enum([...genderEnum.enumValues]),
+  /**
+   * "Quiero recibir novedades" (docs/IMPLEMENTATION-comunicados.md §L).
+   * Unticked unless they tick it.
+   */
+  newsOptIn: z.boolean().default(false),
 });
 
 export type VisitorDetails = z.input<typeof visitorDetailsSchema>;

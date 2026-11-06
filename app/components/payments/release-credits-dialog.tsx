@@ -18,6 +18,7 @@ import { Textarea } from "@/app/components/ui/textarea";
 import { InvoiceWithTender } from "@/app/data/invoices/definitions";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { releaseInvoiceCreditsAction } from "@/app/lib/reservations/payment-actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 export default function ReleaseCreditsDialog({
   invoice,
@@ -58,8 +59,8 @@ export default function ReleaseCreditsDialog({
       setReason("");
       onOpenChange(false);
       router.refresh();
-    } catch {
-      toast.error("Error al devolver los créditos");
+    } catch (error) {
+      toastActionError(error, "Error al devolver los créditos");
     } finally {
       setIsReleasing(false);
     }

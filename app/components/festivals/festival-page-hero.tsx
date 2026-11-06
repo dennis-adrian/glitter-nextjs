@@ -1,123 +1,56 @@
-import {
-  ArrowUpRightIcon,
-  CalendarDaysIcon,
-  MapIcon,
-  MapPinIcon,
-  SparklesIcon,
-  TicketIcon,
-} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
+import FestivalBanner from "@/app/components/festivals/festival-banner";
 import { Button } from "@/app/components/ui/button";
-import { formatDate, formatTime } from "@/app/lib/formatters";
+import { hasFestivalBanner } from "@/app/lib/festivals/banner";
 import type { PublicFestivalPage } from "@/app/lib/festivals/definitions";
+import { formatDisplayDate, formatTime } from "@/app/lib/formatters";
+import { formatDaysLeft, formatFestivalDays } from "@/app/lib/home/festival";
+import { daysUntil } from "@/app/lib/participations/hub-status";
 
 type FestivalPageHeroProps = {
   festival: PublicFestivalPage;
   hasFastPass: boolean;
+  now?: Date;
 };
 
-function FestivalArtwork({ festival }: { festival: PublicFestivalPage }) {
-  const artwork =
-    festival.posterUrl ?? festival.festivalBannerUrl ?? festival.thumbnailUrl;
-
-  if (artwork) {
-    return (
-      <Link
-        href={artwork}
-        target="_blank"
-        rel="noreferrer"
-        className="group relative block aspect-4/5 w-24 shrink-0 overflow-hidden rounded-xl bg-accent shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:w-32"
-        aria-label={`Ver afiche completo de ${festival.name}`}
-      >
-        <Image
-          src={artwork}
-          alt={`Afiche de ${festival.name}`}
-          fill
-          priority
-          sizes="128px"
-          className="object-cover transition group-hover:scale-[1.02]"
-        />
-        <span className="absolute inset-x-2 bottom-2 rounded-md bg-black/70 px-2 py-1 text-center text-[10px] font-semibold text-white opacity-0 backdrop-blur transition group-hover:opacity-100 group-focus-visible:opacity-100">
-          Ver afiche
-        </span>
-      </Link>
-    );
-  }
-
-  return (
-    <div
-      role="img"
-      aria-label={`Identidad visual de ${festival.name}`}
-      className="relative flex aspect-4/5 w-24 shrink-0 overflow-hidden rounded-xl bg-primary-700 p-3 text-white shadow-sm sm:w-32"
-    >
-      <div className="absolute -right-5 -top-4 size-16 rounded-full border-8 border-secondary-300/80" />
-      <div className="absolute -bottom-5 -left-4 size-20 rounded-full bg-accent-400/80" />
-      <SparklesIcon className="relative mt-auto size-6" aria-hidden="true" />
-    </div>
-  );
-}
-
-function formatFestivalDay(date: Date) {
-  const startDate = formatDate(date);
-  return {
-    day: startDate.toFormat("cccc d 'de' LLLL"),
-    time: formatTime(startDate),
-  };
-}
-
-function FestivalDateSummary({ festival }: { festival: PublicFestivalPage }) {
-  const dates = [...festival.festivalDates].sort(
+function sortedDates(festival: PublicFestivalPage) {
+  return [...festival.festivalDates].sort(
     (a, b) => a.startDate.getTime() - b.startDate.getTime(),
   );
-  const firstDate = dates[0];
-  const lastDate = dates[dates.length - 1];
-
-  if (!firstDate) return <>Fecha por confirmar</>;
-
-  const first = formatFestivalDay(firstDate.startDate);
-
-  if (dates.length === 1 || !lastDate) {
-    return (
-      <>
-        <span className="capitalize">{first.day}</span>
-        <span aria-hidden="true"> · </span>
-        {first.time} hrs
-      </>
-    );
-  }
-
-  const last = formatFestivalDay(lastDate.startDate);
-  const sameTime = first.time === last.time;
-
-  return (
-    <>
-      <span className="capitalize">{first.day}</span>
-      {sameTime ? (
-        <>
-          <span aria-hidden="true"> – </span>
-          <span className="capitalize">{last.day}</span>
-          <span aria-hidden="true"> · </span>
-          {first.time} hrs
-        </>
-      ) : (
-        <>
-          <span aria-hidden="true"> · </span>
-          {first.time} hrs
-          <span aria-hidden="true"> – </span>
-          <span className="capitalize">{last.day}</span>
-          <span aria-hidden="true"> · </span>
-          {last.time} hrs
-        </>
-      )}
-    </>
-  );
 }
 
+/**
+ * "10:00 AM a 7:00 PM" when every day keeps the same hours; otherwise each
+ * day with its own: "sáb 10:00 AM a 7:00 PM · dom 11:00 AM a 8:00 PM".
+ */
+export function hoursLine(festival: Pick<PublicFestivalPage, "festivalDates">) {
+  const days = [...festival.festivalDates]
+    .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
+    .map((day) => ({
+      weekday: formatDisplayDate(day.startDate, { weekday: "short" }).replace(
+        /\.$/,
+        "",
+      ),
+      hours: `${formatTime(day.startDate)} a ${formatTime(day.endDate)}`,
+    }));
+  if (days.length === 0) return null;
+  if (days.every((day) => day.hours === days[0].hours)) return days[0].hours;
+  return days.map((day) => `${day.weekday} ${day.hours}`).join(" · ");
+}
+
+/**
+ * The top of a festival's public page, kept short: the banner shown whole
+ * (it carries its own title, dates and art, so nothing is laid over it), a
+ * bar with the name, the days, the venue and the countdown, and one button
+ * for the ticket. The guide under it leads to the map, the participants and
+ * the activities further down the same page.
+ */
 export default function FestivalPageHero({
   festival,
   hasFastPass,
+  now = new Date(),
 }: FestivalPageHeroProps) {
   const isRegistrationOpen =
     festival.status === "active" && festival.publicRegistration;
@@ -131,111 +64,81 @@ export default function FestivalPageHero({
     : hasFastPass
       ? "Comprar Pase Rápido"
       : null;
-  const primaryHelperText = isRegistrationOpen
-    ? "Registrate y obtené tu entrada para presentar al ingresar"
-    : "Comprá tu Pase Rápido para ingresar más rápido al festival";
+
+  const line = [
+    formatFestivalDays(festival.festivalDates),
+    festival.locationLabel,
+    formatDaysLeft(daysUntil(sortedDates(festival)[0]?.startDate, now)),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  // The public registration is the free ticket; the admin settings say so.
+  const ticketLine = [
+    isRegistrationOpen ? "Entrada gratuita" : null,
+    hoursLine(festival),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  // Without a banner, the poster keeps the festival's art on the page.
+  const poster = hasFestivalBanner(festival)
+    ? null
+    : (festival.posterUrl ?? festival.thumbnailUrl);
 
   return (
-    <>
-      <section
-        id="entrada"
-        className="border-b bg-primary-50/70 dark:bg-primary-950/40"
-      >
-        <div className="container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-7 lg:px-8">
-          <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_17rem] md:items-start">
-            <div className="flex min-w-0 gap-4 sm:gap-5">
-              <FestivalArtwork festival={festival} />
-
-              <div className="min-w-0 self-start">
-                <h1 className="text-balance font-display text-3xl font-bold leading-none tracking-tight sm:text-4xl">
-                  {festival.name}
-                </h1>
-                <div className="mt-4 space-y-2 text-sm">
-                  <p className="flex items-start gap-2">
-                    <CalendarDaysIcon
-                      className="mt-0.5 size-4 shrink-0 text-primary-700 dark:text-primary-300"
-                      aria-hidden="true"
-                    />
-                    <span>
-                      <FestivalDateSummary festival={festival} />
-                    </span>
-                  </p>
-                  <p className="flex items-start gap-2">
-                    <MapPinIcon
-                      className="mt-0.5 size-4 shrink-0 text-primary-700 dark:text-primary-300"
-                      aria-hidden="true"
-                    />
-                    <span>
-                      {festival.locationLabel || "Ubicación por confirmar"}
-                    </span>
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-x-5 gap-y-2 md:col-start-1 md:row-start-2 md:pl-37">
-              <Link
-                href="#mapa"
-                className="inline-flex items-center text-sm font-semibold text-primary-800 underline-offset-4 dark:text-primary-200 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <MapIcon className="mr-1.5 size-4" aria-hidden="true" />
-                Mapa y participantes
-              </Link>
-              {festival.festivalActivities.length > 0 ? (
-                <Link
-                  href="#actividades"
-                  className="inline-flex items-center text-sm font-semibold text-primary-800 underline-offset-4 dark:text-primary-200 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                >
-                  <SparklesIcon className="mr-1.5 size-4" aria-hidden="true" />
-                  Actividades
-                </Link>
-              ) : null}
-              {festival.locationUrl ? (
-                <Link
-                  href={festival.locationUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center text-sm font-semibold text-primary-800 underline-offset-4 dark:text-primary-200 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                >
-                  Cómo llegar
-                  <ArrowUpRightIcon
-                    className="ml-1 size-4"
-                    aria-hidden="true"
-                  />
-                </Link>
-              ) : null}
-            </div>
-
-            <div className="rounded-xl border bg-background p-4 shadow-sm md:col-start-2 md:row-span-2 md:row-start-1">
-              <div className="flex items-center gap-2 text-primary-700 dark:text-primary-300">
-                <TicketIcon className="size-4" aria-hidden="true" />
-                <p className="text-xs font-bold uppercase tracking-[0.14em]">
-                  Tu entrada
-                </p>
-              </div>
-              {primaryHref && primaryLabel ? (
-                <>
-                  <p className="mt-2 text-sm leading-5 text-muted-foreground">
-                    {primaryHelperText}
-                  </p>
-                  <Button asChild className="mt-4 w-full">
-                    <Link href={primaryHref}>{primaryLabel}</Link>
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <p className="mt-2 text-sm leading-5 text-muted-foreground">
-                    No hay entradas habilitadas
-                  </p>
-                  <Button disabled className="mt-4 w-full">
-                    Obtener entrada
-                  </Button>
-                </>
-              )}
-            </div>
+    <section
+      id="entrada"
+      className="container mx-auto flex max-w-7xl flex-col gap-3 px-4 pt-5 sm:px-6 sm:pt-7 lg:px-8"
+    >
+      <div className="overflow-hidden rounded-3xl border border-brand-border bg-brand-card">
+        <FestivalBanner
+          festival={festival}
+          alt={`${festival.name}${line ? `, ${line}` : ""}`}
+          sizes="(min-width: 1280px) 1216px, 100vw"
+          highPriority
+        />
+        <div className="flex items-center gap-4 p-4 sm:p-5">
+          {poster ? (
+            <span className="relative block aspect-3/4 w-16 shrink-0 overflow-hidden rounded-xl bg-brand-lavender/40 shadow-sm sm:w-20">
+              <Image
+                src={poster}
+                alt={`Afiche de ${festival.name}`}
+                fill
+                priority
+                sizes="80px"
+                className="object-cover"
+              />
+            </span>
+          ) : null}
+          <div className="flex min-w-0 flex-col gap-1">
+            <h1 className="text-balance font-display text-2xl font-bold leading-tight tracking-tight text-brand-ink sm:text-3xl">
+              {festival.name}
+            </h1>
+            {line ? (
+              <p className="text-sm text-brand-neutral">{line}</p>
+            ) : null}
+            {ticketLine ? (
+              <p className="text-sm font-semibold text-brand-ink">
+                {ticketLine}
+              </p>
+            ) : null}
           </div>
         </div>
-      </section>
-    </>
+      </div>
+
+      {primaryHref && primaryLabel ? (
+        <Button asChild className="h-11 w-full rounded-full sm:max-w-md">
+          <Link href={primaryHref}>{primaryLabel}</Link>
+        </Button>
+      ) : (
+        <div className="flex flex-col gap-1 sm:max-w-md">
+          <Button disabled className="h-11 w-full rounded-full">
+            Obtener entrada
+          </Button>
+          <p className="text-center text-xs text-brand-neutral">
+            No hay entradas habilitadas
+          </p>
+        </div>
+      )}
+    </section>
   );
 }

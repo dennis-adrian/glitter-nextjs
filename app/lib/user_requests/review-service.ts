@@ -134,6 +134,7 @@ export async function reviewFestivalParticipationRequest(
           reservationId: null,
           userId: request.userId,
           recipientEmail: email,
+          audience: "participant",
           payload: {
             requestId: request.id,
             userId: request.userId,

@@ -17,7 +17,9 @@ export default async function Page(props: PageProps) {
 
   return (
     <div className="container p-4 md:p6">
-      <h1 className="text-2xl font-bold">Participantes</h1>
+      <h1 className="text-2xl font-bold" data-installed-title="">
+        Participantes
+      </h1>
       <Suspense fallback={<TableSkeleton />}>
         <ParticipantsTable festivalId={validatedParams.data.id} />
       </Suspense>

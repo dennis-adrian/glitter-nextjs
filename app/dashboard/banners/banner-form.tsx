@@ -1,5 +1,7 @@
 "use client";
 
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { BannerImageUpload } from "@/app/components/uploads/banner-image-upload";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
@@ -18,11 +20,12 @@ import {
   updateMarketingBanner,
 } from "@/app/lib/marketing_banners/actions";
 import { assertValidHref } from "@/app/lib/marketing_banners/validate-href";
-import { ArrowLeftIcon, Loader2Icon } from "lucide-react";
+import { Loader2Icon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 const AUDIENCE_OPTIONS: {
   value: MarketingBannerRow["audience"];
@@ -121,7 +124,8 @@ export default function BannerForm(props: Props) {
           }
           toast.success("Banner creado");
         } catch (err) {
-          toast.error(
+          toastActionError(
+            err,
             err instanceof Error && err.message
               ? err.message
               : "No se pudo crear el banner.",
@@ -148,7 +152,8 @@ export default function BannerForm(props: Props) {
           }
           toast.success("Cambios guardados");
         } catch (err) {
-          toast.error(
+          toastActionError(
+            err,
             err instanceof Error && err.message
               ? err.message
               : "No se pudieron guardar los cambios.",
@@ -163,14 +168,11 @@ export default function BannerForm(props: Props) {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <Link
-        href="/dashboard/banners"
-        className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeftIcon className="size-4 mr-1" />
-        Volver al listado
-      </Link>
-      <h1 className="text-2xl font-bold">{title}</h1>
+      <ScreenTitle title={title} />
+      <PageBreadcrumbs />
+      <h1 className="text-2xl font-bold" data-installed-title="">
+        {title}
+      </h1>
       <form onSubmit={onSubmit} className="space-y-6">
         <BannerImageUpload
           title="Escritorio"

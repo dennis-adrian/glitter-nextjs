@@ -9,6 +9,7 @@ import {
   fetchPostTagBySlug,
   fetchPublishedPosts,
 } from "@/app/lib/posts/data";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 
 const PER_PAGE = 12;
 
@@ -50,11 +51,14 @@ export default async function BlogTagPage({ params, searchParams }: PageProps) {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
+      <ScreenTitle title={`#${tag.name}`} />
       <header className="mb-8 space-y-2">
         <p className="text-sm text-muted-foreground uppercase tracking-wide">
           Etiqueta
         </p>
-        <h1 className="text-3xl md:text-4xl font-bold">#{tag.name}</h1>
+        <h1 className="text-3xl md:text-4xl font-bold" data-installed-title="">
+          #{tag.name}
+        </h1>
       </header>
 
       <PostList posts={posts} />

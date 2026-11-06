@@ -1,4 +1,5 @@
 import Title from "@/app/components/atoms/heading";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import BestStandActivityVoting from "@/app/components/organisms/festival_activity_voting/best-stand-activity-voting";
 import FestivalStickerVoting from "@/app/components/organisms/festival_activity_voting/festival-sticker-voting";
 import { fetchFestivalActivity } from "@/app/lib/festival_activites/queries";
@@ -38,6 +39,7 @@ export default async function VotingPage({ params }: VotingPageProps) {
 
   return (
     <div className="container p-3 md:p-6">
+      <ScreenTitle title={`Votación para ${activity.name}`} />
       <Title>Votación para {activity.name}</Title>
       {activity.type === "best_stand" && (
         <BestStandActivityVoting

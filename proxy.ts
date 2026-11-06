@@ -7,6 +7,7 @@ const isProtectedRoute = createRouteMatcher([
   "/my_participations(.*)",
   "/my_history(.*)",
   "/my_orders(.*)",
+  "/my_notifications(.*)",
   "/profiles(.*)",
 ]);
 

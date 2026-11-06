@@ -1,6 +1,7 @@
 import { PostHog } from "posthog-node";
 import { getClientEnv, serverEnv } from "@/env";
 import type { PostHogEvent } from "@/app/lib/posthog-events";
+import { isViewRequest } from "@/db/write-guard";
 
 const noop = new Proxy({} as PostHog, {
   get: () => async () => {},
@@ -37,6 +38,10 @@ export async function captureServerEvent(input: {
   properties?: Record<string, unknown>;
   context: string;
 }): Promise<void> {
+  // An admin viewing the app as a participant acts under the participant's
+  // id: nothing they trigger is reported as the participant's
+  // (docs/PLAN-impersonation.md §6).
+  if (await isViewRequest().catch(() => true)) return;
   try {
     const posthog = getPostHogClient();
     posthog.capture({

@@ -11,7 +11,9 @@ async function QrCodesTableLoader() {
 export default function QrCodesPage() {
   return (
     <div className="container p-4 md:p-6">
-      <h1 className="text-2xl font-bold">Códigos QR</h1>
+      <h1 className="text-2xl font-bold" data-installed-title="">
+        Códigos QR
+      </h1>
       <div className="my-4 w-full">
         <RedirectButton href="/dashboard/qr_codes/add">
           Agregar código QR

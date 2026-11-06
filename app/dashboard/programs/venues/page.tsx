@@ -13,7 +13,9 @@ export default async function VenuesPage() {
   return (
     <div className="container mx-auto space-y-6 p-3 md:p-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold">Lugares</h1>
+        <h1 className="text-2xl font-bold" data-installed-title="">
+          Lugares
+        </h1>
         <p className="text-sm text-muted-foreground">
           Un programa define su lugar por defecto; cada sesión u horario puede
           usar otro.

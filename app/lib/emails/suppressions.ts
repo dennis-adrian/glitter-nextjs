@@ -8,6 +8,7 @@ import { db } from "@/db";
 import {
   emailSuppressions,
   emailUnsubscribes,
+  notificationCampaignContacts,
   users,
   visitors,
 } from "@/db/schema";
@@ -139,8 +140,15 @@ export async function liftSuppression(input: {
 }
 
 /** The address bounced or reported us, and Resend has not lifted it. */
-export async function isSuppressed(address: string) {
-  const [row] = await db
+export async function isSuppressed(
+  address: string,
+  /**
+   * A caller inside a transaction passes it, so the check does not check out
+   * a second pooled connection while the first holds locks.
+   */
+  executor: Pick<typeof db, "select"> = db,
+) {
+  const [row] = await executor
     .select({ id: emailSuppressions.id })
     .from(emailSuppressions)
     .where(
@@ -257,6 +265,15 @@ export async function isUnsubscribed(address: string, topic: MailingTopic) {
 
 /** The address an unsubscribe link's recipient has now, or null. */
 export async function recipientAddress(recipient: UnsubscribeRecipient) {
+  if (recipient.kind === "contact") {
+    // The address the comunicado was sent to, as frozen at its send.
+    const [row] = await db
+      .select({ email: notificationCampaignContacts.email })
+      .from(notificationCampaignContacts)
+      .where(eq(notificationCampaignContacts.id, recipient.id))
+      .limit(1);
+    return row?.email ?? null;
+  }
   if (recipient.kind === "visitor") {
     const [row] = await db
       .select({ email: visitors.email })
@@ -317,6 +334,88 @@ export function bulkMailExclusion(address: SQL, topic: MailingTopic) {
         where ${emailUnsubscribes.emailKey} = lower(trim(${address}))
           and ${emailUnsubscribes.topic} in (${topic}, 'all')
       ) then 'opted_out'
+      else null
+    end
+  )`;
+}
+
+function activeSuppressionExists(address: SQL) {
+  return sql`exists (
+    select 1 from ${emailSuppressions}
+    where ${emailSuppressions.emailKey} = lower(trim(${address}))
+      and ${emailSuppressions.liftedAt} is null
+  )`;
+}
+
+function unsubscribeExists(address: SQL, topic: EmailTopic) {
+  return sql`exists (
+    select 1 from ${emailUnsubscribes}
+    where ${emailUnsubscribes.emailKey} = lower(trim(${address}))
+      and ${emailUnsubscribes.topic} = ${topic}
+  )`;
+}
+
+/**
+ * A JS flag as a constant the planner folds; a column stays a column, and a
+ * NULL in it never lifts an opt-out.
+ */
+function essentialFlag(essential: boolean | SQL) {
+  return typeof essential === "boolean"
+    ? sql.raw(essential ? "true" : "false")
+    : sql`coalesce(${essential}, false)`;
+}
+
+/**
+ * Why a comunicado's email skips `address`: `suppressed` (it bounced or
+ * reported us, which nothing overrides), `unsubscribed` (from all bulk mail,
+ * or from announcements unless the send is `essential`), or null when it
+ * does not. Unlike `bulkMailExclusion`, a complaint counts as suppressed, so
+ * an essential send cannot reach it. For the counts and for the send.
+ */
+export function comunicadoEmailExclusion(
+  address: SQL,
+  { essential }: { essential: boolean | SQL },
+) {
+  return sql<"suppressed" | "unsubscribed" | null>`(
+    case
+      when ${activeSuppressionExists(address)} then 'suppressed'
+      when ${unsubscribeExists(address, "all")} then 'unsubscribed'
+      when ${unsubscribeExists(address, "announcements")}
+        and not ${essentialFlag(essential)} then 'unsubscribed'
+      else null
+    end
+  )`;
+}
+
+/**
+ * True when only an announcements opt-out stood between `address` and the
+ * email, and `essential` lifted it: the send reaches someone who asked not
+ * to get these, so it carries no one-click unsubscribe and is counted.
+ */
+export function announcementOptOutOverridden(
+  address: SQL,
+  essential: boolean | SQL,
+) {
+  return sql<boolean>`(
+    ${essentialFlag(essential)}
+    and not ${activeSuppressionExists(address)}
+    and not ${unsubscribeExists(address, "all")}
+    and ${unsubscribeExists(address, "announcements")}
+  )`;
+}
+
+/**
+ * Why a "Novedades" email (a comunicado to visitors and guest buyers) skips
+ * `address`: `suppressed` (a bounce or a complaint), `unsubscribed` (from
+ * Novedades or from all bulk mail), or null. Nothing overrides either: a
+ * visitor comunicado is never essential. For the counts and for the send.
+ */
+export function newsEmailExclusion(address: SQL) {
+  return sql<"suppressed" | "unsubscribed" | null>`(
+    case
+      when ${activeSuppressionExists(address)} then 'suppressed'
+      when ${unsubscribeExists(address, "all")} then 'unsubscribed'
+      when ${unsubscribeExists(address, "news")} then 'unsubscribed'
       else null
     end
   )`;

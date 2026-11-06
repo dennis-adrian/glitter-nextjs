@@ -37,7 +37,7 @@ vi.mock("@/app/lib/reservations/locks", async (importOriginal) => {
 });
 
 vi.mock("@/app/lib/reservations/notification-outbox", () => ({
-  enqueueReservationNotification: enqueueMock,
+  enqueueReservationNotifications: enqueueMock,
   scheduleReservationNotificationJobs: scheduleJobsMock,
 }));
 
@@ -246,7 +246,9 @@ describe("cancelReservation lock ordering", () => {
     insertEventMock.mockReset();
     lockReservationAggregateMock.mockReset();
     releaseStandMock.mockReset();
-    enqueueMock.mockResolvedValue(42);
+    enqueueMock.mockImplementation(async (_tx, inputs: unknown[]) =>
+      inputs.map(() => 42),
+    );
     insertEventMock.mockResolvedValue(undefined);
     releaseStandMock.mockResolvedValue(true);
     lockReservationAggregateMock.mockImplementation(async () => {
@@ -335,7 +337,9 @@ describe("lockAndApplyReservationCancellation rejected event", () => {
     insertEventMock.mockReset();
     lockReservationAggregateMock.mockReset();
     releaseStandMock.mockReset();
-    enqueueMock.mockResolvedValue(42);
+    enqueueMock.mockImplementation(async (_tx, inputs: unknown[]) =>
+      inputs.map(() => 42),
+    );
     insertEventMock.mockResolvedValue(undefined);
     releaseStandMock.mockResolvedValue(true);
     lockReservationAggregateMock.mockImplementation(async () => {
@@ -409,7 +413,9 @@ describe("applyReservationCancellation writes without re-locking", () => {
     insertEventMock.mockReset();
     lockReservationAggregateMock.mockReset();
     releaseStandMock.mockReset();
-    enqueueMock.mockResolvedValue(42);
+    enqueueMock.mockImplementation(async (_tx, inputs: unknown[]) =>
+      inputs.map(() => 42),
+    );
     insertEventMock.mockResolvedValue(undefined);
     releaseStandMock.mockResolvedValue(true);
   });
@@ -427,7 +433,14 @@ describe("applyReservationCancellation writes without re-locking", () => {
     expect(lockReservationAggregateMock).not.toHaveBeenCalled();
     expect(tx.update).toHaveBeenCalled();
     expect(releaseStandMock).toHaveBeenCalledWith(tx, 7);
-    expect(enqueueMock).toHaveBeenCalledTimes(2);
+    // Both participants' emails in one call, so their inbox copies share
+    // one read of the reservation.
+    expect(enqueueMock).toHaveBeenCalledTimes(1);
+    expect(
+      enqueueMock.mock.calls[0][1].map(
+        (input: { userId: number }) => input.userId,
+      ),
+    ).toEqual([3, 5]);
   });
 
   it("cancels only invoices without a payment row", async () => {
@@ -854,7 +867,9 @@ describe("extendReservationPaymentDeadline", () => {
     claimRequestMock.mockReset();
     completeRequestMock.mockReset();
     abandonRequestMock.mockReset();
-    enqueueMock.mockResolvedValue(42);
+    enqueueMock.mockImplementation(async (_tx, inputs: unknown[]) =>
+      inputs.map(() => 42),
+    );
     insertEventMock.mockResolvedValue(undefined);
     claimRequestMock.mockResolvedValue({ kind: "claimed" });
     lockReservationAggregateMock.mockImplementation(async () => {
@@ -984,6 +999,7 @@ describe("extendReservationPaymentDeadline", () => {
     );
     expect(enqueueMock).toHaveBeenCalled();
     expect(completeRequestMock).toHaveBeenCalled();
+    expect(enqueueMock).toHaveBeenCalledTimes(1);
     expect(scheduleJobsMock).toHaveBeenCalledWith([42, 42]);
   });
 

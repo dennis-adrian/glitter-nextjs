@@ -18,7 +18,9 @@ export default async function EditQrCodePage(props: {
 
   return (
     <div className="container p-4 md:p-6">
-      <h1 className="text-2xl font-bold mb-4">Editar código QR</h1>
+      <h1 className="text-2xl font-bold mb-4" data-installed-title="">
+        Editar código QR
+      </h1>
       <div className="max-w-lg">
         <QrCodeForm qrCode={qrCodeResult.qr} />
       </div>

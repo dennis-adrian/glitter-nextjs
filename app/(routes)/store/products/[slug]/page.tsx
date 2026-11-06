@@ -1,9 +1,9 @@
-import { ArrowLeftIcon } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { z } from "zod";
 
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import ProductDetailContent from "@/app/components/organisms/store/product-detail-content";
 import StoreSectionGate from "@/app/components/organisms/store/store-section-gate";
 import SuppliesAccessNotice from "@/app/components/organisms/store/supplies-access-notice";
@@ -12,7 +12,7 @@ import { resolveMerchProductReturn } from "@/app/lib/merch/product-return";
 import { fetchProduct, fetchProductBySlug } from "@/app/lib/products/queries";
 import { getRentalEligibilityForCurrentUser } from "@/app/lib/rentals/eligibility";
 import { getProductVariantImageUrl } from "@/app/lib/products/variants";
-import { getCurrentClerkUser } from "@/app/lib/users/queries";
+import { isSignedIn } from "@/app/lib/impersonation/viewer";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 const ParamsSchema = z.object({
@@ -116,12 +116,11 @@ export default async function ProductDetailPage(props: {
   if (product.storeCategory === "supplies" && profile?.status !== "verified") {
     // getCurrentUserProfile() returns null both when signed out and when the
     // profile lookup fails, so authentication state comes from Clerk directly.
-    // Both calls are request-cached, so this costs no extra round trip.
-    const clerkUser = await getCurrentClerkUser();
+    const signedIn = await isSignedIn();
 
     return (
       <SuppliesAccessNotice
-        variant={clerkUser ? "unverified" : "signed_out"}
+        variant={signedIn ? "unverified" : "signed_out"}
         returnTo={`/store/products/${encodeURIComponent(product.slug)}`}
       />
     );
@@ -135,17 +134,16 @@ export default async function ProductDetailPage(props: {
         )
       : Promise.resolve({ href: "/supplies", label: "Volver a la tienda" }),
   ]);
+  // Opened from a collection: its crumb names it ("Volver a {name}").
+  const labels = returnLink.href.startsWith("/merch/collections/")
+    ? { [returnLink.href]: returnLink.label.replace(/^Volver a /, "") }
+    : undefined;
 
   return (
     <StoreSectionGate section={product.storeCategory}>
       <div className="container px-3 py-6">
-        <Link
-          href={returnLink.href}
-          className="text-sm text-muted-foreground flex items-center gap-1 mb-6 hover:text-foreground transition-colors"
-        >
-          <ArrowLeftIcon className="h-3.5 w-3.5" />
-          {returnLink.label}
-        </Link>
+        <ScreenTitle title={product.name} backHref={returnLink.href} />
+        <PageBreadcrumbs labels={labels} className="mb-6" />
 
         <ProductDetailContent
           product={product}

@@ -28,6 +28,7 @@ import {
   textOrNull,
   type SpeakerFormValues,
 } from "@/app/lib/programs/form-schemas";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   speakers: Speaker[];
@@ -89,7 +90,7 @@ export default function SpeakersManager({ speakers }: Props) {
       router.refresh();
     } catch (error) {
       console.error(error);
-      toast.error("No se pudo guardar el expositor");
+      toastActionError(error, "No se pudo guardar el expositor");
     }
   });
 
