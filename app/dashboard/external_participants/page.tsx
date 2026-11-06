@@ -5,7 +5,9 @@ import { Suspense } from "react";
 export default function ExternalParticipantsPage() {
   return (
     <div className="container p-4 md:p-6">
-      <h1 className="text-2xl font-bold">Participantes externos</h1>
+      <h1 className="text-2xl font-bold" data-installed-title="">
+        Participantes externos
+      </h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Instituciones, auspiciantes y otros participantes que no tienen cuenta
         en Glitter.

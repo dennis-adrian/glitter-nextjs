@@ -1,9 +1,23 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Reached through the menu's ProfileQuickViewInfo, whose social badges import
 // the server action module and with it the server env schema. Nothing here
 // invokes it.
+// Server actions: the sign-out path and the bell reach them.
+vi.mock("@/app/lib/notifications/push/actions", () => ({
+  savePushDeviceAction: vi.fn(),
+  removePushDeviceAction: vi.fn(),
+  forgetPushDeviceAction: vi.fn(),
+  releaseForeignPushDeviceAction: vi.fn(),
+}));
 vi.mock("@/app/lib/users/actions", () => ({
   deleteUserSocial: vi.fn(),
 }));
@@ -137,18 +151,18 @@ describe("UserDropdown", () => {
     unmount();
 
     render(
-      <UserDropdown profile={profile} creditsEnabled isProfileLoading={false} />,
+      <UserDropdown
+        profile={profile}
+        creditsEnabled
+        isProfileLoading={false}
+      />,
     );
     expect(within(await openMenu()).getByText("Mis créditos")).toBeTruthy();
   });
 
   it("shows a reduced menu when the profile resolved to null", async () => {
     render(
-      <UserDropdown
-        profile={null}
-        creditsEnabled
-        isProfileLoading={false}
-      />,
+      <UserDropdown profile={null} creditsEnabled isProfileLoading={false} />,
     );
 
     const menu = await openMenu();
@@ -175,7 +189,8 @@ describe("UserDropdown", () => {
     const menu = await openMenu();
     fireEvent.click(within(menu).getByText("Cerrar Sesión"));
 
-    expect(mocks.signOut).toHaveBeenCalledTimes(1);
+    // After this browser's avisos are let go of, which needs no profile.
+    await waitFor(() => expect(mocks.signOut).toHaveBeenCalledTimes(1));
   });
 
   it("points a user with no profile at the recovery page", async () => {
@@ -218,5 +233,41 @@ describe("UserDropdown", () => {
     );
 
     expect(container.innerHTML).toBe("");
+  });
+
+  describe("Entrar como participante", () => {
+    it("is offered to a global admin", async () => {
+      render(
+        <UserDropdown
+          profile={{ ...profile, role: "admin" } as NavbarProfile}
+          creditsEnabled={false}
+          isProfileLoading={false}
+        />,
+      );
+      const menu = await openMenu();
+      const item = within(menu).getByRole("menuitem", {
+        name: "Entrar como participante",
+      });
+      expect(item.getAttribute("href")).toBe("/dashboard/impersonate");
+    });
+
+    it.each(["user", "festival_admin"] as const)(
+      "is not offered to %s, nor inside a view (the profile is the participant's)",
+      async (role) => {
+        render(
+          <UserDropdown
+            profile={{ ...profile, role } as NavbarProfile}
+            creditsEnabled={false}
+            isProfileLoading={false}
+          />,
+        );
+        const menu = await openMenu();
+        expect(
+          within(menu).queryByRole("menuitem", {
+            name: "Entrar como participante",
+          }),
+        ).toBeNull();
+      },
+    );
   });
 });

@@ -8,7 +8,8 @@ import { isMailingTopic, type MailingTopic } from "@/app/lib/emails/topics";
  * The token in an unsubscribe link: which person, and which topic of bulk
  * mail they want to stop.
  *
- * It names a visitor or user row rather than carrying the address, so the
+ * It names a visitor, user or campaign contact row (a visitor comunicado's
+ * snapshot of one address) rather than carrying the address, so the
  * link puts no email in server logs or analytics. It never expires and is
  * the same every time it is made for the same person and topic: unsubscribe
  * links have to keep working in old emails, and a retried batch must carry
@@ -21,9 +22,19 @@ import { isMailingTopic, type MailingTopic } from "@/app/lib/emails/topics";
 
 const TOKEN_CONTEXT = "glitter:email-unsubscribe:v1";
 
+export type UnsubscribeRecipientKind = "visitor" | "user" | "contact";
+
 export type UnsubscribeRecipient = {
-  kind: "visitor" | "user";
+  kind: UnsubscribeRecipientKind;
   id: number;
+};
+
+const KIND_CODES = { visitor: "v", user: "u", contact: "c" } as const;
+type KindCode = (typeof KIND_CODES)[UnsubscribeRecipientKind];
+const KINDS_BY_CODE: Record<KindCode, UnsubscribeRecipientKind> = {
+  v: "visitor",
+  u: "user",
+  c: "contact",
 };
 
 export type UnsubscribeSubject = UnsubscribeRecipient & { topic: MailingTopic };
@@ -31,8 +42,8 @@ export type UnsubscribeSubject = UnsubscribeRecipient & { topic: MailingTopic };
 type TokenPayload = {
   /** Topic. */
   t: MailingTopic;
-  /** "v" for a visitor, "u" for a user. */
-  r: "v" | "u";
+  /** "v" for a visitor, "u" for a user, "c" for a campaign contact. */
+  r: KindCode;
   /** Row id. */
   i: number;
 };
@@ -52,7 +63,7 @@ function mac(body: string): Buffer {
 export function signUnsubscribeToken(subject: UnsubscribeSubject): string {
   const payload: TokenPayload = {
     t: subject.topic,
-    r: subject.kind === "visitor" ? "v" : "u",
+    r: KIND_CODES[subject.kind],
     i: subject.id,
   };
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
@@ -80,7 +91,12 @@ export function verifyUnsubscribeToken(
     return null;
   }
   if (!isMailingTopic(payload.t)) return null;
-  if (payload.r !== "v" && payload.r !== "u") return null;
+  if (
+    typeof payload.r !== "string" ||
+    !Object.prototype.hasOwnProperty.call(KINDS_BY_CODE, payload.r)
+  ) {
+    return null;
+  }
   if (
     typeof payload.i !== "number" ||
     !Number.isInteger(payload.i) ||
@@ -90,7 +106,7 @@ export function verifyUnsubscribeToken(
   }
   return {
     topic: payload.t,
-    kind: payload.r === "v" ? "visitor" : "user",
+    kind: KINDS_BY_CODE[payload.r as KindCode],
     id: payload.i,
   };
 }

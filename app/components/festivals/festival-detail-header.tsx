@@ -8,15 +8,9 @@ import Link from "next/link";
 
 import FestivalStatusBadge from "@/app/components/atoms/festival-status-badge";
 import FestivalActionsMenu from "@/app/components/festivals/festival-actions-menu";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
+import { ScreenRoot, ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { Badge } from "@/app/components/ui/badge";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/app/components/ui/breadcrumb";
 import { Button } from "@/app/components/ui/button";
 import type { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { formatFestivalDateRange } from "@/app/lib/festivals/utils";
@@ -40,19 +34,11 @@ export default function FestivalDetailHeader({
 
   return (
     <header className="space-y-3">
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink href="/dashboard/festivals">Festivales</BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem className="min-w-0">
-            <BreadcrumbPage className="block max-w-[60vw] truncate sm:max-w-md">
-              {festival.name}
-            </BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+      {/* The installed app's top bar carries back and the festival's name. */}
+      <ScreenTitle title={festival.name} />
+      {/* The festival in progress is the staff Festival tab's own page. */}
+      {festival.status === "active" ? <ScreenRoot tab="festival" /> : null}
+      <PageBreadcrumbs />
 
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0 space-y-2">
@@ -62,7 +48,10 @@ export default function FestivalDetailHeader({
               {FESTIVAL_TYPE_LABELS[festival.festivalType]}
             </Badge>
           </div>
-          <h1 className="break-words text-2xl font-bold md:text-3xl">
+          <h1
+            className="break-words text-2xl font-bold md:text-3xl"
+            data-installed-title=""
+          >
             {festival.name}
           </h1>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
@@ -81,11 +70,7 @@ export default function FestivalDetailHeader({
 
         <div className="flex shrink-0 items-center gap-2">
           {hasPublicPage ? (
-            <Button
-              asChild
-              variant="outline"
-              className="flex-1 md:flex-none"
-            >
+            <Button asChild variant="outline" className="flex-1 md:flex-none">
               <Link
                 href={`/festivals/${festival.id}`}
                 target="_blank"
@@ -96,11 +81,7 @@ export default function FestivalDetailHeader({
               </Link>
             </Button>
           ) : null}
-          <Button
-            asChild
-            variant="outline"
-            className="flex-1 md:flex-none"
-          >
+          <Button asChild variant="outline" className="flex-1 md:flex-none">
             <Link href={`/dashboard/festivals/${festival.id}/edit`}>
               <PencilIcon className="mr-2 h-4 w-4" aria-hidden />
               Editar

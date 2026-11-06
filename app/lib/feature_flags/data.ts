@@ -1,6 +1,10 @@
 import "server-only";
 
+// eslint-disable-next-line no-restricted-imports -- a global default row, see below
+import { allowHousekeepingWrite } from "@/app/lib/impersonation/housekeeping";
+
 import { eq } from "drizzle-orm";
+import { unstable_rethrow } from "next/navigation";
 import { cache } from "react";
 
 import type {
@@ -13,6 +17,7 @@ import {
   type FeatureFlagKey,
 } from "@/app/lib/feature_flags/registry";
 import type { FeatureFlagRule } from "@/app/lib/feature_flags/visibility";
+import { SHARED_CACHE_TAGS, sharedCache } from "@/app/lib/cache/shared";
 import { db } from "@/db";
 import { featureFlagUserTargets, featureFlags, users } from "@/db/schema";
 
@@ -46,11 +51,15 @@ async function fetchOrCreateFlagRow(key: FeatureFlagKey) {
     return existing[0];
   }
 
-  const inserted = await db
-    .insert(featureFlags)
-    .values({ key, visibility: FEATURE_FLAGS[key].defaultVisibility })
-    .onConflictDoNothing({ target: featureFlags.key })
-    .returning();
+  // The default row belongs to nobody; a page needs it even while an admin
+  // views the app as a participant (docs/PLAN-impersonation.md §6.2).
+  const inserted = await allowHousekeepingWrite(() =>
+    db
+      .insert(featureFlags)
+      .values({ key, visibility: FEATURE_FLAGS[key].defaultVisibility })
+      .onConflictDoNothing({ target: featureFlags.key })
+      .returning(),
+  );
 
   if (inserted.length > 0) {
     return inserted[0];
@@ -103,9 +112,9 @@ async function fetchFlagTargets(flagId: number): Promise<FeatureFlagTarget[]> {
  *
  * - It is the same value `fetchOrCreateFlagRow` would have written had it been
  *   able to reach the database, so the fallback invents no new behaviour.
- * - Every default is `hidden` and the target list empties, so the failure is
- *   fail-closed: an unreachable database can only ever hide a feature, never
- *   reveal one.
+ * - Every default is `hidden` or `admin_only` and the target list empties, so
+ *   the failure is fail-closed for participants: an unreachable database can
+ *   only ever hide a feature from them, never reveal one.
  *
  * That keeps a prerender of a public page from dying on a flag lookup — during
  * `next build` without a database, or on a transient outage in production,
@@ -116,17 +125,32 @@ async function fetchFlagTargets(flagId: number): Promise<FeatureFlagTarget[]> {
  * `fetchAllFeatureFlags` still throw, because the admin screens that manage
  * flags must never render fabricated state as if it were stored.
  */
-export async function fetchFeatureFlagRule(
-  key: FeatureFlagKey,
-): Promise<FeatureFlagRule> {
-  try {
+/**
+ * The rule as stored, shared across requests for up to five minutes: the
+ * navbar alone evaluates seven flags on every page. The flag actions expire
+ * it the moment staff change a flag or its targets.
+ */
+const readFeatureFlagRule = sharedCache(
+  async (key: FeatureFlagKey): Promise<FeatureFlagRule> => {
     const flag = await fetchFeatureFlag(key);
 
     return {
       visibility: flag.visibility,
       targetedUserIds: flag.targets.map((target) => target.userId),
     };
+  },
+  "feature-flag-rule",
+  { tags: [SHARED_CACHE_TAGS.featureFlags], revalidate: 300 },
+);
+
+export const fetchFeatureFlagRule = cache(async function fetchFeatureFlagRule(
+  key: FeatureFlagKey,
+): Promise<FeatureFlagRule> {
+  try {
+    return await readFeatureFlagRule(key);
   } catch (error) {
+    // Only a failed read falls back: Next's own control-flow errors pass.
+    unstable_rethrow(error);
     console.error(
       `fetchFeatureFlagRule("${key}"): could not read the flag, falling back ` +
         `to its registry default (${FEATURE_FLAGS[key].defaultVisibility}).`,
@@ -138,7 +162,7 @@ export async function fetchFeatureFlagRule(
       targetedUserIds: [],
     };
   }
-}
+});
 
 /**
  * Every registered flag (creating any missing rows) in registry order, which

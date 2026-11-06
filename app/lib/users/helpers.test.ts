@@ -4,11 +4,18 @@ vi.mock("server-only", () => ({}));
 
 const currentClerkUserMock = vi.hoisted(() => vi.fn());
 const fetchProfileByClerkIdMock = vi.hoisted(() => vi.fn());
+const viewerClerkIdMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/queries", () => ({
   getCurrentClerkUser: currentClerkUserMock,
   cachedFetchUserProfileByClerkId: fetchProfileByClerkIdMock,
   cachedFetchBaseUserProfileByClerkId: vi.fn(),
+}));
+
+// Whoever Clerk says is signed in is the viewer: nobody is viewing as
+// someone else in these tests.
+vi.mock("@/app/lib/impersonation/viewer", () => ({
+  getViewerClerkId: viewerClerkIdMock,
 }));
 
 vi.mock("@/app/lib/users/navbar-profile", () => ({
@@ -17,7 +24,10 @@ vi.mock("@/app/lib/users/navbar-profile", () => ({
 
 vi.mock("@/db", () => ({ db: {} }));
 
+import { notFound, redirect } from "next/navigation";
+
 import {
+  getCurrentUserProfile,
   requireAdmin,
   requireProfileOwnerOrAdmin,
   requireProfileOwnerOrStaff,
@@ -37,6 +47,25 @@ describe("profile write gates", () => {
   beforeEach(() => {
     currentClerkUserMock.mockReset();
     fetchProfileByClerkIdMock.mockReset();
+    // Whoever Clerk says is signed in is the viewer, unless a test says not.
+    viewerClerkIdMock.mockReset();
+    viewerClerkIdMock.mockImplementation(
+      async () =>
+        ((await currentClerkUserMock()) as { id: string } | null)?.id ?? null,
+    );
+  });
+
+  it("finds the profile of the viewer, not of the signed-in account", async () => {
+    // An admin is signed in and views the app as a participant.
+    currentClerkUserMock.mockResolvedValue({ id: "clerk_admin" });
+    viewerClerkIdMock.mockResolvedValue("clerk_participant");
+    fetchProfileByClerkIdMock.mockResolvedValue(OWNER);
+
+    await expect(getCurrentUserProfile()).resolves.toBe(OWNER);
+    expect(fetchProfileByClerkIdMock).toHaveBeenCalledWith("clerk_participant");
+    expect(fetchProfileByClerkIdMock).not.toHaveBeenCalledWith("clerk_admin");
+    // So nothing admin-only opens from inside the view.
+    await expect(requireAdmin()).resolves.toBeNull();
   });
 
   it("refuses an unauthenticated caller", async () => {
@@ -84,5 +113,35 @@ describe("profile write gates", () => {
     );
     await expect(requireProfileOwnerOrAdmin(OWNER.id)).resolves.toBeNull();
     await expect(requireAdmin()).resolves.toBeNull();
+  });
+});
+
+describe("getCurrentUserProfile", () => {
+  beforeEach(() => {
+    currentClerkUserMock.mockReset();
+    fetchProfileByClerkIdMock.mockReset();
+    // The viewer is the one lookup getCurrentUserProfile makes.
+    viewerClerkIdMock.mockReset();
+  });
+
+  it("reads a failed lookup as signed out", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    viewerClerkIdMock.mockRejectedValue(new Error("network down"));
+
+    await expect(getCurrentUserProfile()).resolves.toBeNull();
+  });
+
+  // A redirect or a 404 thrown underneath must reach Next, not turn into a
+  // signed-out visitor who then sees "no access" until a reload.
+  it("lets Next's own control-flow errors through", async () => {
+    viewerClerkIdMock.mockImplementation(async () => redirect("/sign_in"));
+    await expect(getCurrentUserProfile()).rejects.toMatchObject({
+      digest: expect.stringContaining("NEXT_REDIRECT"),
+    });
+
+    viewerClerkIdMock.mockImplementation(async () => notFound());
+    await expect(getCurrentUserProfile()).rejects.toMatchObject({
+      digest: expect.stringContaining("NEXT_HTTP_ERROR_FALLBACK"),
+    });
   });
 });

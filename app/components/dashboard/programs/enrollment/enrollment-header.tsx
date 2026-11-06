@@ -57,7 +57,10 @@ export default function EnrollmentHeader({
     <div className="space-y-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold break-words sm:text-2xl">
+          <h1
+            className="text-xl font-bold break-words sm:text-2xl"
+            data-installed-title=""
+          >
             {buyerName}
           </h1>
           {/* `break-all` because a long address has no break opportunity and

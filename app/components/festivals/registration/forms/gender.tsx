@@ -1,5 +1,6 @@
 "use client";
 
+import NewsOptInField from "@/app/components/form/fields/news-opt-in";
 import SelectInput from "@/app/components/form/fields/select";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
@@ -15,14 +16,14 @@ import { ArrowRightIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
-const FormSchema = visitorDetailsSchema.pick({ gender: true });
+const FormSchema = visitorDetailsSchema.pick({ gender: true, newsOptIn: true });
 
 type GenderFormProps = {
   festivalId: number;
   /** The email entered at the start, held by the server meanwhile. */
   email: string;
   /** Everything the earlier steps collected. */
-  details: Omit<VisitorDetails, "gender">;
+  details: Omit<VisitorDetails, "gender" | "newsOptIn">;
   onSuccess: (view: VisitorRegistrationView) => void;
   /** The email step expired: start again from it. */
   onRestart: () => void;
@@ -32,6 +33,7 @@ export default function GenderForm(props: GenderFormProps) {
     resolver: zodResolver(FormSchema),
     defaultValues: {
       gender: "other" as const,
+      newsOptIn: false,
     },
   });
 
@@ -40,7 +42,11 @@ export default function GenderForm(props: GenderFormProps) {
       festivalId: props.festivalId,
       mode: "door",
       email: props.email,
-      details: { ...props.details, gender: data.gender },
+      details: {
+        ...props.details,
+        gender: data.gender,
+        newsOptIn: data.newsOptIn,
+      },
     });
 
     if (res.success) {
@@ -65,6 +71,7 @@ export default function GenderForm(props: GenderFormProps) {
           placeholder="Elige una opción"
           side="top"
         />
+        <NewsOptInField control={form.control} name="newsOptIn" />
         <SubmitButton
           disabled={
             form.formState.isSubmitting || form.formState.isSubmitSuccessful

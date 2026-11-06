@@ -2,16 +2,18 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "crypto";
-import { desc, eq, inArray } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
+  type MockInstance,
   vi,
 } from "vitest";
 
@@ -23,6 +25,7 @@ import {
   festivals,
   invoiceSettlementSubmissions,
   invoices,
+  notifications,
   payments,
   reservationExternalParticipants,
   reservationNotificationJobs,
@@ -40,6 +43,14 @@ import {
 } from "@/db/schema";
 
 const currentProfileMock = vi.hoisted(() => vi.fn());
+// The admins the outbox emails. Empty unless a test names its own fixture
+// admins: the real query would return every admin in the shared database.
+const fetchAdminUsersMock = vi.hoisted(() => vi.fn());
+// Queuing runs for real, inbox copy included; sending never does. Scheduling
+// is the only way a flow reaches delivery (through next/server `after()`), so
+// it is stubbed, and Resend is mocked in case anything gets past that.
+const scheduleJobsMock = vi.hoisted(() => vi.fn());
+const sendEmailMock = vi.hoisted(() => vi.fn());
 const actorAls = new AsyncLocalStorage<{
   id: number;
   role: string;
@@ -65,11 +76,19 @@ vi.mock("@/app/lib/users/helpers", () => ({
     return profile;
   },
 }));
-vi.mock("@/app/lib/reservations/notification-outbox", () => ({
-  enqueueAdminAndOwnerNotifications: vi.fn().mockResolvedValue([]),
-  enqueueReservationNotification: vi.fn().mockResolvedValue(null),
-  scheduleReservationNotificationJobs: vi.fn(),
-}));
+// Partial: the real enqueue writes reservation_notification_jobs and, through
+// phase 2 of docs/PRD-in-app-notifications.md, their inbox copies in the same
+// transaction. Only scheduling the send is stubbed.
+vi.mock(
+  "@/app/lib/reservations/notification-outbox",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("@/app/lib/reservations/notification-outbox")
+    >()),
+    scheduleReservationNotificationJobs: scheduleJobsMock,
+  }),
+);
+vi.mock("@/app/vendors/resend", () => ({ sendEmail: sendEmailMock }));
 vi.mock("@/app/lib/uploadthing/storage", () => ({
   enqueueStorageCleanupJob: vi.fn(),
 }));
@@ -77,7 +96,7 @@ vi.mock("@/app/lib/users/queries", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/app/lib/users/queries")>();
   return {
     ...actual,
-    fetchAdminUsers: vi.fn().mockResolvedValue([]),
+    fetchAdminUsers: fetchAdminUsersMock,
   };
 });
 vi.mock("next/cache", () => ({
@@ -160,7 +179,42 @@ let rejectInvoiceSettlement: (typeof import("@/app/lib/reservations/payment-serv
 let correctSettlementProof: (typeof import("@/app/lib/reservations/payment-service"))["correctSettlementProof"];
 let reviewFestivalParticipationRequest: (typeof import("@/app/lib/user_requests/review-service"))["reviewFestivalParticipationRequest"];
 let createExternalParticipantReservation: (typeof import("@/app/lib/reservations/capacity-service"))["createExternalParticipantReservation"];
+let notificationOpensDetail: (typeof import("@/app/lib/notifications/registry"))["notificationOpensDetail"];
 let publishedTermsVersionId: number;
+let consoleErrorSpy: MockInstance<typeof console.error>;
+
+/**
+ * The line `mirrorReservationNotificationJobs` logs when it swallows a failed
+ * inbox copy. The flow still succeeds, so without this check a broken mirror
+ * would only show up as a missing row some assertions never look for.
+ */
+function isInboxCopyFailure(args: unknown[]) {
+  return (
+    typeof args[0] === "string" &&
+    args[0].includes("[notifications] Inbox copy")
+  );
+}
+
+/**
+ * The inbox kind a participant's job is mirrored as, by outbox kind; null
+ * where the email gets no inbox copy.
+ */
+const PARTICIPANT_INBOX_KIND: Record<string, string | null> = {
+  // Only admins are told; the owner is on the screen that made it.
+  reservation_created: null,
+  proof_submitted: "reservation_proof_submitted",
+  zero_value_review_requested: "reservation_zero_value_review_requested",
+  settlement_approved: "reservation_confirmed",
+  // Its email is never sent while the reservation is still pending.
+  settlement_rejected: null,
+  reservation_rejected: "reservation_cancelled",
+  deadline_extended: "reservation_payment_deadline_extended",
+  reservation_released: "reservation_released",
+  late_partner_added: "reservation_partner_added",
+  festival_participation_approved: "festival_participation_approved",
+  festival_participation_rejected: "festival_participation_rejected",
+  credit_top_up_rejected: "credit_top_up_rejected",
+};
 
 describeDatabase("paid-reservation PRD unblocker races", () => {
   beforeAll(async () => {
@@ -195,6 +249,8 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
     ({ createExternalParticipantReservation } = await import(
       "@/app/lib/reservations/capacity-service"
     ));
+    ({ notificationOpensDetail } =
+      await import("@/app/lib/notifications/registry"));
 
     const db = integrationDb!;
     const document = await db.query.festivalTermsDocuments.findFirst({
@@ -215,7 +271,21 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
     publishedTermsVersionId = published.id;
   }, 60_000);
 
+  beforeEach(() => {
+    // Calls through, so unrelated errors (a race's CONFLICT_RETRY) still
+    // print; only a swallowed inbox copy fails the test.
+    consoleErrorSpy = vi.spyOn(console, "error");
+    fetchAdminUsersMock.mockReset();
+    fetchAdminUsersMock.mockResolvedValue([]);
+    scheduleJobsMock.mockClear();
+    sendEmailMock.mockClear();
+  });
+
   afterEach(async () => {
+    const inboxCopyFailures =
+      consoleErrorSpy.mock.calls.filter(isInboxCopyFailure);
+    consoleErrorSpy.mockRestore();
+
     const db = integrationDb!;
     const leftover = fixtures.splice(0);
     for (const fixture of leftover) {
@@ -241,6 +311,16 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
         await db.delete(invoices).where(inArray(invoices.id, fixture.invoiceIds));
       }
       if (fixture.reservationIds.length > 0) {
+        // Before the reservations: the foreign key would only null these out,
+        // leaving behind any job whose recipient is not a fixture user.
+        await db
+          .delete(reservationNotificationJobs)
+          .where(
+            inArray(
+              reservationNotificationJobs.reservationId,
+              fixture.reservationIds,
+            ),
+          );
         await db
           .delete(scheduledTasks)
           .where(inArray(scheduledTasks.reservationId, fixture.reservationIds));
@@ -339,11 +419,15 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
       for (const requestId of fixture.requestIds) {
         await db.delete(userRequests).where(eq(userRequests.id, requestId));
       }
+      // Their inbox items go with them (notifications cascade on the user).
       for (const userId of fixture.userIds) {
         await db.delete(users).where(eq(users.id, userId));
       }
       await db.delete(festivals).where(eq(festivals.id, fixture.festivalId));
     }
+
+    expect(inboxCopyFailures).toEqual([]);
+    expect(sendEmailMock).not.toHaveBeenCalled();
   });
 
   afterAll(async () => {
@@ -513,6 +597,86 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
     return rows;
   }
 
+  /** Who `fetchAdminUsers` returns, so the outbox emails (and mirrors) them. */
+  function adminsAre(...admins: Array<{ id: number; email: string }>) {
+    fetchAdminUsersMock.mockResolvedValue(
+      admins.map(({ id, email }) => ({ id, email })),
+    );
+  }
+
+  async function jobsFor(userId: number) {
+    return integrationDb!
+      .select()
+      .from(reservationNotificationJobs)
+      .where(eq(reservationNotificationJobs.userId, userId))
+      .orderBy(asc(reservationNotificationJobs.id));
+  }
+
+  async function inboxFor(userId: number) {
+    return integrationDb!
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(asc(notifications.id));
+  }
+
+  /** Each queued email's inbox copy is keyed by its job. */
+  function jobDedupeKey(jobId: number) {
+    return `reservation-job:${jobId}`;
+  }
+
+  function lastScheduledJobIds() {
+    const lastCall = scheduleJobsMock.mock.lastCall as
+      | [readonly number[]]
+      | undefined;
+    return [...(lastCall?.[0] ?? [])].sort((a, b) => a - b);
+  }
+
+  function sortedIds(...ids: number[]) {
+    return [...ids].sort((a, b) => a - b);
+  }
+
+  function standLabelOf(stand: { label: string | null; standNumber: number }) {
+    return `${stand.label ?? ""}${stand.standNumber}`;
+  }
+
+  function reservationPath(
+    profileId: number,
+    festivalId: number,
+    reservationId: number,
+  ) {
+    return `/profiles/${profileId}/festivals/${festivalId}/reservations/${reservationId}`;
+  }
+
+  function dataOf(row: { data: Record<string, unknown> }) {
+    return row.data as { reservationId?: number } & Record<string, unknown>;
+  }
+
+  /**
+   * A participant's inbox mirrors their queued emails one to one: an item per
+   * job of a mirrored kind, keyed by that job, and nothing else. Jobs and
+   * their copies commit together, so this holds whichever side of a race won.
+   */
+  async function expectParticipantInboxMirrorsJobs(userId: number) {
+    const jobs = await jobsFor(userId);
+    const expected = jobs.flatMap((job) => {
+      const kind = PARTICIPANT_INBOX_KIND[job.notificationKind];
+      if (kind === undefined) {
+        throw new Error(`Unmapped outbox kind ${job.notificationKind}`);
+      }
+      return kind ? [{ dedupeKey: jobDedupeKey(job.id), kind }] : [];
+    });
+    const inbox = await inboxFor(userId);
+    const byKey = (a: { dedupeKey: string }, b: { dedupeKey: string }) =>
+      a.dedupeKey.localeCompare(b.dedupeKey);
+    expect(
+      inbox
+        .map((row) => ({ dedupeKey: row.dedupeKey, kind: row.kind }))
+        .sort(byKey),
+    ).toEqual(expected.sort(byKey));
+    return { jobs, inbox };
+  }
+
   it("serializes hold cancellation versus confirmation without deadlock", async () => {
     const {
       users: [owner],
@@ -553,6 +717,9 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
       expect(remainingHolds).toHaveLength(0);
       expect(standRow?.status).toBe("available");
     }
+    // A new reservation is only ever announced to admins.
+    const { inbox } = await expectParticipantInboxMirrorsJobs(owner.id);
+    expect(inbox).toEqual([]);
   }, 20_000);
 
   it("does not release an occupied stand when cancel races cleanup or replacement", async () => {
@@ -657,6 +824,29 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
     expect(freshInvoice.dueAt?.getTime()).toBe(task?.dueDate.getTime());
     expect(["pending", "verification_payment"]).toContain(freshInvoice.status);
     expect(reservation.status).toBe(freshInvoice.status);
+
+    // Whichever won, the inbox says exactly what committed.
+    const { inbox } = await expectParticipantInboxMirrorsJobs(owner.id);
+    const extended = inbox.filter(
+      (row) => row.kind === "reservation_payment_deadline_extended",
+    );
+    if (freshInvoice.dueAt?.getTime() === dueAt.getTime()) {
+      expect(extended).toHaveLength(1);
+      expect(dataOf(extended[0]!)).toMatchObject({
+        reservationId: invoice.reservationId,
+        role: "owner",
+        dueAt: dueAt.toISOString(),
+      });
+    } else {
+      expect(extended).toEqual([]);
+    }
+    const proofItems = inbox.filter(
+      (row) => row.kind === "reservation_proof_submitted",
+    );
+    expect(proofItems).toHaveLength(
+      freshInvoice.status === "verification_payment" ? 1 : 0,
+    );
+    expect(await inboxFor(admin.id)).toEqual([]);
   }, 20_000);
 
   it("extends a deadline concurrently with approve, reject, or cancel without deadlock", async () => {
@@ -744,6 +934,27 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
     } else {
       expect(reservation.status).toBe(freshInvoice.status);
     }
+
+    // Every committed email has its copy and no rolled-back one does; a
+    // settlement rejection, if it won, has none.
+    const { inbox } = await expectParticipantInboxMirrorsJobs(owner.id);
+    const kinds = inbox.map((row) => row.kind);
+    expect(
+      kinds.filter((kind) => kind === "reservation_proof_submitted"),
+    ).toHaveLength(1);
+    if (reservation.status === "accepted") {
+      expect(kinds).toContain("reservation_confirmed");
+    }
+    if (reservation.status === "rejected") {
+      const cancelled = inbox.find(
+        (row) => row.kind === "reservation_cancelled",
+      );
+      expect(cancelled).toBeDefined();
+      // No reason was given, so there is none to open.
+      expect(dataOf(cancelled!).reason).toBeNull();
+    }
+    // The acting admin is not a participant and no admin was emailed.
+    expect(await inboxFor(admin.id)).toEqual([]);
   }, 20_000);
 
   it("cancels only invoices without payment evidence", async () => {
@@ -844,6 +1055,35 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
         (invoice) => invoice.reservationId === paidReservation.id,
       )?.status,
     ).toBe("verification_payment");
+
+    for (const [participant, reservationId, expectedKinds] of [
+      [unpaidOwner, unpaidReservation.id, ["reservation_cancelled"]],
+      [
+        paidOwner,
+        paidReservation.id,
+        ["reservation_proof_submitted", "reservation_cancelled"],
+      ],
+    ] as const) {
+      const { inbox } = await expectParticipantInboxMirrorsJobs(participant.id);
+      expect(inbox.map((row) => row.kind)).toEqual(expectedKinds);
+      const cancelled = inbox.at(-1)!;
+      expect(cancelled).toMatchObject({
+        category: "reservations",
+        title: "Tu reserva fue cancelada",
+        actionPath: reservationPath(participant.id, festival.id, reservationId),
+        readAt: null,
+      });
+      // Cancelled without a reason: nothing to read on its own page.
+      expect(dataOf(cancelled)).toMatchObject({
+        reservationId,
+        profileId: participant.id,
+        reason: null,
+      });
+      expect(cancelled.body).not.toContain("Motivo:");
+      expect(notificationOpensDetail(cancelled.kind, cancelled.data)).toBe(
+        false,
+      );
+    }
   });
 
   it("lets settlement rejection explicitly cancel a payment-bearing invoice", async () => {
@@ -921,6 +1161,30 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
     expect(freshInvoice.status).toBe("cancelled");
     expect(freshSubmission.status).toBe("rejected");
     expect(paymentRows).toHaveLength(1);
+
+    // Cancelling replaces the settlement_rejected email, so the owner hears
+    // about the cancellation, with the reason the admin typed.
+    const { jobs, inbox } = await expectParticipantInboxMirrorsJobs(owner.id);
+    expect(jobs.map((job) => job.notificationKind)).toEqual([
+      "proof_submitted",
+      "reservation_rejected",
+    ]);
+    expect(lastScheduledJobIds()).toEqual([jobs[1]!.id]);
+    expect(inbox.map((row) => row.kind)).toEqual([
+      "reservation_proof_submitted",
+      "reservation_cancelled",
+    ]);
+    const cancelled = inbox[1]!;
+    expect(dataOf(cancelled)).toMatchObject({
+      reservationId: invoice.reservationId,
+      profileId: owner.id,
+      reason: "Comprobante rechazado; cancelar reserva",
+    });
+    expect(cancelled.body).toMatch(
+      /\n\nMotivo: Comprobante rechazado; cancelar reserva$/,
+    );
+    expect(notificationOpensDetail(cancelled.kind, cancelled.data)).toBe(true);
+    expect(await inboxFor(admin.id)).toEqual([]);
   });
 
   it("keeps at most one partner when two edits race on the same reservation", async () => {
@@ -1145,6 +1409,16 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
       .from(standReservations)
       .where(eq(standReservations.standId, stand.id));
     expect(live).toHaveLength(0);
+
+    const { inbox } = await expectParticipantInboxMirrorsJobs(owner.id);
+    expect(inbox.map((row) => row.kind)).toEqual([
+      "festival_participation_rejected",
+    ]);
+    expect(inbox[0]!.data).toEqual({
+      festivalId: festival.id,
+      festivalName: festival.name,
+      reason: "fuera de convocatoria",
+    });
   }, 20_000);
 
   it("lets exactly one of proof removal and approval win", async () => {
@@ -1256,6 +1530,22 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
       );
       expect(["pending", "verification_payment"]).toContain(freshInvoice.status);
     }
+
+    // A correction (settlement_rejected) gets no inbox copy, and a re-upload
+    // for the same reservation is deduplicated by the outbox, email and item.
+    const { jobs, inbox } = await expectParticipantInboxMirrorsJobs(owner.id);
+    expect(
+      jobs.filter((job) => job.notificationKind === "proof_submitted"),
+    ).toHaveLength(1);
+    const kinds = inbox.map((row) => row.kind);
+    expect(
+      kinds.filter((kind) => kind === "reservation_proof_submitted"),
+    ).toHaveLength(1);
+    if (reservation.status === "accepted") {
+      expect(kinds).toContain("reservation_confirmed");
+    } else {
+      expect(kinds).not.toContain("reservation_confirmed");
+    }
   }, 20_000);
 
   it("lets only one of external assignment and self-service occupancy win", async () => {
@@ -1317,4 +1607,681 @@ describeDatabase("paid-reservation PRD unblocker races", () => {
       expect(standRow?.status).toBe("held");
     }
   }, 20_000);
+
+  // Phase 2 of docs/PRD-in-app-notifications.md: each email the flows above
+  // queue lands in its recipient's inbox, written in the same transaction.
+
+  it("mirrors a reservation, its proof and its approval into the payer's and an admin's inbox", async () => {
+    const {
+      users: [owner, admin],
+      stands: [stand],
+      festival,
+      trackRequestKey,
+      trackReservation,
+      trackInvoice,
+    } = await seedFixture({
+      userCount: 2,
+      standCount: 1,
+      roles: ["user", "admin"],
+    });
+    adminsAre(admin);
+
+    const hold = await holdFor(owner, stand.id, trackRequestKey);
+    expect((await confirmFor(owner, hold.id, trackRequestKey)).success).toBe(
+      true,
+    );
+    await trackReservationRows(festival.id, trackReservation, trackInvoice);
+    const [invoice] = await integrationDb!
+      .select()
+      .from(invoices)
+      .where(eq(invoices.userId, owner.id));
+    const reservationId = invoice.reservationId;
+    const reservationRef = {
+      reservationId,
+      festivalId: festival.id,
+      festivalName: festival.name,
+      standLabel: standLabelOf(stand),
+      standCount: 1,
+    };
+
+    // A new reservation is announced to admins only: the owner made it.
+    expect(await jobsFor(owner.id)).toEqual([]);
+    expect(await inboxFor(owner.id)).toEqual([]);
+    const [createdJob] = await jobsFor(admin.id);
+    expect(createdJob).toMatchObject({
+      notificationKind: "reservation_created",
+      reservationId,
+    });
+    expect(lastScheduledJobIds()).toEqual([createdJob!.id]);
+    const [createdItem, ...noMore] = await inboxFor(admin.id);
+    expect(noMore).toEqual([]);
+    expect(createdItem).toMatchObject({
+      kind: "reservation_created_admin",
+      category: "admin",
+      dedupeKey: jobDedupeKey(createdJob!.id),
+      title: `Nueva reserva de ${owner.displayName}`,
+      actionPath: `/dashboard/reservations/${reservationId}/edit`,
+      readAt: null,
+    });
+    expect(createdItem!.data).toEqual({
+      ...reservationRef,
+      participantName: owner.displayName,
+      participantUserId: owner.id,
+    });
+
+    const proofKey = randomUUID();
+    trackRequestKey(proofKey);
+    expect(
+      (
+        await withActor(owner, () =>
+          submitPaymentProof({
+            invoiceId: invoice.id,
+            voucherUrl: "https://utfs.io/f/inbox-proof",
+            fileKey: `inbox-${proofKey}`,
+            source: "uploadthing",
+            idempotencyKey: proofKey,
+          }),
+        )
+      ).success,
+    ).toBe(true);
+
+    const [ownerProofJob] = await jobsFor(owner.id);
+    expect(ownerProofJob).toMatchObject({
+      notificationKind: "proof_submitted",
+      reservationId,
+    });
+    const adminProofJob = (await jobsFor(admin.id)).find(
+      (job) => job.notificationKind === "proof_submitted",
+    );
+    expect(adminProofJob).toBeDefined();
+    expect(lastScheduledJobIds()).toEqual(
+      sortedIds(ownerProofJob!.id, adminProofJob!.id),
+    );
+
+    const [proofItem, ...noOther] = await inboxFor(owner.id);
+    expect(noOther).toEqual([]);
+    expect(proofItem).toMatchObject({
+      kind: "reservation_proof_submitted",
+      category: "credits",
+      dedupeKey: jobDedupeKey(ownerProofJob!.id),
+      title: "Recibimos tu comprobante de pago",
+      actionPath: reservationPath(owner.id, festival.id, reservationId),
+    });
+    // A receipt for their own upload: kept, but it does not light the badge.
+    expect(proofItem!.readAt).toBeInstanceOf(Date);
+    expect(proofItem!.data).toEqual({
+      ...reservationRef,
+      profileId: owner.id,
+      selfSubmitted: true,
+    });
+
+    const adminProofItem = (await inboxFor(admin.id)).find(
+      (row) => row.dedupeKey === jobDedupeKey(adminProofJob!.id),
+    );
+    expect(adminProofItem).toMatchObject({
+      kind: "reservation_proof_submitted_admin",
+      category: "admin",
+      title: `${owner.displayName} subió el comprobante de su reserva`,
+      actionPath: `/dashboard/festivals/${festival.id}/reservations?lens=cobros&reservation=${reservationId}`,
+      readAt: null,
+    });
+    expect(adminProofItem!.data).toEqual({
+      ...reservationRef,
+      participantName: owner.displayName,
+      participantUserId: owner.id,
+    });
+
+    const [submission] = await integrationDb!
+      .select()
+      .from(invoiceSettlementSubmissions)
+      .where(eq(invoiceSettlementSubmissions.invoiceId, invoice.id));
+    expect(
+      (
+        await withActor(admin, () =>
+          approveInvoiceSettlement({ submissionId: submission.id }),
+        )
+      ).success,
+    ).toBe(true);
+
+    const approvedJob = (await jobsFor(owner.id)).find(
+      (job) => job.notificationKind === "settlement_approved",
+    );
+    expect(approvedJob).toBeDefined();
+    expect(lastScheduledJobIds()).toEqual([approvedJob!.id]);
+    const confirmed = (await inboxFor(owner.id)).find(
+      (row) => row.dedupeKey === jobDedupeKey(approvedJob!.id),
+    );
+    expect(confirmed).toMatchObject({
+      kind: "reservation_confirmed",
+      category: "reservations",
+      title: "¡Tu reserva está confirmada!",
+      body: `Confirmamos tu reserva del espacio ${standLabelOf(stand)} en ${festival.name}. ¡Te esperamos!`,
+      actionPath: reservationPath(owner.id, festival.id, reservationId),
+      readAt: null,
+    });
+    // The fixture festival has no dates or place: nothing to snapshot.
+    expect(confirmed!.data).toEqual({
+      ...reservationRef,
+      profileId: owner.id,
+      startsAt: null,
+      locationLabel: null,
+    });
+    await expectParticipantInboxMirrorsJobs(owner.id);
+    // Approval emails the payer alone.
+    expect((await inboxFor(admin.id)).map((row) => row.kind)).toEqual([
+      "reservation_created_admin",
+      "reservation_proof_submitted_admin",
+    ]);
+  });
+
+  it("keeps admin copies from the admin who acted and the admin who pays the cobro", async () => {
+    const {
+      users: [owner, actingAdmin, otherAdmin, payerAdmin],
+      stands: [assignedStand, ownStand],
+      festival,
+      trackRequestKey,
+      trackReservation,
+      trackInvoice,
+    } = await seedFixture({
+      userCount: 4,
+      standCount: 2,
+      roles: ["user", "admin", "admin", "admin"],
+    });
+    adminsAre(actingAdmin, otherAdmin, payerAdmin);
+
+    // An admin assigns a stand: every admin is emailed, the one who did it
+    // gets no item.
+    const createKey = randomUUID();
+    trackRequestKey(createKey);
+    const created = await withActor(actingAdmin, () =>
+      createAdminReservation({
+        festivalId: festival.id,
+        standId: assignedStand.id,
+        ownerUserId: owner.id,
+        idempotencyKey: createKey,
+      }),
+    );
+    expect(created.success).toBe(true);
+    const assignedId = created.reservationId!;
+    await trackReservationRows(festival.id, trackReservation, trackInvoice);
+
+    for (const admin of [actingAdmin, otherAdmin, payerAdmin]) {
+      expect(
+        (await jobsFor(admin.id)).map((job) => [
+          job.notificationKind,
+          job.reservationId,
+        ]),
+      ).toEqual([["reservation_created", assignedId]]);
+    }
+    expect(lastScheduledJobIds()).toHaveLength(3);
+    expect(await inboxFor(actingAdmin.id)).toEqual([]);
+    for (const admin of [otherAdmin, payerAdmin]) {
+      const [job] = await jobsFor(admin.id);
+      const inbox = await inboxFor(admin.id);
+      expect(inbox).toHaveLength(1);
+      expect(inbox[0]).toMatchObject({
+        kind: "reservation_created_admin",
+        category: "admin",
+        dedupeKey: jobDedupeKey(job!.id),
+        title: `Nueva reserva de ${owner.displayName}`,
+        actionPath: `/dashboard/reservations/${assignedId}/edit`,
+      });
+      expect(dataOf(inbox[0]!)).toMatchObject({
+        reservationId: assignedId,
+        participantName: owner.displayName,
+      });
+    }
+    // The participant is not told until the payment reminder (PRD §11).
+    expect(await jobsFor(owner.id)).toEqual([]);
+    expect(await inboxFor(owner.id)).toEqual([]);
+
+    // An admin books and pays their own stand: they get the participant's
+    // receipt, not the admin copies of their own reservation.
+    const hold = await holdFor(payerAdmin, ownStand.id, trackRequestKey);
+    expect(
+      (await confirmFor(payerAdmin, hold.id, trackRequestKey)).success,
+    ).toBe(true);
+    await trackReservationRows(festival.id, trackReservation, trackInvoice);
+    const [ownInvoice] = await integrationDb!
+      .select()
+      .from(invoices)
+      .where(eq(invoices.userId, payerAdmin.id));
+    const ownId = ownInvoice.reservationId;
+    const proofKey = randomUUID();
+    trackRequestKey(proofKey);
+    expect(
+      (
+        await withActor(payerAdmin, () =>
+          submitPaymentProof({
+            invoiceId: ownInvoice.id,
+            voucherUrl: "https://utfs.io/f/inbox-admin-proof",
+            fileKey: `inbox-admin-${proofKey}`,
+            source: "uploadthing",
+            idempotencyKey: proofKey,
+          }),
+        )
+      ).success,
+    ).toBe(true);
+
+    // Emailed as the payer and as an admin; one item, the payer's.
+    const payerJobs = (await jobsFor(payerAdmin.id)).filter(
+      (job) => job.reservationId === ownId,
+    );
+    expect(payerJobs.map((job) => job.notificationKind).sort()).toEqual([
+      "proof_submitted",
+      "proof_submitted",
+      "reservation_created",
+    ]);
+    const ownItems = (await inboxFor(payerAdmin.id)).filter(
+      (row) => dataOf(row).reservationId === ownId,
+    );
+    expect(ownItems.map((row) => row.kind)).toEqual([
+      "reservation_proof_submitted",
+    ]);
+    expect(ownItems[0]!.readAt).toBeInstanceOf(Date);
+    expect(payerJobs.map((job) => jobDedupeKey(job.id))).toContain(
+      ownItems[0]!.dedupeKey,
+    );
+
+    // The other admins hear about both, in the payer's name.
+    for (const admin of [actingAdmin, otherAdmin]) {
+      const items = (await inboxFor(admin.id)).filter(
+        (row) => dataOf(row).reservationId === ownId,
+      );
+      expect(items.map((row) => [row.kind, row.title])).toEqual([
+        [
+          "reservation_created_admin",
+          `Nueva reserva de ${payerAdmin.displayName}`,
+        ],
+        [
+          "reservation_proof_submitted_admin",
+          `${payerAdmin.displayName} subió el comprobante de su reserva`,
+        ],
+      ]);
+    }
+  });
+
+  it("writes no inbox copy for a proof correction, a settlement rejection or a deduplicated proof", async () => {
+    const {
+      users: [correctedOwner, rejectedOwner, admin],
+      stands: [correctedStand, rejectedStand],
+      festival,
+      trackRequestKey,
+      trackReservation,
+      trackInvoice,
+    } = await seedFixture({
+      userCount: 3,
+      standCount: 2,
+      roles: ["user", "user", "admin"],
+    });
+    adminsAre(admin);
+
+    const submitProofFor = async (
+      owner: { id: number; role: string },
+      invoiceId: number,
+    ) => {
+      const key = randomUUID();
+      trackRequestKey(key);
+      const result = await withActor(owner, () =>
+        submitPaymentProof({
+          invoiceId,
+          voucherUrl: `https://utfs.io/f/inbox-${key}`,
+          fileKey: `inbox-${key}`,
+          source: "uploadthing",
+          idempotencyKey: key,
+        }),
+      );
+      expect(result.success).toBe(true);
+    };
+
+    const invoiceByOwner = new Map<number, typeof invoices.$inferSelect>();
+    for (const [owner, stand] of [
+      [correctedOwner, correctedStand],
+      [rejectedOwner, rejectedStand],
+    ] as const) {
+      const hold = await holdFor(owner, stand.id, trackRequestKey);
+      expect((await confirmFor(owner, hold.id, trackRequestKey)).success).toBe(
+        true,
+      );
+      await trackReservationRows(festival.id, trackReservation, trackInvoice);
+      const [invoice] = await integrationDb!
+        .select()
+        .from(invoices)
+        .where(eq(invoices.userId, owner.id));
+      invoiceByOwner.set(owner.id, invoice);
+      await submitProofFor(owner, invoice.id);
+    }
+    const adminItemsBefore = await inboxFor(admin.id);
+    expect(adminItemsBefore.map((row) => row.kind).sort()).toEqual([
+      "reservation_created_admin",
+      "reservation_created_admin",
+      "reservation_proof_submitted_admin",
+      "reservation_proof_submitted_admin",
+    ]);
+
+    const correctionKey = randomUUID();
+    trackRequestKey(correctionKey);
+    expect(
+      (
+        await withActor(admin, () =>
+          correctSettlementProof({
+            invoiceId: invoiceByOwner.get(correctedOwner.id)!.id,
+            reason: "archivo ilegible",
+            idempotencyKey: correctionKey,
+          }),
+        )
+      ).success,
+    ).toBe(true);
+    const [rejectedSubmission] = await integrationDb!
+      .select()
+      .from(invoiceSettlementSubmissions)
+      .where(
+        eq(
+          invoiceSettlementSubmissions.invoiceId,
+          invoiceByOwner.get(rejectedOwner.id)!.id,
+        ),
+      );
+    expect(
+      (
+        await withActor(admin, () =>
+          rejectInvoiceSettlement({
+            submissionId: rejectedSubmission.id,
+            reason: "monto incorrecto",
+            correction: { type: "keep_amount" },
+          }),
+        )
+      ).success,
+    ).toBe(true);
+
+    for (const owner of [correctedOwner, rejectedOwner]) {
+      const { jobs, inbox } = await expectParticipantInboxMirrorsJobs(owner.id);
+      // The email is queued (and never sent while the reservation is
+      // pending); the inbox gets nothing.
+      expect(jobs.map((job) => job.notificationKind)).toEqual([
+        "proof_submitted",
+        "settlement_rejected",
+      ]);
+      expect(inbox.map((row) => row.kind)).toEqual([
+        "reservation_proof_submitted",
+      ]);
+      expect(inbox.map((row) => row.dedupeKey)).not.toContain(
+        jobDedupeKey(jobs[1]!.id),
+      );
+    }
+
+    // A second proof for the same reservation is the same email to the
+    // outbox: deduplicated away, so no second item for anyone.
+    await submitProofFor(
+      correctedOwner,
+      invoiceByOwner.get(correctedOwner.id)!.id,
+    );
+    const { jobs: jobsAfter, inbox: inboxAfter } =
+      await expectParticipantInboxMirrorsJobs(correctedOwner.id);
+    expect(jobsAfter.map((job) => job.notificationKind)).toEqual([
+      "proof_submitted",
+      "settlement_rejected",
+    ]);
+    expect(inboxAfter.map((row) => row.kind)).toEqual([
+      "reservation_proof_submitted",
+    ]);
+    // Neither a correction, a rejection nor the repeated proof reaches the
+    // admins' inbox.
+    expect(await inboxFor(admin.id)).toEqual(adminItemsBefore);
+  });
+
+  it("copies a cancellation and its reason to every participant", async () => {
+    const {
+      users: [owner, partner, admin],
+      stands: [stand],
+      festival,
+      trackRequestKey,
+      trackReservation,
+      trackInvoice,
+    } = await seedFixture({
+      userCount: 3,
+      standCount: 1,
+      roles: ["user", "user", "admin"],
+    });
+    const hold = await holdFor(owner, stand.id, trackRequestKey);
+    expect(
+      (await confirmFor(owner, hold.id, trackRequestKey, partner.id)).success,
+    ).toBe(true);
+    const [{ id: reservationId }] = await trackReservationRows(
+      festival.id,
+      trackReservation,
+      trackInvoice,
+    );
+
+    const reason = "Reorganizamos el pabellón de ilustración";
+    expect(
+      (
+        await withActor(admin, () =>
+          cancelReservation({ reservationId, reason }),
+        )
+      ).success,
+    ).toBe(true);
+
+    const jobIds: number[] = [];
+    for (const participant of [owner, partner]) {
+      const { jobs, inbox } = await expectParticipantInboxMirrorsJobs(
+        participant.id,
+      );
+      expect(jobs.map((job) => job.notificationKind)).toEqual([
+        "reservation_rejected",
+      ]);
+      jobIds.push(jobs[0]!.id);
+      expect(inbox).toHaveLength(1);
+      const [item] = inbox;
+      expect(item).toMatchObject({
+        kind: "reservation_cancelled",
+        category: "reservations",
+        title: "Tu reserva fue cancelada",
+        body: `Cancelamos tu reserva del espacio ${standLabelOf(stand)} en ${festival.name} y el espacio volvió a quedar disponible.\n\nMotivo: ${reason}`,
+        actionPath: reservationPath(participant.id, festival.id, reservationId),
+        readAt: null,
+      });
+      expect(item!.data).toEqual({
+        reservationId,
+        festivalId: festival.id,
+        festivalName: festival.name,
+        standLabel: standLabelOf(stand),
+        standCount: 1,
+        profileId: participant.id,
+        reason,
+      });
+      // The admin wrote it for them: it opens on its own page.
+      expect(notificationOpensDetail(item!.kind, item!.data)).toBe(true);
+    }
+    expect(lastScheduledJobIds()).toEqual(sortedIds(...jobIds));
+    expect(await inboxFor(admin.id)).toEqual([]);
+  });
+
+  it("copies a deadline extension to the owner and the partner, each in their role", async () => {
+    const {
+      users: [owner, partner, admin],
+      stands: [stand],
+      festival,
+      trackRequestKey,
+      trackReservation,
+      trackInvoice,
+    } = await seedFixture({
+      userCount: 3,
+      standCount: 1,
+      roles: ["user", "user", "admin"],
+    });
+    const hold = await holdFor(owner, stand.id, trackRequestKey);
+    expect(
+      (await confirmFor(owner, hold.id, trackRequestKey, partner.id)).success,
+    ).toBe(true);
+    const [{ id: reservationId }] = await trackReservationRows(
+      festival.id,
+      trackReservation,
+      trackInvoice,
+    );
+
+    const dueAt = new Date(Date.now() + 9 * 24 * 60 * 60 * 1000);
+    const extend = () =>
+      withActor(admin, () =>
+        extendReservationPaymentDeadline({ reservationId, dueAt }),
+      );
+    expect((await extend()).success).toBe(true);
+
+    const reservationRef = {
+      reservationId,
+      festivalId: festival.id,
+      festivalName: festival.name,
+      standLabel: standLabelOf(stand),
+      standCount: 1,
+    };
+    const ownerItems = (await expectParticipantInboxMirrorsJobs(owner.id))
+      .inbox;
+    expect(ownerItems).toHaveLength(1);
+    expect(ownerItems[0]).toMatchObject({
+      kind: "reservation_payment_deadline_extended",
+      category: "credits",
+      title: "Tenés más tiempo para pagar tu reserva",
+      actionPath: reservationPath(owner.id, festival.id, reservationId),
+      readAt: null,
+    });
+    expect(ownerItems[0]!.data).toEqual({
+      ...reservationRef,
+      profileId: owner.id,
+      role: "owner",
+      ownerName: owner.displayName,
+      ownerUserId: owner.id,
+      dueAt: dueAt.toISOString(),
+    });
+
+    const partnerItems = (await expectParticipantInboxMirrorsJobs(partner.id))
+      .inbox;
+    expect(partnerItems).toHaveLength(1);
+    expect(partnerItems[0]).toMatchObject({
+      kind: "reservation_payment_deadline_extended",
+      category: "credits",
+      title: "Hay más tiempo para pagar la reserva que compartís",
+      actionPath: reservationPath(partner.id, festival.id, reservationId),
+      readAt: null,
+    });
+    expect(partnerItems[0]!.data).toEqual({
+      ...reservationRef,
+      profileId: partner.id,
+      role: "partner",
+      ownerName: owner.displayName,
+      ownerUserId: owner.id,
+      dueAt: dueAt.toISOString(),
+    });
+    // Only the cobro's holder can upload the voucher; the partner is told who.
+    expect(partnerItems[0]!.body).toContain(
+      `El cobro está a nombre de ${owner.displayName}`,
+    );
+
+    // The same extension again is a replay: no second email, no second item.
+    expect((await extend()).success).toBe(true);
+    for (const participant of [owner, partner]) {
+      const { inbox } = await expectParticipantInboxMirrorsJobs(participant.id);
+      expect(inbox).toHaveLength(1);
+    }
+    expect(await inboxFor(admin.id)).toEqual([]);
+  });
+
+  it("copies a participation decision to the applicant", async () => {
+    const {
+      users: [approved, rejected, rejectedWithoutReason, admin],
+      enrollments: [approvedRequest, rejectedRequest, silentRequest],
+      festival,
+    } = await seedFixture({
+      userCount: 4,
+      standCount: 1,
+      roles: ["user", "user", "user", "admin"],
+      enrollmentStatus: "pending",
+    });
+    const review = (input: Record<string, unknown>) =>
+      withActor(admin, () => reviewFestivalParticipationRequest(input));
+
+    const reason = "El cupo de ilustración ya está completo";
+    expect(
+      (await review({ requestId: approvedRequest.id, status: "accepted" }))
+        .success,
+    ).toBe(true);
+    const [approvedJob] = await jobsFor(approved.id);
+    expect(lastScheduledJobIds()).toEqual([approvedJob!.id]);
+    expect(
+      (
+        await review({
+          requestId: rejectedRequest.id,
+          status: "rejected",
+          reason,
+        })
+      ).success,
+    ).toBe(true);
+    expect(
+      (await review({ requestId: silentRequest.id, status: "rejected" }))
+        .success,
+    ).toBe(true);
+
+    const approvedItems = (await expectParticipantInboxMirrorsJobs(approved.id))
+      .inbox;
+    expect(approvedItems).toHaveLength(1);
+    expect(approvedItems[0]).toMatchObject({
+      kind: "festival_participation_approved",
+      category: "reservations",
+      dedupeKey: jobDedupeKey(approvedJob!.id),
+      title: `Tu postulación para ${festival.name} fue aprobada`,
+      // Reservations opened a minute before the fixture was made.
+      body: "Ya podés continuar con la reserva de tu espacio.",
+      actionPath: `/festivals/${festival.id}/terms`,
+      actionLabel: "Reservar mi espacio",
+      readAt: null,
+    });
+    expect(approvedItems[0]!.data).toEqual({
+      festivalId: festival.id,
+      festivalName: festival.name,
+      reservationsStartDate: festival.reservationsStartDate!.toISOString(),
+      reservationsOpen: true,
+    });
+    expect(
+      notificationOpensDetail(approvedItems[0]!.kind, approvedItems[0]!.data),
+    ).toBe(false);
+
+    const rejectedItems = (await expectParticipantInboxMirrorsJobs(rejected.id))
+      .inbox;
+    expect(rejectedItems).toHaveLength(1);
+    expect(rejectedItems[0]).toMatchObject({
+      kind: "festival_participation_rejected",
+      category: "reservations",
+      title: `Novedades sobre tu postulación para ${festival.name}`,
+      actionPath: null,
+      readAt: null,
+    });
+    expect(rejectedItems[0]!.data).toEqual({
+      festivalId: festival.id,
+      festivalName: festival.name,
+      reason,
+    });
+    expect(rejectedItems[0]!.body).toContain(
+      `El motivo que registramos es: ${reason}`,
+    );
+    expect(
+      notificationOpensDetail(rejectedItems[0]!.kind, rejectedItems[0]!.data),
+    ).toBe(true);
+
+    const silentItems = (
+      await expectParticipantInboxMirrorsJobs(rejectedWithoutReason.id)
+    ).inbox;
+    expect(silentItems.map((row) => row.kind)).toEqual([
+      "festival_participation_rejected",
+    ]);
+    expect(dataOf(silentItems[0]!).reason).toBeNull();
+    expect(silentItems[0]!.body).not.toContain("El motivo");
+
+    // Approving again changes nothing: no second email, no second item.
+    expect(
+      (await review({ requestId: approvedRequest.id, status: "accepted" }))
+        .success,
+    ).toBe(true);
+    expect(
+      (await expectParticipantInboxMirrorsJobs(approved.id)).inbox,
+    ).toHaveLength(1);
+    expect(await inboxFor(admin.id)).toEqual([]);
+  });
 });

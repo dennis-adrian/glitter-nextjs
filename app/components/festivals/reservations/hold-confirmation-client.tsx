@@ -18,6 +18,7 @@ import { toast } from "sonner";
 
 import { UserCategory } from "@/app/api/users/definitions";
 import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
+import { useScreenBack } from "@/app/components/navbar/screen-bar";
 import MapCanvas from "@/app/components/maps/map-canvas";
 import {
   getStandFillColor,
@@ -42,6 +43,7 @@ import PartnerSelection from "./partner-selection";
 import type { PartnerSearchResultDto } from "@/app/lib/reservations/dto";
 import { cn } from "@/app/lib/utils";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 function partnerDisabledReason(
   denialCode: PartnerSearchResultDto["denialCode"],
@@ -301,7 +303,7 @@ export default function HoldConfirmationClient({
           toast.info("Tu reserva temporal expiró");
         } catch (error) {
           console.error("Error expiring hold", error);
-          toast.error("No se pudo cancelar la reserva temporal");
+          toastActionError(error, "No se pudo cancelar la reserva temporal");
         } finally {
           if (!cancelled) {
             router.replace(mapUrl);
@@ -378,13 +380,13 @@ export default function HoldConfirmationClient({
           toast.info(res.message);
           router.replace(mapUrl);
         }
-      } catch {
-        toast.error("Error al confirmar la reserva");
+      } catch (error) {
+        toastActionError(error, "Error al confirmar la reserva");
       }
     });
   };
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     if (isSubmitting) return;
     startSubmitTransition(async () => {
       try {
@@ -404,11 +406,24 @@ export default function HoldConfirmationClient({
         } else {
           toast.error(res.message);
         }
-      } catch {
-        toast.error("Error al cancelar");
+      } catch (error) {
+        toastActionError(error, "Error al cancelar");
       }
     });
-  };
+  }, [
+    isSubmitting,
+    hold.id,
+    festival.id,
+    festival.name,
+    stand.id,
+    stand.standNumber,
+    profile.category,
+    router,
+    mapUrl,
+  ]);
+  // Back in the installed app's top bar frees the held stand too, like the
+  // in-page "Volver al mapa".
+  useScreenBack(handleCancel);
 
   const isExpired = remainingSeconds === 0;
   const allKnownPartnerOptions = useMemo(

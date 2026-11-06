@@ -11,6 +11,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/app/components/ui/alert-dialog";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Checkbox } from "@/app/components/ui/checkbox";
@@ -82,7 +84,6 @@ import {
   PlusIcon,
   Trash2Icon,
 } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -454,13 +455,12 @@ export default function FestivalTermsEditor({
     <div className="space-y-6">
       <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b bg-background/95 py-3 backdrop-blur">
         <div className="min-w-0">
-          <Link
-            href="/dashboard/terms"
-            className="text-sm text-muted-foreground hover:text-foreground"
+          <PageBreadcrumbs />
+          <ScreenTitle title={`Editar borrador · v${draft.versionNumber}`} />
+          <h1
+            className="text-lg font-semibold sm:text-xl"
+            data-installed-title=""
           >
-            ← Términos y condiciones
-          </Link>
-          <h1 className="text-lg font-semibold sm:text-xl">
             Editar borrador · v{draft.versionNumber}
           </h1>
         </div>

@@ -1,18 +1,16 @@
 import TryAgainForm from "@/app/(routes)/my_profile/try-again-form";
 import { createUserProfile } from "@/app/lib/users/actions";
-import {
-  fetchUserProfileByClerkId,
-  getCurrentClerkUser,
-} from "@/app/lib/users/queries";
+import { getViewerClerkId } from "@/app/lib/impersonation/viewer";
+import { fetchUserProfileByClerkId } from "@/app/lib/users/queries";
 import { CircleXIcon } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 export default async function ProfileCreationPage() {
-  const user = await getCurrentClerkUser();
-  if (!user) return null;
+  const clerkId = await getViewerClerkId();
+  if (!clerkId) return null;
 
-  const profile = await fetchUserProfileByClerkId(user.id);
+  const profile = await fetchUserProfileByClerkId(clerkId);
   if (!profile) {
     const res = await createUserProfile();
 

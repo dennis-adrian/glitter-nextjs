@@ -12,6 +12,7 @@ import {
   unpublishSession,
 } from "@/app/lib/programs/admin-actions";
 import type { ProgramStatus } from "@/app/lib/programs/definitions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type ProgramProps = {
   scope: "program";
@@ -58,7 +59,7 @@ export default function PublicationButtons(props: Props) {
         }
       } catch (error) {
         console.error(error);
-        toast.error("No se pudo cambiar la publicación");
+        toastActionError(error, "No se pudo cambiar la publicación");
       }
     });
   }

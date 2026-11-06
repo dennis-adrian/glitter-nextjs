@@ -46,13 +46,30 @@ export const CREDIT_LEDGER_KIND_LABELS: Record<CreditLedgerKind, string> = {
 export function canRevertCreditEntry(entry: {
   kind: CreditLedgerKind;
   isReverted: boolean;
+  /**
+   * A credit gift's entries are undone from the gift's page, which also
+   * withdraws the notice and tells the participant. Reverting one here would
+   * leave the gift saying the person still holds it.
+   */
+  creditGiftId?: number | null;
 }): boolean {
-  if (entry.isReverted) return false;
+  if (entry.isReverted || entry.creditGiftId != null) return false;
   return (
     entry.kind === "grant" ||
     entry.kind === "deduction" ||
     entry.kind === "adjustment" ||
     entry.kind === "debt_resolution"
+  );
+}
+
+/** A gift's grant still standing: the one entry that is undone from the gift. */
+export function isOpenGiftGrant(entry: {
+  kind: CreditLedgerKind;
+  isReverted: boolean;
+  creditGiftId?: number | null;
+}): boolean {
+  return (
+    entry.creditGiftId != null && entry.kind === "grant" && !entry.isReverted
   );
 }
 

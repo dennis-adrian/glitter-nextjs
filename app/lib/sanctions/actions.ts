@@ -10,6 +10,7 @@ import {
   attemptDisciplinaryNotificationJob,
   enqueueSanctionLifecycleNotification,
 } from "@/app/lib/infractions/notifications";
+import { drainDuePushDeliveries } from "@/app/lib/notifications/deliveries";
 import type { SanctionMutationResult } from "@/app/lib/sanctions/definitions";
 import {
   mapSanctionMutationError,
@@ -299,7 +300,12 @@ export async function createAndApproveSanction(
     });
 
     const notificationJobId = createdSanction.notificationJobId;
-    after(() => attemptDisciplinaryNotificationJob(notificationJobId));
+    after(() =>
+      Promise.allSettled([
+        attemptDisciplinaryNotificationJob(notificationJobId),
+        drainDuePushDeliveries(),
+      ]),
+    );
 
     return {
       success: true,
@@ -616,7 +622,12 @@ export async function editSanction(
     revalidateSanctionPaths(result);
 
     const notificationJobId = result.notificationJobId;
-    after(() => attemptDisciplinaryNotificationJob(notificationJobId));
+    after(() =>
+      Promise.allSettled([
+        attemptDisciplinaryNotificationJob(notificationJobId),
+        drainDuePushDeliveries(),
+      ]),
+    );
 
     return {
       success: true,
@@ -709,7 +720,12 @@ export async function revokeSanction(
     revalidateSanctionPaths(result);
 
     const notificationJobId = result.notificationJobId;
-    after(() => attemptDisciplinaryNotificationJob(notificationJobId));
+    after(() =>
+      Promise.allSettled([
+        attemptDisciplinaryNotificationJob(notificationJobId),
+        drainDuePushDeliveries(),
+      ]),
+    );
 
     return {
       success: true,

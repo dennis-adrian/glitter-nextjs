@@ -21,6 +21,7 @@ function festival(artwork: Partial<Record<string, string | null>> = {}) {
     festivalDates: [{ startDate: new Date("2026-09-24") }],
     posterUrl: null,
     festivalBannerUrl: null,
+    festivalBannerMobileUrl: null,
     thumbnailUrl: null,
     ...artwork,
   } as never;

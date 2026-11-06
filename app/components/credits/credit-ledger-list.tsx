@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
+import { CREDIT_GIFT_WALLET_LABEL } from "@/app/lib/credit_gifts/definitions";
 import { formatDateWithTime } from "@/app/lib/formatters";
 import {
   type FeatureHold,
@@ -93,9 +94,22 @@ export default function CreditLedgerList({
         node: (
           <li className="flex items-start justify-between gap-4 py-3">
             <div className="min-w-0">
-              <p className="text-sm font-medium">{TYPE_LABELS[entry.type]}</p>
-              {detail && (
-                <p className="text-xs text-muted-foreground">{detail}</p>
+              <p className="text-sm font-medium">
+                {entry.gift
+                  ? CREDIT_GIFT_WALLET_LABEL
+                  : TYPE_LABELS[entry.type]}
+              </p>
+              {entry.gift ? (
+                <>
+                  <p className="text-xs font-medium">{entry.gift.title}</p>
+                  <p className="whitespace-pre-line text-xs text-muted-foreground">
+                    {entry.gift.message}
+                  </p>
+                </>
+              ) : (
+                detail && (
+                  <p className="text-xs text-muted-foreground">{detail}</p>
+                )
               )}
               <p className="text-xs text-muted-foreground">
                 {formatDateWithTime(entry.createdAt)}

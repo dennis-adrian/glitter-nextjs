@@ -524,6 +524,8 @@ export async function submitPaymentProof(
           email: admin.email,
         })),
         payload: { invoiceId: invoice.id, submissionId: submission.id },
+        // An admin may submit it for the participant, from the console.
+        actorUserId: actor.id,
       });
 
       return finishCreated({
@@ -716,6 +718,8 @@ export async function submitZeroValueInvoiceForReview(
           email: admin.email,
         })),
         payload: { invoiceId: invoice.id, submissionId: submission.id },
+        // An admin may submit it for the participant, from the console.
+        actorUserId: actor.id,
       });
 
       return finish({

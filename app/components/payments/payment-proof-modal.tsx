@@ -17,6 +17,7 @@ import { Form } from "@/app/components/ui/form";
 import { toast } from "sonner";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { useMemo } from "react";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type PaymentProofModalProps = {
   /**
@@ -50,7 +51,7 @@ export default function PaymentProofModal(props: PaymentProofModalProps) {
         toast.error(result.message);
       }
     } catch (error) {
-      toast.error("Error inesperado al confirmar la reserva");
+      toastActionError(error, "Error inesperado al confirmar la reserva");
       console.error(error);
     }
   });

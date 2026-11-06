@@ -6,6 +6,7 @@ import {
   fetchOrder,
 } from "@/app/lib/orders/actions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 
 export default async function AdminOrderEditPage({
   params,
@@ -26,8 +27,11 @@ export default async function AdminOrderEditPage({
     notFound();
   return (
     <div className="mx-auto max-w-3xl space-y-4">
+      <ScreenTitle title={`Modificar pedido #${order.id}`} />
       <div>
-        <h1 className="text-xl font-semibold">Modificar pedido #{order.id}</h1>
+        <h1 className="text-xl font-semibold" data-installed-title="">
+          Modificar pedido #{order.id}
+        </h1>
         <p className="text-sm text-muted-foreground">
           Los cambios quedan registrados en la actividad del pedido.
         </p>

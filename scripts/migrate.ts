@@ -144,6 +144,16 @@ async function main() {
 
   console.info(`Migrating ${migrationTargetLabel(process.env.POSTGRES_URL)}`);
 
+  // The build migrates while the old deployment still serves, and an ALTER
+  // waiting on a lock queues every later reader of that table behind it. Bulk
+  // email holds a lock across a Resend call, so a migration gives up after
+  // five seconds instead: the build fails, the old deployment keeps serving,
+  // and a redeploy tries again. Attached before anything uses the pool, since
+  // pg-pool reuses clients whose connect event has already fired.
+  pool.on("connect", (client) => {
+    client.query("SET lock_timeout = '5s'").catch(() => undefined);
+  });
+
   try {
     const catalogPending = await catalogMigrationPending();
     const catalogBackfillDone = catalogPending

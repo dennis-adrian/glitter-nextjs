@@ -21,6 +21,8 @@ export const EMAIL_TOPIC_LABELS: Record<EmailTopic, string> = {
     "las invitaciones para acreditarte a nuestros festivales",
   participant_invitations:
     "los avisos de festivales abiertos para participantes",
+  announcements: "los anuncios de Productora Glitter",
+  news: "las novedades de Productora Glitter",
   all: "todos nuestros correos masivos",
 };
 
@@ -28,6 +30,8 @@ export const EMAIL_TOPIC_LABELS: Record<EmailTopic, string> = {
 export const EMAIL_TOPIC_SHORT_LABELS: Record<EmailTopic, string> = {
   visitor_invitations: "Invitaciones a visitantes",
   participant_invitations: "Avisos a participantes",
+  announcements: "Anuncios",
+  news: "Novedades",
   all: "Todos los correos masivos",
 };
 

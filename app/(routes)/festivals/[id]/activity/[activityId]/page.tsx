@@ -1,4 +1,5 @@
 import EnrollRedirectButton from "@/app/components/festivals/festival_activities/enroll-redirect-button";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import BestStandActivityPage from "@/app/components/pages/festival_activities/best-stand-activity";
 import BestStandActivitySkeleton from "@/app/components/pages/festival_activities/best-stand-activity-skeleton";
 import CouponBookActivityPage from "@/app/components/pages/festival_activities/coupon-book-activity";
@@ -78,6 +79,7 @@ export default async function Page({ params }: PageProps) {
   if (activity.type === "stamp_passport") {
     return (
       <div className="container p-3 md:p-6">
+        <ScreenTitle title={activity.name} />
         <PassportActivityPage
           activity={activity}
           currentProfile={currentProfile}
@@ -91,6 +93,7 @@ export default async function Page({ params }: PageProps) {
   if (activity.type === "sticker_hunt") {
     return (
       <div className="container p-3 md:p-6">
+        <ScreenTitle title={activity.name} />
         <StickerHuntActivityPage
           activity={activity}
           currentProfile={currentProfile}
@@ -104,6 +107,7 @@ export default async function Page({ params }: PageProps) {
   if (activity.type === "coupon_book") {
     return (
       <div className="container p-3 md:p-6">
+        <ScreenTitle title={activity.name} />
         <CouponBookActivityPage
           activity={activity}
           currentProfile={currentProfile}
@@ -116,30 +120,39 @@ export default async function Page({ params }: PageProps) {
 
   if (activity.type === "festival_sticker") {
     return (
-      <FestivalStickerActivityPage
-        activity={activity}
-        currentProfile={currentProfile}
-        forProfile={currentProfile}
-        festivalId={festivalId}
-      />
+      <>
+        <ScreenTitle title={activity.name} />
+        <FestivalStickerActivityPage
+          activity={activity}
+          currentProfile={currentProfile}
+          forProfile={currentProfile}
+          festivalId={festivalId}
+        />
+      </>
     );
   }
 
   if (activity.type === "best_stand") {
     return (
-      <Suspense fallback={<BestStandActivitySkeleton />}>
-        <BestStandActivityPage
-          activity={activity}
-          currentProfile={currentProfile}
-          forProfile={currentProfile}
-        />
-      </Suspense>
+      <>
+        <ScreenTitle title={activity.name} />
+        <Suspense fallback={<BestStandActivitySkeleton />}>
+          <BestStandActivityPage
+            activity={activity}
+            currentProfile={currentProfile}
+            forProfile={currentProfile}
+          />
+        </Suspense>
+      </>
     );
   }
 
   return (
     <div className="container p-3 md:p-6">
-      <h1 className="text-2xl font-bold my-3">Sticker-Print</h1>
+      <ScreenTitle title={activity.name} />
+      <h1 className="text-2xl font-bold my-3" data-installed-title="">
+        Sticker-Print
+      </h1>
       <div className="flex flex-col gap-3 mt-6">
         <h2 className="text-lg font-bold">¿Qué es el Sticker-Print?</h2>
         <p>

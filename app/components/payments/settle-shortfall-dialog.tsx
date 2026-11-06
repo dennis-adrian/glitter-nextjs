@@ -22,6 +22,7 @@ import { formatMoney } from "@/app/lib/formatters";
 import { featureCreditReason } from "@/app/lib/payments/feature-credits";
 import { shortfallWriteOff } from "@/app/lib/payments/tender";
 import { settleInvoiceShortfallAction } from "@/app/lib/reservations/payment-actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 export default function SettleShortfallDialog({
   invoice,
@@ -78,8 +79,8 @@ export default function SettleShortfallDialog({
       setIdempotencyKey(crypto.randomUUID());
       onOpenChange(false);
       router.refresh();
-    } catch {
-      toast.error("Error al confirmar la reserva");
+    } catch (error) {
+      toastActionError(error, "Error al confirmar la reserva");
     } finally {
       setIsSettling(false);
     }

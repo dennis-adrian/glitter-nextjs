@@ -60,15 +60,28 @@ export async function isLayoutFeatureEnabled(
   return isFeatureVisible(rule, viewer);
 }
 
-/** Cached per request, so the navbar and footer resolve the viewer once. */
-const resolveLayoutFlagViewer = cache(async (): Promise<FeatureFlagViewer> => {
-  // Every real request carries headers (`host`, at least). Only a
-  // `force-static` render is handed an empty set.
-  const isStaticRender = (await headers()).keys().next().done;
-  if (isStaticRender) return null;
+/**
+ * Cached per request, so the navbar and footer resolve the viewer once.
+ * Exported as `getLayoutViewer` for the app shell, which needs the same answer
+ * — and the same restraint on `force-static` pages — to decide whether to draw
+ * the signed-in navigation.
+ */
+const resolveLayoutFlagViewer = cache(async () => {
+  if (await isStaticLayoutRender()) return null;
 
   return getCurrentUserProfile();
 });
+
+/**
+ * Whether this render has no request behind it. Every real request carries
+ * headers (`host`, at least); only a `force-static` render is handed an
+ * empty set, without the throw that would make the page dynamic.
+ */
+export const isStaticLayoutRender = cache(
+  async (): Promise<boolean> => Boolean((await headers()).keys().next().done),
+);
+
+export const getLayoutViewer = resolveLayoutFlagViewer;
 
 /**
  * Whether the feature has launched for ordinary participants — independent of

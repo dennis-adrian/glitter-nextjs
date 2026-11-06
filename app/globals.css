@@ -9,6 +9,22 @@
  * media query, so the in-app toggle can override the system setting. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* The installed app. Navigation that only makes sense outside a browser tab
+ * (the bottom tab bar) keys off this rather than off JavaScript, so it is
+ * never painted and then removed. Either the display mode says so, or the
+ * app's start page marked the window: some Android phones open the installed
+ * app full screen while it still reports browser mode, and the mark is set
+ * before the page paints (app/lib/installed-app-mode.ts). */
+@custom-variant standalone {
+  @media (display-mode: standalone) {
+    @slot;
+  }
+
+  &:where([data-installed-app], [data-installed-app] *) {
+    @slot;
+  }
+}
+
 @theme inline {
   --font-sans: var(--font-figtree), sans-serif;
   --font-display: var(--font-gabarito), sans-serif;
@@ -65,6 +81,9 @@
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
   --color-muted: hsl(var(--muted));
+  --color-row-hover: hsl(var(--row-hover));
+  --color-row-selected: hsl(var(--row-selected));
+  --color-row-selected-hover: hsl(var(--row-selected-hover));
   --color-muted-foreground: hsl(var(--muted-foreground));
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
@@ -205,7 +224,7 @@
 }
 
 .scroll-mt-20 {
-  scroll-margin-top: calc(5rem + var(--announcement-strip-height, 0px));
+  scroll-margin-top: calc(5rem + var(--top-chrome-extra, 0px));
 }
 
 @utility no-scrollbar {
@@ -281,6 +300,13 @@
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 260.3 79.6% 52%;
+    /* Table rows. Opaque, so a pinned (sticky) cell can take the same colour
+       as its row without the cells scrolling under it showing through.
+       `--muted` sits too close to the cream ground to read as hover, so hover
+       steps further down, and selection takes the primary hue. */
+    --row-hover: 36 32% 90%;
+    --row-selected: 255 90% 93%;
+    --row-selected-hover: 255 78% 89%;
     --radius: 0.75rem;
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
@@ -399,6 +425,9 @@
     --border: 260 13% 21%;
     --input: 260 12% 26%;
     --ring: 262 85% 70%;
+    --row-hover: 260 15% 14%;
+    --row-selected: 262 38% 19%;
+    --row-selected-hover: 262 40% 24%;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
@@ -831,4 +860,96 @@
 }
 .bn-container .bn-default-styles :is(h1, h2, h3, h4, h5, h6) {
   font-family: var(--font-gabarito), sans-serif;
+}
+
+/* App shell -------------------------------------------------------------
+ * The signed-in sidebar and the installed app's tab bar are fixed to the
+ * viewport. The page makes room for whichever is on screen by asking whether
+ * it is in the document, so the layout never needs to know who is signed in. */
+:root {
+  --app-sidebar-width: 16.5rem;
+  /* What sits above the header inside the sticky navbar besides itself: the
+   * announcement strip and, during a view as a participant, its banner. Each
+   * publishes its own height on <html>. */
+  --top-chrome-extra: calc(
+    var(--announcement-strip-height, 0px) +
+      var(--impersonation-banner-height, 0px)
+  );
+}
+
+@media (width >= 64rem) {
+  body:has([data-app-sidebar][data-collapsed]) {
+    --app-sidebar-width: 4.5rem;
+  }
+
+  body:has([data-app-sidebar]) > :is([data-site-navbar], main, footer) {
+    margin-left: var(--app-sidebar-width);
+  }
+}
+
+body:has([data-app-tabbar]) {
+  @variant standalone {
+    @variant max-lg {
+      /* Read by pages sized to the viewport, like the dashboard. */
+      --app-bottom-chrome: calc(4rem + env(safe-area-inset-bottom));
+      padding-bottom: var(--app-bottom-chrome);
+    }
+  }
+}
+
+/* The installed app's top bar ([data-screen-bar]) is on screen below a tab
+ * root. There it is the one way back and the one title, so the page's own
+ * back links and breadcrumbs step aside ([data-installed-hidden]) and a
+ * heading that repeats the title stays for screen readers only
+ * ([data-installed-title]). In a browser tab none of this applies. */
+body:has([data-screen-bar]) [data-installed-hidden] {
+  @variant standalone {
+    display: none !important;
+  }
+}
+
+body:has([data-screen-bar]) [data-installed-title] {
+  @variant standalone {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+/* The installed app refreshes on pull with its own gesture (PullToRefresh);
+ * the browser's own pull-to-refresh, where it still fires, stays out. */
+html {
+  @variant standalone {
+    overscroll-behavior-y: contain;
+  }
+}
+
+body:has([data-screen-bar]) [data-announcement-strip] {
+  @variant standalone {
+    @variant max-lg {
+      display: none;
+    }
+  }
+}
+
+/* During a view, the banner sits above the installed app's top bar and takes
+ * the safe area itself; the bar must not pad for it a second time. */
+body:has([data-impersonation-banner]) [data-screen-bar] {
+  @variant standalone {
+    height: 76px;
+    padding-top: 0;
+  }
+}
+
+/* With `viewport-fit=cover` the page reaches under a landscape notch; keep
+ * the content itself clear of it. */
+body {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }

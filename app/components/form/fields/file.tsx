@@ -17,6 +17,7 @@ import { Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/app/components/ui/button";
 import { deleteFile } from "@/app/lib/uploadthing/actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 // TODO: Mejorar la interfaz del componente
 // Permitir que se suban varios archivos, que se pueda elegir el endpoint y manejar previews
@@ -71,7 +72,10 @@ export default function FileInput<TFieldValues extends FieldValues>({
                           }
                         } catch (error) {
                           console.error("Error deleting file", error);
-                          toast.error("Error al eliminar el archivo");
+                          toastActionError(
+                            error,
+                            "Error al eliminar el archivo",
+                          );
                         }
                       }}
                     >

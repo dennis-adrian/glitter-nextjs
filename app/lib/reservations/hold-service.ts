@@ -1083,6 +1083,7 @@ export async function confirmStandHold(
           id: admin.id,
           email: admin.email,
         })),
+        actorUserId: actor.id,
       });
 
       return finish(

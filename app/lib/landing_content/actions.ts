@@ -4,6 +4,11 @@ import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import {
+  expireSharedCache,
+  SHARED_CACHE_TAGS,
+} from "@/app/lib/cache/shared";
+
+import {
   requireAdmin,
   requireAdminOrFestivalAdmin,
 } from "@/app/lib/users/helpers";
@@ -145,6 +150,7 @@ export async function publishLandingPageDraft({
       conflict: true as const,
       message: "El borrador cambió. Recargá antes de publicar.",
     };
+  expireSharedCache(SHARED_CACHE_TAGS.landingContent);
   revalidatePath("/", "page");
   revalidatePath("/dashboard/landing", "page");
   return {

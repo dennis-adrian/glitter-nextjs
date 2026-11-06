@@ -12,8 +12,9 @@ import { describe, expect, it } from "vitest";
  *
  * This is a backstop, not a proof. Lower-case imperatives mid-sentence
  * (ahorra, abre, crea) read the same as third person, so they are left to
- * review. Subjects built in app/lib/** are not scanned here either: those
- * modules also hold in-app messages, and the send-site tests pin the subjects.
+ * review. Subjects built elsewhere in app/lib/** are not scanned: the
+ * send-site tests pin them. The inbox copies in app/lib/notifications/kinds/
+ * are, since they say what these emails say.
  *
  * Add a template below only when it is sent to the admin list alone.
  */
@@ -46,6 +47,20 @@ const TUTEO_IMPERATIVE =
 const TUTEO_NEGATIVE =
   /(?<!(?<!\p{L})que\s+)(?<!\p{L})no\s+(?:(?:te|lo|la|los|las|le|les|nos|me)\s+)*(?:compartas|preocupes|olvides|dudes|dejes|pierdas|esperes|respondas|reenvíes|uses|borres|confundas|cierres|intentes)(?!\p{L})/giu;
 
+const INBOX_KINDS_DIR = path.join(process.cwd(), "app/lib/notifications/kinds");
+
+function tuteoIn(file: string, source: string): string[] {
+  return [
+    ...[...source.matchAll(TUTEO)].map((match) => `${file}: ${match[0]}`),
+    ...[...source.matchAll(TUTEO_IMPERATIVE)].map(
+      (match) => `${file}: ${match[0]}`,
+    ),
+    ...[...source.matchAll(TUTEO_NEGATIVE)].map(
+      (match) => `${file}: ${match[0].replace(/\s+/g, " ")}`,
+    ),
+  ];
+}
+
 function templateFiles(dir = EMAILS_DIR, prefix = ""): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
@@ -65,17 +80,20 @@ describe("email templates", () => {
     for (const file of templateFiles()) {
       if (ADMIN_ONLY[file]) continue;
       const source = readFileSync(path.join(EMAILS_DIR, file), "utf8");
-      for (const match of source.matchAll(TUTEO)) {
-        offenders.push(`${file}: ${match[0]}`);
-      }
-      for (const match of source.matchAll(TUTEO_IMPERATIVE)) {
-        offenders.push(`${file}: ${match[0]}`);
-      }
-      for (const match of source.matchAll(TUTEO_NEGATIVE)) {
-        offenders.push(`${file}: ${match[0].replace(/\s+/g, " ")}`);
-      }
+      offenders.push(...tuteoIn(file, source));
     }
 
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps the inbox copies of these emails in voseo", () => {
+    const files = readdirSync(INBOX_KINDS_DIR).filter(
+      (file) => /\.ts$/.test(file) && !/\.test\.ts$/.test(file),
+    );
+    expect(files).toContain("reservation-outbox.ts");
+    const offenders = files.flatMap((file) =>
+      tuteoIn(file, readFileSync(path.join(INBOX_KINDS_DIR, file), "utf8")),
+    );
     expect(offenders).toEqual([]);
   });
 

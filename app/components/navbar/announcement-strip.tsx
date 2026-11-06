@@ -132,6 +132,7 @@ export default function AnnouncementStrip({
   return (
     <section
       ref={stripRef}
+      data-announcement-strip=""
       aria-label="Anuncios"
       className="border-b border-white/15 bg-brand-deep px-5 py-2 text-center text-sm text-white sm:px-8"
     >

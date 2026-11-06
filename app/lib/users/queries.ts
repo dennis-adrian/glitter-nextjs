@@ -1,6 +1,7 @@
 import "server-only";
 
-import { currentUser } from "@clerk/nextjs/server";
+// eslint-disable-next-line no-restricted-imports -- the Clerk account itself, see below
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
 import { cache } from "react";
 
@@ -13,7 +14,32 @@ import { users } from "@/db/schema";
 // there, any visitor could fetch a full profile row by id or Clerk id. Callers
 // pass the session's own Clerk id, or authorize before they ask.
 
-export const getCurrentClerkUser = cache(async () => await currentUser());
+/**
+ * The Clerk account that is signed in, never whoever it is viewing the app
+ * as: only its user id, read from the session token `clerkMiddleware` has
+ * already verified. No network call. To find the current profile, use
+ * `getCurrentUserProfile`; for the viewer's Clerk id, `getViewerClerkId`;
+ * to ask whether anyone is signed in, `isSignedIn`.
+ *
+ * `currentUser()` fetches the whole user from Clerk's Backend API instead,
+ * about 100 ms warm and several hundred cold.
+ */
+export const getCurrentClerkUser = cache(
+  async (): Promise<{ id: string } | null> => {
+    const { userId } = await auth();
+    return userId ? { id: userId } : null;
+  },
+);
+
+/**
+ * The whole Clerk account that is signed in (email addresses, names, image),
+ * never the participant an admin is viewing as: one Backend API call. Only
+ * for what belongs to the account itself (creating its own profile row from
+ * its own email).
+ */
+export const getCurrentClerkUserDetails = cache(
+  async () => await currentUser(),
+);
 
 export const fetchUserProfileByClerkId = async (
   clerkId: string,

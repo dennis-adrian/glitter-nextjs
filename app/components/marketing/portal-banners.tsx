@@ -8,7 +8,7 @@ export async function PortalBanners() {
   if (banners.length === 0) return null;
 
   return (
-    <div className="w-full mt-4">
+    <div className="w-full">
       <MarketingBannerCarousel banners={banners} />
     </div>
   );
@@ -16,7 +16,7 @@ export async function PortalBanners() {
 
 export function PortalBannersSkeleton() {
   return (
-    <div className="w-full mt-4">
+    <div className="w-full">
       <Skeleton className="aspect-3/2 max-h-[240px] w-full rounded-lg md:aspect-3/1 md:max-h-[280px] lg:aspect-4/1 lg:max-h-[320px]" />
     </div>
   );

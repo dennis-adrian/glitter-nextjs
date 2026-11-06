@@ -1,23 +1,32 @@
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
+import { getViewerClerkId } from "@/app/lib/impersonation/viewer";
 import {
   cachedFetchBaseUserProfileByClerkId,
   cachedFetchUserProfileByClerkId,
-  getCurrentClerkUser,
 } from "@/app/lib/users/queries";
 import { cachedFetchNavbarProfileByClerkId } from "@/app/lib/users/navbar-profile";
 import { users } from "@/db/schema";
 import { buildWhereClause } from "@/db/utils";
 import { eq, isNotNull, isNull, like, not, sql } from "drizzle-orm";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 
+/**
+ * The profile the request is for: the signed-in person's own, or, while a
+ * global admin views the app as a participant, that participant's
+ * (`getViewerClerkId`). Every role and ownership check builds on this, so
+ * nothing admin-only is reachable from inside a view.
+ */
 export async function getCurrentUserProfile() {
   try {
-    const user = await getCurrentClerkUser();
-    if (!user) return null;
+    const clerkId = await getViewerClerkId();
+    if (!clerkId) return null;
 
     // TODO: if the profile is not found, it should log out the user
-    return await cachedFetchUserProfileByClerkId(user.id);
+    return await cachedFetchUserProfileByClerkId(clerkId);
   } catch (error) {
+    // Next signals a redirect, a 404 or "this render needs the request" by
+    // throwing. Swallowed here, any of them became "signed out".
+    unstable_rethrow(error);
     console.error(error);
     return null;
   }
@@ -25,11 +34,14 @@ export async function getCurrentUserProfile() {
 
 export async function getCurrentBaseProfile() {
   try {
-    const user = await getCurrentClerkUser();
-    if (!user) return null;
+    const clerkId = await getViewerClerkId();
+    if (!clerkId) return null;
 
-    return await cachedFetchBaseUserProfileByClerkId(user.id);
+    return await cachedFetchBaseUserProfileByClerkId(clerkId);
   } catch (error) {
+    // Next signals a redirect, a 404 or "this render needs the request" by
+    // throwing. Swallowed here, any of them became "signed out".
+    unstable_rethrow(error);
     console.error(error);
     return null;
   }
@@ -37,11 +49,14 @@ export async function getCurrentBaseProfile() {
 
 export async function getCurrentNavbarProfile() {
   try {
-    const user = await getCurrentClerkUser();
-    if (!user) return null;
+    const clerkId = await getViewerClerkId();
+    if (!clerkId) return null;
 
-    return await cachedFetchNavbarProfileByClerkId(user.id);
+    return await cachedFetchNavbarProfileByClerkId(clerkId);
   } catch (error) {
+    // Next signals a redirect, a 404 or "this render needs the request" by
+    // throwing. Swallowed here, any of them became "signed out".
+    unstable_rethrow(error);
     console.error(error);
     return null;
   }

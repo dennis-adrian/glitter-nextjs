@@ -14,7 +14,9 @@ export default async function EditCollectionPage({
   if (!collection) notFound();
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-semibold">Editar colección</h2>
+      <h2 className="text-2xl font-semibold" data-installed-title="">
+        Editar colección
+      </h2>
       <CollectionForm
         key={collection.id}
         collection={{

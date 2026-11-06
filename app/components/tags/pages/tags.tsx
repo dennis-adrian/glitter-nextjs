@@ -15,7 +15,12 @@ export default async function TagsPage() {
   return (
     <div className="container p-4 md:p-6">
       <div className="flex items-center justify-between">
-        <h1 className="mb-2 text-2xl font-bold md:text-4xl">Etiquetas</h1>
+        <h1
+          className="mb-2 text-2xl font-bold md:text-4xl"
+          data-installed-title=""
+        >
+          Etiquetas
+        </h1>
         <NewTag />
       </div>
       <div className="grid gap-2 my-4">

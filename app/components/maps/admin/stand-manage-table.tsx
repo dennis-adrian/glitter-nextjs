@@ -43,6 +43,7 @@ import {
   StandStatus,
   getStatusLabel,
 } from "@/app/components/maps/admin/stand-manage/shared";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Sector = FestivalSectorWithStandsWithReservationsWithParticipants;
 
@@ -253,9 +254,9 @@ export default function StandManageTable({
           toast.error(res.message);
           onOptimisticStatus([stand.id], stand.status as StandStatus);
         }
-      } catch {
+      } catch (error) {
         onOptimisticStatus([stand.id], stand.status as StandStatus);
-        toast.error("Error al actualizar el estado");
+        toastActionError(error, "Error al actualizar el estado");
       } finally {
         setPendingQuickStatusId(null);
       }

@@ -4,11 +4,17 @@ import { notFound } from "next/navigation";
 import PrivateProfile from "@/app/components/user_profile/private_profile/overview";
 import PublicProfile from "@/app/components/user_profile/public_profile/profile";
 import AnnouncementCard from "@/components/user_profile/announcements_cards/card";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import ProfileQuickActions from "@/app/components/user_profile/public_profile/quick-actions";
 import { fetchPendingInvoicesByProfile } from "@/app/data/invoices/actions";
 import { fetchParticipantActivitySummary } from "@/app/lib/participants/actions";
 import { isParticipantStatus } from "@/app/lib/participants/definitions";
-import { getUserName } from "@/app/lib/users/utils";
+import { getProfileStatusLabel, getUserName } from "@/app/lib/users/utils";
+import EnterAsButton from "@/app/components/impersonation/enter-as-button";
+import RecentImpersonations from "@/app/components/impersonation/recent-impersonations";
+import { canBeImpersonated } from "@/app/lib/impersonation/eligibility";
+import { listRecentImpersonations } from "@/app/lib/impersonation/queries";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 type DashboardUserPageProps = {
   profileId: number;
@@ -54,13 +60,39 @@ export default async function DashboardUserPage(props: DashboardUserPageProps) {
     ? await fetchParticipantActivitySummary(forProfile.id)
     : undefined;
 
+  // "Entrar como participante": global admins, for participants only. The
+  // start checks all of it again on the server.
+  const viewer = await getCurrentUserProfile();
+  const canEnterAs =
+    viewer?.role === "admin" &&
+    viewer.id !== forProfile.id &&
+    canBeImpersonated(forProfile);
+  const recentViews = canEnterAs
+    ? await listRecentImpersonations({ subjectUserId: forProfile.id }, 5)
+    : [];
+  const displayName = getUserName(forProfile) || forProfile.email;
+
   return (
     <div className="mx-auto max-w-5xl p-3 md:p-6">
+      <ScreenTitle title={getUserName(forProfile) || forProfile.email} />
       <div className="flex flex-col gap-4">
         {forProfile.status !== "banned" && (
           <AnnouncementCard profile={forProfile} />
         )}
-        <div className="self-end">
+        <div className="flex flex-wrap items-center justify-end gap-2 self-end">
+          {canEnterAs ? (
+            <EnterAsButton
+              person={{
+                id: forProfile.id,
+                name: displayName,
+                email: forProfile.email,
+                statusLabel: getProfileStatusLabel(forProfile.status),
+              }}
+              label={`Entrar como ${displayName}`}
+              returnTo={`/dashboard/users/${forProfile.id}`}
+              className="max-w-full"
+            />
+          ) : null}
           <ProfileQuickActions
             hideViewProfile
             profile={forProfile}
@@ -77,6 +109,14 @@ export default async function DashboardUserPage(props: DashboardUserPageProps) {
           />
         )}
         <PrivateProfile profile={forProfile} />
+        {canEnterAs ? (
+          <RecentImpersonations
+            rows={recentViews}
+            show="admin"
+            title="Vistas recientes"
+            empty="Nadie entró todavía como esta persona."
+          />
+        ) : null}
       </div>
     </div>
   );

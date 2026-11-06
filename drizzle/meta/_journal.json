@@ -2087,6 +2087,90 @@
       "when": 1792331982555,
       "tag": "0298_drop_discount_code_user_id",
       "breakpoints": true
+    },
+    {
+      "idx": 299,
+      "version": "7",
+      "when": 1792461918253,
+      "tag": "0299_in_app_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 300,
+      "version": "7",
+      "when": 1792558747565,
+      "tag": "0300_push_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 301,
+      "version": "7",
+      "when": 1792900415612,
+      "tag": "0301_bulk_lane",
+      "breakpoints": true
+    },
+    {
+      "idx": 302,
+      "version": "7",
+      "when": 1792936152163,
+      "tag": "0302_distribution_lists",
+      "breakpoints": true
+    },
+    {
+      "idx": 303,
+      "version": "7",
+      "when": 1792958176901,
+      "tag": "0303_comunicados",
+      "breakpoints": true
+    },
+    {
+      "idx": 304,
+      "version": "7",
+      "when": 1792974982613,
+      "tag": "0304_comunicados_autosave_key",
+      "breakpoints": true
+    },
+    {
+      "idx": 305,
+      "version": "7",
+      "when": 1793565224307,
+      "tag": "0305_distribution_list_copies",
+      "breakpoints": true
+    },
+    {
+      "idx": 306,
+      "version": "7",
+      "when": 1793567955153,
+      "tag": "0306_comunicados_visitors",
+      "breakpoints": true
+    },
+    {
+      "idx": 307,
+      "version": "7",
+      "when": 1793569921479,
+      "tag": "0307_comunicado_resends",
+      "breakpoints": true
+    },
+    {
+      "idx": 308,
+      "version": "7",
+      "when": 1793574941880,
+      "tag": "0308_comunicado_preview_text",
+      "breakpoints": true
+    },
+    {
+      "idx": 309,
+      "version": "7",
+      "when": 1793590074771,
+      "tag": "0309_impersonation_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 310,
+      "version": "7",
+      "when": 1793810304718,
+      "tag": "0310_festival_banner_mobile_url",
+      "breakpoints": true
     }
   ]
 }

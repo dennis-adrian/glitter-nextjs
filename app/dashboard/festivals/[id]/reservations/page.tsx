@@ -58,7 +58,9 @@ export default async function FestivalReservationsPage({
     <div className="container p-4 md:p-6">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Reservas y cobros</h1>
+          <h1 className="text-2xl font-bold" data-installed-title="">
+            Reservas y cobros
+          </h1>
           <p className="text-sm text-muted-foreground">
             {LENS_DESCRIPTIONS[lens]}
           </p>

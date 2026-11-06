@@ -1,11 +1,13 @@
 import { DateTime } from "luxon";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import CheckInPanel from "@/app/components/dashboard/programs/checkin/checkin-panel";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { formatDisplayDate } from "@/app/lib/formatters";
 import { SESSION_TYPE_LABELS } from "@/app/lib/programs/definitions";
+import { sessionAdminPath } from "@/app/lib/programs/paths";
 import { fetchOccurrenceForAdmin } from "@/app/lib/programs/occurrence-queries";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 
@@ -43,14 +45,28 @@ export default async function OccurrenceCheckInPage({ params }: Props) {
 
   return (
     <div className="container mx-auto space-y-6 p-3 md:p-6">
+      <ScreenTitle title={session.title} />
       <div className="space-y-2">
-        <Link
-          href={`/dashboard/programs/occurrences/${occurrence.id}`}
-          className="text-sm text-muted-foreground underline-offset-2 hover:underline"
-        >
-          ← Inscritos
-        </Link>
-        <h1 className="text-2xl font-bold">{session.title}</h1>
+        {/* Programa › sesión › fecha › Registrar ingresos: the occurrence
+            belongs to its session, which its path does not say. */}
+        <PageBreadcrumbs
+          current="Registrar ingresos"
+          parents={{
+            [`/dashboard/programs/occurrences/${occurrence.id}`]:
+              sessionAdminPath(session),
+          }}
+          labels={{
+            [`/dashboard/programs/occurrences/${occurrence.id}`]:
+              formatDisplayDate(occurrence.startsAt, DateTime.DATETIME_MED),
+            [sessionAdminPath(session)]: session.title,
+            ...(program
+              ? { [`/dashboard/programs/${program.id}`]: program.name }
+              : {}),
+          }}
+        />
+        <h1 className="text-2xl font-bold" data-installed-title="">
+          {session.title}
+        </h1>
         <p className="text-sm text-muted-foreground">
           {formatDisplayDate(occurrence.startsAt, DateTime.DATETIME_MED)}
           {" — "}

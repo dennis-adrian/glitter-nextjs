@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -14,6 +14,7 @@ import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { toast } from "sonner";
 
 import Heading from "@/app/components/atoms/heading";
+import { useScreenBack } from "@/app/components/navbar/screen-bar";
 import PhoneInput from "@/app/components/form/fields/phone";
 import TextInput from "@/app/components/form/fields/text";
 import TextareaInput from "@/app/components/form/fields/textarea";
@@ -28,6 +29,7 @@ import {
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import CategorySelector from "./category-selector";
 import { CATEGORY_CONFIG, type Category } from "./category-config";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 export default function LiveActForm() {
   const [submitted, setSubmitted] = useState(false);
@@ -79,7 +81,8 @@ export default function LiveActForm() {
       }
     } catch (error) {
       console.error("createLiveAct failed", error);
-      toast.error(
+      toastActionError(
+        error,
         "Ocurrió un error inesperado al enviar la postulación. Intentá de nuevo.",
       );
     }
@@ -93,10 +96,14 @@ export default function LiveActForm() {
     setStep("form");
   }
 
-  function handleBack() {
-    form.resetField("category");
+  const { resetField } = form;
+  const handleBack = useCallback(() => {
+    resetField("category");
     setStep("select");
-  }
+  }, [resetField]);
+  // On the form step, the installed app's back returns to the type picker,
+  // like the button it hides; on the picker, and once sent, it leaves.
+  useScreenBack(step === "form" && !submitted ? handleBack : undefined);
 
   if (submitted) {
     return (
@@ -115,7 +122,7 @@ export default function LiveActForm() {
     return (
       <>
         <div className="mb-1 md:mb-3">
-          <Heading>Presentaciones en vivo</Heading>
+          <Heading data-installed-title="">Presentaciones en vivo</Heading>
         </div>
         <CategorySelector onSelect={handleSelectCategory} />
       </>
@@ -124,7 +131,11 @@ export default function LiveActForm() {
 
   return (
     <>
-      <div className="sticky top-16 md:top-20 z-10 -mx-4 -mt-8 mb-2 flex items-center gap-2 border-b bg-background px-4 py-3 md:-mx-6 md:-mt-12 md:mb-4 md:px-6 md:py-4">
+      {/* Only back and the title: the installed app's top bar has both. */}
+      <div
+        className="sticky top-[calc(4rem+var(--top-chrome-extra,0px))] md:top-[calc(5rem+var(--top-chrome-extra,0px))] z-10 -mx-4 -mt-8 mb-2 flex items-center gap-2 border-b bg-background px-4 py-3 md:-mx-6 md:-mt-12 md:mb-4 md:px-6 md:py-4"
+        data-installed-hidden=""
+      >
         <Button
           type="button"
           variant="ghost"

@@ -34,7 +34,9 @@ export default async function EditDiscountCodePage(props: {
 
   return (
     <div className="container p-4 md:p-6">
-      <h1 className="text-2xl font-bold mb-4">Editar código de descuento</h1>
+      <h1 className="text-2xl font-bold mb-4" data-installed-title="">
+        Editar código de descuento
+      </h1>
       <div className="max-w-xl">
         <DiscountCodeForm
           festivalsOptions={getFestivalsOptions(festivals)}

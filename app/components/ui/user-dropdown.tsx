@@ -11,9 +11,11 @@ import {
   ListIcon,
   ShoppingBagIcon,
   UserIcon,
+  UserRoundSearchIcon,
 } from "lucide-react";
 
 import { NavbarProfile } from "@/app/api/users/definitions";
+import { IMPERSONATE_HREF } from "@/app/components/navbar/app-navigation";
 
 import MissingProfileDropdown from "@/app/components/user_dropdown/missing-profile-dropdown";
 import SignOutButton from "@/app/components/user_dropdown/sign-out-button";
@@ -108,6 +110,16 @@ export default function UserDropdown({
               <Link href="/my_credits">
                 <CoinsIcon className="mr-2 h-4 w-4" />
                 <span>Mis créditos</span>
+              </Link>
+            </DropdownMenuItem>
+          )}
+          {/* Global admins only. During a view the profile here is the
+              participant's, so the entry is gone with the rest of theirs. */}
+          {profile.role === "admin" && (
+            <DropdownMenuItem asChild>
+              <Link href={IMPERSONATE_HREF}>
+                <UserRoundSearchIcon className="mr-2 h-4 w-4" />
+                <span>Entrar como participante</span>
               </Link>
             </DropdownMenuItem>
           )}

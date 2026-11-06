@@ -6,7 +6,7 @@ import { z } from "zod";
 import {
   declareFullTablePair,
   dissolveFullTablePair,
-  setFullTablePrice,
+  setFullTablePrices,
   setStandGroupFullTable,
   type FullTableConfigResult,
 } from "@/app/lib/stands/full-table-service";
@@ -52,7 +52,7 @@ const dissolvePairSchema = z.object({
 });
 
 const fullTablePriceSchema = z.object({
-  groupId: z.coerce.number().int().positive(),
+  groupIds: z.array(z.coerce.number().int().positive()).min(1).max(250),
   price: moneySchema.nullable(),
 });
 
@@ -256,7 +256,8 @@ export async function dissolveFullTablePairAction(
 
 /**
  * Sets what a whole table costs to book, replacing its halves' individual price
- * on the invoice. Clearing it withdraws the table from participants.
+ * on the invoice, for every table in `groupIds` at once. Clearing it withdraws
+ * the tables from participants. All or nothing.
  */
 export async function setFullTablePriceAction(
   input: unknown,
@@ -273,27 +274,32 @@ export async function setFullTablePriceAction(
   }
 
   try {
-    const result = await setFullTablePrice(parsed.data);
+    const result = await setFullTablePrices(parsed.data);
     if (!result.ok) {
       return {
         success: false,
         message:
           result.code === "GROUP_NOT_FOUND"
-            ? "No se encontró la mesa completa."
+            ? "No se encontró alguna de las mesas completas. Recargá la página y probá de nuevo."
             : result.code === "NOT_A_FULL_TABLE"
-              ? "Ese grupo no es una mesa completa."
+              ? "Alguno de los grupos ya no es una mesa completa. Recargá la página y probá de nuevo."
               : "El precio no es válido.",
       };
     }
 
+    const tables = result.groupIds.length;
     revalidatePath("/dashboard/festivals");
     revalidatePath("/", "layout");
     return {
       success: true,
       message:
         parsed.data.price == null
-          ? "La mesa quedó sin precio, así que deja de ofrecerse."
-          : "Precio de la mesa completa actualizado.",
+          ? tables === 1
+            ? "La mesa quedó sin precio, así que deja de ofrecerse."
+            : `Las ${tables} mesas quedaron sin precio, así que dejan de ofrecerse.`
+          : tables === 1
+            ? "Precio de la mesa completa actualizado."
+            : `Precio actualizado en ${tables} mesas completas.`,
     };
   } catch (error) {
     console.error("Error setting full table price", error);

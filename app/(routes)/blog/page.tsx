@@ -55,7 +55,9 @@ export default async function BlogIndexPage({
     // rows stretch away from their own heading.
     <div className="container mx-auto max-w-3xl px-4 py-8">
       <header className="mb-8 space-y-2">
-        <h1 className="text-3xl md:text-4xl font-bold">Blog</h1>
+        <h1 className="text-3xl md:text-4xl font-bold" data-installed-title="">
+          Blog
+        </h1>
         <p className="text-muted-foreground">
           Tutoriales, tips y novedades de la comunidad Glitter.
         </p>

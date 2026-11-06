@@ -3,6 +3,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 
+import CreditGiftRevertHint from "@/app/components/credits/admin/credit-gift-revert-hint";
 import CreditRevertButton from "@/app/components/credits/admin/credit-revert-button";
 import CreditAmount from "@/app/components/credits/credit-amount";
 import { Badge, type BadgeVariant } from "@/app/components/ui/badge";
@@ -11,6 +12,7 @@ import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { DataTableDateRangeFilter } from "@/app/components/ui/data_table/date-range-filter";
 import {
   canRevertCreditEntry,
+  isOpenGiftGrant,
   CREDIT_DEBT_RESOLUTION_LABELS,
   CREDIT_LEDGER_KIND_LABELS,
   CREDIT_LEDGER_KINDS,
@@ -155,6 +157,19 @@ function Movement({ row }: { row: CreditLedgerRow }) {
         )}
       </div>
       {row.reason && <p className="text-muted-foreground">{row.reason}</p>}
+      {row.internalNote && (
+        <p className="text-xs text-muted-foreground">
+          Nota interna: {row.internalNote}
+        </p>
+      )}
+      {row.creditGiftId != null && (
+        <Link
+          href={`/dashboard/credits/gifts/${row.creditGiftId}`}
+          className="text-xs text-primary hover:underline"
+        >
+          Ver el regalo
+        </Link>
+      )}
       <EntryContext row={row} />
       {row.actor && (
         <p className="text-xs text-muted-foreground">Por {row.actor.name}</p>
@@ -259,7 +274,9 @@ function buildColumns({
                   entryId={row.original.id}
                   amount={row.original.amount}
                 />
-              ) : null,
+              ) : (
+                <CreditGiftRevertHint row={row.original} />
+              ),
             enableSorting: false,
             enableHiding: false,
           } satisfies ColumnDef<CreditLedgerRow>,
@@ -295,7 +312,9 @@ export default function CreditLedgerDataTable({
         showUser,
         // Most entries cannot be undone, so on a page with none the column
         // would be an empty strip down the table's edge.
-        showActions: canAdjust && rows.some(canRevertCreditEntry),
+        showActions:
+          canAdjust &&
+          rows.some((row) => canRevertCreditEntry(row) || isOpenGiftGrant(row)),
       })}
       data={rows}
       columnTitles={columnTitles}
@@ -354,13 +373,16 @@ export default function CreditLedgerDataTable({
             {formatDateWithTime(row.createdAt)} · #{row.id}
             {showUser && ` · ${getUserName(row.user) || row.user.email}`}
           </p>
-          {canAdjust && canRevertCreditEntry(row) && (
-            <CreditRevertButton
-              userId={row.user.id}
-              entryId={row.id}
-              amount={row.amount}
-            />
-          )}
+          {canAdjust &&
+            (canRevertCreditEntry(row) ? (
+              <CreditRevertButton
+                userId={row.user.id}
+                entryId={row.id}
+                amount={row.amount}
+              />
+            ) : (
+              <CreditGiftRevertHint row={row} />
+            ))}
         </div>
       )}
       emptyMessage="Ningún movimiento coincide con el filtro."

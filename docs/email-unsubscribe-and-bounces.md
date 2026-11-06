@@ -10,9 +10,9 @@ nothing to them, transactional mail included, until they are unblocked.
 
 ## What is skipped
 
-| Table | Filled by | Effect |
-|---|---|---|
-| `email_suppressions` | Resend webhook: permanent bounces, spam complaints, Resend's own suppressions | No bulk mail at all to that address |
+| Table                | Filled by                                                                                                     | Effect                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `email_suppressions` | Resend webhook: permanent bounces, spam complaints, Resend's own suppressions                                 | No bulk mail at all to that address                                          |
 | `email_unsubscribes` | The "Darme de baja" link in the email, the inbox's own unsubscribe button, or an admin on `/dashboard/emails` | No bulk mail of that **topic** (or, for `all`, of any topic) to that address |
 
 Both are keyed by `lower(trim(address))`, so they cover every case variant of
@@ -34,6 +34,11 @@ Topics (`email_topic` enum, labels in `app/lib/emails/topics.ts`):
 
 - `visitor_invitations`: visitors invited when acreditación opens.
 - `participant_invitations`: participants told a festival is open.
+- `announcements` ("Anuncios"): comunicados to participants.
+- `news` ("Novedades"): comunicados to visitors and guest merch buyers, people
+  without an account ([`IMPLEMENTATION-comunicados.md`](IMPLEMENTATION-comunicados.md)
+  §L). Separate from `visitor_invitations` and `announcements`; `all` covers
+  it too.
 
 ## Unsubscribing
 
@@ -50,7 +55,8 @@ Every bulk email carries:
   effect at once, with no page.
 
 The token (`app/lib/emails/unsubscribe-tokens.ts`) names the visitor or user
-row and the topic, signed with a key derived from `CLERK_SECRET_KEY`. It
+row, or, for a Novedades comunicado, the campaign contact row that froze the
+address it was sent to (`kind: "contact"`), and the topic, signed with a key derived from `CLERK_SECRET_KEY`. It
 carries no address, never expires, and is the same every time, so a retried
 batch keeps its idempotency key. **Rotating `CLERK_SECRET_KEY` breaks the
 links in emails already sent**; the page then points people to support.
@@ -132,7 +138,7 @@ production really send, bulk invitations included, so on staging:
    `headers` and the footer `pageUrl` (pass it to `EmailFooter`).
 4. When choosing recipients: filter with
    `reachableByBulkMail(sql\`${table.email}\`, topic)`, and count with
-   `bulkMailExclusion` if the admin sees a count first.
+`bulkMailExclusion` if the admin sees a count first.
 
 ## Testing locally
 

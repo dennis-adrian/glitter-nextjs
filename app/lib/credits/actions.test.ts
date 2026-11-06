@@ -332,6 +332,40 @@ describe("adjustCreditAccountAction", () => {
     expect(result).toMatchObject({ success: true, message: "Saldo ajustado." });
   });
 
+  it("passes the internal note apart from the participant's detail", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+
+    await adjustCreditAccountAction({
+      userId: 8,
+      amount: 20,
+      reason: "",
+      internalNote: "cortesía por el cambio de sector",
+      idempotencyKey: key,
+    });
+
+    expect(adjustCreditAccountMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: "",
+        internalNote: "cortesía por el cambio de sector",
+      }),
+    );
+  });
+
+  it("refuses an adjustment with neither a note nor a detail", async () => {
+    currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
+
+    const result = await adjustCreditAccountAction({
+      userId: 8,
+      amount: 20,
+      reason: " ",
+      internalNote: "",
+      idempotencyKey: key,
+    });
+
+    expect(result).toMatchObject({ success: false });
+    expect(adjustCreditAccountMock).not.toHaveBeenCalled();
+  });
+
   it("explains a revert that already happened", async () => {
     currentProfileMock.mockResolvedValue({ id: 1, role: "admin" });
     adjustCreditAccountMock.mockResolvedValue({

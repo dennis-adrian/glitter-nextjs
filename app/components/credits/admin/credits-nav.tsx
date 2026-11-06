@@ -3,6 +3,7 @@
 import {
   AlertTriangleIcon,
   ClipboardCheckIcon,
+  GiftIcon,
   LayoutGridIcon,
   ListIcon,
   UsersIcon,
@@ -44,6 +45,12 @@ const sections = [
     href: "/dashboard/credits/debts",
     icon: AlertTriangleIcon,
   },
+  {
+    value: "gifts",
+    label: "Regalos",
+    href: "/dashboard/credits/gifts",
+    icon: GiftIcon,
+  },
 ] as const;
 
 type Section = (typeof sections)[number]["value"];
@@ -53,6 +60,7 @@ function activeSection(pathname: string): Section {
   if (pathname.startsWith("/dashboard/credits/accounts")) return "accounts";
   if (pathname.startsWith("/dashboard/credits/ledger")) return "ledger";
   if (pathname.startsWith("/dashboard/credits/debts")) return "debts";
+  if (pathname.startsWith("/dashboard/credits/gifts")) return "gifts";
   return "overview";
 }
 

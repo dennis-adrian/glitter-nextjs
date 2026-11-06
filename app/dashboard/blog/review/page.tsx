@@ -20,7 +20,9 @@ export default async function DashboardBlogReviewPage() {
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Cola de revisión</h1>
+        <h1 className="text-2xl font-bold" data-installed-title="">
+          Cola de revisión
+        </h1>
         <p className="text-sm text-muted-foreground">
           Artículos enviados por autores eligibles, pendientes de revisión.
         </p>

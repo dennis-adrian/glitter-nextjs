@@ -701,6 +701,12 @@ export async function createGuestOrderInTx(
   guestEmail: string,
   guestPhone: string,
   bundles: readonly BundleOrderRequest[] = [],
+  /**
+   * "Quiero recibir novedades" at checkout
+   * (docs/IMPLEMENTATION-comunicados.md §L). Stored as asked: false keeps the
+   * guest out of the Novedades comunicados.
+   */
+  { newsOptIn = false }: { newsOptIn?: boolean } = {},
 ): Promise<CreateGuestOrderInTxResult> {
   if (lines.some((line) => (line.transactionType ?? "purchase") === "rental")) {
     throw new Error(
@@ -735,6 +741,7 @@ export async function createGuestOrderInTx(
       guestEmail,
       guestPhone,
       guestOrderToken,
+      guestNewsOptIn: newsOptIn,
       totalAmount,
       paymentDueDate: sql`now() + interval '2 days'`,
     })

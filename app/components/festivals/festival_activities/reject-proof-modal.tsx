@@ -25,6 +25,7 @@ import {
 } from "@/app/components/ui/form";
 import { Textarea } from "@/app/components/ui/textarea";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 const FormSchema = z.object({
   adminFeedback: z.string().trim().min(1, "El feedback es requerido"),
@@ -73,7 +74,8 @@ export default function RejectProofModal({
       setOpen(false);
       onSuccess?.();
     } catch (error) {
-      toast.error(
+      toastActionError(
+        error,
         `No se pudo revisar el ${materialLabel}. Intentá nuevamente.`,
       );
     }

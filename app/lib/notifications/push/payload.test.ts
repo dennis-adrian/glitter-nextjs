@@ -1,0 +1,145 @@
+// @vitest-environment node
+import { describe, expect, it } from "vitest";
+
+import {
+  buildPushPayload,
+  MAX_PUSH_BODY_LENGTH,
+  MAX_PUSH_TITLE_LENGTH,
+  pushTopic,
+  SENSITIVE_PUSH_BODY,
+  SENSITIVE_PUSH_TITLE,
+  WRITTEN_TEXT_PUSH_BODY,
+} from "@/app/lib/notifications/push/payload";
+
+const ITEM = {
+  id: 41,
+  title: "Tu reserva está confirmada",
+  body: "Tu espacio B48 en Glitter ¡Feliz Cumple! está confirmado.",
+  sensitive: false,
+  writtenText: false,
+  href: "/profiles/3/festivals/2/reservations/9",
+};
+
+function parse(payload: string) {
+  return JSON.parse(payload) as Record<string, unknown>;
+}
+
+describe("buildPushPayload", () => {
+  it("carries the inbox copy and opens the item as the inbox does", () => {
+    expect(parse(buildPushPayload(ITEM))).toEqual({
+      v: 1,
+      id: 41,
+      title: ITEM.title,
+      body: ITEM.body,
+      url: "/my_notifications/41/open",
+      href: "/profiles/3/festivals/2/reservations/9",
+      tag: "notification-41",
+    });
+  });
+
+  it("says only that something arrived for a disciplinary notice", () => {
+    const payload = parse(
+      buildPushPayload({
+        ...ITEM,
+        title: "Registramos una infracción",
+        body: "El motivo registrado es «No se presentó».",
+        sensitive: true,
+      }),
+    );
+    expect(payload.title).toBe(SENSITIVE_PUSH_TITLE);
+    expect(payload.body).toBe(SENSITIVE_PUSH_BODY);
+    expect(JSON.stringify(payload)).not.toContain("infracción");
+    expect(payload.url).toBe("/my_notifications/41/open");
+  });
+
+  it("keeps text someone wrote off the lock screen", () => {
+    const payload = parse(
+      buildPushPayload({
+        ...ITEM,
+        title: "Recibiste 20 créditos de regalo",
+        body: "¡Gracias por acompañarnos todo el año, Ana!",
+        writtenText: true,
+      }),
+    );
+    expect(payload.title).toBe("Recibiste 20 créditos de regalo");
+    expect(payload.body).toBe(WRITTEN_TEXT_PUSH_BODY);
+  });
+
+  it("shows a line its sender wrote for the lock screen, cut like any body", () => {
+    const payload = parse(
+      buildPushPayload({
+        ...ITEM,
+        title: "Cambio de horario de armado",
+        body: "El texto entero, que se queda en su página.",
+        writtenText: true,
+        writtenTextBody: "El armado empieza a las 7:00.",
+      }),
+    );
+    expect(payload.body).toBe("El armado empieza a las 7:00.");
+    const long = parse(
+      buildPushPayload({
+        ...ITEM,
+        writtenText: true,
+        writtenTextBody: "a".repeat(MAX_PUSH_BODY_LENGTH + 10),
+      }),
+    );
+    expect(Array.from(long.body as string)).toHaveLength(MAX_PUSH_BODY_LENGTH);
+    // A sensitive item never shows it.
+    expect(
+      parse(
+        buildPushPayload({
+          ...ITEM,
+          sensitive: true,
+          writtenText: true,
+          writtenTextBody: "No debería verse",
+        }),
+      ).body,
+    ).toBe(SENSITIVE_PUSH_BODY);
+  });
+
+  it("sends only the first paragraph, where notes and reasons never are", () => {
+    const payload = parse(
+      buildPushPayload({
+        ...ITEM,
+        body: "Cancelamos tu reserva.\n\nMotivo: no se recibió el pago.",
+      }),
+    );
+    expect(payload.body).toBe("Cancelamos tu reserva.");
+  });
+
+  it("cuts long copy by characters, never through an emoji", () => {
+    const payload = parse(
+      buildPushPayload({
+        ...ITEM,
+        title: "🎉".repeat(200),
+        body: "ñ".repeat(500),
+      }),
+    );
+    const title = Array.from(payload.title as string);
+    const body = Array.from(payload.body as string);
+    expect(title).toHaveLength(MAX_PUSH_TITLE_LENGTH);
+    expect(title.at(-1)).toBe("…");
+    expect(title.slice(0, -1).every((char) => char === "🎉")).toBe(true);
+    expect(body).toHaveLength(MAX_PUSH_BODY_LENGTH);
+  });
+
+  it("stays well inside what every push service accepts", () => {
+    const worst = buildPushPayload({
+      ...ITEM,
+      id: 2_147_483_647,
+      // Control characters are escaped to six bytes each in JSON.
+      title: "\u0001".repeat(500),
+      body: "\u0002".repeat(5000),
+      href: "/profiles/2147483647/festivals/2147483647/reservations/2147483647",
+    });
+    expect(new TextEncoder().encode(worst).length).toBeLessThan(3000);
+  });
+});
+
+describe("pushTopic", () => {
+  it("is one per item, short and URL-safe as push services require", () => {
+    const topic = pushTopic(2_147_483_647);
+    expect(topic).toMatch(/^[A-Za-z0-9_-]{1,32}$/);
+    expect(pushTopic(1)).not.toBe(pushTopic(2));
+  });
+});

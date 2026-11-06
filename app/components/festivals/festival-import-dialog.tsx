@@ -26,6 +26,7 @@ import {
   importFestivalData,
   createFestivalFromImport,
 } from "@/app/lib/festival_exports/actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type FestivalImportDialogProps = {
   open: boolean;
@@ -230,7 +231,7 @@ export default function FestivalImportDialog(props: FestivalImportDialogProps) {
       }
     } catch (error) {
       console.error("Error importing data", error);
-      toast.error("Error al importar los datos");
+      toastActionError(error, "Error al importar los datos");
     } finally {
       setIsImporting(false);
     }
@@ -389,7 +390,7 @@ export default function FestivalImportDialog(props: FestivalImportDialogProps) {
                   <span className="text-sm">
                     Informacion basica
                     <span className="text-muted-foreground ml-1">
-                      (nombre, fechas, tipo, etc.)
+                      (nombre, fechas, tipo, funciones de reserva, etc.)
                     </span>
                   </span>
                 </label>
@@ -401,7 +402,12 @@ export default function FestivalImportDialog(props: FestivalImportDialogProps) {
                     onCheckedChange={(checked) => setImportSectors(!!checked)}
                     disabled={!hasSectors}
                   />
-                  <span className="text-sm">Sectores y espacios</span>
+                  <span className="text-sm">
+                    Sectores y espacios
+                    <span className="text-muted-foreground ml-1">
+                      (con precios y mesas completas)
+                    </span>
+                  </span>
                 </label>
               </div>
             </div>

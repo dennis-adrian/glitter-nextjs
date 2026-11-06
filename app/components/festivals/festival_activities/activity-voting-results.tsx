@@ -1,18 +1,22 @@
-import Link from "next/link";
-import { ArrowLeftIcon, UsersIcon } from "lucide-react";
+import { UsersIcon } from "lucide-react";
 
 import type { ReservationStandRefDto } from "@/app/lib/reservations/dto";
 import VotingResultRow from "@/app/components/festivals/festival_activities/voting-result-row";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 
 type ActivityVotingResultsProps = {
   activity: FestivalActivityWithDetailsAndParticipants;
   reservations?: ReservationStandRefDto[];
+  /** For the breadcrumb's festival level. */
+  festivalName?: string;
 };
 
 export default function ActivityVotingResults({
   activity,
   reservations = [],
+  festivalName,
 }: ActivityVotingResultsProps) {
   const showVariantHeaders = activity.details.length > 1;
   const isStandVoting = activity.type === "best_stand";
@@ -69,15 +73,24 @@ export default function ActivityVotingResults({
 
   return (
     <div className="container p-4 md:p-6 space-y-6">
-      <div className="flex items-center gap-2">
-        <Link
-          href={`/dashboard/festivals/${activity.festivalId}/festival_activities/${activity.id}`}
-          aria-label="Back to festival activities"
-          className="text-muted-foreground hover:text-foreground transition-colors"
+      {/* The installed app's top bar carries back and the title. */}
+      <ScreenTitle title={`Resultados — ${activity.name}`} />
+      <div className="space-y-1">
+        <PageBreadcrumbs
+          labels={{
+            [`/dashboard/festivals/${activity.festivalId}/festival_activities/${activity.id}`]:
+              activity.name,
+            ...(festivalName
+              ? {
+                  [`/dashboard/festivals/${activity.festivalId}`]: festivalName,
+                }
+              : {}),
+          }}
+        />
+        <h1
+          className="text-2xl font-bold leading-tight"
+          data-installed-title=""
         >
-          <ArrowLeftIcon className="w-4 h-4" />
-        </Link>
-        <h1 className="text-2xl font-bold leading-tight">
           Resultados — {activity.name}
         </h1>
       </div>

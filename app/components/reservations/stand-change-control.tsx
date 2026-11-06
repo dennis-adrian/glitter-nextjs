@@ -24,6 +24,7 @@ import {
 } from "@/app/components/reservations/stand-change-options";
 import { changeReservationStandAction } from "@/app/lib/reservations/stand-change-actions";
 import type { StandChangeOption } from "@/app/lib/reservations/stand-change-queries";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 /**
  * Moves a reservation to another stand, exchanging with whoever is there.
@@ -100,7 +101,10 @@ export default function StandChangeControl({
         });
       } catch (error) {
         console.error("Error changing reservation stand", error);
-        toast.error("No se pudo mover la reserva. Intentá nuevamente.");
+        toastActionError(
+          error,
+          "No se pudo mover la reserva. Intentá nuevamente.",
+        );
         return;
       }
 
