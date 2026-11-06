@@ -86,11 +86,13 @@ export default function ClientMap({
   }, []);
 
   // The hold comes from the map DTO (rebuilt on every arrival) and from
-  // selections made here; each poll drops it once it has expired.
+  // selections made here; each poll drops it once it has expired. Judged on
+  // the server's clock — `version` is its timestamp — so a phone whose clock
+  // is off agrees with the server, which already ignores expired holds.
   const { stale } = useStandPolling(sectorId ?? null, 4000, (result) => {
     setStands((prev) => mergePolledStandStatuses(prev, result.stands));
     setActiveHold((hold) =>
-      hold?.expiresAt != null && Date.parse(hold.expiresAt) <= Date.now()
+      hold?.expiresAt != null && Date.parse(hold.expiresAt) <= result.version
         ? null
         : hold,
     );

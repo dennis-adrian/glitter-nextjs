@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -94,7 +100,12 @@ const stands = [stand(21, "A1"), stand(22, "A2")];
 function renderMap(activeHold: ReservationActiveHoldDto | null) {
   return render(
     <ClientMap
-      festival={{ id: 10, name: "Glitter", holdMinutes: 5, generalMapUrl: null }}
+      festival={{
+        id: 10,
+        name: "Glitter",
+        holdMinutes: 5,
+        generalMapUrl: null,
+      }}
       profile={{
         id: 3,
         displayName: "Ada",
@@ -149,16 +160,42 @@ describe("ClientMap", () => {
   });
 
   it("drops the viewer's hold on the first poll after it expired", () => {
+    const expiresAt = Date.parse("2026-11-07T00:05:00.000Z");
     renderMap({
       ...ownFullTableHold,
-      expiresAt: new Date(Date.now() - 1_000).toISOString(),
+      expiresAt: new Date(expiresAt).toISOString(),
     });
     act(() => {
-      pollCallback.current?.({ stands: [], availableCount: 0, version: 1 });
+      pollCallback.current?.({
+        stands: [],
+        availableCount: 0,
+        // The server's timestamp, a second past expiry.
+        version: expiresAt + 1_000,
+      });
     });
     fireEvent.click(screen.getByRole("button", { name: "stand-A1" }));
     expect(
       screen.getByText(/Otro participante está considerando/),
+    ).toBeTruthy();
+  });
+
+  it("keeps the hold while the server's clock says it is live, whatever the phone's says", () => {
+    // Already past on the phone's clock, a minute ahead on the server's.
+    const expiresAt = Date.now() - 60_000;
+    renderMap({
+      ...ownFullTableHold,
+      expiresAt: new Date(expiresAt).toISOString(),
+    });
+    act(() => {
+      pollCallback.current?.({
+        stands: [],
+        availableCount: 0,
+        version: expiresAt - 60_000,
+      });
+    });
+    fireEvent.click(screen.getByRole("button", { name: "stand-A2" }));
+    expect(
+      screen.getByText(/Tenés este espacio reservado temporalmente/),
     ).toBeTruthy();
   });
 
