@@ -66,6 +66,7 @@ function hub(
     closedReservation: null,
     releasedReservation: null,
     reservationBlock: null,
+    termsStale: false,
     ...overrides,
   } as unknown as ParticipationHub;
 }
@@ -379,5 +380,57 @@ describe("ParticipationStatusCard", () => {
       ),
     ).toBeTruthy();
     expect(href("Reservar stand")).toBe("/profiles/3/festivals/9/reservations/new");
+  });
+
+  it("asks to accept republished terms instead of sending them to reserve", () => {
+    render(
+      <ParticipationStatusCard
+        hub={hub("approved_enrollment", { termsStale: true })}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Aceptá los nuevos términos y condiciones",
+      }),
+    ).toBeTruthy();
+    expect(href("Aceptar nuevos términos")).toBe(
+      "/profiles/3/festivals/9/terms",
+    );
+    expect(screen.queryByRole("link", { name: "Reservar stand" })).toBeNull();
+  });
+
+  it("still asks for the new terms beside a reservation awaiting payment", () => {
+    render(
+      <ParticipationStatusCard
+        hub={hub("pending_payment", {
+          termsStale: true,
+          hasReservation: true,
+          reservationCount: 1,
+          outstandingInvoiceCount: 1,
+        })}
+      />,
+    );
+
+    expect(href("Completar el pago")).toBe("/profiles/3/festivals/9/invoices");
+    expect(href("Aceptar nuevos términos")).toBe(
+      "/profiles/3/festivals/9/terms",
+    );
+    expect(
+      screen.getByText(/se actualizaron después de que los aceptaste/),
+    ).toBeTruthy();
+  });
+
+  it("ignores republished terms for someone who never accepted any", () => {
+    render(
+      <ParticipationStatusCard
+        hub={hub("pending_enrollment", { enrollment: null, termsStale: true })}
+      />,
+    );
+
+    expect(href("Inscribirme")).toBe("/profiles/3/festivals/9/terms");
+    expect(
+      screen.queryByRole("link", { name: "Aceptar nuevos términos" }),
+    ).toBeNull();
   });
 });
