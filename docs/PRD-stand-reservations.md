@@ -25,7 +25,7 @@ El sistema de reserva de stands permite a participantes verificados de un festiv
 | US-04 | Como participante, quiero ver un resumen con countdown antes de confirmar mi reserva                                              | Se muestra: stand seleccionado, sector, precio, mapa miniatura, y un temporizador de cuenta regresiva. El banner cambia de ámbar a rojo cuando quedan ≤30 segundos |
 | US-05 | Como participante de categoría ilustración/nuevo artista, quiero poder agregar un compañero de stand al confirmar                 | Se muestra un selector de partners opcional. El partner se agrega como participante de la reserva                                                                  |
 | US-06 | Como participante, quiero que al confirmar la reserva se genere automáticamente una factura y se me redirija a la página de pagos | Se crea la reserva, la factura con el precio del stand, y una tarea programada con vencimiento a 5 días                                                            |
-| US-07 | Como participante, quiero que si mi hold expira, el stand se libere automáticamente y yo sea redirigido al mapa                   | Al llegar el timer a 0, se cancela el hold, se muestra un toast informativo y se redirige a la selección de stand                                                  |
+| US-07 | Como participante, quiero que si mi hold expira, el stand se libere automáticamente y yo sea redirigido al mapa                   | El servidor decide la expiración; al llegar el timer a 0 se muestra un toast informativo y se redirige a la selección de stand, sin cancelar el hold desde el teléfono |
 
 ### Administrador
 
@@ -67,7 +67,7 @@ Selección de Sector  -->  Selección de Stand    -->  Confirmación         -->
 - Selector opcional de partner (solo para illustration/new_artist)
 - Botones: "Cancelar" / "Confirmar Reserva"
 - Confirmación ejecuta `confirmStandHold()`, muestra confetti y redirige al Paso 4
-- Si expira: cancela hold automáticamente y redirige al Paso 2
+- Si expira: muestra el aviso y redirige al Paso 2. La expiración es del servidor (el hold deja de contar al pasar `expiresAt` y el cron lo borra); el cliente nunca cancela el hold por su reloj
 
 ### Paso 4 — Pago
 
@@ -98,7 +98,7 @@ Selección de Sector  -->  Selección de Stand    -->  Confirmación         -->
 - **Bloqueo:** `SELECT FOR UPDATE` en la fila del stand para prevenir race conditions
 - **Reemplazo:** Si el usuario selecciona otro stand, el hold anterior se libera en la misma transacción
 - **Expiración server-side:** `cleanupExpiredHolds()` ejecutado como fire-and-forget cada 2 min máximo (throttled via `lastCleanupTime`)
-- **Expiración client-side:** Timer de 1 segundo que redirige al mapa cuando llega a 0
+- **Expiración client-side:** Timer de 1 segundo, medido con el reloj del servidor (`serverNow` del DTO de confirmación), que redirige al mapa cuando llega a 0; solo muestra el tiempo, no cancela
 
 ### 4.3 Polling en Tiempo Real
 
@@ -158,7 +158,7 @@ Remitente: `Reservas Glitter <reservas@productoraglitter.com>`
 | standId    | integer FK | Stand en hold (cascade delete)             |
 | userId     | integer FK | Usuario que hizo el hold (cascade delete)  |
 | festivalId | integer FK | Festival (cascade delete)                  |
-| expiresAt  | timestamp  | Momento de expiración (created_at + 3 min) |
+| expiresAt  | timestamp  | Momento de expiración (created_at + `reservationHoldMinutes`, por defecto 5 min) |
 
 **Índices:** `stand_holds_stand_idx(standId)`, `stand_holds_user_festival_idx(userId, festivalId)`
 

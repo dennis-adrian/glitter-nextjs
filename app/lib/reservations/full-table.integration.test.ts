@@ -737,12 +737,16 @@ describeDatabase("full table", () => {
       .from(standHolds)
       .where(eq(standHolds.festivalId, festival.id));
 
+    const now = new Date();
     const confirmation = await fetchFestivalReservationConfirmationDto({
       festivalId: festival.id,
       profileId: owner.id,
       holdId: hold.id,
+      now,
     });
 
+    // The countdown's clock is the instant the hold was checked live.
+    expect(confirmation?.hold.serverNow).toBe(now.toISOString());
     expect(confirmation?.fullTable.isFullTable).toBe(true);
     expect(confirmation?.stand).toMatchObject({
       price: FULL_TABLE_PRICE,
@@ -769,12 +773,16 @@ describeDatabase("full table", () => {
       .from(standHolds)
       .where(eq(standHolds.festivalId, festival.id));
 
+    const now = new Date();
     const confirmation = await fetchFestivalReservationConfirmationDto({
       festivalId: festival.id,
       profileId: owner.id,
       holdId: hold.id,
+      now,
     });
 
+    // The countdown's clock is the instant the hold was checked live.
+    expect(confirmation?.hold.serverNow).toBe(now.toISOString());
     expect(confirmation?.fullTable.isFullTable).toBe(false);
     expect(confirmation?.stand).toMatchObject({
       price: STAND_PRICE,

@@ -50,6 +50,7 @@ import {
   confirmStandHold,
 } from "@/app/lib/stands/hold-actions";
 import PartnerSelection from "./partner-selection";
+import { useHoldCountdown } from "./use-hold-countdown";
 import type { PartnerSearchResultDto } from "@/app/lib/reservations/dto";
 import { cn } from "@/app/lib/utils";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
@@ -76,6 +77,8 @@ type HoldConfirmationClientProps = {
   hold: {
     id: number;
     expiresAt: string;
+    /** When the server read the hold; the countdown's clock. */
+    serverNow: string;
   };
   /** What the hold really covers; `stand` is only the half picked first. */
   fullTable: {
@@ -197,7 +200,6 @@ export default function HoldConfirmationClient({
   mapBounds,
   profile,
   recentPartners,
-  sectorId,
   sectorName,
   sectorStands,
   stand,
@@ -283,60 +285,23 @@ export default function HoldConfirmationClient({
     }, 100);
   };
 
-  // Countdown timer
-  const [remainingSeconds, setRemainingSeconds] = useState(() => {
-    const diff = new Date(hold.expiresAt).getTime() - Date.now();
-    return Math.max(0, Math.floor(diff / 1000));
-  });
+  // Display only, on the server's clock: expiry is the server's call.
+  const remainingSeconds = useHoldCountdown(hold.expiresAt, hold.serverNow);
 
+  // Set before every navigation away, so the expiry effect never replaces
+  // the screen after another path already left it (e.g. a confirm that
+  // succeeded as the clock reached 0).
+  const leftRef = useRef(false);
+
+  // At 0 the hold is already invisible to every server reader and the cron
+  // removes the row within a minute; no round trip, and never a cancel from
+  // the phone's clock.
   useEffect(() => {
-    if (remainingSeconds <= 0) return;
-
-    const expiresAtMs = new Date(hold.expiresAt).getTime();
-    const timer = setInterval(() => {
-      const remaining = Math.max(
-        0,
-        Math.floor((expiresAtMs - Date.now()) / 1000),
-      );
-      setRemainingSeconds(remaining);
-      if (remaining <= 0) clearInterval(timer);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [remainingSeconds, hold.expiresAt]);
-
-  // Auto-expire: when timer hits 0, cancel hold and redirect
-  useEffect(() => {
-    if (remainingSeconds === 0 && !isSubmitting) {
-      let cancelled = false;
-      (async () => {
-        try {
-          await cancelStandHold(hold.id);
-          toast.info("Tu reserva temporal expiró");
-        } catch (error) {
-          console.error("Error expiring hold", error);
-          toastActionError(error, "No se pudo cancelar la reserva temporal");
-        } finally {
-          if (!cancelled) {
-            router.replace(mapUrl);
-          }
-        }
-      })();
-
-      return () => {
-        cancelled = true;
-      };
-    }
-  }, [
-    remainingSeconds,
-    isSubmitting,
-    hold.id,
-    profile.id,
-    festival.id,
-    sectorId,
-    router,
-    mapUrl,
-  ]);
+    if (remainingSeconds !== 0 || isSubmitting || leftRef.current) return;
+    leftRef.current = true;
+    toast.info("Tu reserva temporal expiró", { duration: 8000 });
+    router.replace(mapUrl);
+  }, [remainingSeconds, isSubmitting, router, mapUrl]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -379,6 +344,7 @@ export default function HoldConfirmationClient({
             reservation_id: res.data.reservationId,
           });
           toast.success(res.message);
+          leftRef.current = true;
           router.replace(
             `/profiles/${profile.id}/festivals/${festival.id}/reservations/${res.data.reservationId}/payments`,
           );
@@ -390,6 +356,7 @@ export default function HoldConfirmationClient({
           toast.error(res.message, { duration: 8000 });
         } else {
           toast.info(res.message, { duration: 8000 });
+          leftRef.current = true;
           router.replace(mapUrl);
         }
       } catch (error) {
@@ -416,6 +383,7 @@ export default function HoldConfirmationClient({
           toast.info(res.message, {
             duration: 2000,
           });
+          leftRef.current = true;
           router.replace(mapUrl);
         } else {
           toast.error(res.message);
@@ -440,6 +408,7 @@ export default function HoldConfirmationClient({
   // first. The top bar needs the override — its default `router.back()`
   // would skip the map, which was reached with `replace`.
   const goToMap = useCallback(() => {
+    leftRef.current = true;
     router.replace(mapUrl);
   }, [router, mapUrl]);
   useScreenBack(goToMap);
