@@ -7152,7 +7152,12 @@ export const notificationDeliveryLaneEnum = pgEnum(
 );
 export const notificationCampaignTypeEnum = pgEnum(
   "notification_campaign_type",
-  ["credit_gift", "comunicado"],
+  ["credit_gift", "comunicado", "reservations_open"],
+);
+/** What sent a "reservations are open" notice: the cron, or an admin's resend. */
+export const reservationsOpenNoticeTriggerEnum = pgEnum(
+  "reservations_open_notice_trigger",
+  ["automatic", "manual"],
 );
 export const notificationCampaignStatusEnum = pgEnum(
   "notification_campaign_status",
@@ -7473,6 +7478,49 @@ export const notificationDeliveries = pgTable(
       columns: [t.resendOfDeliveryId],
       foreignColumns: [t.id],
     }).onDelete("set null"),
+  ],
+);
+
+/**
+ * One "reservations are open" notice for a festival: the cron's, once per
+ * opening time, or an admin's resend. Each is its own notification campaign,
+ * so a resend reaches everyone again under its own dedupe key, and the bulk
+ * lanes send its email and pushes by campaign.
+ */
+export const festivalReservationsOpenNotices = pgTable(
+  "festival_reservations_open_notices",
+  {
+    campaignId: integer("campaign_id")
+      .primaryKey()
+      .references(() => notificationCampaigns.id, { onDelete: "cascade" }),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    trigger: reservationsOpenNoticeTriggerEnum("trigger").notNull(),
+    /**
+     * The opening it announced. The cron sends once per value, so moving
+     * the date sends again when the new time comes.
+     */
+    reservationsStartDate: timestamp("reservations_start_date").notNull(),
+    /** The environment that sent it: only its own lanes send its mail. */
+    env: text("env").notNull(),
+    /** Inbox items written, email rows queued, and devices pushed to. */
+    recipients: integer("recipients").default(0).notNull(),
+    emails: integer("emails").default(0).notNull(),
+    pushes: integer("pushes").default(0).notNull(),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("festival_reservations_open_notices_automatic_unique")
+      .on(t.festivalId, t.reservationsStartDate)
+      .where(sql`${t.trigger} = 'automatic'`),
+    index("festival_reservations_open_notices_festival_idx").on(
+      t.festivalId,
+      t.createdAt,
+    ),
   ],
 );
 

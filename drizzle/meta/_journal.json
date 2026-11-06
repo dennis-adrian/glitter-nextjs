@@ -2171,6 +2171,13 @@
       "when": 1793810304718,
       "tag": "0310_festival_banner_mobile_url",
       "breakpoints": true
+    },
+    {
+      "idx": 311,
+      "version": "7",
+      "when": 1794007645500,
+      "tag": "0311_reservations_open_notices",
+      "breakpoints": true
     }
   ]
 }

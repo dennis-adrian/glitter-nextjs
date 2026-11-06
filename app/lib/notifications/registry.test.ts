@@ -193,6 +193,10 @@ const FIXTURES = {
     reservationsStartDate: "2026-11-20T14:00:00.000Z",
     reservationsOpen: false,
   },
+  festival_reservations_open: {
+    festivalId: 3,
+    festivalName: "Glitter Vol. 9",
+  },
   festival_participation_rejected: {
     festivalId: 3,
     festivalName: "Glitter Vol. 9",
@@ -254,6 +258,27 @@ const FIXTURES = {
     audienceCount: 312,
   },
 } satisfies Record<NotificationKind, unknown>;
+
+describe("festival_reservations_open", () => {
+  const data = { festivalId: 3, festivalName: "Glitter Vol. 9" };
+
+  it("says reservations are open, and links to the terms", () => {
+    expect(buildInAppCopy("festival_reservations_open", data)).toEqual({
+      title: "¡Ya abrieron las reservas para Glitter Vol. 9!",
+      body: "Ya podés reservar tu espacio. Leé con atención los términos y condiciones antes de elegirlo.",
+      actionPath: "/festivals/3/terms",
+      actionLabel: "Reservar mi espacio",
+    });
+  });
+
+  it("always pushes, and leaves its email to the bulk lane", () => {
+    expect(hasEmail("festival_reservations_open")).toBe(false);
+    expect(notificationPushes("festival_reservations_open", data)).toBe(true);
+    expect(notificationCategory("festival_reservations_open")).toBe(
+      "reservations",
+    );
+  });
+});
 
 describe("festival_participant_invitation", () => {
   const data = {

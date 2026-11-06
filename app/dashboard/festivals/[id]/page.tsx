@@ -2,6 +2,7 @@ import FestivalDetailHeader from "@/app/components/festivals/festival-detail-hea
 import FestivalFeatureConfigPanel from "@/app/components/festivals/festival-feature-config-panel";
 import FestivalInfoCard from "@/app/components/festivals/festival-info-card";
 import FestivalParticipantTermsSummary from "@/app/components/festivals/festival-participant-terms-summary";
+import FestivalReservationsOpenCard from "@/app/components/festivals/festival-reservations-open-card";
 import FestivalSectionsNav from "@/app/components/festivals/festival-sections-nav";
 import FestivalSettingsCard from "@/app/components/festivals/festival-settings-card";
 import {
@@ -9,6 +10,7 @@ import {
   fetchFestivalWithDates,
 } from "@/app/lib/festivals/actions";
 import { fetchFestivalOverviewCounts } from "@/app/lib/festivals/overview";
+import { fetchReservationsOpenNotices } from "@/app/lib/festivals/reservations-open-notices";
 import { isFestivalDay } from "@/app/lib/festivals/utils";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import type { Metadata } from "next";
@@ -45,11 +47,13 @@ export default async function Page({ params }: PageProps) {
   if (!parsed.success) return notFound();
 
   const { id } = parsed.data;
-  const [festival, counts, activeFestival] = await Promise.all([
-    loadFestival(id),
-    fetchFestivalOverviewCounts(id),
-    fetchActiveFestivalBase(),
-  ]);
+  const [festival, counts, activeFestival, reservationsOpenNotices] =
+    await Promise.all([
+      loadFestival(id),
+      fetchFestivalOverviewCounts(id),
+      fetchActiveFestivalBase(),
+      fetchReservationsOpenNotices(id),
+    ]);
 
   if (!festival) {
     return notFound();
@@ -79,6 +83,14 @@ export default async function Page({ params }: PageProps) {
           <FestivalParticipantTermsSummary
             festivalStatus={festival.status}
             participantTermsEnabled={festival.participantTermsEnabled}
+          />
+          <FestivalReservationsOpenCard
+            festivalId={festival.id}
+            active={festival.status === "active"}
+            archived={festival.status === "archived"}
+            reservationsStartDate={festival.reservationsStartDate}
+            reservationsOpen={festival.reservationsStartDate <= new Date()}
+            notices={reservationsOpenNotices}
           />
         </div>
         <div className="min-w-0 lg:col-span-2">
