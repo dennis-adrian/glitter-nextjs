@@ -19,7 +19,8 @@ vi.mock("@/app/lib/stands/hold-actions", () => ({ createStandHold }));
 vi.mock("@/app/lib/reservations/full-table-actions", () => ({
   activateFullTableAccessAction: vi.fn(),
 }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock("sonner", () => ({ toast }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace, refresh: vi.fn() }),
 }));
@@ -96,6 +97,7 @@ afterEach(() => {
   cleanup();
   createStandHold.mockReset();
   replace.mockReset();
+  toast.error.mockReset();
 });
 
 describe("StandInfoCard", () => {
@@ -158,5 +160,32 @@ describe("StandInfoCard", () => {
       activeHold: { id: 5, standId: 21, standIds: [21] },
     });
     expect(screen.getByText("Continuar con tu reserva")).toBeTruthy();
+  });
+
+  it("keeps a lost race on screen for eight seconds", async () => {
+    createStandHold.mockResolvedValue({
+      success: false,
+      code: "STAND_UNAVAILABLE",
+      message: "Este espacio ya no está disponible",
+    });
+    const a1 = stand(21, "A1", { standGroupId: null, isFullTableHalf: false });
+    renderCard({ target: a1, sectorStands: [a1] });
+
+    fireEvent.click(screen.getByRole("button", { name: /Seleccionar/i }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Este espacio ya no está disponible",
+        { duration: 8000 },
+      ),
+    );
+  });
+
+  it("gives Cerrar a 44 px hit area", () => {
+    const a1 = stand(21, "A1");
+    renderCard({ target: a1, sectorStands: [a1] });
+    expect(screen.getByRole("button", { name: "Cerrar" }).className).toContain(
+      "h-11",
+    );
   });
 });

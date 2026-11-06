@@ -32,7 +32,10 @@ export default function ZoomableMapFrame({
             {header}
           </div>
         )}
-        <div className="relative w-full max-w-125 rounded-lg border bg-background shadow-sm overflow-hidden pb-8 md:pb-0">
+        {/* `manipulation` keeps pan and pinch but stops a double tap from
+            zooming the page; CSS touch-action on the stands' SVG groups has
+            no effect. */}
+        <div className="relative w-full max-w-125 rounded-lg border bg-background shadow-sm overflow-hidden pb-8 md:pb-0 touch-manipulation">
           <TransformComponent
             wrapperStyle={{ width: "100%" }}
             contentStyle={{ width: "100%" }}

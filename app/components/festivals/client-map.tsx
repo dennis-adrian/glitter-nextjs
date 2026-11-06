@@ -104,9 +104,41 @@ export default function ClientMap({
     [isPending],
   );
 
+  // Tapping the map's background closes the card. No backdrop (the map must
+  // stay pannable with the card open) and no document listener (it would
+  // fire inside the card's portaled dialogs): a tap is a press and release on
+  // this wrapper that moved under 10 px — the stands' own threshold — and
+  // landed on neither a stand nor a button.
+  const backgroundPress = useRef<{ x: number; y: number } | null>(null);
+  const handleBackgroundPointerDown = (event: React.PointerEvent) => {
+    backgroundPress.current = { x: event.clientX, y: event.clientY };
+  };
+  const handleBackgroundPointerUp = (event: React.PointerEvent) => {
+    const start = backgroundPress.current;
+    backgroundPress.current = null;
+    if (!start || selectedStandId == null) return;
+    if (
+      Math.abs(event.clientX - start.x) >= 10 ||
+      Math.abs(event.clientY - start.y) >= 10
+    ) {
+      return;
+    }
+    if ((event.target as Element).closest("[data-map-stand-id], button")) {
+      return;
+    }
+    setSelectedStandId(null);
+  };
+
   return (
     <>
-      <div className="relative">
+      <div
+        className="relative"
+        onPointerDown={handleBackgroundPointerDown}
+        onPointerUp={handleBackgroundPointerUp}
+        onPointerCancel={() => {
+          backgroundPress.current = null;
+        }}
+      >
         <UserMap
           stands={stands}
           mapElements={mapElements}

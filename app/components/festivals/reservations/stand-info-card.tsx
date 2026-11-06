@@ -313,10 +313,10 @@ export function StandInfoCard({
             `/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${stand.festivalSectorId}/confirm/${res.data.holdId}`,
           );
         } else {
-          toast.error(res.message);
+          toast.error(res.message, { duration: 8000 });
         }
       } catch {
-        toast.error("No se pudo seleccionar el espacio");
+        toast.error("No se pudo seleccionar el espacio", { duration: 8000 });
       }
     });
   };
@@ -332,12 +332,11 @@ export function StandInfoCard({
   };
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 animate-slide-up-fast md:bottom-6 md:left-auto md:right-6 md:w-100">
-      <div className="bg-card rounded-xl border border-border shadow-lg flex flex-col">
+    <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 right-4 z-50 animate-slide-up-fast md:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] md:left-auto md:right-6 md:w-100">
+      <div className="bg-card rounded-xl border border-border shadow-lg flex flex-col max-h-[55dvh] md:max-h-[calc(100dvh-6rem)]">
         <Button
-          className="self-end m-2 text-muted-foreground"
+          className="self-end m-1 h-11 min-w-11 px-3 text-muted-foreground"
           variant="ghost"
-          size="sm"
           onClick={onClose}
           aria-label="Cerrar"
         >
@@ -345,7 +344,7 @@ export function StandInfoCard({
           Cerrar
         </Button>
 
-        <div className="px-6 pb-6 flex flex-col gap-6">
+        <div className="px-6 pb-6 flex flex-col gap-6 min-h-0 overflow-y-auto overscroll-contain">
           <div className="flex items-start justify-between">
             <div className="space-y-1">
               <div className="flex items-center gap-2">

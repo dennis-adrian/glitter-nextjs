@@ -42,7 +42,8 @@ vi.mock("@/app/components/maps/user/user-map", () => ({
     stands: ReservationMapStandDto[];
     onStandClick?: (stand: ReservationMapStandDto) => void;
   }) => (
-    <div>
+    <div data-testid="map-background">
+      <button type="button">Acercar</button>
       {stands.map((stand) => (
         <button
           key={stand.id}
@@ -159,5 +160,52 @@ describe("ClientMap", () => {
     expect(
       screen.getByText(/Otro participante está considerando/),
     ).toBeTruthy();
+  });
+
+  describe("tapping outside the card", () => {
+    const press = (
+      element: Element,
+      down: { x: number; y: number },
+      up: { x: number; y: number },
+    ) => {
+      fireEvent.pointerDown(element, { clientX: down.x, clientY: down.y });
+      fireEvent.pointerUp(element, { clientX: up.x, clientY: up.y });
+    };
+
+    function openCard() {
+      renderMap(ownFullTableHold);
+      fireEvent.click(screen.getByRole("button", { name: "stand-A1" }));
+      expect(screen.getByRole("button", { name: "Cerrar" })).toBeTruthy();
+    }
+
+    it("closes it on a tap on the map background", () => {
+      openCard();
+      press(
+        screen.getByTestId("map-background"),
+        { x: 100, y: 100 },
+        { x: 104, y: 103 },
+      );
+      expect(screen.queryByRole("button", { name: "Cerrar" })).toBeNull();
+    });
+
+    it("keeps it open while panning", () => {
+      openCard();
+      press(
+        screen.getByTestId("map-background"),
+        { x: 100, y: 100 },
+        { x: 140, y: 100 },
+      );
+      expect(screen.getByRole("button", { name: "Cerrar" })).toBeTruthy();
+    });
+
+    it("keeps it open on the map's own buttons", () => {
+      openCard();
+      press(
+        screen.getByRole("button", { name: "Acercar" }),
+        { x: 10, y: 10 },
+        { x: 10, y: 10 },
+      );
+      expect(screen.getByRole("button", { name: "Cerrar" })).toBeTruthy();
+    });
   });
 });
