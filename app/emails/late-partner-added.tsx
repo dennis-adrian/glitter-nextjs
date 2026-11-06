@@ -27,6 +27,12 @@ type LatePartnerAddedTemplateProps = {
   standLabel: string;
   reservationId: number;
   totalCredits: number;
+  /**
+   * The part of the total that paid for the second person. Zero on a full
+   * table, which costs the same for one or two; null when a job queued before
+   * this was recorded does not carry it.
+   */
+  sharedPriceDifference?: number | null;
 };
 
 /**
@@ -37,8 +43,10 @@ type LatePartnerAddedTemplateProps = {
  * `owner pays, partner sees` rule (§14) is only reassuring if the partner is
  * actually told, otherwise their first thought is what it cost them.
  *
- * The owner's copy confirms the debit. Neither version reopens the original
- * invoice, because adding a partner never touched it (§8.4).
+ * The owner's copy confirms the debit and says what it paid for. On a full
+ * table that is the fee alone — naming a price difference there would describe
+ * a charge that never happened. Neither version reopens the original invoice,
+ * because adding a partner never touched it (§8.4).
  */
 export default function LatePartnerAddedTemplate({
   recipient,
@@ -50,6 +58,7 @@ export default function LatePartnerAddedTemplate({
   standLabel,
   reservationId,
   totalCredits,
+  sharedPriceDifference = null,
 }: LatePartnerAddedTemplateProps) {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   const reservationUrl = `${baseUrl}/profiles/${recipient.id}/festivals/${festivalId}/reservations/${reservationId}`;
@@ -77,9 +86,10 @@ export default function LatePartnerAddedTemplate({
                 </Text>
                 <Text style={styles.text}>
                   Se usaron <strong>{formatCreditCount(totalCredits)}</strong>,
-                  que cubren la diferencia entre el precio individual y el
-                  compartido más el costo de agregar a alguien después de
-                  reservar. Tu cobro original no cambia.
+                  {sharedPriceDifference === 0
+                    ? " que cubren el costo de agregar a alguien después de reservar."
+                    : " que cubren la diferencia entre el precio individual y el compartido más el costo de agregar a alguien después de reservar."}{" "}
+                  Tu cobro original no cambia.
                 </Text>
               </>
             ) : (

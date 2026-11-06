@@ -371,6 +371,121 @@ describeDatabase("participant invoice tender summary", () => {
     expect(summary!.outstandingAmount).toBe(canonical.outstandingAmount);
   });
 
+  /**
+   * A stand change that refunded Bs200 of a Bs500 payment and then moved the
+   * reservation back up leaves the rows saying Bs500 paid. The summary nets
+   * the refund exactly as the canonical tender (and every settlement guard)
+   * does, so the participant is quoted the Bs200 they still owe, not Bs0.
+   */
+  it("nets a repricing refund, exactly as the canonical tender does", async () => {
+    const userId = await createUser();
+    await grantCredits(userId, 500);
+    const { invoiceId, reservationId } = await createCreditedInvoice({
+      userId,
+      invoiceAmount: 500,
+      creditAmount: 500,
+    });
+    const refund = await integrationDb!.transaction((tx) =>
+      creditService.grantCreditsInTx(tx as never, {
+        userId,
+        amount: 200,
+        reason: "Diferencia a favor",
+        idempotencyKey: randomUUID(),
+        metadata: { standChangeRefundReservationId: String(reservationId) },
+      }),
+    );
+    expect(refund).not.toBeNull();
+
+    currentProfile.value = { id: userId, role: "user" };
+    const summary = await invoiceActions.fetchInvoiceTenderSummary(invoiceId);
+    const canonical = await canonicalTender(invoiceId, 500);
+
+    expect(canonical).toMatchObject({
+      confirmedCreditAmount: 500,
+      refundedAmount: 200,
+      coveredAmount: 300,
+      outstandingAmount: 200,
+    });
+    expect(summary).toEqual({
+      approvedCashAmount: canonical.approvedCashAmount,
+      confirmedCreditAmount: canonical.confirmedCreditAmount,
+      refundedAmount: canonical.refundedAmount,
+      outstandingAmount: canonical.outstandingAmount,
+    });
+
+    // An admin reverting the refund from the wallet puts the coverage back.
+    const reverted = await creditService.adjustCreditAccount({
+      userId,
+      amount: -200,
+      reason: "Revertido",
+      idempotencyKey: randomUUID(),
+      reversesEntryId: refund!.ledgerEntryId,
+    });
+    expect(reverted.ok).toBe(true);
+    expect(await invoiceActions.fetchInvoiceTenderSummary(invoiceId)).toEqual({
+      approvedCashAmount: 0,
+      confirmedCreditAmount: 500,
+      refundedAmount: 0,
+      outstandingAmount: 0,
+    });
+  });
+
+  it("nets neither a refund nor a reversed allocation twice when both apply", async () => {
+    const userId = await createUser();
+    await grantCredits(userId, 500);
+    const { invoiceId, reservationId } = await createCreditedInvoice({
+      userId,
+      invoiceAmount: 500,
+      creditAmount: 300,
+    });
+    // A second, live allocation of Bs200 beside the one released below.
+    const debit = await creditService.debitConfirmedCreditsForInvoiceInTx(
+      integrationDb! as never,
+      { userId, amount: 200, idempotencyKey: randomUUID() },
+    );
+    if (!debit.ok) throw new Error(`fixture debit failed: ${debit.code}`);
+    const [live] = await integrationDb!
+      .insert(invoiceCreditAllocations)
+      .values({
+        invoiceId,
+        userId,
+        amount: 200,
+        ledgerEntryId: debit.data.ledgerEntryId,
+        idempotencyKey: randomUUID(),
+      })
+      .returning({ id: invoiceCreditAllocations.id });
+    const [first] = await integrationDb!
+      .select({ id: invoiceCreditAllocations.id })
+      .from(invoiceCreditAllocations)
+      .where(eq(invoiceCreditAllocations.invoiceId, invoiceId))
+      .orderBy(invoiceCreditAllocations.id)
+      .limit(1);
+    expect(first!.id).not.toBe(live!.id);
+    const release = await creditService.releaseInvoiceCreditAllocationsInTx(
+      integrationDb! as never,
+      { invoiceId, allocationId: first!.id, idempotencyKey: randomUUID() },
+    );
+    expect(release.ok).toBe(true);
+    await integrationDb!.transaction((tx) =>
+      creditService.grantCreditsInTx(tx as never, {
+        userId,
+        amount: 50,
+        reason: "Diferencia a favor",
+        idempotencyKey: randomUUID(),
+        metadata: { standChangeRefundReservationId: String(reservationId) },
+      }),
+    );
+
+    currentProfile.value = { id: userId, role: "user" };
+    // Only the live Bs200 counts, less the Bs50 refund: Bs350 to pay.
+    expect(await invoiceActions.fetchInvoiceTenderSummary(invoiceId)).toEqual({
+      approvedCashAmount: 0,
+      confirmedCreditAmount: 200,
+      refundedAmount: 50,
+      outstandingAmount: 350,
+    });
+  });
+
   it("still refuses a caller who neither owns the invoice nor is an admin", async () => {
     const userId = await createUser();
     await grantCredits(userId, 100);

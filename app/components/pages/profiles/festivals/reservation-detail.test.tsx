@@ -111,6 +111,7 @@ const NO_LATE_PARTNER = {
   sharedPriceDifference: 0,
   featurePrice: 0,
   totalCredits: 0,
+  fullTable: false,
   spendableBalance: 0,
   shortfall: 0,
 };
@@ -316,6 +317,7 @@ describe("ReservationDetailPage", () => {
       sharedPriceDifference: 30,
       featurePrice: 25,
       totalCredits: 55,
+      fullTable: false,
       spendableBalance: 55,
       shortfall: 0,
     };

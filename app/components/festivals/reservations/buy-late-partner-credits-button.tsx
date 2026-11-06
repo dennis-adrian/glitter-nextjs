@@ -15,9 +15,10 @@ import { toastActionError } from "@/app/lib/errors/action-error";
  * Its own button rather than `BuyFeatureCreditsButton` because this is the one
  * feature whose price is not the festival's configured figure alone: it also
  * carries the difference between the individual and shared price of this
- * reservation. So the browser sends only the reservation id, and the server
- * derives the total from that reservation's own snapshots — no amount is
- * quoted here that the server has to trust.
+ * reservation, except on a full table, which pays the fee alone. So the
+ * browser sends only the reservation id, and the server derives the total from
+ * that reservation's own snapshots — no amount is quoted here that the server
+ * has to trust.
  *
  * It reserves no partner. §8.3 is explicit that nobody is claimed during a
  * top-up, so the participant comes back and chooses when they have the
