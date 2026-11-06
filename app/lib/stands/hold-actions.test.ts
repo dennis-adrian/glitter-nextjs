@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
@@ -146,6 +146,10 @@ const availableStand = {
 };
 
 describe("stand hold authorization and eligibility wiring", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     authMock.mockReset();
     denySelfServiceMock.mockReset();
@@ -321,6 +325,60 @@ describe("stand hold authorization and eligibility wiring", () => {
     expect(lockParticipantsBeforeRegistryClaim).toHaveBeenCalledWith(tx, 10, [
       3,
     ]);
+  });
+
+  it("starts the hold clock after the festival lock, not when the request arrived", async () => {
+    const T0 = Date.UTC(2026, 10, 7, 0, 0, 0);
+    vi.useFakeTimers({ now: T0 });
+    authMock.mockResolvedValue({ id: 3, role: "user", status: "verified" });
+    // Two minutes queued behind other participants for the festival lock.
+    vi.mocked(lockFestivalTermsDocument).mockImplementation(async () => {
+      vi.advanceTimersByTime(120_000);
+    });
+    const select = vi
+      .fn(() => selectChain([]))
+      .mockImplementationOnce(() => selectChain([availableStand])) // standPreview
+      .mockImplementationOnce(() => selectChain([availableStand])) // stand
+      .mockImplementationOnce(() => selectChain([])) // existingHoldPreview
+      .mockImplementationOnce(() => selectChain([])) // reconcile
+      .mockImplementationOnce(() => selectChain([availableStand])) // freshStand
+      .mockImplementationOnce(() => selectChain([])) // existingHold
+      .mockImplementationOnce(() => selectChain([availableStand])) // currentStand
+      .mockImplementationOnce(() =>
+        selectChain([{ reservationHoldMinutes: 5 }]),
+      ); // festivalHold
+    const values = vi.fn(() =>
+      Object.assign(Promise.resolve([]), {
+        returning: vi.fn().mockResolvedValue([{ id: 99 }]),
+      }),
+    );
+    const tx = {
+      select,
+      insert: vi.fn(() => ({ values })),
+      delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
+      update: vi.fn(() => ({
+        set: () => ({ where: vi.fn().mockResolvedValue([]) }),
+      })),
+    };
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await createStandHold({
+      standId: 7,
+      idempotencyKey: HOLD_KEY,
+    });
+
+    expect(result).toMatchObject({ success: true, data: { holdId: 99 } });
+    expect(values.mock.calls[0][0]).toMatchObject({
+      expiresAt: new Date(T0 + 420_000),
+      createdAt: new Date(T0 + 120_000),
+      updatedAt: new Date(T0 + 120_000),
+    });
+    expect(denySelfServiceMock).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ now: new Date(T0 + 120_000) }),
+    );
   });
 
   it("locks festival and participant eligibility rows before the stand on confirm", async () => {
