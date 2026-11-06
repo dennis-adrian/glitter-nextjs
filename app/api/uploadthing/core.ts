@@ -47,11 +47,12 @@ async function currentUploader(): Promise<{ id: string } | null> {
 
 // FileRouter for your app, can contain multiple FileRoutes
 export const ourFileRouter = {
-  // JPEG and PNG only: the poster is embedded in the visitor invitation
-  // email, and WebP or SVG break in Outlook and Gmail.
+  // JPEG, PNG and WebP, no SVG; see FESTIVAL_ARTWORK_TYPES for why, and
+  // for what WebP costs in the invitation email.
   festivalArtwork: f({
     "image/jpeg": { maxFileSize: "4MB", maxFileCount: 1 },
     "image/png": { maxFileSize: "4MB", maxFileCount: 1 },
+    "image/webp": { maxFileSize: "4MB", maxFileCount: 1 },
   } satisfies Record<
     FestivalArtworkType,
     { maxFileSize: "4MB"; maxFileCount: number }

@@ -28,8 +28,8 @@ export default function FestivalPosterUpload({
       onChange={(image) => onChange(image?.url ?? null)}
       upload={upload}
       label="Póster"
-      description="JPG o PNG · formato vertical 3:4 recomendado"
-      // The poster goes out in email too, where WebP and SVG break.
+      description="JPG, PNG o WebP · formato vertical 3:4 recomendado"
+      // No SVG: the poster goes out in email too (see FESTIVAL_ARTWORK_TYPES).
       accept={FESTIVAL_ARTWORK_ACCEPT}
       emptyLabel="Todavía no añadiste un póster"
       confirmLabel="Subir póster"
