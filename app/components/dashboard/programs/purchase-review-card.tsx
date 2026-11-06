@@ -28,6 +28,7 @@ import {
   reviewDecisionRequiresReason,
   type ReviewDecision,
 } from "@/app/lib/programs/review";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   purchaseId: number;
@@ -92,8 +93,11 @@ export default function PurchaseReviewCard({
       toast.success(result.message);
       setReason("");
       router.refresh();
-    } catch {
-      toast.error("No pudimos registrar tu decisión. Intenta de nuevo.");
+    } catch (error) {
+      toastActionError(
+        error,
+        "No pudimos registrar tu decisión. Intenta de nuevo.",
+      );
     } finally {
       setPending(null);
     }
@@ -122,8 +126,11 @@ export default function PurchaseReviewCard({
       toast.success(result.message);
       setReason("");
       router.refresh();
-    } catch {
-      toast.error("No pudimos completar la acción. Intenta de nuevo.");
+    } catch (error) {
+      toastActionError(
+        error,
+        "No pudimos completar la acción. Intenta de nuevo.",
+      );
     } finally {
       setPending(null);
     }

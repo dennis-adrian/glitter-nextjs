@@ -12,7 +12,7 @@ import {
   hasAcceptedFestivalEnrollment,
   loadSectorStandStatusRows,
 } from "@/app/lib/stands/status-service";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 
 const QuerySchema = z.object({
   sectorId: z.coerce.number().int().positive(),
@@ -21,7 +21,7 @@ const QuerySchema = z.object({
 const PRIVATE_NO_STORE = { "Cache-Control": "private, no-store" };
 
 export async function GET(request: NextRequest) {
-  const actor = await getCurrentUserProfile();
+  const actor = await getCurrentBaseProfile();
   if (!actor) {
     return NextResponse.json(
       { error: "Unauthorized" },

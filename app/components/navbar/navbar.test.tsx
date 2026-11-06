@@ -19,7 +19,7 @@ const { headersMock, currentProfileMock, fetchRuleMock, impersonationMock } =
 vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => ({ headers: headersMock }));
 vi.mock("@/app/lib/users/helpers", () => ({
-  getCurrentUserProfile: currentProfileMock,
+  getCurrentBaseProfile: currentProfileMock,
 }));
 vi.mock("@/app/lib/feature_flags/data", () => ({
   fetchFeatureFlagRule: fetchRuleMock,

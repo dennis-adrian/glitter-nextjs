@@ -5,11 +5,12 @@ vi.mock("server-only", () => ({}));
 const currentClerkUserMock = vi.hoisted(() => vi.fn());
 const fetchProfileByClerkIdMock = vi.hoisted(() => vi.fn());
 const viewerClerkIdMock = vi.hoisted(() => vi.fn());
+const fetchBaseProfileByClerkIdMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/queries", () => ({
   getCurrentClerkUser: currentClerkUserMock,
   cachedFetchUserProfileByClerkId: fetchProfileByClerkIdMock,
-  cachedFetchBaseUserProfileByClerkId: vi.fn(),
+  cachedFetchBaseUserProfileByClerkId: fetchBaseProfileByClerkIdMock,
 }));
 
 // Whoever Clerk says is signed in is the viewer: nobody is viewing as
@@ -27,6 +28,7 @@ vi.mock("@/db", () => ({ db: {} }));
 import { notFound, redirect } from "next/navigation";
 
 import {
+  getCurrentBaseProfile,
   getCurrentUserProfile,
   requireAdmin,
   requireProfileOwnerOrAdmin,
@@ -142,6 +144,36 @@ describe("getCurrentUserProfile", () => {
     viewerClerkIdMock.mockImplementation(async () => notFound());
     await expect(getCurrentUserProfile()).rejects.toMatchObject({
       digest: expect.stringContaining("NEXT_HTTP_ERROR_FALLBACK"),
+    });
+  });
+});
+
+describe("getCurrentBaseProfile", () => {
+  beforeEach(() => {
+    fetchBaseProfileByClerkIdMock.mockReset();
+    viewerClerkIdMock.mockReset();
+  });
+
+  it("returns the viewer's users row", async () => {
+    const row = { id: 7, role: "user" };
+    viewerClerkIdMock.mockResolvedValue("clerk_7");
+    fetchBaseProfileByClerkIdMock.mockResolvedValue(row);
+
+    await expect(getCurrentBaseProfile()).resolves.toBe(row);
+    expect(fetchBaseProfileByClerkIdMock).toHaveBeenCalledWith("clerk_7");
+  });
+
+  it("reads a failed lookup as signed out", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    viewerClerkIdMock.mockRejectedValue(new Error("network down"));
+
+    await expect(getCurrentBaseProfile()).resolves.toBeNull();
+  });
+
+  it("lets Next's own control-flow errors through", async () => {
+    viewerClerkIdMock.mockImplementation(async () => redirect("/sign_in"));
+    await expect(getCurrentBaseProfile()).rejects.toMatchObject({
+      digest: expect.stringContaining("NEXT_REDIRECT"),
     });
   });
 });

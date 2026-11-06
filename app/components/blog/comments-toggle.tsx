@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Label } from "@/app/components/ui/label";
 import { Switch } from "@/app/components/ui/switch";
 import { setCommentsEnabled } from "@/app/lib/posts/actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   postId: number;
@@ -38,9 +39,9 @@ export default function CommentsToggle({ postId, initialEnabled }: Props) {
         return;
       }
       toast.success(next ? "Comentarios abiertos" : "Comentarios cerrados");
-    } catch {
+    } catch (error) {
       setEnabled(!next);
-      toast.error("No se pudo actualizar. Intentá de nuevo.");
+      toastActionError(error, "No se pudo actualizar. Intentá de nuevo.");
     } finally {
       setBusy(false);
     }

@@ -27,6 +27,7 @@ import {
   updateLiveActStatus,
 } from "@/app/lib/live_acts/actions";
 import { LiveAct } from "@/app/lib/live_acts/definitions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 export function LiveActActionsCell({ liveAct }: { liveAct: LiveAct }) {
   const router = useRouter();
@@ -48,7 +49,7 @@ export function LiveActActionsCell({ liveAct }: { liveAct: LiveAct }) {
         toast.error(res.message);
       }
     } catch (err) {
-      toast.error("Error al actualizar el estado");
+      toastActionError(err, "Error al actualizar el estado");
     } finally {
       setSavingStatus(false);
     }
@@ -66,7 +67,7 @@ export function LiveActActionsCell({ liveAct }: { liveAct: LiveAct }) {
         toast.error(res.message);
       }
     } catch (err) {
-      toast.error("Error al guardar las notas");
+      toastActionError(err, "Error al guardar las notas");
     } finally {
       setSavingNotes(false);
     }

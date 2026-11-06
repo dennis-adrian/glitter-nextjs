@@ -1,6 +1,5 @@
 import "server-only";
 
-import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import {
   and,
   asc,
@@ -25,7 +24,7 @@ import {
   type ReservationMapElementDto,
 } from "@/app/lib/reservations/dto";
 import { buildFestivalReservationMapDto } from "@/app/lib/reservations/map-dto";
-import { fetchFullTableOffer } from "@/app/lib/reservations/full-table-queries";
+import type { FullTableOffer } from "@/app/lib/reservations/full-table-queries";
 import { searchRecentPartners } from "@/app/lib/reservations/partner-search";
 import {
   findActiveFullTableAccess,
@@ -94,27 +93,29 @@ export async function fetchSelfServiceTargetProfile(
   profileId: number,
   festivalId: number,
 ) {
-  const profile = await db.query.users.findFirst({
-    where: eq(users.id, profileId),
-    // Category decides whether the full-table feature is offered at all.
-    columns: { id: true, status: true, category: true },
-  });
-  if (!profile) return null;
-
-  const enrollmentRows = await db
-    .select({
-      festivalId: userRequests.festivalId,
-      type: userRequests.type,
-      status: userRequests.status,
-      termsVersionId: userRequests.termsVersionId,
-    })
-    .from(userRequests)
-    .where(
-      and(
-        eq(userRequests.userId, profileId),
-        eq(userRequests.festivalId, festivalId),
+  // One round trip: the enrollment keys only on the arguments.
+  const [profile, enrollmentRows] = await Promise.all([
+    db.query.users.findFirst({
+      where: eq(users.id, profileId),
+      // Category decides whether the full-table feature is offered at all.
+      columns: { id: true, status: true, category: true },
+    }),
+    db
+      .select({
+        festivalId: userRequests.festivalId,
+        type: userRequests.type,
+        status: userRequests.status,
+        termsVersionId: userRequests.termsVersionId,
+      })
+      .from(userRequests)
+      .where(
+        and(
+          eq(userRequests.userId, profileId),
+          eq(userRequests.festivalId, festivalId),
+        ),
       ),
-    );
+  ]);
+  if (!profile) return null;
 
   return { ...profile, userRequests: enrollmentRows };
 }
@@ -124,20 +125,30 @@ export async function fetchFestivalReservationMapDto(input: {
   profileId: number;
   revealHiddenIdentities: boolean;
   /**
-   * The signed-in viewer, when there is one.
+   * The full-table offer to quote on the map, already gated by the caller.
    *
    * The map is priced for `profileId`, but `activateFullTableAccessAction`
    * resolves its actor from the session and spends *that* person's credits. An
    * admin on a participant's map was therefore offered activation at the
    * participant's price and would have bought the pair with their own wallet.
-   * The offer is withheld unless the two are the same person.
+   * Callers must pass null unless the viewer is `profileId`, and whenever the
+   * credits wallet is hidden from them by its flag. A promise is accepted so
+   * the caller can start it before this query and let it overlap.
    */
-  actorProfileId?: number | null;
+  activationOffer?: FullTableOffer | null | Promise<FullTableOffer | null>;
   now?: Date;
 }): Promise<FestivalReservationMapDto | null> {
   const now = input.now ?? new Date();
 
-  const [festival, profile] = await Promise.all([
+  // Stage 1: everything keyed only on the input ids, in one round trip.
+  const [
+    festival,
+    profile,
+    subcategoryRows,
+    fullTableGroupRows,
+    activeHoldRows,
+    alreadyReservedRow,
+  ] = await Promise.all([
     fetchSelfServiceFestivalSnapshot(input.festivalId),
     db.query.users.findFirst({
       where: eq(users.id, input.profileId),
@@ -149,6 +160,64 @@ export async function fetchFestivalReservationMapDto(input: {
         imageUrl: true,
       },
     }),
+    db
+      .select({ subcategoryId: profileSubcategories.subcategoryId })
+      .from(profileSubcategories)
+      .where(eq(profileSubcategories.profileId, input.profileId)),
+    // Which of this festival's groups are declared full tables. It feeds the
+    // map's disclosure only: the server rechecks availability at every
+    // capacity mutation.
+    db
+      .selectDistinct({ groupId: stands.standGroupId })
+      .from(stands)
+      .innerJoin(standGroups, eq(standGroups.id, stands.standGroupId))
+      .where(
+        and(
+          eq(stands.festivalId, input.festivalId),
+          eq(standGroups.type, "full_table"),
+        ),
+      ),
+    // The viewer's live hold with every stand it covers — both halves of a
+    // full table, so their own companion does not render as someone else's.
+    // `stand_holds_user_festival_idx` is unique: at most one hold per person
+    // and festival. Left join: nothing guarantees a hold has members.
+    db
+      .select({
+        id: standHolds.id,
+        standId: standHolds.standId,
+        expiresAt: standHolds.expiresAt,
+        memberStandId: standHoldMembers.standId,
+      })
+      .from(standHolds)
+      .leftJoin(standHoldMembers, eq(standHoldMembers.holdId, standHolds.id))
+      .where(
+        and(
+          eq(standHolds.userId, input.profileId),
+          eq(standHolds.festivalId, input.festivalId),
+          gt(standHolds.expiresAt, now),
+        ),
+      ),
+    // Rejected and cancelled reservations still lock this person out of later
+    // self-service; released reservations do not.
+    db
+      .select({ id: standReservations.id })
+      .from(reservationParticipants)
+      .innerJoin(
+        standReservations,
+        eq(standReservations.id, reservationParticipants.reservationId),
+      )
+      .where(
+        and(
+          eq(reservationParticipants.userId, input.profileId),
+          eq(standReservations.festivalId, input.festivalId),
+          inArray(standReservations.status, [
+            ...CAPACITY_RESERVATION_STATUSES,
+            "rejected",
+            "cancelled",
+          ]),
+        ),
+      )
+      .limit(1),
   ]);
   if (!festival || !profile) return null;
 
@@ -179,10 +248,6 @@ export async function fetchFestivalReservationMapDto(input: {
     });
   }
 
-  const subcategoryRows = await db
-    .select({ subcategoryId: profileSubcategories.subcategoryId })
-    .from(profileSubcategories)
-    .where(eq(profileSubcategories.profileId, profile.id));
   const subcategoryIds = subcategoryRows.map((row) => row.subcategoryId);
 
   const noRestrictions = notExists(
@@ -209,6 +274,7 @@ export async function fetchFestivalReservationMapDto(input: {
         )
       : noRestrictions;
 
+  // Stage 2: the stands this profile may see.
   const standRows = await db
     .select({
       id: stands.id,
@@ -249,15 +315,16 @@ export async function fetchFestivalReservationMapDto(input: {
     ...new Set(eligibleStands.map((stand) => stand.festivalSectorId)),
   ];
 
+  // Stage 3: everything keyed on the stands, plus the full-table state.
   const [
     sectorRows,
     elementRows,
     restrictionRows,
     holdRows,
-    activeHold,
     reservationParticipantRows,
     reservationExternalRows,
-    alreadyReservedRow,
+    fullTableAccess,
+    activationOffer,
   ] = await Promise.all([
     sectorIds.length === 0
       ? Promise.resolve([])
@@ -304,14 +371,6 @@ export async function fetchFestivalReservationMapDto(input: {
               gt(standHolds.expiresAt, now),
             ),
           ),
-    db.query.standHolds.findFirst({
-      where: and(
-        eq(standHolds.userId, profile.id),
-        eq(standHolds.festivalId, festival.id),
-        gt(standHolds.expiresAt, now),
-      ),
-      columns: { id: true, standId: true, expiresAt: true },
-    }),
     standIds.length === 0
       ? Promise.resolve([])
       : db
@@ -379,27 +438,15 @@ export async function fetchFestivalReservationMapDto(input: {
               inArray(standReservations.status, CAPACITY_RESERVATION_STATUSES),
             ),
           ),
-    // Rejected and cancelled reservations still lock this person out of later
-    // self-service; released reservations do not.
-    db
-      .select({ id: standReservations.id })
-      .from(reservationParticipants)
-      .innerJoin(
-        standReservations,
-        eq(standReservations.id, reservationParticipants.reservationId),
-      )
-      .where(
-        and(
-          eq(reservationParticipants.userId, profile.id),
-          eq(standReservations.festivalId, festival.id),
-          inArray(standReservations.status, [
-            ...CAPACITY_RESERVATION_STATUSES,
-            "rejected",
-            "cancelled",
-          ]),
-        ),
-      )
-      .limit(1),
+    // Plain reads: a transaction would check out a pooled connection of its
+    // own for no isolation benefit.
+    isFullTableCategory(profile.category)
+      ? findActiveFullTableAccess(db, {
+          userId: profile.id,
+          festivalId: festival.id,
+        })
+      : null,
+    Promise.resolve(input.activationOffer ?? null),
   ]);
 
   const mapElementsBySectorId = new Map<number, ReservationMapElementDto[]>();
@@ -494,54 +541,19 @@ export async function fetchFestivalReservationMapDto(input: {
     });
   }
 
-  // Which of this festival's groups are declared full tables, and whether the
-  // participant may act on that. Both feed the map's disclosure only: the
-  // server rechecks availability at every capacity mutation.
-  const fullTableGroupRows = await db
-    .selectDistinct({ groupId: stands.standGroupId })
-    .from(stands)
-    .innerJoin(standGroups, eq(standGroups.id, stands.standGroupId))
-    .where(
-      and(
-        eq(stands.festivalId, festival.id),
-        eq(standGroups.type, "full_table"),
-      ),
-    );
   const fullTableGroupIds = new Set(
     fullTableGroupRows
       .map((row) => row.groupId)
       .filter((id): id is number => id != null),
   );
-  const fullTableAccessActive = isFullTableCategory(profile.category)
-    ? (await db.transaction((tx) =>
-        findActiveFullTableAccess(tx, {
-          userId: profile.id,
-          festivalId: festival.id,
-        }),
-      )) != null
-    : false;
+  const fullTableAccessActive = fullTableAccess != null;
 
   // Only for somebody who could activate on the spot. Anyone short of the fee
   // is deliberately left out: sending them to buy from inside the map is the
   // financial setup §7.2 keeps out of it, and the panel already handles them.
-  const viewingOwnMap =
-    input.actorProfileId != null && input.actorProfileId === profile.id;
-  // Credits pay for it, so hiding the wallet has to withdraw the offer too.
-  const creditsEnabled = viewingOwnMap
-    ? await isFeatureEnabled("credits")
-    : false;
-  const activationOffer =
-    viewingOwnMap &&
-    creditsEnabled &&
-    !fullTableAccessActive &&
-    isFullTableCategory(profile.category)
-      ? await fetchFullTableOffer({
-          userId: profile.id,
-          festivalId: festival.id,
-          category: profile.category,
-        })
-      : null;
   const fullTableActivationPrice =
+    !fullTableAccessActive &&
+    isFullTableCategory(profile.category) &&
     activationOffer?.offered &&
     !activationOffer.active &&
     activationOffer.shortfall === 0
@@ -563,17 +575,14 @@ export async function fetchFestivalReservationMapDto(input: {
     stands: eligibleStands,
     subcategoryIdsByStandId,
     activeHoldStandIds: new Set(holdRows.map((hold) => hold.standId)),
-    activeHold: activeHold
+    activeHold: activeHoldRows[0]
       ? {
-          ...activeHold,
-          // Both halves of a full table, so the participant's own companion
-          // does not render as someone else's held stand.
-          standIds: (
-            await db
-              .select({ standId: standHoldMembers.standId })
-              .from(standHoldMembers)
-              .where(eq(standHoldMembers.holdId, activeHold.id))
-          ).map((row) => row.standId),
+          id: activeHoldRows[0].id,
+          standId: activeHoldRows[0].standId,
+          expiresAt: activeHoldRows[0].expiresAt,
+          standIds: activeHoldRows
+            .map((row) => row.memberStandId)
+            .filter((id): id is number => id != null),
         }
       : null,
     reservationsByStandId,
@@ -593,94 +602,119 @@ export async function fetchFestivalReservationConfirmationDto(input: {
 }): Promise<FestivalReservationConfirmationDto | null> {
   const now = input.now ?? new Date();
 
-  const hold = await db.query.standHolds.findFirst({
-    where: and(
-      eq(standHolds.id, input.holdId),
-      eq(standHolds.userId, input.profileId),
-      eq(standHolds.festivalId, input.festivalId),
-    ),
-    columns: {
-      id: true,
-      standId: true,
-      expiresAt: true,
-      festivalId: true,
-      individualPriceSnapshot: true,
-      sharedPriceSnapshot: true,
-      fullTablePriceSnapshot: true,
-    },
-  });
-  if (!hold || hold.expiresAt <= now) return null;
+  // Stage 1: everything keyed only on the input ids, in one round trip. The
+  // hold is scoped to its owner and festival; its members are read by id
+  // alone and discarded whenever that scoped hold is missing, so nothing
+  // about somebody else's hold leaks.
+  const [holdRows, festival, profile, holdMembers, recentPartners, access] =
+    await Promise.all([
+      db
+        .select({
+          hold: {
+            id: standHolds.id,
+            expiresAt: standHolds.expiresAt,
+            individualPriceSnapshot: standHolds.individualPriceSnapshot,
+            sharedPriceSnapshot: standHolds.sharedPriceSnapshot,
+            fullTablePriceSnapshot: standHolds.fullTablePriceSnapshot,
+          },
+          stand: {
+            id: stands.id,
+            label: stands.label,
+            standNumber: stands.standNumber,
+            standCategory: stands.standCategory,
+            individualPrice: stands.individualPrice,
+            sharedPrice: stands.sharedPrice,
+            festivalSectorId: stands.festivalSectorId,
+          },
+        })
+        .from(standHolds)
+        .innerJoin(stands, eq(stands.id, standHolds.standId))
+        .where(
+          and(
+            eq(standHolds.id, input.holdId),
+            eq(standHolds.userId, input.profileId),
+            eq(standHolds.festivalId, input.festivalId),
+          ),
+        )
+        .limit(1),
+      db.query.festivals.findFirst({
+        where: eq(festivals.id, input.festivalId),
+        columns: { id: true, name: true },
+      }),
+      db.query.users.findFirst({
+        where: eq(users.id, input.profileId),
+        columns: {
+          id: true,
+          displayName: true,
+          category: true,
+          imageUrl: true,
+        },
+      }),
+      // Membership decides what this hold really covers; the adapter column
+      // only names the half the participant picked first.
+      db
+        .select({
+          standId: standHoldMembers.standId,
+          label: stands.label,
+          standNumber: stands.standNumber,
+        })
+        .from(standHoldMembers)
+        .innerJoin(stands, eq(stands.id, standHoldMembers.standId))
+        .where(eq(standHoldMembers.holdId, input.holdId))
+        .orderBy(asc(standHoldMembers.position)),
+      searchRecentPartners(input.festivalId),
+      // Plain read: a transaction would take a pooled connection of its own.
+      findActiveFullTableAccess(db, {
+        userId: input.profileId,
+        festivalId: input.festivalId,
+      }),
+    ]);
 
-  const [stand, festival, profile] = await Promise.all([
-    db.query.stands.findFirst({
-      where: eq(stands.id, hold.standId),
+  const row = holdRows[0];
+  if (!row || row.hold.expiresAt <= now) return null;
+  const { hold, stand } = row;
+  if (!festival || !profile) return null;
+  const sectorId = stand.festivalSectorId;
+  if (sectorId == null) return null;
+
+  // Stage 2: the sector the stand is in.
+  const [sector, thumbnailRows, activeHoldRows] = await Promise.all([
+    db.query.festivalSectors.findFirst({
+      where: eq(festivalSectors.id, sectorId),
       columns: {
         id: true,
-        label: true,
-        standNumber: true,
-        standCategory: true,
-        individualPrice: true,
-        sharedPrice: true,
-        festivalSectorId: true,
+        name: true,
+        mapOriginX: true,
+        mapOriginY: true,
+        mapWidth: true,
+        mapHeight: true,
       },
     }),
-    db.query.festivals.findFirst({
-      where: eq(festivals.id, input.festivalId),
-      columns: { id: true, name: true },
-    }),
-    db.query.users.findFirst({
-      where: eq(users.id, input.profileId),
-      columns: {
-        id: true,
-        displayName: true,
-        category: true,
-        imageUrl: true,
-      },
-    }),
+    db
+      .select({
+        id: stands.id,
+        storedStatus: stands.status,
+        positionLeft: stands.positionLeft,
+        positionTop: stands.positionTop,
+        label: stands.label,
+        standNumber: stands.standNumber,
+      })
+      .from(stands)
+      .where(eq(stands.festivalSectorId, sectorId)),
+    db
+      .select({ standId: standHoldMembers.standId })
+      .from(standHoldMembers)
+      .innerJoin(standHolds, eq(standHolds.id, standHoldMembers.holdId))
+      .innerJoin(stands, eq(stands.id, standHoldMembers.standId))
+      .where(
+        and(
+          eq(stands.festivalSectorId, sectorId),
+          gt(standHolds.expiresAt, now),
+        ),
+      ),
   ]);
-
-  if (!stand || !festival || !profile) return null;
-  if (stand.festivalSectorId == null) return null;
-
-  const sector = await db.query.festivalSectors.findFirst({
-    where: eq(festivalSectors.id, stand.festivalSectorId),
-    columns: {
-      id: true,
-      name: true,
-      mapOriginX: true,
-      mapOriginY: true,
-      mapWidth: true,
-      mapHeight: true,
-    },
-  });
   if (!sector) return null;
 
-  const thumbnailRows = await db
-    .select({
-      id: stands.id,
-      storedStatus: stands.status,
-      positionLeft: stands.positionLeft,
-      positionTop: stands.positionTop,
-      label: stands.label,
-      standNumber: stands.standNumber,
-    })
-    .from(stands)
-    .where(eq(stands.festivalSectorId, stand.festivalSectorId));
-
-  const thumbnailIds = thumbnailRows.map((row) => row.id);
-  const activeHoldRows =
-    thumbnailIds.length === 0
-      ? []
-      : await db
-          .select({ standId: standHoldMembers.standId })
-          .from(standHoldMembers)
-          .innerJoin(standHolds, eq(standHolds.id, standHoldMembers.holdId))
-          .where(
-            and(
-              inArray(standHoldMembers.standId, thumbnailIds),
-              gt(standHolds.expiresAt, now),
-            ),
-          );
   const activeHoldStandIds = new Set(activeHoldRows.map((row) => row.standId));
   const thumbnailStands = thumbnailRows.map((row) => ({
     id: row.id,
@@ -708,30 +742,7 @@ export async function fetchFestivalReservationConfirmationDto(input: {
         }
       : computeCanvasBounds(thumbnailStands);
 
-  const recentPartners = await searchRecentPartners(festival.id);
-
-  // Membership decides what this hold really covers; the adapter column only
-  // names the half the participant picked first.
-  const holdMembers = await db
-    .select({
-      standId: standHoldMembers.standId,
-      label: stands.label,
-      standNumber: stands.standNumber,
-    })
-    .from(standHoldMembers)
-    .innerJoin(stands, eq(stands.id, standHoldMembers.standId))
-    .where(eq(standHoldMembers.holdId, hold.id))
-    .orderBy(asc(standHoldMembers.position));
-
   const isFullTable = holdMembers.length > 1;
-  const access = isFullTable
-    ? null
-    : await db.transaction((tx) =>
-        findActiveFullTableAccess(tx, {
-          userId: input.profileId,
-          festivalId: input.festivalId,
-        }),
-      );
 
   return {
     fullTable: {

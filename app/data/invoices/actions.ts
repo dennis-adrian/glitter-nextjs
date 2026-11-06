@@ -31,7 +31,7 @@ import {
   canViewInvoiceRecord,
 } from "@/app/lib/reservations/policy";
 import { submitZeroValueInvoiceForReview } from "@/app/lib/reservations/payment-service";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 import { countOutstandingInvoices } from "@/app/lib/payments/helpers";
 
 export async function confirmFreeInvoice(
@@ -45,6 +45,12 @@ export async function confirmFreeInvoice(
 export type InvoiceTenderSummary = {
   approvedCashAmount: number;
   confirmedCreditAmount: number;
+  /**
+   * What a stand change already handed back from that cash and those credits,
+   * as credits in the wallet. Shown as its own line so the balance adds up:
+   * Bs500 paid, Bs200 back, on a Bs500 cobro leaves Bs200 to pay.
+   */
+  refundedAmount: number;
   outstandingAmount: number;
 };
 
@@ -56,7 +62,7 @@ export type InvoiceTenderSummary = {
 export async function fetchInvoiceTenderSummary(
   invoiceId: number,
 ): Promise<InvoiceTenderSummary | null> {
-  const actor = await getCurrentUserProfile();
+  const actor = await getCurrentBaseProfile();
   if (!actor) return null;
 
   const [invoice] = await db
@@ -79,9 +85,12 @@ export async function fetchInvoiceTenderSummary(
   }
 
   // Read through the one definition of coverage rather than re-summing the
-  // rows here. The hand-rolled version this replaces summed every credit
-  // allocation with no reversal filter, so a participant whose credits had
-  // been released was still shown them and quoted too small a balance.
+  // rows here — the same reader the settlement guards use under their locks.
+  // The hand-rolled version this replaced summed every credit allocation with
+  // no reversal filter, so a participant whose credits had been released was
+  // still shown them and quoted too small a balance; reading the rows alone
+  // would likewise miss a stand change's refund, and quote Bs0 on a cobro the
+  // participant still owes the difference on.
   const tenders = await fetchInvoiceTenders(
     [invoice.id],
     new Map([[invoice.id, invoice.amount]]),
@@ -91,6 +100,7 @@ export async function fetchInvoiceTenderSummary(
   return {
     approvedCashAmount: tender.approvedCashAmount,
     confirmedCreditAmount: tender.confirmedCreditAmount,
+    refundedAmount: tender.refundedAmount,
     outstandingAmount: tender.outstandingAmount,
   };
 }
@@ -98,7 +108,7 @@ export async function fetchInvoiceTenderSummary(
 export async function fetchInvoicesByReservation(
   reservationId: number,
 ): Promise<InvoiceWithPaymentsAndStand[]> {
-  const actor = await getCurrentUserProfile();
+  const actor = await getCurrentBaseProfile();
   if (!actor) return [];
 
   try {
@@ -154,7 +164,7 @@ export async function fetchInvoicesByReservation(
 export async function fetchInvoice(
   id: number,
 ): Promise<InvoiceWithPaymentsAndStand | undefined | null> {
-  const actor = await getCurrentUserProfile();
+  const actor = await getCurrentBaseProfile();
   if (!actor) return null;
 
   try {
@@ -201,7 +211,7 @@ export async function fetchReservationsWithInvoicesByProfileAndFestival(
   profileId: number,
   festivalId: number,
 ): Promise<ReservationWithStandAndInvoicesAndFestival[]> {
-  const actor = await getCurrentUserProfile();
+  const actor = await getCurrentBaseProfile();
   if (!actor) return [];
   if (
     actor.id !== profileId &&
@@ -286,7 +296,7 @@ export async function fetchOutstandingInvoiceCountByProfileAndFestival(
 export async function fetchPendingInvoicesByProfile(
   profileId: number,
 ): Promise<InvoiceWithPaymentsAndStand[]> {
-  const actor = await getCurrentUserProfile();
+  const actor = await getCurrentBaseProfile();
   if (!actor) return [];
   if (
     actor.id !== profileId &&
@@ -330,7 +340,7 @@ export async function fetchPendingInvoicesByProfile(
 export async function fetchInvoicesByFestival(
   festivalId: number,
 ): Promise<InvoiceWithTender[]> {
-  const actor = await getCurrentUserProfile();
+  const actor = await getCurrentBaseProfile();
   if (
     !actor ||
     !canViewAdminReservationData({ id: actor.id, role: actor.role })

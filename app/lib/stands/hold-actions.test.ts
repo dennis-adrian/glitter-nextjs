@@ -18,7 +18,7 @@ const denyStandMock = vi.hoisted(() => vi.fn());
 const transactionMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/helpers", () => ({
-  getCurrentUserProfile: authMock,
+  getCurrentBaseProfile: authMock,
 }));
 
 vi.mock("@/app/lib/reservations/tx-eligibility", () => ({

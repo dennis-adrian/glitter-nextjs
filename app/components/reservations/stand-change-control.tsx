@@ -18,11 +18,13 @@ import { Button } from "@/app/components/ui/button";
 import { Label } from "@/app/components/ui/label";
 import SearchableSelect from "@/app/components/ui/searchable-select";
 import {
+  describeStandChangeMoney,
   toStandChangeChoices,
   type StandChangeChoice,
 } from "@/app/components/reservations/stand-change-options";
 import { changeReservationStandAction } from "@/app/lib/reservations/stand-change-actions";
 import type { StandChangeOption } from "@/app/lib/reservations/stand-change-queries";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 /**
  * Moves a reservation to another stand, exchanging with whoever is there.
@@ -99,7 +101,10 @@ export default function StandChangeControl({
         });
       } catch (error) {
         console.error("Error changing reservation stand", error);
-        toast.error("No se pudo mover la reserva. Intentá nuevamente.");
+        toastActionError(
+          error,
+          "No se pudo mover la reserva. Intentá nuevamente.",
+        );
         return;
       }
 
@@ -180,21 +185,9 @@ export default function StandChangeControl({
                     otro participante puede tomarlo enseguida.
                   </p>
                 )}
-                <p>
-                  {isExchange ? "Cada cobro pasa" : "El cobro pasa"} a ser el
-                  del espacio nuevo, manteniendo el descuento que ya tenía. Los
-                  participantes y los pagos registrados quedan como están.
-                </p>
-                <p>
-                  Si el espacio nuevo cuesta más de lo ya pagado, la reserva
-                  vuelve a quedar pendiente por la diferencia, con cinco días
-                  para pagarla. Si cuesta menos, lo pagado de más vuelve como
-                  créditos.
-                </p>
-                <p>
-                  Si hay un comprobante en revisión, el cambio de precio se
-                  rechaza hasta que se resuelva.
-                </p>
+                {describeStandChangeMoney({ isExchange }).map((paragraph) => (
+                  <p key={paragraph}>{paragraph}</p>
+                ))}
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>

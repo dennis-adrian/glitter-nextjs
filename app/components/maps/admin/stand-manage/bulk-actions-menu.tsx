@@ -70,6 +70,7 @@ import {
   isBookedRow,
   rowsBookedAsTable,
 } from "@/app/components/maps/admin/stand-manage/full-table";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   festivalId: number;
@@ -303,8 +304,8 @@ export default function StandBulkActionsMenu({
         );
         onFailure?.();
       }
-    } catch {
-      toast.error("Error al aplicar el cambio. Intenta de nuevo.");
+    } catch (error) {
+      toastActionError(error, "Error al aplicar el cambio. Intenta de nuevo.");
       onFailure?.();
     } finally {
       setPending(false);

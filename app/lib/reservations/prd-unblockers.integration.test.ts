@@ -60,6 +60,7 @@ const actorAls = new AsyncLocalStorage<{
 vi.mock("server-only", () => ({}));
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: currentProfileMock,
+  getCurrentBaseProfile: currentProfileMock,
   requireAdmin: async () => {
     const profile = await currentProfileMock();
     if (!profile || profile.role !== "admin") return null;

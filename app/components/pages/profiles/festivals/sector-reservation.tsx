@@ -54,7 +54,7 @@ export default async function SectorReservationPage(
   const map = await fetchFestivalReservationMapDto({
     festivalId: festival.id,
     profileId: forProfile.id,
-    actorProfileId: currentProfile?.id ?? null,
+    activationOffer: null,
     revealHiddenIdentities: canViewAdminReservationData(
       currentProfile
         ? { id: currentProfile.id, role: currentProfile.role }

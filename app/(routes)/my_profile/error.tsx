@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
+import StaleDeploymentNotice from "@/app/components/common/stale-deployment-notice";
+import { isStaleDeploymentError } from "@/app/lib/errors/action-error";
 
 export default function Error({
   error,
@@ -15,6 +17,8 @@ export default function Error({
     // Optionally log the error to an error reporting service
     console.error(error);
   }, [error]);
+
+  if (isStaleDeploymentError(error)) return <StaleDeploymentNotice />;
 
   return (
     <main className="flex h-full flex-col items-center justify-center">
