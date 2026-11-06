@@ -18,6 +18,7 @@ import { Textarea } from "@/app/components/ui/textarea";
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { correctSettlementProofAction } from "@/app/lib/reservations/payment-actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 export default function CorrectPaymentProofDialog({
   invoice,
@@ -55,8 +56,8 @@ export default function CorrectPaymentProofDialog({
       setReason("");
       onOpenChange(false);
       router.refresh();
-    } catch {
-      toast.error("Error al corregir el comprobante");
+    } catch (error) {
+      toastActionError(error, "Error al corregir el comprobante");
     } finally {
       setIsCorrecting(false);
     }

@@ -20,6 +20,7 @@ import { Input } from "@/app/components/ui/input";
 import { Textarea } from "@/app/components/ui/textarea";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { resolveCreditDebtAction } from "@/app/lib/credits/actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type CreditDebtResolveDialogProps = {
   userId: number;
@@ -81,7 +82,10 @@ export default function CreditDebtResolveDialog({
         router.refresh();
       } catch (error) {
         console.error("Error resolving credit debt", error);
-        toast.error("No se pudo regularizar el saldo. Intentá nuevamente.");
+        toastActionError(
+          error,
+          "No se pudo regularizar el saldo. Intentá nuevamente.",
+        );
       }
     });
   }

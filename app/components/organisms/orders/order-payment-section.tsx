@@ -13,6 +13,7 @@ import {
 } from "@/app/lib/orders/actions";
 import { OrderStatus } from "@/app/lib/orders/definitions";
 import Heading from "@/app/components/atoms/heading";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   orderId: number;
@@ -66,7 +67,10 @@ export default function OrderPaymentSection({
         "[order-payment-section] handleUploadComplete error:",
         error,
       );
-      toast.error("No se pudo enviar el comprobante. Intentá de nuevo.");
+      toastActionError(
+        error,
+        "No se pudo enviar el comprobante. Intentá de nuevo.",
+      );
     }
   }
 

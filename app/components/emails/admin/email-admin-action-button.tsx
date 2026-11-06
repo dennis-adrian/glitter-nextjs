@@ -16,6 +16,7 @@ import {
 } from "@/app/components/ui/alert-dialog";
 import { Button } from "@/app/components/ui/button";
 import type { EmailAdminActionResult } from "@/app/lib/emails/admin-definitions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 /**
  * A row's one action, behind a confirmation that says what will happen. The
@@ -67,8 +68,8 @@ export default function EmailAdminActionButton({
         }
         setOpen(false);
         router.refresh();
-      } catch {
-        toast.error("No se pudo completar. Intenta de nuevo.");
+      } catch (error) {
+        toastActionError(error, "No se pudo completar. Intenta de nuevo.");
       }
     });
   }

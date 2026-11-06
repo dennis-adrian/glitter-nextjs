@@ -23,6 +23,7 @@ import {
   createOccurrence,
   updateOccurrence,
 } from "@/app/lib/programs/occurrence-actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   sessionId: number;
@@ -99,7 +100,7 @@ export default function OccurrenceForm({
       router.refresh();
     } catch (error) {
       console.error(error);
-      toast.error("No se pudo guardar el horario");
+      toastActionError(error, "No se pudo guardar el horario");
     }
   });
 

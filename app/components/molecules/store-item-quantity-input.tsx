@@ -51,6 +51,7 @@ import {
 } from "@/app/lib/products/variants";
 import type { CartItemWithProduct } from "@/app/lib/cart/definitions";
 import { cn } from "@/app/lib/utils";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type StoreItemQuantityInputProps = {
   product: BaseProductWithImages;
@@ -448,7 +449,7 @@ export default function StoreItemQuantityInput({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Error desconocido";
-      toast.error(`No se pudo agregar al carrito. ${message}`);
+      toastActionError(error, `No se pudo agregar al carrito. ${message}`);
     } finally {
       setSubmitting(false);
     }

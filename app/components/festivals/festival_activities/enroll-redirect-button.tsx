@@ -41,6 +41,7 @@ import {
   isProofUploadExpired,
 } from "@/app/lib/festival_activites/helpers";
 import { formatDisplayDate } from "@/app/lib/formatters";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 const FormSchema = z.object({
   consent: z
@@ -126,7 +127,7 @@ export default function EnrollRedirectButton({
           toast.error(result.message);
         }
       } catch (error) {
-        toast.error("Error inesperado al procesar la inscripción");
+        toastActionError(error, "Error inesperado al procesar la inscripción");
       }
     });
   });
@@ -142,7 +143,10 @@ export default function EnrollRedirectButton({
           toast.error(result.message);
         }
       } catch (error) {
-        toast.error("Error inesperado al unirse a la lista de espera");
+        toastActionError(
+          error,
+          "Error inesperado al unirse a la lista de espera",
+        );
       }
     });
   };
@@ -158,7 +162,10 @@ export default function EnrollRedirectButton({
           toast.error(result.message);
         }
       } catch (error) {
-        toast.error("Error inesperado al salir de la lista de espera");
+        toastActionError(
+          error,
+          "Error inesperado al salir de la lista de espera",
+        );
       }
     });
   };
@@ -180,7 +187,8 @@ export default function EnrollRedirectButton({
           toast.error(result.message);
         }
       } catch (error) {
-        toast.error(
+        toastActionError(
+          error,
           "Error inesperado al aceptar la invitación de la lista de espera",
         );
       }

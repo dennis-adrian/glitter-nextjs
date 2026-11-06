@@ -20,6 +20,11 @@ import { formatCreditCount } from "@/app/components/credits/credit-amount";
 import BuyLatePartnerCreditsButton from "@/app/components/festivals/reservations/buy-late-partner-credits-button";
 import { addLatePartnerAction } from "@/app/lib/reservations/late-partner-actions";
 import { searchPotentialPartners } from "@/app/lib/reservations/participant-actions";
+import {
+  isStaleDeploymentError,
+  toastActionError,
+  toastStaleDeployment,
+} from "@/app/lib/errors/action-error";
 
 type PartnerOption = { id: number; displayName: string | null };
 
@@ -97,6 +102,7 @@ export default function AddLatePartnerButton({
     } catch (error) {
       console.error("Error searching partners", error);
       if (requestId !== latestSearch.current) return;
+      if (isStaleDeploymentError(error)) toastStaleDeployment();
       setOptions([]);
     } finally {
       // A superseded request must not clear the spinner the live one is using,
@@ -117,7 +123,10 @@ export default function AddLatePartnerButton({
         });
       } catch (error) {
         console.error("Error adding partner", error);
-        toast.error("No se pudo agregar a tu compañero. Intentá nuevamente.");
+        toastActionError(
+          error,
+          "No se pudo agregar a tu compañero. Intentá nuevamente.",
+        );
         return;
       }
 
