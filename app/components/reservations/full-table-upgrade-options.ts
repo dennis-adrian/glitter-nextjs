@@ -229,9 +229,11 @@ export function describeFullTableUpgradeSettlement(input: {
   }
   // A positive cobro marked paid with nothing registered: the money came in
   // outside the system, so the service neither reopens it nor refunds it.
+  // Judged on the cobro's own coverage, as the planner judges it: a late
+  // partner's payment never covered this cobro.
   if (
     input.reservationStatus === "accepted" &&
-    paidAmount <= 0 &&
+    plan.coveredAmount <= 0 &&
     !plan.confirmedAtNoCost
   ) {
     return "La reserva figura como pagada sin pagos registrados en el sistema: solo cambia el monto del cobro. No vuelve a quedar pendiente ni se le pide la diferencia.";

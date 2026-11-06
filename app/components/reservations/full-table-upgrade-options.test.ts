@@ -562,6 +562,24 @@ describe("full table upgrade settlement", () => {
     );
   });
 
+  // A late partner's credits never covered this cobro, so they must not turn
+  // it into "no payments yet" — the service still only moves the amount.
+  it("says a cobro paid outside the system only has its amount moved, even with a late partner's payment", () => {
+    const upgrade = plan({
+      reservationStatus: "accepted",
+      latePartnerPrepaid: 100,
+    });
+    expect(upgrade.settlement.kind).toBe("none");
+    expect(
+      describeFullTableUpgradeSettlement({
+        plan: upgrade,
+        reservationStatus: "accepted",
+      }),
+    ).toBe(
+      "La reserva figura como pagada sin pagos registrados en el sistema: solo cambia el monto del cobro. No vuelve a quedar pendiente ni se le pide la diferencia.",
+    );
+  });
+
   it("asks for the difference once a zero-value entitlement was approved, even on a positive cobro", () => {
     const text = describeFullTableUpgradeSettlement({
       plan: plan({
