@@ -24,7 +24,9 @@ import { serverEnv } from "@/env";
  * The "reservations are open" email on the bulk lane
  * (`template_key = 'festival_reservations_open'`). Each send is a campaign
  * with a row in `festival_reservations_open_notices`; the lane batches its
- * rows and this renders them.
+ * rows and this renders them. A row belongs to the campaign through its
+ * inbox item, or directly (`campaign_id`) when the festival sends the notice
+ * by email only.
  *
  * The pre-check is an allowlist, as a comunicado's is: a row is mailed only
  * while its person is still a verified participant, is not being deleted,
@@ -68,7 +70,7 @@ export const reservationsOpenBatchRenderer: BulkEmailRenderer = {
   /** Lane-wide, only the notices this environment sent. */
   scope: () =>
     reservationsOpenCampaignsInEnv(
-      sql`"notifications"."campaign_id"`,
+      sql`coalesce("notification_deliveries"."campaign_id", "notifications"."campaign_id")`,
       serverEnv.VERCEL_ENV,
     ),
 
@@ -100,14 +102,14 @@ export const reservationsOpenBatchRenderer: BulkEmailRenderer = {
         f.id AS festival_id, f.name AS festival_name,
         f.festival_type
       FROM notification_deliveries d
-      JOIN notifications n ON n.id = d.notification_id
+      LEFT JOIN notifications n ON n.id = d.notification_id
       JOIN festival_reservations_open_notices o
-        ON o.campaign_id = n.campaign_id
+        ON o.campaign_id = coalesce(d.campaign_id, n.campaign_id)
       LEFT JOIN festivals f ON f.id = o.festival_id
       LEFT JOIN users u ON u.id = d.user_id
       WHERE d.id = ANY(${intArray(rows.map((row) => row.id))})
         AND d.lease_owner = ${owner}::text
-        AND n.campaign_id = ${campaignId}::int
+        AND coalesce(d.campaign_id, n.campaign_id) = ${campaignId}::int
     `);
 
     const byId = new Map(checked.map((row) => [Number(row.id), row]));

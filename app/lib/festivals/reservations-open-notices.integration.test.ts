@@ -79,7 +79,9 @@ let service: typeof import("@/app/lib/festivals/reservations-open-notices");
 let actions: typeof import("@/app/lib/festivals/reservations-open-actions");
 
 const KIND = "festival_reservations_open";
-const HOUR = 60 * 60 * 1000;
+const MINUTE = 60 * 1000;
+const HOUR = 60 * MINUTE;
+const ALL = { email: true, inApp: true, push: true };
 
 const created = {
   festivals: [] as number[],
@@ -184,7 +186,8 @@ describeDatabase("reservations-open notices", () => {
         name: `Reservations open ${tag()}`,
         status: "active",
         festivalType: "glitter",
-        reservationsStartDate: new Date(Date.now() - HOUR),
+        // Inside the automatic notice's one-hour window.
+        reservationsStartDate: new Date(Date.now() - 10 * MINUTE),
         ...values,
       })
       .returning();
@@ -416,11 +419,13 @@ describeDatabase("reservations-open notices", () => {
     ).toEqual({ kind: "not_open" });
   });
 
-  it("finds only festivals that opened inside the window and have no notice", async () => {
+  it("finds only festivals with it on that opened within the hour and have no notice", async () => {
     const { festival: recent } = await makeFestival();
     const { festival: old } = await makeFestival({
-      status: "draft",
-      reservationsStartDate: new Date(Date.now() - 48 * HOUR),
+      reservationsStartDate: new Date(Date.now() - 2 * HOUR),
+    });
+    const { festival: switchedOff } = await makeFestival({
+      reservationsOpenNoticeAuto: false,
     });
     const { festival: future } = await makeFestival({
       status: "draft",
@@ -432,6 +437,7 @@ describeDatabase("reservations-open notices", () => {
     ).map((row) => row.id);
     expect(due).toContain(recent.id);
     expect(due).not.toContain(old.id);
+    expect(due).not.toContain(switchedOff.id);
     expect(due).not.toContain(future.id);
 
     await service.createReservationsOpenNotice({
@@ -494,6 +500,7 @@ describeDatabase("reservations-open notices", () => {
       await actions.resendReservationsOpenNotice({
         festivalId: festival.id,
         requestId: crypto.randomUUID(),
+        channels: ALL,
       }),
     ).toEqual({ success: false, message: "No autorizado" });
 
@@ -502,6 +509,7 @@ describeDatabase("reservations-open notices", () => {
     const resent = await actions.resendReservationsOpenNotice({
       festivalId: festival.id,
       requestId,
+      channels: ALL,
     });
     expect(resent).toMatchObject({
       success: true,
@@ -514,6 +522,7 @@ describeDatabase("reservations-open notices", () => {
       await actions.resendReservationsOpenNotice({
         festivalId: festival.id,
         requestId,
+        channels: ALL,
       }),
     ).toMatchObject({ success: true, alreadySent: true });
 
@@ -543,8 +552,200 @@ describeDatabase("reservations-open notices", () => {
       await actions.resendReservationsOpenNotice({
         festivalId: festival.id,
         requestId: crypto.randomUUID(),
+        channels: ALL,
       }),
     ).toMatchObject({ success: false });
     expect(await service.fetchReservationsOpenNotices(festival.id)).toEqual([]);
+  });
+
+  it("skips the automatic notice when it is off or the opening is over an hour old", async () => {
+    const { festival: off } = await makeFestival({
+      reservationsOpenNoticeAuto: false,
+    });
+    const { festival: late } = await makeFestival({
+      reservationsStartDate: new Date(Date.now() - 2 * HOUR),
+    });
+    await makeUser();
+
+    expect(
+      await service.createReservationsOpenNotice({
+        festivalId: off.id,
+        trigger: "automatic",
+        now: new Date(),
+      }),
+    ).toEqual({ kind: "disabled" });
+    expect(
+      await service.createReservationsOpenNotice({
+        festivalId: late.id,
+        trigger: "automatic",
+        now: new Date(),
+      }),
+    ).toEqual({ kind: "too_late" });
+
+    // An admin can still send either by hand.
+    admin = await makeUser({ role: "admin" });
+    requireAdminOrFestivalAdmin.mockResolvedValue(admin);
+    for (const festival of [off, late]) {
+      expect(
+        await actions.resendReservationsOpenNotice({
+          festivalId: festival.id,
+          requestId: crypto.randomUUID(),
+          channels: ALL,
+        }),
+      ).toMatchObject({ success: true, alreadySent: false, recipients: 1 });
+    }
+  });
+
+  it("sends by email only when the festival says so, with no inbox item", async () => {
+    const { festival } = await makeFestival({
+      reservationsOpenNoticeInApp: false,
+      reservationsOpenNoticePush: false,
+    });
+    const user = await makeUser({}, { devices: 1 });
+
+    const run = await service.sendDueReservationsOpenNotices({
+      deadline: Date.now() + 60_000,
+    });
+    const sent = run.sent.find((row) => row.festivalId === festival.id);
+    expect(sent).toMatchObject({ recipients: 1 });
+
+    expect(await itemsFor(sent!.campaignId)).toEqual([]);
+    const rows = await integrationDb!
+      .select({
+        userId: notificationDeliveries.userId,
+        channel: notificationDeliveries.channel,
+        status: notificationDeliveries.status,
+        notificationId: notificationDeliveries.notificationId,
+      })
+      .from(notificationDeliveries)
+      .where(eq(notificationDeliveries.campaignId, sent!.campaignId));
+    expect(rows).toEqual([
+      {
+        userId: user.id,
+        channel: "email",
+        status: "sent",
+        notificationId: null,
+      },
+    ]);
+
+    const [history] = await service.fetchReservationsOpenNotices(festival.id);
+    expect(history).toMatchObject({
+      trigger: "automatic",
+      channels: { email: true, inApp: false, push: false },
+      recipients: 1,
+      emails: 1,
+      emailsSent: 1,
+      pushes: 0,
+    });
+  }, 60_000);
+
+  it("sends in Glitter without a push or an email when those are off", async () => {
+    const { festival } = await makeFestival({
+      reservationsOpenNoticeEmail: false,
+      reservationsOpenNoticePush: false,
+    });
+    const user = await makeUser({}, { devices: 2 });
+
+    const result = await service.createReservationsOpenNotice({
+      festivalId: festival.id,
+      trigger: "automatic",
+      now: new Date(),
+    });
+    expect(result).toMatchObject({
+      kind: "sent",
+      recipients: 1,
+      emails: 0,
+      pushes: 0,
+    });
+    if (result.kind !== "sent") return;
+    expect((await itemsFor(result.campaignId)).map((i) => i.userId)).toEqual([
+      user.id,
+    ]);
+    expect(await deliveriesFor(result.campaignId)).toEqual([]);
+  });
+
+  it("refuses a resend whose push has no in-app item", async () => {
+    const { festival } = await makeFestival();
+    await makeUser();
+    admin = await makeUser({ role: "admin" });
+    requireAdminOrFestivalAdmin.mockResolvedValue(admin);
+
+    expect(
+      await actions.resendReservationsOpenNotice({
+        festivalId: festival.id,
+        requestId: crypto.randomUUID(),
+        channels: { email: true, inApp: false, push: true },
+      }),
+    ).toMatchObject({ success: false });
+    expect(await service.fetchReservationsOpenNotices(festival.id)).toEqual([]);
+  });
+
+  it("saves the festival's settings for staff, and keeps the channels valid", async () => {
+    const { festival } = await makeFestival();
+    const settings = {
+      festivalId: festival.id,
+      auto: false,
+      channels: { email: true, inApp: false, push: false },
+    };
+
+    requireAdminOrFestivalAdmin.mockResolvedValue(null);
+    expect(
+      await actions.updateReservationsOpenNoticeSettings(settings),
+    ).toEqual({ success: false, message: "No autorizado" });
+
+    admin = await makeUser({ role: "admin" });
+    requireAdminOrFestivalAdmin.mockResolvedValue(admin);
+    expect(
+      await actions.updateReservationsOpenNoticeSettings({
+        ...settings,
+        channels: { email: false, inApp: false, push: false },
+      }),
+    ).toMatchObject({ success: false });
+    expect(
+      await actions.updateReservationsOpenNoticeSettings({
+        ...settings,
+        channels: { email: true, inApp: false, push: true },
+      }),
+    ).toMatchObject({ success: false });
+
+    expect(
+      await actions.updateReservationsOpenNoticeSettings(settings),
+    ).toEqual({ success: true });
+    const [saved] = await integrationDb!
+      .select({
+        auto: festivals.reservationsOpenNoticeAuto,
+        email: festivals.reservationsOpenNoticeEmail,
+        inApp: festivals.reservationsOpenNoticeInApp,
+        push: festivals.reservationsOpenNoticePush,
+      })
+      .from(festivals)
+      .where(eq(festivals.id, festival.id));
+    expect(saved).toEqual({
+      auto: false,
+      email: true,
+      inApp: false,
+      push: false,
+    });
+
+    await integrationDb!
+      .update(festivals)
+      .set({ status: "archived" })
+      .where(eq(festivals.id, festival.id));
+    expect(
+      await actions.updateReservationsOpenNoticeSettings({
+        ...settings,
+        auto: true,
+      }),
+    ).toMatchObject({ success: false });
+  });
+
+  it("has the automatic notice on, through every channel, for a new festival", async () => {
+    const { festival } = await makeFestival();
+    expect(festival).toMatchObject({
+      reservationsOpenNoticeAuto: true,
+      reservationsOpenNoticeEmail: true,
+      reservationsOpenNoticeInApp: true,
+      reservationsOpenNoticePush: true,
+    });
   });
 });

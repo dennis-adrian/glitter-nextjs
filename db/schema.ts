@@ -392,6 +392,23 @@ export const festivals = pgTable(
       .default(false)
       .notNull(),
     keepStoreOpen: boolean("keep_store_open").default(false).notNull(),
+    /**
+     * The "reservations are open" notice: whether the cron sends it on its
+     * own, and through which channels. A push needs the inbox item it opens,
+     * so it is only on with `reservationsOpenNoticeInApp`.
+     */
+    reservationsOpenNoticeAuto: boolean("reservations_open_notice_auto")
+      .default(true)
+      .notNull(),
+    reservationsOpenNoticeEmail: boolean("reservations_open_notice_email")
+      .default(true)
+      .notNull(),
+    reservationsOpenNoticeInApp: boolean("reservations_open_notice_in_app")
+      .default(true)
+      .notNull(),
+    reservationsOpenNoticePush: boolean("reservations_open_notice_push")
+      .default(true)
+      .notNull(),
     reservationsStartDate: timestamp("reservations_start_date")
       .defaultNow()
       .notNull(),
@@ -425,6 +442,10 @@ export const festivals = pgTable(
     check(
       "festivals_reservation_hold_minutes_range",
       sql`${festivals.reservationHoldMinutes} >= 1 AND ${festivals.reservationHoldMinutes} <= 30`,
+    ),
+    check(
+      "festivals_reservations_open_notice_channels",
+      sql`(${festivals.reservationsOpenNoticeEmail} OR ${festivals.reservationsOpenNoticeInApp}) AND (NOT ${festivals.reservationsOpenNoticePush} OR ${festivals.reservationsOpenNoticeInApp})`,
     ),
   ],
 );
@@ -7504,7 +7525,11 @@ export const festivalReservationsOpenNotices = pgTable(
     reservationsStartDate: timestamp("reservations_start_date").notNull(),
     /** The environment that sent it: only its own lanes send its mail. */
     env: text("env").notNull(),
-    /** Inbox items written, email rows queued, and devices pushed to. */
+    /** The channels this send used. */
+    email: boolean("email").default(true).notNull(),
+    inApp: boolean("in_app").default(true).notNull(),
+    push: boolean("push").default(true).notNull(),
+    /** People reached, email rows queued, and devices pushed to. */
     recipients: integer("recipients").default(0).notNull(),
     emails: integer("emails").default(0).notNull(),
     pushes: integer("pushes").default(0).notNull(),

@@ -271,9 +271,12 @@ describe("festival_reservations_open", () => {
     });
   });
 
-  it("always pushes, and leaves its email to the bulk lane", () => {
+  it("pushes only when the send asks, and leaves its email to the bulk lane", () => {
     expect(hasEmail("festival_reservations_open")).toBe(false);
-    expect(notificationPushes("festival_reservations_open", data)).toBe(true);
+    expect(notificationPushes("festival_reservations_open", data)).toBe(false);
+    expect(
+      notificationPushes("festival_reservations_open", data, { push: true }),
+    ).toBe(true);
     expect(notificationCategory("festival_reservations_open")).toBe(
       "reservations",
     );
@@ -381,7 +384,8 @@ describe("every kind", () => {
           notificationCategory(kind) !== "admin" &&
           (notificationStartsRead(kind, FIXTURES[kind] as never) ||
             kind === "comunicado" ||
-            kind === "festival_participant_invitation"),
+            kind === "festival_participant_invitation" ||
+            kind === "festival_reservations_open"),
       ),
     );
     // Every sensitive kind pushes, with the generic text.

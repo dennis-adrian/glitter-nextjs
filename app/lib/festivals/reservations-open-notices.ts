@@ -4,6 +4,11 @@ import { and, eq, exists, gt, lte, notExists, sql } from "drizzle-orm";
 
 import { emailBaseUrlProblem, publicBaseUrl } from "@/app/lib/urls";
 import {
+  AUTOMATIC_WINDOW_MS,
+  type ReservationsOpenChannels,
+  reservationsOpenChannelsProblem,
+} from "@/app/lib/festivals/reservations-open-definitions";
+import {
   festivalCategories,
   invitableParticipant,
 } from "@/app/lib/festivals/participant-audience";
@@ -29,13 +34,18 @@ import { serverEnv } from "@/env";
 /**
  * "Reservations are open": the notice on the festival's admin page.
  *
- * The cron sends it once per festival and opening time, shortly after the
- * opening; an admin can send it again from the festival's page. Every send is
- * its own notification campaign, written in one transaction: an inbox item
- * per participant, a bulk-lane email row for each, and a bulk push per device
- * with avisos on. The send's own run delivers what it can right away; the
- * comunicados cron (bulk email) and the notifications cron (bulk push) take
- * whatever it leaves.
+ * The cron sends it once per festival and opening time, within an hour of
+ * the opening, when the festival has it switched on (the default); an admin
+ * can send it again from the same section of the festival's page. The
+ * festival's settings choose the channels: email, the in-app item, and a
+ * push to devices with avisos on (only with the in-app item, which it opens).
+ *
+ * Every send is its own notification campaign, written in one transaction:
+ * an inbox item per participant when in-app is on, a bulk-lane email row for
+ * each (tied to the item, or straight to the campaign when there is none),
+ * and a bulk push per device. The send's own run delivers what it can right
+ * away; the comunicados cron (bulk email) and the notifications cron (bulk
+ * push) take whatever it leaves.
  *
  * Who it reaches: verified participants (role `user`) who can reserve in
  * the festival (`invitableParticipant`, the activation's audience), minus
@@ -43,14 +53,6 @@ import { serverEnv } from "@/env";
  */
 
 export const RESERVATIONS_OPEN_KIND = "festival_reservations_open" as const;
-
-/**
- * How late the cron still sends the automatic notice. A festival activated,
- * or a date moved into the past, within this window still gets it; one whose
- * reservations opened before is left alone, so a deploy never announces
- * openings from long ago.
- */
-export const AUTOMATIC_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /** First key of the per-festival send lock; distinct from the other lanes'. */
 const NOTICE_LOCK_NAMESPACE = 8155;
@@ -140,6 +142,11 @@ export type CreateNoticeResult =
   | { kind: "not_found" }
   | { kind: "inactive" }
   | { kind: "not_open" }
+  | { kind: "invalid_channels"; message: string }
+  /** Automatic only: the festival has the automatic notice switched off. */
+  | { kind: "disabled" }
+  /** Automatic only: the opening is older than the window. */
+  | { kind: "too_late" }
   /** Automatic only: this opening already has a notice. */
   | { kind: "already_sent" }
   /** The same request id sent before (a double submit). */
@@ -164,6 +171,8 @@ export async function createReservationsOpenNotice(
         /** Minted per confirm click, so a double submit is one send. */
         requestId: string;
         actorUserId: number;
+        /** Chosen in the resend dialog; the festival's settings by default. */
+        channels: ReservationsOpenChannels;
       }
   ),
 ): Promise<CreateNoticeResult> {
@@ -178,16 +187,31 @@ export async function createReservationsOpenNotice(
         name: festivals.name,
         status: festivals.status,
         reservationsStartDate: festivals.reservationsStartDate,
+        auto: festivals.reservationsOpenNoticeAuto,
+        email: festivals.reservationsOpenNoticeEmail,
+        inApp: festivals.reservationsOpenNoticeInApp,
+        push: festivals.reservationsOpenNoticePush,
       })
       .from(festivals)
       .where(eq(festivals.id, input.festivalId));
     if (!festival) return { kind: "not_found" };
     if (festival.status !== "active") return { kind: "inactive" };
-    if (festival.reservationsStartDate.getTime() > input.now.getTime()) {
+    const openedAt = festival.reservationsStartDate.getTime();
+    if (openedAt > input.now.getTime()) {
       return { kind: "not_open" };
     }
+    const channels: ReservationsOpenChannels =
+      input.trigger === "manual"
+        ? input.channels
+        : { email: festival.email, inApp: festival.inApp, push: festival.push };
+    const problem = reservationsOpenChannelsProblem(channels);
+    if (problem) return { kind: "invalid_channels", message: problem };
 
     if (input.trigger === "automatic") {
+      if (!festival.auto) return { kind: "disabled" };
+      if (input.now.getTime() - openedAt > AUTOMATIC_WINDOW_MS) {
+        return { kind: "too_late" };
+      }
       // Any notice for this opening counts: one an admin sent right after
       // it is not repeated by the cron minutes later.
       const [existing] = await tx
@@ -237,31 +261,73 @@ export async function createReservationsOpenNotice(
       return { kind: "duplicate", campaignId: previous?.id ?? null };
     }
 
-    const result = await notifyMany(tx, {
-      kind: RESERVATIONS_OPEN_KIND,
-      data,
-      userIds: await audienceUserIds(tx, festival.id),
-      dedupeKey: reservationsOpenDedupeKey(campaign.id),
-      campaignId: campaign.id,
-      email: "bulk",
-    });
-
-    const counts = {
-      recipients: result.createdUserIds.length,
-      emails: result.emailDeliveryIds.length,
-      pushes: result.pushDeliveryIds.length,
-    };
+    const userIds = await audienceUserIds(tx, festival.id);
+    let counts: { recipients: number; emails: number; pushes: number };
+    if (channels.inApp) {
+      const result = await notifyMany(tx, {
+        kind: RESERVATIONS_OPEN_KIND,
+        data,
+        userIds,
+        dedupeKey: reservationsOpenDedupeKey(campaign.id),
+        campaignId: campaign.id,
+        email: channels.email ? "bulk" : null,
+        push: channels.push,
+      });
+      counts = {
+        recipients: result.createdUserIds.length,
+        emails: result.emailDeliveryIds.length,
+        pushes: result.pushDeliveryIds.length,
+      };
+    } else {
+      const emails = await queueEmailOnly(tx, campaign.id, data, userIds);
+      counts = { recipients: emails, emails, pushes: 0 };
+    }
     await tx.insert(festivalReservationsOpenNotices).values({
       campaignId: campaign.id,
       festivalId: festival.id,
       trigger: input.trigger,
       reservationsStartDate: festival.reservationsStartDate,
+      ...channels,
       env: serverEnv.VERCEL_ENV,
       createdByUserId: actorUserId,
       ...counts,
     });
     return { kind: "sent", campaignId: campaign.id, ...counts };
   });
+}
+
+function intArray(ids: readonly number[]) {
+  return sql`${sql.param([...ids])}::int[]`;
+}
+
+/**
+ * Email with no inbox item: a bulk-lane row per person, tied straight to the
+ * campaign, as a comunicado to visitors is. Addresses are read in SQL, never
+ * passed as parameters. Returns how many were queued.
+ */
+async function queueEmailOnly(
+  tx: NotifyTx,
+  campaignId: number,
+  data: FestivalReservationsOpenData,
+  userIds: readonly number[],
+) {
+  if (userIds.length === 0) return 0;
+  const { rows } = await tx.execute<{ id: number }>(sql`
+    INSERT INTO notification_deliveries
+      (campaign_id, user_id, template_key, channel, lane, recipient_email,
+       payload, idempotency_key)
+    SELECT ${campaignId}::int, u.id, ${RESERVATIONS_OPEN_KIND}::text,
+      'email'::notification_delivery_channel,
+      'bulk'::notification_delivery_lane,
+      btrim(u.email), ${JSON.stringify(data)}::jsonb,
+      'reservations-open:' || ${campaignId}::int || ':user:' || u.id || ':email'
+    FROM unnest(${intArray(userIds)}) AS t(id)
+    JOIN users u ON u.id = t.id
+    WHERE btrim(u.email) <> ''
+    ORDER BY u.id
+    RETURNING id
+  `);
+  return rows.length;
 }
 
 export type DeliverNoticeRun = {
@@ -304,7 +370,10 @@ export async function deliverReservationsOpenNotice(
   return run;
 }
 
-/** Active festivals whose reservations opened inside the window, unannounced. */
+/**
+ * Active festivals with the automatic notice on whose reservations opened
+ * inside the window, unannounced.
+ */
 export async function findFestivalsDueForReservationsOpenNotice(now: Date) {
   return db
     .select({ id: festivals.id })
@@ -312,6 +381,7 @@ export async function findFestivalsDueForReservationsOpenNotice(now: Date) {
     .where(
       and(
         eq(festivals.status, "active"),
+        eq(festivals.reservationsOpenNoticeAuto, true),
         lte(festivals.reservationsStartDate, now),
         gt(
           festivals.reservationsStartDate,
@@ -387,7 +457,10 @@ export type ReservationsOpenNoticeSummary = {
   campaignId: number;
   trigger: "automatic" | "manual";
   createdAt: Date;
+  /** The opening it announced. */
+  reservationsStartDate: Date;
   sentByName: string | null;
+  channels: ReservationsOpenChannels;
   recipients: number;
   emails: number;
   emailsSent: number;
@@ -404,21 +477,26 @@ export async function fetchReservationsOpenNotices(
     campaign_id: number;
     trigger: "automatic" | "manual";
     created_at: Date | string;
+    reservations_start_date: Date | string;
     sent_by: string | null;
+    email: boolean;
+    in_app: boolean;
+    push: boolean;
     recipients: number;
     emails: number;
     pushes: number;
     emails_sent: number | string;
     pushes_sent: number | string;
   }>(sql`
-    SELECT o.campaign_id, o.trigger, o.created_at, o.recipients, o.emails,
-      o.pushes,
+    SELECT o.campaign_id, o.trigger, o.created_at, o.reservations_start_date,
+      o.recipients, o.emails,
+      o.pushes, o.email, o.in_app, o.push,
       coalesce(nullif(btrim(u.display_name), ''),
         nullif(btrim(concat_ws(' ', u.first_name, u.last_name)), '')) AS sent_by,
       (SELECT count(*) FROM notification_deliveries d
-        JOIN notifications n ON n.id = d.notification_id
-        WHERE n.campaign_id = o.campaign_id AND d.channel = 'email'
-          AND d.status = 'sent') AS emails_sent,
+        LEFT JOIN notifications n ON n.id = d.notification_id
+        WHERE coalesce(d.campaign_id, n.campaign_id) = o.campaign_id
+          AND d.channel = 'email' AND d.status = 'sent') AS emails_sent,
       (SELECT count(*) FROM notification_deliveries d
         JOIN notifications n ON n.id = d.notification_id
         WHERE n.campaign_id = o.campaign_id AND d.channel = 'push'
@@ -433,7 +511,9 @@ export async function fetchReservationsOpenNotices(
     campaignId: Number(row.campaign_id),
     trigger: row.trigger,
     createdAt: new Date(row.created_at),
+    reservationsStartDate: new Date(row.reservations_start_date),
     sentByName: row.sent_by,
+    channels: { email: row.email, inApp: row.in_app, push: row.push },
     recipients: Number(row.recipients),
     emails: Number(row.emails),
     emailsSent: Number(row.emails_sent),

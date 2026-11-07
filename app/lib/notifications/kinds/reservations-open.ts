@@ -6,7 +6,8 @@ import type { KindDefinition } from "@/app/lib/notifications/kinds/types";
  * "Reservations are open": sent when a festival's reservations open, by the
  * cron (`app/lib/festivals/reservations-open-notices.ts`), and again whenever
  * an admin resends it. Its email is the bulk lane's
- * (`reservations-open-delivery.ts`), so it has none here.
+ * (`reservations-open-delivery.ts`), so it has none here. Whether it pushes
+ * is the festival's setting, or the admin's choice on a resend.
  */
 
 const reservationsOpenSchema = z.object({
@@ -21,7 +22,7 @@ export type FestivalReservationsOpenData = z.infer<
 export const reservationsOpenKinds = {
   festival_reservations_open: {
     category: "reservations",
-    push: true,
+    push: "per_send",
     schema: reservationsOpenSchema,
     inApp: (data) => ({
       title: `¡Ya abrieron las reservas para ${data.festivalName}!`,

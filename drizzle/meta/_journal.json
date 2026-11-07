@@ -2178,6 +2178,13 @@
       "when": 1794007645500,
       "tag": "0311_reservations_open_notices",
       "breakpoints": true
+    },
+    {
+      "idx": 312,
+      "version": "7",
+      "when": 1794019103327,
+      "tag": "0312_reservations_open_notice_settings",
+      "breakpoints": true
     }
   ]
 }

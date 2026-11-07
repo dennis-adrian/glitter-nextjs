@@ -10,6 +10,7 @@ import {
   fetchFestivalWithDates,
 } from "@/app/lib/festivals/actions";
 import { fetchFestivalOverviewCounts } from "@/app/lib/festivals/overview";
+import { reservationsOpenTiming } from "@/app/lib/festivals/reservations-open-definitions";
 import { fetchReservationsOpenNotices } from "@/app/lib/festivals/reservations-open-notices";
 import { isFestivalDay } from "@/app/lib/festivals/utils";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
@@ -59,14 +60,16 @@ export default async function Page({ params }: PageProps) {
     return notFound();
   }
 
+  const timing = reservationsOpenTiming(festival.reservationsStartDate);
+
   return (
     <div className="container flex flex-col gap-6 p-3 pb-10 md:p-6">
       <FestivalDetailHeader festival={festival} />
       <FestivalSectionsNav festival={festival} counts={counts} />
-      {/* One column on a phone, in reading order: switches, facts, then the
-          long reservation-features panel. From lg the facts move to a side
-          column spanning both rows, beside the switches and the panel. */}
-      <div className="grid items-start gap-6 lg:grid-cols-3 lg:grid-rows-[auto_1fr]">
+      {/* One column on a phone, in reading order: switches, notifications,
+          facts, then the long reservation-features panel. From lg the facts
+          move to a side column spanning every row, beside the rest. */}
+      <div className="grid items-start gap-6 lg:grid-cols-3 lg:grid-rows-[auto_auto_1fr]">
         <div className="min-w-0 lg:col-span-2">
           <FestivalSettingsCard
             festival={festival}
@@ -78,19 +81,30 @@ export default async function Page({ params }: PageProps) {
             isFestivalDayToday={isFestivalDay(festival.festivalDates)}
           />
         </div>
-        <div className="min-w-0 space-y-6 lg:col-start-3 lg:row-span-2 lg:row-start-1">
-          <FestivalInfoCard festival={festival} />
-          <FestivalParticipantTermsSummary
-            festivalStatus={festival.status}
-            participantTermsEnabled={festival.participantTermsEnabled}
-          />
+        <div className="min-w-0 lg:col-span-2">
           <FestivalReservationsOpenCard
             festivalId={festival.id}
             active={festival.status === "active"}
             archived={festival.status === "archived"}
             reservationsStartDate={festival.reservationsStartDate}
-            reservationsOpen={festival.reservationsStartDate <= new Date()}
+            reservationsOpen={timing.reservationsOpen}
+            withinAutomaticWindow={timing.withinAutomaticWindow}
+            settings={{
+              auto: festival.reservationsOpenNoticeAuto,
+              channels: {
+                email: festival.reservationsOpenNoticeEmail,
+                inApp: festival.reservationsOpenNoticeInApp,
+                push: festival.reservationsOpenNoticePush,
+              },
+            }}
             notices={reservationsOpenNotices}
+          />
+        </div>
+        <div className="min-w-0 space-y-6 lg:col-start-3 lg:row-span-3 lg:row-start-1">
+          <FestivalInfoCard festival={festival} />
+          <FestivalParticipantTermsSummary
+            festivalStatus={festival.status}
+            participantTermsEnabled={festival.participantTermsEnabled}
           />
         </div>
         <div className="min-w-0 lg:col-span-2">
