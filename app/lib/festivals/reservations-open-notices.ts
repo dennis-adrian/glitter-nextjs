@@ -68,7 +68,7 @@ export function reservationsOpenDedupeKey(campaignId: number) {
 }
 
 /** Not already holding a live reservation in the festival, as owner or member. */
-function withoutLiveReservation(festivalId: number) {
+export function withoutLiveReservation(festivalId: number) {
   return sql`NOT EXISTS (
     SELECT 1 FROM stand_reservations r
     WHERE r.festival_id = ${festivalId}::int
@@ -124,10 +124,20 @@ export async function countReservationsOpenAudience(
   return { recipients: row?.recipients ?? 0, withPush: row?.withPush ?? 0 };
 }
 
+/**
+ * Who the send writes to, locked FOR KEY SHARE in id order: someone deleting
+ * their account meanwhile waits for the send to commit, instead of failing
+ * its inserts' foreign keys and taking the whole send down.
+ */
 async function audienceUserIds(tx: NotifyTx, festivalId: number) {
   const where = await audienceWhere(festivalId);
   if (!where) return [];
-  const rows = await tx.select({ id: users.id }).from(users).where(where);
+  const rows = await tx
+    .select({ id: users.id })
+    .from(users)
+    .where(where)
+    .orderBy(users.id)
+    .for("key share");
   return rows.map((row) => row.id);
 }
 
@@ -154,7 +164,7 @@ export type CreateNoticeResult =
 
 /**
  * Writes one notice and everything it delivers, in one transaction. Nothing
- * is sent here: pass the campaign to `deliverReservationsOpenNotice` once
+ * is sent here: pass the campaign to `deliverFestivalNoticeCampaign` once
  * this returns.
  *
  * Sends are serialized per festival, so two cron runs, or a run and a resend,
@@ -279,7 +289,12 @@ export async function createReservationsOpenNotice(
         pushes: result.pushDeliveryIds.length,
       };
     } else {
-      const emails = await queueEmailOnly(tx, campaign.id, data, userIds);
+      const emails = await queueEmailOnly(tx, {
+        campaignId: campaign.id,
+        kind: RESERVATIONS_OPEN_KIND,
+        payload: data,
+        userIds,
+      });
       counts = { recipients: emails, emails, pushes: 0 };
     }
     await tx.insert(festivalReservationsOpenNotices).values({
@@ -302,25 +317,34 @@ function intArray(ids: readonly number[]) {
 
 /**
  * Email with no inbox item: a bulk-lane row per person, tied straight to the
- * campaign, as a comunicado to visitors is. Addresses are read in SQL, never
- * passed as parameters. Returns how many were queued.
+ * campaign, as a comunicado to visitors is. `kind` is the row's template key,
+ * which picks its renderer. Addresses are read in SQL, never passed as
+ * parameters. Returns how many were queued.
  */
-async function queueEmailOnly(
+export async function queueEmailOnly(
   tx: NotifyTx,
-  campaignId: number,
-  data: FestivalReservationsOpenData,
-  userIds: readonly number[],
+  {
+    campaignId,
+    kind,
+    payload,
+    userIds,
+  }: {
+    campaignId: number;
+    kind: string;
+    payload: Record<string, unknown>;
+    userIds: readonly number[];
+  },
 ) {
   if (userIds.length === 0) return 0;
   const { rows } = await tx.execute<{ id: number }>(sql`
     INSERT INTO notification_deliveries
       (campaign_id, user_id, template_key, channel, lane, recipient_email,
        payload, idempotency_key)
-    SELECT ${campaignId}::int, u.id, ${RESERVATIONS_OPEN_KIND}::text,
+    SELECT ${campaignId}::int, u.id, ${kind}::text,
       'email'::notification_delivery_channel,
       'bulk'::notification_delivery_lane,
-      btrim(u.email), ${JSON.stringify(data)}::jsonb,
-      'reservations-open:' || ${campaignId}::int || ':user:' || u.id || ':email'
+      btrim(u.email), ${JSON.stringify(payload)}::jsonb,
+      'festival-notice:' || ${campaignId}::int || ':user:' || u.id || ':email'
     FROM unnest(${intArray(userIds)}) AS t(id)
     JOIN users u ON u.id = t.id
     WHERE btrim(u.email) <> ''
@@ -337,10 +361,11 @@ export type DeliverNoticeRun = {
 };
 
 /**
- * Sends one notice's pushes, then its email, until `deadline`. Whatever is
- * left is the crons'. Errors are thrown for the caller to log.
+ * Sends one festival notice's pushes, then its email, until `deadline`: a
+ * reservations-open notice or a stands-available reminder. Whatever is left
+ * is the crons'. Errors are thrown for the caller to log.
  */
-export async function deliverReservationsOpenNotice(
+export async function deliverFestivalNoticeCampaign(
   campaignId: number,
   { deadline }: { deadline: number },
 ): Promise<DeliverNoticeRun> {
@@ -360,7 +385,7 @@ export async function deliverReservationsOpenNotice(
   const problem = emailBaseUrlProblem(publicBaseUrl(), serverEnv.VERCEL_ENV);
   if (problem) {
     // Its links would not work: the email waits until the URL is fixed.
-    console.error("[reservations-open] email skipped:", problem);
+    console.error("[festival-notice] email skipped:", problem);
     run.emailSkipped = "base_url";
   } else if (!hasBatchTime(deadline, Date.now(), BULK_BATCH_RESERVE_MS)) {
     run.emailSkipped = "deadline";
@@ -439,7 +464,7 @@ export async function sendDueReservationsOpenNotices({
         recipients: result.recipients,
       });
       if (Date.now() < deadline) {
-        await deliverReservationsOpenNotice(result.campaignId, { deadline });
+        await deliverFestivalNoticeCampaign(result.campaignId, { deadline });
       }
     } catch (error) {
       run.failed += 1;

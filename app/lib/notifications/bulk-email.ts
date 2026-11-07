@@ -20,7 +20,9 @@ import { isDeliverableEmail } from "@/app/lib/festivals/invitation-helpers";
 import {
   RESERVATIONS_OPEN_TEMPLATE_KEY,
   reservationsOpenBatchRenderer,
-} from "@/app/lib/festivals/reservations-open-delivery";
+  STANDS_AVAILABLE_TEMPLATE_KEY,
+  standsAvailableBatchRenderer,
+} from "@/app/lib/festivals/festival-notice-delivery";
 import { sendBatchEmails } from "@/app/vendors/resend";
 import { retryAfterMs } from "@/app/vendors/resend-result";
 import { db } from "@/db";
@@ -117,6 +119,8 @@ export const BULK_EMAIL_RENDERERS: BulkEmailRenderers = {
   comunicado_contact: comunicadoContactBatchRenderer,
   // A festival's "reservations are open" notice, automatic or resent.
   [RESERVATIONS_OPEN_TEMPLATE_KEY]: reservationsOpenBatchRenderer,
+  // A festival's "stands still available" reminder.
+  [STANDS_AVAILABLE_TEMPLATE_KEY]: standsAvailableBatchRenderer,
 };
 
 /**

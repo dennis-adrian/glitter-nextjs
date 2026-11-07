@@ -10,7 +10,7 @@ import { reservationsOpenChannelsProblem } from "@/app/lib/festivals/reservation
 import {
   countReservationsOpenAudience,
   createReservationsOpenNotice,
-  deliverReservationsOpenNotice,
+  deliverFestivalNoticeCampaign,
   type ReservationsOpenAudience,
 } from "@/app/lib/festivals/reservations-open-notices";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
@@ -201,7 +201,7 @@ export async function resendReservationsOpenNotice(
     const { campaignId } = result;
     after(async () => {
       try {
-        await deliverReservationsOpenNotice(campaignId, {
+        await deliverFestivalNoticeCampaign(campaignId, {
           deadline: Date.now() + DELIVERY_BUDGET_MS,
         });
       } catch (error) {

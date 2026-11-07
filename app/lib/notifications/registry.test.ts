@@ -197,6 +197,11 @@ const FIXTURES = {
     festivalId: 3,
     festivalName: "Glitter Vol. 9",
   },
+  festival_stands_available: {
+    festivalId: 3,
+    festivalName: "Glitter Vol. 9",
+    category: "gastronomy",
+  },
   festival_participation_rejected: {
     festivalId: 3,
     festivalName: "Glitter Vol. 9",
@@ -258,6 +263,40 @@ const FIXTURES = {
     audienceCount: 312,
   },
 } satisfies Record<NotificationKind, unknown>;
+
+describe("festival_stands_available", () => {
+  const data = {
+    festivalId: 3,
+    festivalName: "Festival Glitter Vol. 9",
+    category: "gastronomy" as const,
+  };
+
+  it("names the person's category, and links to the terms", () => {
+    expect(buildInAppCopy("festival_stands_available", data)).toEqual({
+      title: "Todavía hay espacios disponibles en Festival Glitter Vol. 9",
+      body: "Quedan espacios de Gastronomía sin reservar. Reservá el tuyo antes de que se agoten.",
+      actionPath: "/festivals/3/terms",
+      actionLabel: "Reservar mi espacio",
+    });
+  });
+
+  it("pushes only when the send asks, and leaves its email to the bulk lane", () => {
+    expect(hasEmail("festival_stands_available")).toBe(false);
+    expect(notificationPushes("festival_stands_available", data)).toBe(false);
+    expect(
+      notificationPushes("festival_stands_available", data, { push: true }),
+    ).toBe(true);
+  });
+
+  it("refuses a category no stand is for", () => {
+    expect(
+      parseNotificationData("festival_stands_available", {
+        ...data,
+        category: "none",
+      }),
+    ).toBeNull();
+  });
+});
 
 describe("festival_reservations_open", () => {
   const data = { festivalId: 3, festivalName: "Glitter Vol. 9" };
@@ -385,7 +424,8 @@ describe("every kind", () => {
           (notificationStartsRead(kind, FIXTURES[kind] as never) ||
             kind === "comunicado" ||
             kind === "festival_participant_invitation" ||
-            kind === "festival_reservations_open"),
+            kind === "festival_reservations_open" ||
+            kind === "festival_stands_available"),
       ),
     );
     // Every sensitive kind pushes, with the generic text.

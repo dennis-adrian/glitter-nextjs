@@ -2185,6 +2185,13 @@
       "when": 1794019103327,
       "tag": "0312_reservations_open_notice_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 313,
+      "version": "7",
+      "when": 1794060081422,
+      "tag": "0313_stands_available_reminders",
+      "breakpoints": true
     }
   ]
 }

@@ -3,9 +3,13 @@
 import { BellRingIcon, InfoIcon, Loader2Icon, SendIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
-import { useId, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { toast } from "sonner";
 
+import {
+  ChannelChoices,
+  nextChannels,
+} from "@/app/components/festivals/notice-channel-choices";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -23,7 +27,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
-import { Checkbox } from "@/app/components/ui/checkbox";
 import { Label } from "@/app/components/ui/label";
 import { Switch } from "@/app/components/ui/switch";
 import {
@@ -41,92 +44,9 @@ import type {
   ReservationsOpenNoticeSummary,
 } from "@/app/lib/festivals/reservations-open-notices";
 import { formatDisplayDate } from "@/app/lib/formatters";
-import { cn } from "@/app/lib/utils";
 
 function people(count: number, one: string, many: string) {
   return `${count.toLocaleString("es-BO")} ${count === 1 ? one : many}`;
-}
-
-const CHANNEL_OPTIONS: {
-  key: keyof ReservationsOpenChannels;
-  label: string;
-  description: string;
-}[] = [
-  {
-    key: "email",
-    label: "Correo electrónico",
-    description:
-      "No llega a quienes se dieron de baja de los avisos para participantes.",
-  },
-  {
-    key: "inApp",
-    label: "Notificación en Glitter",
-    description: "Aparece en sus notificaciones dentro de Glitter.",
-  },
-  {
-    key: "push",
-    label: "Notificación push",
-    description:
-      "En los dispositivos con notificaciones activadas. Necesita la notificación en Glitter, que es la que abre.",
-  },
-];
-
-/** Keeps the channels valid as one changes: push needs in-app. */
-function nextChannels(
-  channels: ReservationsOpenChannels,
-  key: keyof ReservationsOpenChannels,
-  checked: boolean,
-): ReservationsOpenChannels {
-  const next = { ...channels, [key]: checked };
-  if (key === "inApp" && !checked) next.push = false;
-  return next;
-}
-
-function ChannelChoices({
-  channels,
-  disabled,
-  onChange,
-}: {
-  channels: ReservationsOpenChannels;
-  disabled: boolean;
-  onChange: (key: keyof ReservationsOpenChannels, checked: boolean) => void;
-}) {
-  const id = useId();
-  return (
-    <fieldset className="space-y-3" disabled={disabled}>
-      {CHANNEL_OPTIONS.map((option) => {
-        const optionId = `${id}-${option.key}`;
-        const locked = option.key === "push" && !channels.inApp;
-        return (
-          <div key={option.key} className="flex items-start gap-3">
-            <Checkbox
-              id={optionId}
-              checked={channels[option.key]}
-              disabled={disabled || locked}
-              onCheckedChange={(checked) =>
-                onChange(option.key, checked === true)
-              }
-              className="mt-0.5"
-            />
-            <div className="space-y-0.5">
-              <Label
-                htmlFor={optionId}
-                className={cn(
-                  "text-sm font-medium",
-                  (disabled || locked) && "text-muted-foreground",
-                )}
-              >
-                {option.label}
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                {option.description}
-              </p>
-            </div>
-          </div>
-        );
-      })}
-    </fieldset>
-  );
 }
 
 type Props = {
@@ -140,6 +60,8 @@ type Props = {
   withinAutomaticWindow: boolean;
   settings: { auto: boolean; channels: ReservationsOpenChannels };
   notices: ReservationsOpenNoticeSummary[];
+  /** More of the festival's notices, below this one: the stands reminder. */
+  children?: ReactNode;
 };
 
 /**
@@ -156,6 +78,7 @@ export default function FestivalReservationsOpenCard({
   withinAutomaticWindow,
   settings: savedSettings,
   notices,
+  children,
 }: Props) {
   const router = useRouter();
   const switchId = useId();
@@ -275,11 +198,14 @@ export default function FestivalReservationsOpenCard({
           Notificaciones a participantes
         </CardTitle>
         <CardDescription>
-          Lo que Glitter envía por su cuenta a los participantes de este
-          festival.
+          Todo lo que Glitter envía a los participantes de este festival: lo que
+          sale solo y lo que se envía a mano.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Apertura de reservas
+        </h3>
         <div className="space-y-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 space-y-1">
@@ -379,6 +305,9 @@ export default function FestivalReservationsOpenCard({
             </p>
           ) : null}
         </div>
+        {children ? (
+          <div className="space-y-5 border-t pt-5">{children}</div>
+        ) : null}
       </CardContent>
 
       <AlertDialog

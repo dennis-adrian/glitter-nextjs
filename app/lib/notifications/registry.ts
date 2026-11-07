@@ -10,6 +10,7 @@ import { disciplinaryKinds } from "@/app/lib/notifications/kinds/disciplinary";
 import { festivalInvitationKinds } from "@/app/lib/notifications/kinds/festival-invitation";
 import { reservationOutboxKinds } from "@/app/lib/notifications/kinds/reservation-outbox";
 import { reservationsOpenKinds } from "@/app/lib/notifications/kinds/reservations-open";
+import { standsAvailableKinds } from "@/app/lib/notifications/kinds/stands-available";
 import type {
   EmailCopy,
   InAppCopy,
@@ -163,6 +164,7 @@ const kinds = {
   ...comunicadoKinds,
   ...festivalInvitationKinds,
   ...reservationsOpenKinds,
+  ...standsAvailableKinds,
 } as const;
 
 export type NotificationKind = keyof typeof kinds;

@@ -3,6 +3,7 @@ import FestivalFeatureConfigPanel from "@/app/components/festivals/festival-feat
 import FestivalInfoCard from "@/app/components/festivals/festival-info-card";
 import FestivalParticipantTermsSummary from "@/app/components/festivals/festival-participant-terms-summary";
 import FestivalReservationsOpenCard from "@/app/components/festivals/festival-reservations-open-card";
+import FestivalStandsAvailableReminder from "@/app/components/festivals/festival-stands-available-reminder";
 import FestivalSectionsNav from "@/app/components/festivals/festival-sections-nav";
 import FestivalSettingsCard from "@/app/components/festivals/festival-settings-card";
 import {
@@ -12,6 +13,10 @@ import {
 import { fetchFestivalOverviewCounts } from "@/app/lib/festivals/overview";
 import { reservationsOpenTiming } from "@/app/lib/festivals/reservations-open-definitions";
 import { fetchReservationsOpenNotices } from "@/app/lib/festivals/reservations-open-notices";
+import {
+  countAvailableStands,
+  fetchStandsAvailableReminders,
+} from "@/app/lib/festivals/stands-available-reminders";
 import { isFestivalDay } from "@/app/lib/festivals/utils";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import type { Metadata } from "next";
@@ -48,13 +53,21 @@ export default async function Page({ params }: PageProps) {
   if (!parsed.success) return notFound();
 
   const { id } = parsed.data;
-  const [festival, counts, activeFestival, reservationsOpenNotices] =
-    await Promise.all([
-      loadFestival(id),
-      fetchFestivalOverviewCounts(id),
-      fetchActiveFestivalBase(),
-      fetchReservationsOpenNotices(id),
-    ]);
+  const [
+    festival,
+    counts,
+    activeFestival,
+    reservationsOpenNotices,
+    availableStands,
+    standsReminders,
+  ] = await Promise.all([
+    loadFestival(id),
+    fetchFestivalOverviewCounts(id),
+    fetchActiveFestivalBase(),
+    fetchReservationsOpenNotices(id),
+    countAvailableStands(id),
+    fetchStandsAvailableReminders(id),
+  ]);
 
   if (!festival) {
     return notFound();
@@ -98,7 +111,21 @@ export default async function Page({ params }: PageProps) {
               },
             }}
             notices={reservationsOpenNotices}
-          />
+          >
+            <FestivalStandsAvailableReminder
+              festivalId={festival.id}
+              active={festival.status === "active"}
+              archived={festival.status === "archived"}
+              reservationsOpen={timing.reservationsOpen}
+              availableStands={availableStands}
+              defaultChannels={{
+                email: festival.reservationsOpenNoticeEmail,
+                inApp: festival.reservationsOpenNoticeInApp,
+                push: festival.reservationsOpenNoticePush,
+              }}
+              reminders={standsReminders}
+            />
+          </FestivalReservationsOpenCard>
         </div>
         <div className="min-w-0 space-y-6 lg:col-start-3 lg:row-span-3 lg:row-start-1">
           <FestivalInfoCard festival={festival} />

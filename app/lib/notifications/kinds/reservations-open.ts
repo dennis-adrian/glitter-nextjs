@@ -6,7 +6,7 @@ import type { KindDefinition } from "@/app/lib/notifications/kinds/types";
  * "Reservations are open": sent when a festival's reservations open, by the
  * cron (`app/lib/festivals/reservations-open-notices.ts`), and again whenever
  * an admin resends it. Its email is the bulk lane's
- * (`reservations-open-delivery.ts`), so it has none here. Whether it pushes
+ * (`festival-notice-delivery.ts`), so it has none here. Whether it pushes
  * is the festival's setting, or the admin's choice on a resend.
  */
 

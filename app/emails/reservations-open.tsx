@@ -29,7 +29,7 @@ export function reservationsOpenSubject(festivalName: string) {
 
 /**
  * Sent when a festival's reservations open, and again on every resend from
- * the festival's page (`app/lib/festivals/reservations-open-delivery.ts`).
+ * the festival's page (`app/lib/festivals/festival-notice-delivery.ts`).
  */
 export default function ReservationsOpenEmailTemplate({
   name,

@@ -7173,7 +7173,12 @@ export const notificationDeliveryLaneEnum = pgEnum(
 );
 export const notificationCampaignTypeEnum = pgEnum(
   "notification_campaign_type",
-  ["credit_gift", "comunicado", "reservations_open"],
+  ["credit_gift", "comunicado", "reservations_open", "stands_available"],
+);
+/** Who a "stands still available" reminder was for. */
+export const standsAvailableAudienceEnum = pgEnum(
+  "stands_available_audience",
+  ["terms_accepted", "all_eligible"],
 );
 /** What sent a "reservations are open" notice: the cron, or an admin's resend. */
 export const reservationsOpenNoticeTriggerEnum = pgEnum(
@@ -7543,6 +7548,45 @@ export const festivalReservationsOpenNotices = pgTable(
       .on(t.festivalId, t.reservationsStartDate)
       .where(sql`${t.trigger} = 'automatic'`),
     index("festival_reservations_open_notices_festival_idx").on(
+      t.festivalId,
+      t.createdAt,
+    ),
+  ],
+);
+
+/**
+ * One "stands still available" reminder an admin sent for a festival: to
+ * participants who accepted its terms, or to every eligible verified
+ * participant, and only to those with a stand they could still reserve. Each
+ * is its own notification campaign, as a reservations-open notice is.
+ */
+export const festivalStandsAvailableReminders = pgTable(
+  "festival_stands_available_reminders",
+  {
+    campaignId: integer("campaign_id")
+      .primaryKey()
+      .references(() => notificationCampaigns.id, { onDelete: "cascade" }),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    audience: standsAvailableAudienceEnum("audience").notNull(),
+    /** The environment that sent it: only its own lanes send its mail. */
+    env: text("env").notNull(),
+    /** The channels this send used. */
+    email: boolean("email").notNull(),
+    inApp: boolean("in_app").notNull(),
+    push: boolean("push").notNull(),
+    /** People reached, email rows queued, and devices pushed to. */
+    recipients: integer("recipients").default(0).notNull(),
+    emails: integer("emails").default(0).notNull(),
+    pushes: integer("pushes").default(0).notNull(),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("festival_stands_available_reminders_festival_idx").on(
       t.festivalId,
       t.createdAt,
     ),
