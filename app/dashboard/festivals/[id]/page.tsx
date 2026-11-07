@@ -2,6 +2,7 @@ import FestivalDetailHeader from "@/app/components/festivals/festival-detail-hea
 import FestivalFeatureConfigPanel from "@/app/components/festivals/festival-feature-config-panel";
 import FestivalInfoCard from "@/app/components/festivals/festival-info-card";
 import FestivalParticipantTermsSummary from "@/app/components/festivals/festival-participant-terms-summary";
+import FestivalReservationsOpenCard from "@/app/components/festivals/festival-reservations-open-card";
 import FestivalSectionsNav from "@/app/components/festivals/festival-sections-nav";
 import FestivalSettingsCard from "@/app/components/festivals/festival-settings-card";
 import {
@@ -9,6 +10,8 @@ import {
   fetchFestivalWithDates,
 } from "@/app/lib/festivals/actions";
 import { fetchFestivalOverviewCounts } from "@/app/lib/festivals/overview";
+import { reservationsOpenTiming } from "@/app/lib/festivals/reservations-open-definitions";
+import { fetchReservationsOpenNotices } from "@/app/lib/festivals/reservations-open-notices";
 import { isFestivalDay } from "@/app/lib/festivals/utils";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import type { Metadata } from "next";
@@ -45,24 +48,28 @@ export default async function Page({ params }: PageProps) {
   if (!parsed.success) return notFound();
 
   const { id } = parsed.data;
-  const [festival, counts, activeFestival] = await Promise.all([
-    loadFestival(id),
-    fetchFestivalOverviewCounts(id),
-    fetchActiveFestivalBase(),
-  ]);
+  const [festival, counts, activeFestival, reservationsOpenNotices] =
+    await Promise.all([
+      loadFestival(id),
+      fetchFestivalOverviewCounts(id),
+      fetchActiveFestivalBase(),
+      fetchReservationsOpenNotices(id),
+    ]);
 
   if (!festival) {
     return notFound();
   }
 
+  const timing = reservationsOpenTiming(festival.reservationsStartDate);
+
   return (
     <div className="container flex flex-col gap-6 p-3 pb-10 md:p-6">
       <FestivalDetailHeader festival={festival} />
       <FestivalSectionsNav festival={festival} counts={counts} />
-      {/* One column on a phone, in reading order: switches, facts, then the
-          long reservation-features panel. From lg the facts move to a side
-          column spanning both rows, beside the switches and the panel. */}
-      <div className="grid items-start gap-6 lg:grid-cols-3 lg:grid-rows-[auto_1fr]">
+      {/* One column on a phone, in reading order: switches, notifications,
+          facts, then the long reservation-features panel. From lg the facts
+          move to a side column spanning every row, beside the rest. */}
+      <div className="grid items-start gap-6 lg:grid-cols-3 lg:grid-rows-[auto_auto_1fr]">
         <div className="min-w-0 lg:col-span-2">
           <FestivalSettingsCard
             festival={festival}
@@ -74,7 +81,26 @@ export default async function Page({ params }: PageProps) {
             isFestivalDayToday={isFestivalDay(festival.festivalDates)}
           />
         </div>
-        <div className="min-w-0 space-y-6 lg:col-start-3 lg:row-span-2 lg:row-start-1">
+        <div className="min-w-0 lg:col-span-2">
+          <FestivalReservationsOpenCard
+            festivalId={festival.id}
+            active={festival.status === "active"}
+            archived={festival.status === "archived"}
+            reservationsStartDate={festival.reservationsStartDate}
+            reservationsOpen={timing.reservationsOpen}
+            withinAutomaticWindow={timing.withinAutomaticWindow}
+            settings={{
+              auto: festival.reservationsOpenNoticeAuto,
+              channels: {
+                email: festival.reservationsOpenNoticeEmail,
+                inApp: festival.reservationsOpenNoticeInApp,
+                push: festival.reservationsOpenNoticePush,
+              },
+            }}
+            notices={reservationsOpenNotices}
+          />
+        </div>
+        <div className="min-w-0 space-y-6 lg:col-start-3 lg:row-span-3 lg:row-start-1">
           <FestivalInfoCard festival={festival} />
           <FestivalParticipantTermsSummary
             festivalStatus={festival.status}

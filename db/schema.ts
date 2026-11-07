@@ -392,6 +392,23 @@ export const festivals = pgTable(
       .default(false)
       .notNull(),
     keepStoreOpen: boolean("keep_store_open").default(false).notNull(),
+    /**
+     * The "reservations are open" notice: whether the cron sends it on its
+     * own, and through which channels. A push needs the inbox item it opens,
+     * so it is only on with `reservationsOpenNoticeInApp`.
+     */
+    reservationsOpenNoticeAuto: boolean("reservations_open_notice_auto")
+      .default(true)
+      .notNull(),
+    reservationsOpenNoticeEmail: boolean("reservations_open_notice_email")
+      .default(true)
+      .notNull(),
+    reservationsOpenNoticeInApp: boolean("reservations_open_notice_in_app")
+      .default(true)
+      .notNull(),
+    reservationsOpenNoticePush: boolean("reservations_open_notice_push")
+      .default(true)
+      .notNull(),
     reservationsStartDate: timestamp("reservations_start_date")
       .defaultNow()
       .notNull(),
@@ -425,6 +442,10 @@ export const festivals = pgTable(
     check(
       "festivals_reservation_hold_minutes_range",
       sql`${festivals.reservationHoldMinutes} >= 1 AND ${festivals.reservationHoldMinutes} <= 30`,
+    ),
+    check(
+      "festivals_reservations_open_notice_channels",
+      sql`(${festivals.reservationsOpenNoticeEmail} OR ${festivals.reservationsOpenNoticeInApp}) AND (NOT ${festivals.reservationsOpenNoticePush} OR ${festivals.reservationsOpenNoticeInApp})`,
     ),
   ],
 );
@@ -7152,7 +7173,12 @@ export const notificationDeliveryLaneEnum = pgEnum(
 );
 export const notificationCampaignTypeEnum = pgEnum(
   "notification_campaign_type",
-  ["credit_gift", "comunicado"],
+  ["credit_gift", "comunicado", "reservations_open"],
+);
+/** What sent a "reservations are open" notice: the cron, or an admin's resend. */
+export const reservationsOpenNoticeTriggerEnum = pgEnum(
+  "reservations_open_notice_trigger",
+  ["automatic", "manual"],
 );
 export const notificationCampaignStatusEnum = pgEnum(
   "notification_campaign_status",
@@ -7473,6 +7499,53 @@ export const notificationDeliveries = pgTable(
       columns: [t.resendOfDeliveryId],
       foreignColumns: [t.id],
     }).onDelete("set null"),
+  ],
+);
+
+/**
+ * One "reservations are open" notice for a festival: the cron's, once per
+ * opening time, or an admin's resend. Each is its own notification campaign,
+ * so a resend reaches everyone again under its own dedupe key, and the bulk
+ * lanes send its email and pushes by campaign.
+ */
+export const festivalReservationsOpenNotices = pgTable(
+  "festival_reservations_open_notices",
+  {
+    campaignId: integer("campaign_id")
+      .primaryKey()
+      .references(() => notificationCampaigns.id, { onDelete: "cascade" }),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    trigger: reservationsOpenNoticeTriggerEnum("trigger").notNull(),
+    /**
+     * The opening it announced. The cron sends once per value, so moving
+     * the date sends again when the new time comes.
+     */
+    reservationsStartDate: timestamp("reservations_start_date").notNull(),
+    /** The environment that sent it: only its own lanes send its mail. */
+    env: text("env").notNull(),
+    /** The channels this send used. */
+    email: boolean("email").default(true).notNull(),
+    inApp: boolean("in_app").default(true).notNull(),
+    push: boolean("push").default(true).notNull(),
+    /** People reached, email rows queued, and devices pushed to. */
+    recipients: integer("recipients").default(0).notNull(),
+    emails: integer("emails").default(0).notNull(),
+    pushes: integer("pushes").default(0).notNull(),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("festival_reservations_open_notices_automatic_unique")
+      .on(t.festivalId, t.reservationsStartDate)
+      .where(sql`${t.trigger} = 'automatic'`),
+    index("festival_reservations_open_notices_festival_idx").on(
+      t.festivalId,
+      t.createdAt,
+    ),
   ],
 );
 

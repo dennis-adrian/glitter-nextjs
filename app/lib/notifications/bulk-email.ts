@@ -17,6 +17,10 @@ import type { CreateBatchEmailOptions } from "resend";
 import { comunicadoContactBatchRenderer } from "@/app/lib/comunicados/contact-delivery";
 import { comunicadoBatchRenderer } from "@/app/lib/comunicados/delivery";
 import { isDeliverableEmail } from "@/app/lib/festivals/invitation-helpers";
+import {
+  RESERVATIONS_OPEN_TEMPLATE_KEY,
+  reservationsOpenBatchRenderer,
+} from "@/app/lib/festivals/reservations-open-delivery";
 import { sendBatchEmails } from "@/app/vendors/resend";
 import { retryAfterMs } from "@/app/vendors/resend-result";
 import { db } from "@/db";
@@ -111,6 +115,8 @@ export const BULK_EMAIL_RENDERERS: BulkEmailRenderers = {
   comunicado: comunicadoBatchRenderer,
   // A comunicado to visitors and guest buyers: no inbox item, no user (§L).
   comunicado_contact: comunicadoContactBatchRenderer,
+  // A festival's "reservations are open" notice, automatic or resent.
+  [RESERVATIONS_OPEN_TEMPLATE_KEY]: reservationsOpenBatchRenderer,
 };
 
 /**
