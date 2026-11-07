@@ -232,6 +232,38 @@ describe("buildPendingItems", () => {
     ]);
   });
 
+  it("asks for republished terms again and holds the reservation until then", () => {
+    const items = buildPendingItems({
+      ...base,
+      status: "approved_enrollment",
+      enrollmentStatus: "accepted",
+      hasReservation: false,
+      isConfirmed: false,
+      termsStale: true,
+    });
+
+    expect(items.map((item) => item.key)).toEqual([
+      "enrollment",
+      "terms",
+      "reservation",
+    ]);
+    expect(items[1]).toMatchObject({ done: false, href: "/terms" });
+    expect(items[2].href).toBeUndefined();
+    expect(items[2].meta).toBe("después de aceptar los términos");
+  });
+
+  it("does not ask someone not enrolled to re-accept anything", () => {
+    const items = buildPendingItems({
+      ...base,
+      status: "pending_enrollment",
+      enrollmentStatus: null,
+      hasReservation: false,
+      isConfirmed: false,
+      termsStale: true,
+    });
+    expect(items.map((item) => item.key)).toEqual(["enrollment"]);
+  });
+
   it("shows gastronomy's review as something to wait for, not do", () => {
     const items = buildPendingItems({
       ...base,

@@ -92,9 +92,50 @@ describe("buildHubShortcuts", () => {
   it("has nothing to open once the participation ended", () => {
     expect(buildHubShortcuts(hub("rejected_reservation"))).toEqual([]);
   });
+
+  it("keeps the accepted terms readable from enrollment on", () => {
+    const enrolled = hub("waiting_for_reservations", {
+      enrollment: { status: "accepted" },
+    } as Partial<ParticipationHub>);
+    const shortcuts = buildHubShortcuts(enrolled);
+    expect(keys(shortcuts)).toEqual([
+      "team (off)",
+      "schedule",
+      "activities (off)",
+      "programs",
+      "terms",
+    ]);
+    expect(shortcuts.find((s) => s.key === "terms")?.href).toBe(
+      "/festivals/9/terms",
+    );
+
+    const underReview = hub("enrollment_pending_approval", {
+      enrollment: { status: "pending" },
+    } as Partial<ParticipationHub>);
+    expect(keys(buildHubShortcuts(underReview))).toContain("terms");
+  });
 });
 
 describe("buildDesktopShortcuts", () => {
+  it("links the accepted terms before the reservation is confirmed", () => {
+    expect(
+      keys(
+        buildDesktopShortcuts(
+          hub("approved_enrollment", {
+            enrollment: { status: "accepted" },
+          } as Partial<ParticipationHub>),
+        ),
+      ),
+    ).toEqual(["terms"]);
+    expect(
+      buildDesktopShortcuts(
+        hub("rejected_reservation", {
+          enrollment: { status: "accepted" },
+        } as Partial<ParticipationHub>),
+      ),
+    ).toEqual([]);
+  });
+
   it("only links the confirmed reservation's outside pages", () => {
     expect(buildDesktopShortcuts(hub("approved_enrollment"))).toEqual([]);
     expect(keys(buildDesktopShortcuts(hub("confirmed_reservation")))).toEqual([
