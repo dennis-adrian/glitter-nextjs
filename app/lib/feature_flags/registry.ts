@@ -54,7 +54,7 @@ export const FEATURE_FLAGS = {
   notifications: {
     label: "Notificaciones en la app",
     description:
-      "La campana del menú, `/my_notifications` y el detalle de cada notificación: reservas, pagos, compras de créditos rechazadas, postulaciones, infracciones y sanciones, regalos de créditos, y las notificaciones de Administración para el rol administrador. Se guardan para todos aunque la bandera esté oculta, así que al publicarla cada participante ve lo que ya recibió. Los correos, la billetera y el banner de regalos de créditos no dependen de esta bandera.",
+      "La campana del menú, `/my_notifications` y el detalle de cada notificación: reservas, pagos, compras de créditos aprobadas o rechazadas, postulaciones, infracciones y sanciones, regalos de créditos, y las notificaciones de Administración para el rol administrador. Se guardan para todos aunque la bandera esté oculta, así que al publicarla cada participante ve lo que ya recibió. Los correos, la billetera y el banner de regalos de créditos no dependen de esta bandera.",
     // Launched by flipping it, once an admin has seen the release work: a
     // public default would launch with the first request after deploy.
     defaultVisibility: "admin_only",

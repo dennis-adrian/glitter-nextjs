@@ -62,6 +62,7 @@ const KIND_STYLES: Partial<
   reservation_released: { icon: DoorOpenIcon, className: MUTED },
   reservation_cancelled: { icon: CalendarXIcon, className: MUTED },
   festival_participation_rejected: { icon: CalendarXIcon, className: MUTED },
+  credit_top_up_approved: { icon: ReceiptTextIcon },
   credit_top_up_rejected: { icon: ReceiptTextIcon, className: MUTED },
   infraction_registered: { icon: FileWarningIcon },
   infraction_edited: { icon: FileWarningIcon },

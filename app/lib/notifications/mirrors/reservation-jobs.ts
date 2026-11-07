@@ -318,6 +318,7 @@ export function buildReservationJobNotification(
     // Not about a reservation: see the builders below.
     case "festival_participation_approved":
     case "festival_participation_rejected":
+    case "credit_top_up_approved":
     case "credit_top_up_rejected":
       return null;
   }
@@ -354,6 +355,19 @@ export function buildParticipationJobNotification(
     };
   }
   return null;
+}
+
+export function buildTopUpApprovedJobNotification(
+  job: ReservationJobToMirror,
+  topUp: { id: number; amount: number },
+): MirrorNotification | null {
+  if (job.audience === "admin" || job.kind !== "credit_top_up_approved") {
+    return null;
+  }
+  return {
+    kind: "credit_top_up_approved",
+    data: { topUpId: topUp.id, amount: topUp.amount },
+  };
 }
 
 export function buildTopUpRejectedJobNotification(
@@ -496,6 +510,7 @@ async function buildFromTransaction(
         : null;
     }
 
+    case "credit_top_up_approved":
     case "credit_top_up_rejected": {
       const topUpId = payloadNumber(job.payload, "topUpId");
       if (topUpId == null) return null;
@@ -510,12 +525,11 @@ async function buildFromTransaction(
           .where(eq(creditTopUps.id, topUpId))
           .limit(1),
       );
-      return topUp
-        ? buildTopUpRejectedJobNotification(job, {
-            ...topUp,
-            amount: Number(topUp.amount),
-          })
-        : null;
+      if (!topUp) return null;
+      const amount = Number(topUp.amount);
+      return job.kind === "credit_top_up_approved"
+        ? buildTopUpApprovedJobNotification(job, { id: topUp.id, amount })
+        : buildTopUpRejectedJobNotification(job, { ...topUp, amount });
     }
 
     default: {

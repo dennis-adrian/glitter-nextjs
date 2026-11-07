@@ -932,9 +932,8 @@ describeDatabase("feature credit top-up", () => {
       { intendedUseType: "debt", intendedUseId: null, amount: ACCESS_PRICE },
     ]);
 
-    // The one credit email there is. Buying is synchronous and the wallet
-    // reports it on the spot, so only the rejection is worth telling somebody
-    // about — and it is the only one that can leave them owing money.
+    // The rejection email: the one review outcome that can leave the
+    // participant owing money.
     const queued = await integrationDb!
       .select({
         kind: reservationNotificationJobs.notificationKind,
@@ -1027,9 +1026,10 @@ describeDatabase("feature credit top-up", () => {
 
   /**
    * Approval grants no new spending power — the credits were already
-   * spendable — so there is nothing to announce.
+   * spendable — but it settles the purchase, and the participant has no other
+   * way to tell a voucher still under review from one that cleared.
    */
-  it("says nothing to the participant when a voucher is approved", async () => {
+  it("tells the participant when a voucher is approved, once", async () => {
     const { festival, user } = await seed({ credits: 0 });
 
     const purchase = await createFeatureCreditTopUp({
@@ -1050,14 +1050,60 @@ describeDatabase("feature credit top-up", () => {
       reviewerUserId: user.id,
       decision: "approved",
     });
-    expect(approved).toMatchObject({ ok: true, data: { jobIds: [] } });
 
     const queued = await integrationDb!
+      .select({
+        id: reservationNotificationJobs.id,
+        kind: reservationNotificationJobs.notificationKind,
+        recipientEmail: reservationNotificationJobs.recipientEmail,
+        payload: reservationNotificationJobs.payload,
+        deduplicationKey: reservationNotificationJobs.deduplicationKey,
+      })
+      .from(reservationNotificationJobs)
+      .where(eq(reservationNotificationJobs.userId, user.id));
+    expect(queued).toEqual([
+      {
+        id: expect.any(Number),
+        kind: "credit_top_up_approved",
+        recipientEmail: user.email,
+        payload: { topUpId },
+        deduplicationKey: `credit_top_up_approved:${topUpId}`,
+      },
+    ]);
+    expect(approved).toMatchObject({
+      ok: true,
+      data: { jobIds: [queued[0].id] },
+    });
+
+    const items = await notificationsFor(user.id);
+    expect(items).toHaveLength(1);
+    const [item] = items;
+    expect(item).toMatchObject({
+      kind: "credit_top_up_approved",
+      category: "credits",
+      title: "Confirmamos tu compra de créditos",
+      actionPath: "/my_credits",
+      actionLabel: "Ver mi billetera",
+      dedupeKey: `reservation-job:${queued[0].id}`,
+      readAt: null,
+      data: { topUpId, amount: expect.any(Number) },
+    });
+    // The wallet did not move: the credits were there since the upload.
+    expect(notificationCreditDelta(item.kind, item.data)).toBeNull();
+
+    // A replayed approval tells nobody twice.
+    const replayed = await reviewCreditTopUp({
+      topUpId,
+      reviewerUserId: user.id,
+      decision: "approved",
+    });
+    expect(replayed).toMatchObject({ ok: true, data: { jobIds: [] } });
+    const afterReplay = await integrationDb!
       .select({ id: reservationNotificationJobs.id })
       .from(reservationNotificationJobs)
       .where(eq(reservationNotificationJobs.userId, user.id));
-    expect(queued).toEqual([]);
-    expect(await notificationsFor(user.id)).toEqual([]);
+    expect(afterReplay).toHaveLength(1);
+    expect(await notificationsFor(user.id)).toHaveLength(1);
   });
 
   /**

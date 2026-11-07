@@ -192,6 +192,10 @@ const FIXTURES = {
     festivalName: "Glitter Vol. 9",
     reason: null,
   },
+  credit_top_up_approved: {
+    topUpId: 4,
+    amount: 20,
+  },
   credit_top_up_rejected: {
     topUpId: 4,
     amount: 20,

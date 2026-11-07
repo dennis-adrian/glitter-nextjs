@@ -272,6 +272,7 @@ Participant items:
 | `late_partner_added`              | `reservation_partner_added`                      | Reservas         | The reservation                                         |
 | `festival_participation_approved` | `festival_participation_approved`                | Reservas         | The festival's terms page, where reserving starts       |
 | `festival_participation_rejected` | `festival_participation_rejected`                | Reservas         | Its own page                                            |
+| `credit_top_up_approved`          | `credit_top_up_approved`                         | Pagos y créditos | The wallet                                              |
 | `credit_top_up_rejected`          | `credit_top_up_rejected`                         | Pagos y créditos | Its own page, with "Ver mi billetera"                   |
 | infraction notices (4)            | `infraction_{registered,edited,resolved,voided}` | Cuenta           | The history, or its own page when there is a note       |
 | sanction notices (4)              | `sanction_{approved,edited,expired,revoked}`     | Cuenta           | The history, or its own page when there is a note       |

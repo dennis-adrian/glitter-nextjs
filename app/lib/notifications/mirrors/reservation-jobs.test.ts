@@ -5,6 +5,7 @@ vi.mock("server-only", () => ({}));
 import {
   buildParticipationJobNotification,
   buildReservationJobNotification,
+  buildTopUpApprovedJobNotification,
   buildTopUpRejectedJobNotification,
   mirrorReservationNotificationJobs,
   type ReservationContext,
@@ -464,6 +465,53 @@ describe("buildParticipationJobNotification", () => {
       "El motivo que registramos es: Cupo completo",
     );
     expect(item.opensDetail).toBe(true);
+  });
+});
+
+describe("buildTopUpApprovedJobNotification", () => {
+  it("settles the purchase without claiming the wallet moved", () => {
+    const item = render(
+      buildTopUpApprovedJobNotification(
+        job({
+          kind: "credit_top_up_approved",
+          reservationId: null,
+          payload: { topUpId: 4 },
+        }),
+        { id: 4, amount: 20 },
+      ),
+    );
+    expect(item.kind).toBe("credit_top_up_approved");
+    expect(item.category).toBe("credits");
+    expect(item.copy.title).toBe("Confirmamos tu compra de créditos");
+    expect(item.copy.body).toContain("20 créditos");
+    expect(item.copy.body).toContain("ya estaban en tu billetera");
+    expect(item.copy.actionPath).toBe("/my_credits");
+    // The credits were spendable since the upload: nothing to add.
+    expect(item.delta).toBeNull();
+  });
+
+  it("writes nothing for an admin copy or another kind", () => {
+    expect(
+      buildTopUpApprovedJobNotification(
+        job({
+          kind: "credit_top_up_approved",
+          reservationId: null,
+          audience: "admin",
+          payload: { topUpId: 4 },
+        }),
+        { id: 4, amount: 20 },
+      ),
+    ).toBeNull();
+    expect(
+      buildTopUpApprovedJobNotification(
+        job({
+          kind: "credit_top_up_rejected",
+          reservationId: null,
+          payload: { topUpId: 4 },
+        }),
+        { id: 4, amount: 20 },
+      ),
+    ).toBeNull();
   });
 });
 

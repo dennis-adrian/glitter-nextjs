@@ -38,10 +38,11 @@ export const RESERVATION_NOTIFICATION_KINDS = [
   "deadline_extended",
   "festival_participation_approved",
   "festival_participation_rejected",
-  // The only credit notification there is. Buying credits is synchronous and
-  // the wallet shows the result immediately, so a receipt for it would be
-  // noise; a rejection is the one thing that happens later, out of the
-  // participant's sight, and can leave them owing money.
+  // The two outcomes of an admin's review of a credit voucher. The credits
+  // are spendable from the moment the voucher is uploaded, but the review
+  // happens later, out of the participant's sight: an approval tells them the
+  // purchase is settled, and a rejection can leave them owing money.
+  "credit_top_up_approved",
   "credit_top_up_rejected",
   // Sent to the owner and every participant when a reservation is released.
   // The owner chose it; a partner is finding out, which is why delivery tells

@@ -423,8 +423,8 @@ export async function reviewCreditTopUp(input: {
     /**
      * Notification jobs the caller must hand to
      * `scheduleReservationNotificationJobs` after the transaction commits.
-     * Empty for an approval and for a replayed rejection — nobody is told
-     * twice that the same voucher failed.
+     * Empty for a replayed review — nobody is told twice how the same
+     * voucher was decided.
      */
     jobIds: number[];
   }>
@@ -518,38 +518,43 @@ export async function reviewCreditTopUp(input: {
 
     const balances = await lockedCreditBalances(tx, topUp.userId);
 
-    // Only a rejection is worth an email. Buying credits is synchronous and
-    // the wallet reports it on the spot; an approval grants nothing new,
-    // because the credits were already spendable. A rejection is the one
-    // outcome the participant cannot see coming and the only one that can
-    // leave them owing money.
+    // Both outcomes are worth telling. The credits were already spendable,
+    // so an approval grants nothing new, but until it lands the participant
+    // cannot tell a purchase still under review from one that cleared. A
+    // rejection is the outcome they cannot see coming and the only one that
+    // can leave them owing money.
     const jobIds: number[] = [];
-    if (input.decision === "rejected") {
-      const [recipient] = await tx
-        .select({ email: users.email })
-        .from(users)
-        .where(eq(users.id, topUp.userId))
-        .limit(1);
-      if (recipient?.email) {
-        const jobId = await enqueueReservationNotification(tx, {
-          kind: "credit_top_up_rejected",
-          userId: topUp.userId,
-          recipientEmail: recipient.email,
-          audience: "participant",
-          // Keyed on the top-up, not the reservation the outbox usually
-          // dedupes by: credit jobs carry no reservation, so the default key
-          // would collide across every rejected purchase this person ever has.
-          deduplicationKey: `credit_top_up_rejected:${topUp.id}`,
-          payload: {
-            topUpId: topUp.id,
-            // The debt as of this rejection. Recomputing it at send time would
-            // report later spending, or an admin waiver, as though it were
-            // caused by this voucher.
-            debtAmount: Math.max(0, -balances.ledgerBalance),
-          },
-        });
-        if (jobId) jobIds.push(jobId);
-      }
+    const [recipient] = await tx
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, topUp.userId))
+      .limit(1);
+    if (recipient?.email) {
+      const kind =
+        input.decision === "approved"
+          ? ("credit_top_up_approved" as const)
+          : ("credit_top_up_rejected" as const);
+      const jobId = await enqueueReservationNotification(tx, {
+        kind,
+        userId: topUp.userId,
+        recipientEmail: recipient.email,
+        audience: "participant",
+        // Keyed on the top-up, not the reservation the outbox usually
+        // dedupes by: credit jobs carry no reservation, so the default key
+        // would collide across every reviewed purchase this person ever has.
+        deduplicationKey: `${kind}:${topUp.id}`,
+        payload:
+          input.decision === "rejected"
+            ? {
+                topUpId: topUp.id,
+                // The debt as of this rejection. Recomputing it at send time
+                // would report later spending, or an admin waiver, as though
+                // it were caused by this voucher.
+                debtAmount: Math.max(0, -balances.ledgerBalance),
+              }
+            : { topUpId: topUp.id },
+      });
+      if (jobId) jobIds.push(jobId);
     }
 
     return {

@@ -107,6 +107,11 @@ const participationRejectedSchema = z.object({
   reason: z.string().nullable(),
 });
 
+const topUpApprovedSchema = z.object({
+  topUpId: z.number().int().positive(),
+  amount: z.number().positive(),
+});
+
 const topUpRejectedSchema = z.object({
   topUpId: z.number().int().positive(),
   amount: z.number().positive(),
@@ -352,6 +357,22 @@ export const reservationOutboxKinds = {
     }),
     opensDetail: () => true,
   } satisfies KindDefinition<z.infer<typeof participationRejectedSchema>>,
+
+  /**
+   * The credits were spendable since the voucher was uploaded, so no "+20":
+   * the wallet does not move. This settles the purchase.
+   */
+  credit_top_up_approved: {
+    category: "credits",
+    push: true,
+    schema: topUpApprovedSchema,
+    inApp: (data) => ({
+      title: "Confirmamos tu compra de créditos",
+      body: `Revisamos el comprobante de tu compra de ${formatCreditCount(data.amount)} y está todo en orden. Los créditos ya estaban en tu billetera y siguen disponibles.`,
+      actionPath: "/my_credits",
+      actionLabel: "Ver mi billetera",
+    }),
+  } satisfies KindDefinition<z.infer<typeof topUpApprovedSchema>>,
 
   credit_top_up_rejected: {
     category: "credits",

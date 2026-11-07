@@ -14,6 +14,7 @@ import PaymentConfirmationForAdminsEmailTemplate from "@/app/emails/payment-conf
 import PaymentConfirmationForUserEmailTemplate from "@/app/emails/payment-confirmation-for-user";
 import FestivalParticipationApprovedEmailTemplate from "@/app/emails/festival-participation-approved";
 import FestivalParticipationRejectedEmailTemplate from "@/app/emails/festival-participation-rejected";
+import CreditTopUpApprovedTemplate from "@/app/emails/credit-top-up-approved";
 import CreditTopUpRejectedTemplate from "@/app/emails/credit-top-up-rejected";
 import ReservationReleasedTemplate from "@/app/emails/reservation-released";
 import LatePartnerAddedTemplate from "@/app/emails/late-partner-added";
@@ -546,11 +547,12 @@ function isEnrollmentNotificationKind(kind: string) {
 }
 
 function isCreditNotificationKind(kind: string) {
-  return kind === "credit_top_up_rejected";
+  return kind === "credit_top_up_approved" || kind === "credit_top_up_rejected";
 }
 
 /**
- * Credit mail, which hangs off a top-up rather than a reservation.
+ * Credit mail, which hangs off a top-up rather than a reservation: the
+ * outcome of an admin's review of its voucher.
  *
  * The amount and reason are read back from the row instead of the payload:
  * the job may be retried days later, and the record of what was rejected and
@@ -585,6 +587,19 @@ async function deliverCreditJob(
     .where(eq(users.id, topUp.userId))
     .limit(1);
   if (!profile) throw new Error("credit_profile_missing");
+
+  if (kind === "credit_top_up_approved") {
+    await sendJobEmail(idempotencyKey, {
+      to: [recipientEmail],
+      from: CREDITS_FROM,
+      subject: "Confirmamos tu compra de créditos",
+      react: CreditTopUpApprovedTemplate({
+        profile,
+        amount: Number(topUp.amount),
+      }),
+    });
+    return;
+  }
 
   if (kind === "credit_top_up_rejected") {
     const debtAmount = Math.max(0, payloadAmount(payload, "debtAmount") ?? 0);

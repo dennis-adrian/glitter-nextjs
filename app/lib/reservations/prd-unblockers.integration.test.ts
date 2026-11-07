@@ -213,6 +213,7 @@ const PARTICIPANT_INBOX_KIND: Record<string, string | null> = {
   late_partner_added: "reservation_partner_added",
   festival_participation_approved: "festival_participation_approved",
   festival_participation_rejected: "festival_participation_rejected",
+  credit_top_up_approved: "credit_top_up_approved",
   credit_top_up_rejected: "credit_top_up_rejected",
 };
 
