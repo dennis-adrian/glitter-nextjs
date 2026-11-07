@@ -131,6 +131,10 @@ function staleTermsCopy(hub: ParticipationHub, copy: Copy): Copy {
   if (!hub.termsStale || !enrolled || isParticipationEnded(status)) {
     return copy;
   }
+  // A ban closes the edition whatever they accept: its explanation stays.
+  if (status === "reservations_blocked" && !hub.reservationBlock?.eligibleAt) {
+    return copy;
+  }
 
   const accept = {
     label: "Aceptar nuevos términos",

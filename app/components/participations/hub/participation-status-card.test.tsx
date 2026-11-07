@@ -433,4 +433,42 @@ describe("ParticipationStatusCard", () => {
       screen.queryByRole("link", { name: "Aceptar nuevos términos" }),
     ).toBeNull();
   });
+
+  it("keeps a ban's explanation when the terms also changed", () => {
+    render(
+      <ParticipationStatusCard
+        hub={hub("reservations_blocked", {
+          termsStale: true,
+          reservationBlock: { reason: "ban", eligibleAt: null },
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "No podés reservar en esta edición" }),
+    ).toBeTruthy();
+    expect(href("Ver detalle")).toBe("/profiles/3/infractions");
+    expect(
+      screen.queryByRole("link", { name: "Aceptar nuevos términos" }),
+    ).toBeNull();
+  });
+
+  it("still asks for the new terms during a reservation delay", () => {
+    render(
+      <ParticipationStatusCard
+        hub={hub("reservations_blocked", {
+          termsStale: true,
+          reservationBlock: {
+            reason: "reservation_delay",
+            eligibleAt: new Date("2099-01-01T00:00:00Z"),
+          },
+        })}
+      />,
+    );
+
+    expect(href("Aceptar nuevos términos")).toBe(
+      "/profiles/3/festivals/9/terms",
+    );
+    expect(href("Ver detalle")).toBe("/profiles/3/infractions");
+  });
 });
