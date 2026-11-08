@@ -15,16 +15,19 @@ import {
   DrawerTrigger,
 } from "@/app/components/ui/drawer";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/app/components/ui/popover";
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/app/components/ui/tooltip";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 
 /**
- * An explanation kept out of the way: an info button beside a title that opens
- * a popover on wider screens and a bottom drawer on a phone. For text that
- * explains a figure, never for the figure itself.
+ * An explanation kept out of the way: an info button beside a title. On wider
+ * screens it shows a tooltip on hover or keyboard focus (Esc closes it); a
+ * phone has no hover, so a tap opens a bottom drawer. For text that explains a
+ * figure, never for the figure itself, and never for anything to click: a
+ * tooltip closes as the pointer leaves it.
  */
 export default function InfoHint({
   title,
@@ -47,13 +50,15 @@ export default function InfoHint({
 
   if (isDesktop) {
     return (
-      <Popover>
-        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-        <PopoverContent align="start" className="w-80 text-sm">
-          <p className="mb-1 font-semibold">{title}</p>
-          <div className="text-muted-foreground">{children}</div>
-        </PopoverContent>
-      </Popover>
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+          <TooltipContent align="start" className="max-w-80 px-3.5 py-3 text-sm leading-relaxed">
+            <p className="mb-1 font-semibold">{title}</p>
+            <div className="opacity-85">{children}</div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   }
 

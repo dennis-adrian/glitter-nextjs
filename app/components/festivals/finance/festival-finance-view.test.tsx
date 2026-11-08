@@ -11,7 +11,7 @@ import type { FestivalFinanceSummary } from "@/app/lib/festivals/finance/summary
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
-// jsdom has no matchMedia; report a desktop width so hints open as popovers.
+// jsdom has no matchMedia; report a desktop width so hints open as tooltips.
 Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: (query: string) => ({
@@ -88,8 +88,9 @@ describe("FestivalFinanceView", () => {
     render(<FestivalFinanceView finance={finance} />);
     // The explanation is not on the page until asked for.
     expect(screen.queryByText(/No cuenta créditos anteriores ni regalados/)).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Qué es Dinero nuevo" }));
-    expect(screen.getByText(/No cuenta créditos anteriores ni regalados/)).toBeTruthy();
+    // Desktop: a tooltip, opened by hover or keyboard focus.
+    fireEvent.focus(screen.getByRole("button", { name: "Qué es Dinero nuevo" }));
+    expect(screen.getAllByText(/No cuenta créditos anteriores ni regalados/).length).toBeGreaterThan(0);
   });
 
   it("never says factura", () => {
