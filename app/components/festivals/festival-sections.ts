@@ -10,6 +10,7 @@ import {
   TagsIcon,
   TicketIcon,
   UsersIcon,
+  WalletIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -26,6 +27,8 @@ export type FestivalSection = {
   path: string;
   /** Only useful while the festival is happening (e.g. door check-in). */
   activeOnly?: boolean;
+  /** Shown to admins only; festival admins neither see nor open it. */
+  adminOnly?: boolean;
 };
 
 export const FESTIVAL_SECTION_GROUP_LABELS: Record<
@@ -84,6 +87,15 @@ export const FESTIVAL_SECTIONS: readonly FestivalSection[] = [
     path: "reservations",
   },
   {
+    key: "finance",
+    label: "Finanzas",
+    description: "Ingresos de la edición y cómo se pagaron",
+    icon: WalletIcon,
+    group: "participants",
+    path: "finance",
+    adminOnly: true,
+  },
+  {
     key: "collaborators",
     label: "Colaboradores",
     description: "Equipo registrado por los participantes",
@@ -137,8 +149,17 @@ export function festivalSectionHref(festivalId: number, section: FestivalSection
   return `/dashboard/festivals/${festivalId}/${section.path}`;
 }
 
-export function visibleFestivalSections(status: FestivalBase["status"]) {
+/**
+ * The sections to offer for a festival in `status`. Admin-only sections need
+ * `isAdmin`; leaving it out hides them, so a caller that forgets fails closed.
+ */
+export function visibleFestivalSections(
+  status: FestivalBase["status"],
+  { isAdmin = false }: { isAdmin?: boolean } = {},
+) {
   return FESTIVAL_SECTIONS.filter(
-    (section) => !section.activeOnly || status === "active",
+    (section) =>
+      (!section.activeOnly || status === "active") &&
+      (!section.adminOnly || isAdmin),
   );
 }

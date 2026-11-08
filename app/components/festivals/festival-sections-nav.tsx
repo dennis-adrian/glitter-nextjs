@@ -53,11 +53,13 @@ function sectionFigure(key: string, counts: FestivalOverviewCounts) {
 export default function FestivalSectionsNav({
   festival,
   counts,
+  isAdmin = false,
 }: {
   festival: FestivalBase;
   counts: FestivalOverviewCounts;
+  isAdmin?: boolean;
 }) {
-  const sections = visibleFestivalSections(festival.status);
+  const sections = visibleFestivalSections(festival.status, { isAdmin });
 
   return (
     <Card>

@@ -41,3 +41,11 @@ export default function DashboardViewerProvider({ viewer, children }: Props) {
 export function useCanManageProfiles(): boolean {
   return useContext(DashboardViewerContext)?.role === "admin";
 }
+
+/**
+ * True when the viewer is a global admin, for showing admin-only places such
+ * as a festival's Finanzas. Falls back to false with no provider mounted.
+ */
+export function useIsDashboardAdmin(): boolean {
+  return useContext(DashboardViewerContext)?.role === "admin";
+}
