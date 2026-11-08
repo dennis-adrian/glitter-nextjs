@@ -1,4 +1,5 @@
 import type { FinanceInvoiceRow } from "@/app/lib/festivals/finance/queries";
+import { keptTender } from "@/app/lib/festivals/finance/summary";
 import { serializeCsvRows } from "@/app/lib/orders/csv";
 import { roundMoney } from "@/app/lib/reservations/money";
 
@@ -29,20 +30,24 @@ const HEADER = [
 
 /** One row per reservation cobro, amounts as plain numbers for a spreadsheet. */
 export function serializeFinanceRowsCsv(rows: readonly FinanceInvoiceRow[]) {
-  const body = rows.map((row) => [
-    row.reservationId,
-    row.participant,
-    row.standLabel,
-    RESERVATION_STATUS_LABELS[row.reservationStatus] ?? row.reservationStatus,
-    row.originalAmount,
-    row.discountCode?.code ?? "",
-    row.discountAmount,
-    Math.max(0, roundMoney(row.originalAmount - row.discountAmount - row.amount)),
-    row.amount,
-    row.tender.approvedCashAmount,
-    row.tender.confirmedCreditAmount,
-    row.tender.submittedCashAmount,
-    row.status === "cancelled" ? 0 : row.tender.outstandingAmount,
-  ]);
+  const body = rows.map((row) => {
+    // Net of any repricing refund, like the page's totals.
+    const kept = keptTender(row.tender);
+    return [
+      row.reservationId,
+      row.participant,
+      row.standLabel,
+      RESERVATION_STATUS_LABELS[row.reservationStatus] ?? row.reservationStatus,
+      row.originalAmount,
+      row.discountCode?.code ?? "",
+      row.discountAmount,
+      Math.max(0, roundMoney(row.originalAmount - row.discountAmount - row.amount)),
+      row.amount,
+      kept.cash,
+      kept.credits,
+      row.tender.submittedCashAmount,
+      row.status === "cancelled" ? 0 : row.tender.outstandingAmount,
+    ];
+  });
   return serializeCsvRows([HEADER, ...body]);
 }

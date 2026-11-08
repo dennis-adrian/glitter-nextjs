@@ -144,7 +144,7 @@ describe("summarizeFestivalFinance", () => {
 
   it("does not count a repricing refund as collected, credits first", () => {
     const refunded = (id: number, cash: number, credit: number, refund: number) => {
-      const base = invoice({ id, original: 500, cash, credit });
+      const base = invoice({ id, original: 500, cash, credit, creditSpendIds: [id * 100] });
       return {
         ...base,
         tender: computeInvoiceTender({
@@ -165,13 +165,36 @@ describe("summarizeFestivalFinance", () => {
       invoices: [refunded(1, 300, 200, 100), refunded(2, 450, 50, 250)],
       featureSpends: [],
       freeReservations: [],
-      attribution: new Map(),
+      attribution: new Map([
+        [
+          100,
+          [
+            // Oldest first: balance from before, then this edition's purchase.
+            { amount: 150, source: purchase("2026-09-01T00:00:00Z"), coveredLater: false },
+            { amount: 50, source: purchase("2026-10-02T00:00:00Z"), coveredLater: false },
+          ],
+        ],
+        [200, [{ amount: 50, source: { kind: "gift" as const }, coveredLater: false }]],
+      ]),
     });
 
     expect(summary.directPayment).toBe(550);
     expect(summary.invoiceCredits).toBe(100);
     expect(summary.collected).toBe(650);
     expect(summary.collected).toBe(summary.invoiceCollected);
+    // The newest credits went back first: the Bs50 bought for this edition,
+    // then Bs50 of the earlier balance; the gift went back whole.
+    expect(summary.credits).toEqual({
+      festival: 0,
+      earlier: 100,
+      gifted: 0,
+      inReview: 0,
+      unpaid: 0,
+    });
+    expect(summary.movable).toEqual([
+      { amount: 100, purchasedAt: "2026-09-01T00:00:00.000Z" },
+    ]);
+    expect(summary.fixedFestivalCredits).toBe(0);
   });
 
   it("previews how a different lead days would split purchased credits", () => {
