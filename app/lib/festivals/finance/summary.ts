@@ -197,9 +197,19 @@ export function summarizeFestivalFinance(
     const { tender } = invoice;
 
     // Money that came in counts wherever it sits; a cancelled reservation
-    // whose payment was kept still paid it.
-    directPayment += tender.approvedCashAmount;
-    invoiceCredits += tender.confirmedCreditAmount;
+    // whose payment was kept still paid it. A repricing refund already went
+    // back to the participant, so it is not collected: like "Devolver
+    // créditos", it comes out of the credits first and then the cash.
+    const refundedCredits = Math.min(
+      tender.confirmedCreditAmount,
+      Math.max(0, tender.refundedAmount),
+    );
+    const refundedCash = Math.min(
+      tender.approvedCashAmount,
+      Math.max(0, tender.refundedAmount) - refundedCredits,
+    );
+    directPayment += tender.approvedCashAmount - refundedCash;
+    invoiceCredits += tender.confirmedCreditAmount - refundedCredits;
     invoice.creditSpendIds.forEach(addSpend);
 
     if (!live) {

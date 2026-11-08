@@ -1,4 +1,5 @@
 import { roundMoney } from "@/app/lib/reservations/money";
+import { STAND_CHANGE_REFUND_RESERVATION_KEY } from "@/app/lib/reservations/repricing-refund-keys";
 
 /**
  * Which credits paid for each spend, oldest first.
@@ -105,9 +106,14 @@ function sourceForCredit(
       underReview: topUp?.status === "under_review",
     };
   }
-  // A debt an admin marked as paid was settled with money outside the app.
+  // A debt an admin marked as paid was settled with money outside the app,
+  // and a repricing refund hands back money already paid on a cobro.
   // Anything else an admin adds (a gift, a waived debt) brought no money in.
-  if (entry.type === "admin_adjustment" && entry.metadata?.resolution === "mark_paid") {
+  if (
+    (entry.type === "admin_adjustment" && entry.metadata?.resolution === "mark_paid") ||
+    (entry.type === "admin_grant" &&
+      entry.metadata?.[STAND_CHANGE_REFUND_RESERVATION_KEY] != null)
+  ) {
     return {
       kind: "purchase",
       topUpId: null,

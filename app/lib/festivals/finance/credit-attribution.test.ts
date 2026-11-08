@@ -144,6 +144,30 @@ describe("attributeCreditSpends", () => {
     expect(result.get(spend.id)?.map((p) => p.source?.kind)).toEqual(["purchase", "gift"]);
   });
 
+  it("treats a repricing refund as money paid, other grants as gifts", () => {
+    const refund = entry({
+      type: "admin_grant",
+      amount: 40,
+      metadata: { standChangeRefundReservationId: "12" },
+      createdAt: day("2026-01-01"),
+    });
+    const gift = entry({ type: "admin_grant", amount: 10, createdAt: day("2026-01-02") });
+    const spend = entry({ type: "spend", amount: -50, createdAt: day("2026-01-03") });
+
+    const result = attributeCreditSpends([refund, gift, spend], []);
+
+    expect(result.get(spend.id)?.map((p) => p.source)).toEqual([
+      {
+        kind: "purchase",
+        topUpId: null,
+        purchasedAt: day("2026-01-01"),
+        intendedFestivalId: null,
+        underReview: false,
+      },
+      { kind: "gift" },
+    ]);
+  });
+
   it("keeps each person's credits apart", () => {
     const a = entry({ userId: 1, type: "admin_grant", amount: 10, createdAt: day("2026-01-01") });
     const b = entry({ userId: 2, type: "top_up", amount: 10, topUpId: 9, createdAt: day("2026-01-01") });

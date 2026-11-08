@@ -142,6 +142,38 @@ describe("summarizeFestivalFinance", () => {
     expect(summary.net - summary.invoiceCollected).toBe(summary.outstanding);
   });
 
+  it("does not count a repricing refund as collected, credits first", () => {
+    const refunded = (id: number, cash: number, credit: number, refund: number) => {
+      const base = invoice({ id, original: 500, cash, credit });
+      return {
+        ...base,
+        tender: computeInvoiceTender({
+          amount: 500,
+          payments: [{ id: id * 10, amount: cash }],
+          submissions: [{ paymentId: id * 10, status: "approved" as const }],
+          allocations: [{ amount: credit, reversed: false }],
+          refundedAmount: refund,
+        }),
+      };
+    };
+    const summary = summarizeFestivalFinance({
+      festivalId: FESTIVAL,
+      now,
+      windowStart,
+      // Bs100 refund: all from the Bs200 of credits.
+      // Bs250 refund: the Bs50 of credits, then Bs200 of the cash.
+      invoices: [refunded(1, 300, 200, 100), refunded(2, 450, 50, 250)],
+      featureSpends: [],
+      freeReservations: [],
+      attribution: new Map(),
+    });
+
+    expect(summary.directPayment).toBe(550);
+    expect(summary.invoiceCredits).toBe(100);
+    expect(summary.collected).toBe(650);
+    expect(summary.collected).toBe(summary.invoiceCollected);
+  });
+
   it("previews how a different lead days would split purchased credits", () => {
     const attribution: SpendAttribution = new Map([
       [101, [
