@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 
 import { fetchPublishedFestivalTermsVersion } from "@/app/lib/festival-terms/queries";
 import {
-  RESERVATION_ERROR_MESSAGES,
+  partnerDenialMessage,
   reservationFailure,
   type ReservationActionResult,
 } from "@/app/lib/reservations/errors";
@@ -137,7 +137,7 @@ export async function denySelfServiceMutation(
     ? mapPartnerEligibilityCode(result.code)
     : result.code;
   const message = input.asPartner
-    ? `${RESERVATION_ERROR_MESSAGES.PARTNER_NOT_ELIGIBLE} ${RESERVATION_ERROR_MESSAGES[result.code]}`
+    ? partnerDenialMessage(result.code)
     : undefined;
   return reservationFailure(code, message);
 }

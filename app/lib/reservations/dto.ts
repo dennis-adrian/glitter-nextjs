@@ -27,6 +27,8 @@ export type PartnerSearchResultDto = {
   imageUrl: string | null;
   selectable: boolean;
   denialCode?: ReservationErrorCode;
+  /** Set when the reason is more specific than `denialCode`'s message. */
+  denialMessage?: string;
 };
 
 export type ReservationStandRefDto = {

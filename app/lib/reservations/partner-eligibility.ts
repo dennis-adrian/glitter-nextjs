@@ -4,6 +4,7 @@ import { and, eq, ne } from "drizzle-orm";
 
 import { fetchPublishedFestivalTermsVersion } from "@/app/lib/festival-terms/queries";
 import {
+  partnerDenialMessage,
   RESERVATION_ERROR_MESSAGES,
   reservationFailure,
   type ReservationActionResult,
@@ -119,7 +120,10 @@ async function assertAdminPartnerEnrollment(
     )
     .limit(1);
   if (!festivalEnrollment || festivalEnrollment.status !== "accepted") {
-    return reservationFailure("PARTNER_NOT_ELIGIBLE");
+    return reservationFailure(
+      "PARTNER_NOT_ELIGIBLE",
+      partnerDenialMessage("NOT_ENROLLED"),
+    );
   }
 
   const [festival] = await tx
@@ -139,7 +143,12 @@ async function assertAdminPartnerEnrollment(
       publishedTerms == null ||
       festivalEnrollment.termsVersionId !== publishedTerms.id
     ) {
-      return reservationFailure("PARTNER_NOT_ELIGIBLE");
+      return reservationFailure(
+        "PARTNER_NOT_ELIGIBLE",
+        publishedTerms == null
+          ? undefined
+          : partnerDenialMessage("TERMS_STALE"),
+      );
     }
   }
 

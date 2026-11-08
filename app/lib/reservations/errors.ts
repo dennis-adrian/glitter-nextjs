@@ -232,6 +232,37 @@ const ADMIN_ERROR_MESSAGES: Partial<Record<ReservationErrorCode, string>> = {
     "Otro cambio ocurrió al mismo tiempo. Actualizá la página e intentá de nuevo.",
 };
 
+/**
+ * Why the chosen partner cannot join, phrased for the owner who picked them.
+ *
+ * A partner is checked with the same self-service policy as the owner, so the
+ * codes it returns ("TERMS_STALE", "SANCTION_BLOCKED", …) carry messages that
+ * address the reader: appended to the partner notice, "Aceptá la versión
+ * actual de los términos" told the owner to accept terms they had already
+ * accepted. Codes not listed here fall back to the generic partner notice.
+ */
+const PARTNER_DENIAL_MESSAGES: Partial<Record<ReservationErrorCode, string>> = {
+  PROFILE_NOT_VERIFIED:
+    "El perfil de la persona que elegiste todavía no está verificado.",
+  NOT_ENROLLED: "La persona que elegiste no está habilitada en este festival.",
+  TERMS_STALE:
+    "La persona que elegiste todavía no aceptó la versión actual de los términos y condiciones. Pedile que los acepte desde su cuenta en Glitter, o elegí a otra persona.",
+  SANCTION_BLOCKED:
+    "La persona que elegiste tiene una sanción activa y no puede participar en este festival.",
+  RESERVATION_REJECTED:
+    "La reserva de la persona que elegiste en este festival fue cancelada, así que no puede volver a participar.",
+  ALREADY_RESERVED:
+    "La persona que elegiste ya tiene una reserva en este festival.",
+};
+
+/** The owner-facing message for a partner the policy denied with `code`. */
+export function partnerDenialMessage(code: ReservationErrorCode): string {
+  return (
+    PARTNER_DENIAL_MESSAGES[code] ??
+    RESERVATION_ERROR_MESSAGES.PARTNER_NOT_ELIGIBLE
+  );
+}
+
 /** The message for `code`, phrased for whoever is going to read it. */
 export function reservationErrorMessage(
   code: ReservationErrorCode,
