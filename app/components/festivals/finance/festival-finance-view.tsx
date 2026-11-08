@@ -1,8 +1,9 @@
-import { ArrowRightIcon, ClockIcon, InfoIcon, WalletIcon } from "lucide-react";
+import { ArrowRightIcon, ClockIcon, WalletIcon } from "lucide-react";
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 
 import CreditLeadDaysDialog from "@/app/components/festivals/finance/credit-lead-days-dialog";
+import InfoHint from "@/app/components/festivals/finance/info-hint";
 import { Badge, type BadgeVariant } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -65,11 +66,15 @@ const PENDING_LABELS: Record<PendingRow["key"], { label: string; variant: BadgeV
 
 function SectionCard({
   title,
+  info,
   description,
   children,
   className,
 }: {
   title: string;
+  /** What the card means, kept behind an info button. */
+  info?: ReactNode;
+  /** Data only: a figure or count that belongs under the title. */
   description?: ReactNode;
   children: ReactNode;
   className?: string;
@@ -77,7 +82,10 @@ function SectionCard({
   return (
     <Card className={cn("min-w-0", className)}>
       <CardHeader className="p-4 pb-3 md:p-6 md:pb-4">
-        <CardTitle className="text-lg">{title}</CardTitle>
+        <div className="flex items-center gap-1.5">
+          <CardTitle className="text-lg">{title}</CardTitle>
+          {info ? <InfoHint title={title}>{info}</InfoHint> : null}
+        </div>
         {description ? <CardDescription>{description}</CardDescription> : null}
       </CardHeader>
       <CardContent className="p-4 pt-0 md:p-6 md:pt-0">{children}</CardContent>
@@ -87,18 +95,24 @@ function SectionCard({
 
 function Kpi({
   label,
+  info,
   value,
   sub,
   lead = false,
 }: {
   label: string;
+  info: ReactNode;
   value: number;
-  sub: string;
+  /** Data only, such as the part of the figure still in review. */
+  sub?: string;
   lead?: boolean;
 }) {
   return (
     <Card className="flex min-w-0 flex-col gap-1.5 p-3.5 md:p-5">
-      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        {label}
+        <InfoHint title={label}>{info}</InfoHint>
+      </span>
       <span
         className={cn(
           "font-display text-2xl font-bold tabular-nums md:text-3xl",
@@ -107,7 +121,7 @@ function Kpi({
       >
         {formatMoney(value)}
       </span>
-      <span className="text-xs text-muted-foreground">{sub}</span>
+      {sub ? <span className="text-xs text-muted-foreground">{sub}</span> : null}
     </Card>
   );
 }
@@ -122,7 +136,7 @@ function StepRow({
   total = false,
 }: {
   label: string;
-  sub: string;
+  sub?: string;
   amount: number;
   base: number;
   barClassName: string;
@@ -138,7 +152,9 @@ function StepRow({
     >
       <div className={cn("flex min-w-0 flex-col text-sm", total && "font-semibold")}>
         {label}
-        <span className="text-xs font-normal text-muted-foreground">{sub}</span>
+        {sub ? (
+          <span className="text-xs font-normal text-muted-foreground">{sub}</span>
+        ) : null}
       </div>
       <div
         className={cn(
@@ -166,12 +182,12 @@ function StepDown({ finance }: { finance: FestivalFinance }) {
   return (
     <SectionCard
       title="Del precio base a lo cobrado"
-      description="Solo reservas de espacios. Los extras van aparte, abajo."
+      info="Solo reservas de espacios; los extras van aparte. El precio base es el de cada espacio sin descuentos. Una condonación es una reserva cerrada por menos de lo que costaba."
     >
       <div className="flex flex-col">
         <StepRow
           label="Precio base"
-          sub={`${s.reservations} ${s.reservations === 1 ? "reserva vigente" : "reservas vigentes"}, a su precio sin descuentos`}
+          sub={`${s.reservations} ${s.reservations === 1 ? "reserva vigente" : "reservas vigentes"}`}
           amount={s.gross}
           base={s.gross}
           barClassName="bg-primary"
@@ -185,7 +201,7 @@ function StepDown({ finance }: { finance: FestivalFinance }) {
                   manual > 0 ? `${manual} ${manual === 1 ? "ajuste manual" : "ajustes manuales"}` : null,
                 ]
                   .filter(Boolean)
-                  .join(" y ")
+                  .join(" · ")
               : "ninguno"
           }
           amount={s.discounts}
@@ -197,7 +213,7 @@ function StepDown({ finance }: { finance: FestivalFinance }) {
           label="Condonaciones"
           sub={
             s.writeOffReservations > 0
-              ? `${s.writeOffReservations} ${s.writeOffReservations === 1 ? "reserva cerrada" : "reservas cerradas"} por menos de lo que costaban`
+              ? `${s.writeOffReservations} ${s.writeOffReservations === 1 ? "reserva" : "reservas"}`
               : "ninguna"
           }
           amount={s.writeOffs}
@@ -207,7 +223,6 @@ function StepDown({ finance }: { finance: FestivalFinance }) {
         />
         <StepRow
           label="Total con descuentos"
-          sub="lo que deben pagar los participantes"
           amount={s.net}
           base={s.gross}
           barClassName="bg-primary"
@@ -215,14 +230,12 @@ function StepDown({ finance }: { finance: FestivalFinance }) {
         />
         <StepRow
           label="Cobrado de reservas"
-          sub="pagos aprobados y créditos aplicados"
           amount={s.invoiceCollected}
           base={s.gross}
           barClassName="bg-primary-600"
         />
         <StepRow
           label="Por cobrar"
-          sub="falta pagar, ya con descuentos"
           amount={s.outstanding}
           base={s.gross}
           barClassName="bg-amber-500"
@@ -230,9 +243,8 @@ function StepDown({ finance }: { finance: FestivalFinance }) {
       </div>
       {s.inactiveCollected > 0 ? (
         <p className="mt-3 text-xs text-muted-foreground">
-          Además, {formatMoney(s.inactiveCollected)} se cobraron en reservas
-          canceladas o liberadas que conservaron su pago. Suman a lo cobrado
-          arriba, no a este desglose.
+          Además, {formatMoney(s.inactiveCollected)} cobrados en reservas
+          canceladas o liberadas que conservaron su pago.
         </p>
       ) : null}
     </SectionCard>
@@ -242,13 +254,11 @@ function StepDown({ finance }: { finance: FestivalFinance }) {
 function TenderLegend({
   fill,
   name,
-  sub,
   amount,
   total,
 }: {
   fill: { className?: string; style?: CSSProperties };
   name: string;
-  sub: string;
   amount: number;
   total: number;
 }) {
@@ -262,7 +272,7 @@ function TenderLegend({
       <span className="text-sm font-medium">{name}</span>
       <span className="text-right text-sm tabular-nums">{formatMoney(amount)}</span>
       <span className="col-start-2 col-end-4 text-xs text-muted-foreground">
-        {sub} · {percentLabel(amount, total)}
+        {percentLabel(amount, total)}
       </span>
     </div>
   );
@@ -272,40 +282,19 @@ function HowItWasPaid({ finance }: { finance: FestivalFinance }) {
   const s = finance.summary;
   const total = s.collected;
   const windowDay = financeDay(finance.windowStart);
-  const opensDay = financeDay(finance.festival.reservationsStartDate);
+  const lead = finance.leadDays === 1 ? "1 día antes" : `${finance.leadDays} días antes`;
 
   const segments: {
     key: keyof typeof TENDER_FILLS;
     name: string;
-    sub: string;
     amount: number;
   }[] = [
-    { key: "direct", name: "Pago directo", sub: "comprobantes aprobados", amount: s.directPayment },
-    {
-      key: "festival",
-      name: "Créditos de esta edición",
-      sub: `comprados desde el ${windowDay} o para este festival`,
-      amount: s.credits.festival,
-    },
-    { key: "earlier", name: "Créditos anteriores", sub: "saldo que ya tenían antes", amount: s.credits.earlier },
-    {
-      key: "gifted",
-      name: "Créditos regalados",
-      sub: "obsequios y compensaciones: no entró dinero",
-      amount: s.credits.gifted,
-    },
-    {
-      key: "inReview",
-      name: "Créditos con compra en revisión",
-      sub: "se usaron antes de aprobar el comprobante de compra",
-      amount: s.credits.inReview,
-    },
-    {
-      key: "unpaid",
-      name: "Créditos sin pagar",
-      sub: "la compra se rechazó y el participante quedó debiendo",
-      amount: s.credits.unpaid,
-    },
+    { key: "direct", name: "Pago directo", amount: s.directPayment },
+    { key: "festival", name: "Créditos de esta edición", amount: s.credits.festival },
+    { key: "earlier", name: "Créditos anteriores", amount: s.credits.earlier },
+    { key: "gifted", name: "Créditos regalados", amount: s.credits.gifted },
+    { key: "inReview", name: "Créditos con compra en revisión", amount: s.credits.inReview },
+    { key: "unpaid", name: "Créditos sin pagar", amount: s.credits.unpaid },
   ];
   // The last two only show up when there is something in them.
   const visible = segments.filter(
@@ -316,7 +305,23 @@ function HowItWasPaid({ finance }: { finance: FestivalFinance }) {
   return (
     <SectionCard
       title="Cómo se pagó"
-      description={`Todo lo cobrado, reservas y extras: ${formatMoney(total)}`}
+      description={`${formatMoney(total)} en reservas y extras`}
+      info={
+        <div className="space-y-2">
+          <p>Los créditos se usan en orden de antigüedad: primero el saldo más viejo.</p>
+          <p>
+            <strong>De esta edición:</strong> comprados para este festival o
+            desde {lead} de abrir las reservas. <strong>Anteriores:</strong>{" "}
+            saldo que ya tenían. <strong>Regalados:</strong> obsequios y
+            compensaciones, sin dinero detrás.
+          </p>
+          <p>
+            <strong>Con compra en revisión:</strong> se usaron antes de aprobar
+            el comprobante. <strong>Sin pagar:</strong> la compra se rechazó y
+            el participante quedó debiendo.
+          </p>
+        </div>
+      }
     >
       <div
         className="flex h-4 gap-0.5 overflow-hidden rounded-full bg-muted"
@@ -346,7 +351,6 @@ function HowItWasPaid({ finance }: { finance: FestivalFinance }) {
             key={segment.key}
             fill={TENDER_FILLS[segment.key]}
             name={segment.name}
-            sub={segment.sub}
             amount={segment.amount}
             total={total}
           />
@@ -381,25 +385,21 @@ function HowItWasPaid({ finance }: { finance: FestivalFinance }) {
         </div>
       ) : null}
 
-      <div className="mt-4 flex items-start gap-2.5 rounded-md bg-muted p-3 text-xs leading-relaxed text-muted-foreground">
-        <InfoIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+      <div className="mt-4 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-muted-foreground">
         <span>
-          Los créditos se usan en orden de antigüedad: primero el saldo más
-          viejo. Una compra cuenta como de esta edición si se hizo para este
-          festival o desde{" "}
-          <strong className="font-semibold text-foreground">
-            {finance.leadDays === 1 ? "1 día antes" : `${finance.leadDays} días antes`}
-          </strong>{" "}
-          de abrir las reservas (desde el {windowDay}; abren el {opensDay}).{" "}
-          <CreditLeadDaysDialog
-            festivalId={finance.festival.id}
-            leadDays={finance.leadDays}
-            reservationsStartDate={finance.festival.reservationsStartDate.toISOString()}
-            movable={s.movable}
-            fixedFestivalCredits={s.fixedFestivalCredits}
-            current={{ festival: s.credits.festival, earlier: s.credits.earlier }}
-          />
+          De esta edición: desde{" "}
+          <strong className="font-semibold text-foreground">{lead}</strong> de
+          abrir ({windowDay})
         </span>
+        <span aria-hidden>·</span>
+        <CreditLeadDaysDialog
+          festivalId={finance.festival.id}
+          leadDays={finance.leadDays}
+          reservationsStartDate={finance.festival.reservationsStartDate.toISOString()}
+          movable={s.movable}
+          fixedFestivalCredits={s.fixedFestivalCredits}
+          current={{ festival: s.credits.festival, earlier: s.credits.earlier }}
+        />
       </div>
     </SectionCard>
   );
@@ -411,7 +411,7 @@ function Extras({ finance }: { finance: FestivalFinance }) {
   return (
     <SectionCard
       title="Extras de reserva"
-      description="Se pagan con créditos y no pasan por el cobro de la reserva."
+      info="Mesa completa, compañero agregado y liberación de espacio. Se pagan con créditos y no pasan por el cobro de la reserva."
     >
       <Table wrapperClassName="hidden md:block">
         <TableHeader>
@@ -487,7 +487,7 @@ function Discounts({ finance }: { finance: FestivalFinance }) {
   return (
     <SectionCard
       title="Descuentos"
-      description="Lo que se dejó de cobrar sobre el precio base."
+      info="Lo que se dejó de cobrar sobre el precio base, por código y por condonación."
     >
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">
@@ -547,7 +547,10 @@ function Discounts({ finance }: { finance: FestivalFinance }) {
 function Pending({ finance, cobrosHref }: { finance: FestivalFinance; cobrosHref: string }) {
   const s = finance.summary;
   return (
-    <SectionCard title="Por cobrar" description="Falta pagar, ya con descuentos.">
+    <SectionCard
+      title="Por cobrar"
+      info="Lo que falta pagar en las reservas vigentes, ya con descuentos, según su estado."
+    >
       {s.pending.length === 0 ? (
         <p className="text-sm text-muted-foreground">Todas las reservas están cubiertas.</p>
       ) : (
@@ -585,14 +588,11 @@ function FreeStands({ finance }: { finance: FestivalFinance }) {
   return (
     <SectionCard
       title="Espacios sin cobro"
-      description="Cedidos a auspiciantes, aliados e invitados."
+      info="Espacios cedidos a auspiciantes, aliados e invitados, valuados a precio base. No suman al total."
     >
       <div className="flex items-center gap-3 text-sm">
-        <span className="flex min-w-0 flex-1 flex-col">
+        <span className="min-w-0 flex-1">
           {count} {count === 1 ? "espacio cedido" : "espacios cedidos"}
-          <span className="text-xs text-muted-foreground">
-            valor a precio base, no suma al total
-          </span>
         </span>
         <span className="tabular-nums">{formatMoney(value)}</span>
       </div>
@@ -610,14 +610,14 @@ export function FinanceHeader({
   const cobrosHref = `/dashboard/festivals/${festivalId}/reservations?lens=cobros`;
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
-      <div className="min-w-0">
+      <div className="flex min-w-0 items-center gap-1.5">
         <h1 className="text-2xl font-bold md:text-3xl" data-installed-title="">
           Finanzas
         </h1>
-        <p className="mt-1 max-w-prose text-sm text-muted-foreground">
+        <InfoHint title="Finanzas">
           Lo que dejaron las reservas de espacios de esta edición: cuánto había
           que cobrar, cuánto se cobró y cómo se pagó.
-        </p>
+        </InfoHint>
       </div>
       <div className="flex w-full flex-wrap gap-2 sm:w-auto">
         {disabled ? (
@@ -681,26 +681,24 @@ export default function FestivalFinanceView({ finance }: { finance: FestivalFina
           lead
           label="Cobrado"
           value={s.collected}
-          sub="reservas y extras, en dinero y créditos"
+          info="Todo lo que entró por reservas y extras, en dinero y en créditos. Incluye reservas canceladas que conservaron su pago."
         />
         <Kpi
           label="Dinero nuevo"
           value={s.newMoney}
-          sub="pago directo más créditos comprados para esta edición"
+          info="Pago directo más los créditos comprados para esta edición. No cuenta créditos anteriores ni regalados: ese dinero ya había entrado antes o nunca entró."
         />
         <Kpi
           label="Por cobrar"
           value={s.outstanding}
-          sub={
-            inReview > 0
-              ? `de los cuales ${formatMoney(inReview)} con comprobante en revisión`
-              : "reservas vigentes sin cubrir"
-          }
+          sub={inReview > 0 ? `${formatMoney(inReview)} con comprobante en revisión` : undefined}
+          info="Lo que falta pagar en las reservas vigentes, ya con descuentos."
         />
         <Kpi
           label="Descuentos y condonaciones"
           value={given}
-          sub={s.gross > 0 ? `${percentLabel(given, s.gross)} del precio base` : "sin reservas todavía"}
+          sub={s.gross > 0 ? `${percentLabel(given, s.gross)} del precio base` : undefined}
+          info="Descuentos con código más condonaciones: lo que se dejó de cobrar sobre el precio base."
         />
       </div>
 

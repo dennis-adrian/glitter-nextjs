@@ -10,6 +10,17 @@ import type { FestivalFinance } from "@/app/lib/festivals/finance/queries";
 import type { FestivalFinanceSummary } from "@/app/lib/festivals/finance/summary";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+
+// jsdom has no matchMedia; report a desktop width so hints open as popovers.
+Object.defineProperty(window, "matchMedia", {
+  writable: true,
+  value: (query: string) => ({
+    matches: query.includes("min-width"),
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }),
+});
 vi.mock("@/app/lib/festivals/finance/actions", () => ({
   updateCreditLeadDays: vi.fn(async () => ({ success: true })),
 }));
@@ -62,7 +73,7 @@ describe("FestivalFinanceView", () => {
   it("splits credits into this edition's, earlier, gifted and in review", () => {
     render(<FestivalFinanceView finance={finance} />);
     expect(screen.getByText("Créditos de esta edición")).toBeTruthy();
-    expect(screen.getByText("comprados desde el 1 de octubre o para este festival", { exact: false })).toBeTruthy();
+    expect(screen.getByText("(1 de octubre)", { exact: false })).toBeTruthy();
     expect(screen.getByText("Créditos anteriores")).toBeTruthy();
     expect(screen.getByText("Créditos regalados")).toBeTruthy();
     expect(screen.getByText("Créditos con compra en revisión")).toBeTruthy();
@@ -71,6 +82,14 @@ describe("FestivalFinanceView", () => {
     expect(screen.getByRole("link", { name: "Revisar compras" }).getAttribute("href")).toBe(
       "/dashboard/credits/reviews",
     );
+  });
+
+  it("keeps explanations behind an info button", () => {
+    render(<FestivalFinanceView finance={finance} />);
+    // The explanation is not on the page until asked for.
+    expect(screen.queryByText(/No cuenta créditos anteriores ni regalados/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Qué es Dinero nuevo" }));
+    expect(screen.getByText(/No cuenta créditos anteriores ni regalados/)).toBeTruthy();
   });
 
   it("never says factura", () => {
