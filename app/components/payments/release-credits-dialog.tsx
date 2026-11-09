@@ -17,7 +17,9 @@ import { Label } from "@/app/components/ui/label";
 import { Textarea } from "@/app/components/ui/textarea";
 import { InvoiceWithTender } from "@/app/data/invoices/definitions";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
+import { creditReleasePreview } from "@/app/lib/payments/tender";
 import { releaseInvoiceCreditsAction } from "@/app/lib/reservations/payment-actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 export default function ReleaseCreditsDialog({
   invoice,
@@ -33,8 +35,10 @@ export default function ReleaseCreditsDialog({
   const [reason, setReason] = useState("");
   const router = useRouter();
 
-  const creditAmount = invoice.tender.confirmedCreditAmount;
-  const nextOutstanding = invoice.tender.outstandingAmount + creditAmount;
+  // Net of what a repricing already handed back from these credits: the
+  // server takes that part out again, so announcing the gross amount promised
+  // money that never arrives.
+  const preview = creditReleasePreview(invoice.tender);
 
   async function handleRelease() {
     const trimmed = reason.trim();
@@ -58,8 +62,8 @@ export default function ReleaseCreditsDialog({
       setReason("");
       onOpenChange(false);
       router.refresh();
-    } catch {
-      toast.error("Error al devolver los créditos");
+    } catch (error) {
+      toastActionError(error, "Error al devolver los créditos");
     } finally {
       setIsReleasing(false);
     }
@@ -82,11 +86,19 @@ export default function ReleaseCreditsDialog({
             Devolver créditos aplicados
           </DrawerDialogTitle>
           <DrawerDialogDescription isDesktop={isDesktop}>
-            Se devolverán Bs{creditAmount} a la cuenta de{" "}
+            Se devolverán Bs{preview.returnedAmount} a la cuenta de{" "}
             {invoice.user.displayName || "la persona titular"}. El saldo del
-            cobro #{invoice.id} pasará a Bs{nextOutstanding}. Queda registrado
-            en el libro de créditos y en el historial de la reserva.
+            cobro #{invoice.id} pasará a Bs{preview.nextOutstandingAmount}.
+            Queda registrado en el libro de créditos y en el historial de la
+            reserva.
           </DrawerDialogDescription>
+          {preview.alreadyReturnedAmount > 0 && (
+            <p className="text-sm text-muted-foreground">
+              De los Bs{preview.creditAmount} aplicados, Bs
+              {preview.alreadyReturnedAmount} ya volvieron como diferencia a
+              favor de un cambio de espacio, así que no se devuelven de nuevo.
+            </p>
+          )}
         </DrawerDialogHeader>
 
         <div className="space-y-2 px-4 md:px-0">
@@ -111,7 +123,9 @@ export default function ReleaseCreditsDialog({
             Cancelar
           </Button>
           <Button type="button" onClick={handleRelease} disabled={isReleasing}>
-            {isReleasing ? "Devolviendo..." : `Devolver Bs${creditAmount}`}
+            {isReleasing
+              ? "Devolviendo..."
+              : `Devolver Bs${preview.returnedAmount}`}
           </Button>
         </div>
       </DrawerDialogContent>

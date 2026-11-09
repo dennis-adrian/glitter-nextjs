@@ -19,7 +19,7 @@ import { fetchLatePartnerOffer } from "@/app/lib/reservations/late-partner-queri
 import { fetchReleaseOffer } from "@/app/lib/reservations/release-queries";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { pushPublicKeyFor } from "@/app/lib/notifications/push/access";
-import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
+import { getCurrentBaseProfile, protectRoute } from "@/app/lib/users/helpers";
 import { started } from "@/app/lib/started";
 import { getUserName } from "@/app/lib/users/utils";
 
@@ -59,7 +59,7 @@ export default async function ReservationDetailPage({
   const reservationPromise = started(
     fetchReservationForParticipant(reservationId),
   );
-  const currentProfile = await getCurrentUserProfile();
+  const currentProfile = await getCurrentBaseProfile();
   await protectRoute(currentProfile || undefined, profileId);
 
   const reservation = await reservationPromise;
@@ -98,7 +98,7 @@ export default async function ReservationDetailPage({
   // reservation. The offer goes rather than quoting a price nobody can pay.
   const [creditsEnabled, releaseOffer, latePartnerOffer, pushPublicKey] =
     await Promise.all([
-      isFeatureEnabled("credits"),
+      isFeatureEnabled("credits", currentProfile ?? null),
       fetchReleaseOffer({
         userId: currentProfile?.id ?? 0,
         festivalId,
@@ -172,6 +172,7 @@ export default async function ReservationDetailPage({
                       }
                       featurePrice={latePartnerOffer.featurePrice}
                       totalCredits={latePartnerOffer.totalCredits}
+                      fullTable={latePartnerOffer.fullTable}
                       shortfall={latePartnerOffer.shortfall}
                       deadlineLabel={partnerDeadline}
                     />

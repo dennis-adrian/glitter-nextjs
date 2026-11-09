@@ -23,6 +23,7 @@ import {
   type FeatureFlagWithTargets,
 } from "@/app/lib/feature_flags/definitions";
 import type { FeatureFlagDefinition } from "@/app/lib/feature_flags/registry";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   flag: FeatureFlagWithTargets;
@@ -51,8 +52,8 @@ export default function FeatureFlagCard({ flag, definition }: Props) {
           toast.error(result.message);
           setVisibility(flag.visibility);
         }
-      } catch {
-        toast.error("No se pudo guardar la visibilidad");
+      } catch (error) {
+        toastActionError(error, "No se pudo guardar la visibilidad");
         setVisibility(flag.visibility);
       }
     });

@@ -47,7 +47,7 @@ vi.mock("@/app/lib/credits/purchase-actions", () => ({
   createFeatureCreditTopUpAction: vi.fn(),
 }));
 vi.mock("@/app/lib/users/helpers", () => ({
-  getCurrentUserProfile: currentProfileMock,
+  getCurrentBaseProfile: currentProfileMock,
   protectRoute: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({
@@ -111,6 +111,7 @@ const NO_LATE_PARTNER = {
   sharedPriceDifference: 0,
   featurePrice: 0,
   totalCredits: 0,
+  fullTable: false,
   spendableBalance: 0,
   shortfall: 0,
 };
@@ -316,6 +317,7 @@ describe("ReservationDetailPage", () => {
       sharedPriceDifference: 30,
       featurePrice: 25,
       totalCredits: 55,
+      fullTable: false,
       spendableBalance: 55,
       shortfall: 0,
     };

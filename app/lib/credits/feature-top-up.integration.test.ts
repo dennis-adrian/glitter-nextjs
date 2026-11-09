@@ -52,6 +52,7 @@ const currentProfileMock = vi.hoisted(() => vi.fn());
 vi.mock("server-only", () => ({}));
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: currentProfileMock,
+  getCurrentBaseProfile: currentProfileMock,
 }));
 vi.mock("@/app/lib/reservations/notification-outbox", () => ({
   enqueueAdminAndOwnerNotifications: vi.fn().mockResolvedValue([]),

@@ -4,7 +4,7 @@ import {
   fetchInvoiceTenderSummary,
   fetchInvoicesByReservation,
 } from "@/app/data/invoices/actions";
-import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
+import { getCurrentBaseProfile, protectRoute } from "@/app/lib/users/helpers";
 import { started } from "@/app/lib/started";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
@@ -37,7 +37,7 @@ export default async function Page(props: {
     fetchInvoicesByReservation(validatedParams.data.reservationId),
   );
   const [profile, festival] = await Promise.all([
-    getCurrentUserProfile(),
+    getCurrentBaseProfile(),
     fetchBaseFestival(validatedParams.data.festivalId),
   ]);
   if (!festival || !profile) notFound();
@@ -147,6 +147,7 @@ export default async function Page(props: {
                     festivalId={validatedParams.data.festivalId}
                     approvedCashAmount={tender?.approvedCashAmount}
                     creditAppliedAmount={tender?.confirmedCreditAmount}
+                    refundedAmount={tender?.refundedAmount}
                     outstandingAmount={outstandingAmount}
                   />
                 </div>

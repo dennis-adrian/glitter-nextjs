@@ -176,6 +176,7 @@ export function buildPendingItems({
   teamCount,
   links,
   reservationBlock = null,
+  termsStale = false,
 }: {
   status: HubStatus;
   isGastronomy: boolean;
@@ -184,6 +185,8 @@ export function buildPendingItems({
   isConfirmed: boolean;
   /** The sanction behind "reservations_blocked": a ban, or a delay. */
   reservationBlock?: { eligibleAt: Date | null } | null;
+  /** The terms changed since they accepted them. */
+  termsStale?: boolean;
   shouldSubmitProducts: boolean;
   teamCount: number;
   links: HubLinks;
@@ -220,6 +223,17 @@ export function buildPendingItems({
           },
   );
 
+  // A republished version has to be accepted again before the map lets them
+  // reserve; with a reservation already made it is still asked of them.
+  if (termsStale && enrolled) {
+    items.push({
+      key: "terms",
+      label: "Aceptar los nuevos términos y condiciones",
+      done: false,
+      href: links.terms,
+    });
+  }
+
   if (isGastronomy && enrollmentStatus === "pending" && !hasReservation) {
     items.push({
       key: "review",
@@ -237,9 +251,14 @@ export function buildPendingItems({
             key: "reservation",
             label: "Reservar tu espacio",
             done: false,
-            href: status === "approved_enrollment" ? links.reserve : undefined,
+            href:
+              status === "approved_enrollment" && !termsStale
+                ? links.reserve
+                : undefined,
             meta:
-              status === "waiting_for_reservations"
+              status === "approved_enrollment" && termsStale
+                ? "después de aceptar los términos"
+                : status === "waiting_for_reservations"
                 ? "aún no abre"
                 : status === "no_stands_available"
                   ? "sin espacios"

@@ -56,7 +56,7 @@ import {
   denyIfStandNotEligibleForProfile,
   denySelfServiceMutation,
 } from "@/app/lib/reservations/tx-eligibility";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
   festivals,
@@ -70,23 +70,13 @@ import {
   stands,
 } from "@/db/schema";
 import { and, eq, gt, inArray, lte, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 
 const HOLD_DURATION_MINUTES = 5;
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-function guardedRevalidate() {
-  try {
-    revalidatePath("/profiles");
-    revalidatePath("/my_profile");
-  } catch (error) {
-    console.error("[stand-hold] revalidatePath failed", error);
-  }
-}
-
 async function requireSelfServiceActor() {
-  const actor = await getCurrentUserProfile();
+  const actor = await getCurrentBaseProfile();
   if (!actor)
     return { actor: null, denial: reservationFailure("UNAUTHENTICATED") };
   return { actor, denial: null };
@@ -147,21 +137,6 @@ export async function fetchHoldWithStand(
   });
 }
 
-export async function getActiveHold(
-  userId: number,
-  festivalId: number,
-): Promise<{ id: number; standId: number } | null> {
-  const hold = await db.query.standHolds.findFirst({
-    where: and(
-      eq(standHolds.userId, userId),
-      eq(standHolds.festivalId, festivalId),
-      gt(standHolds.expiresAt, new Date()),
-    ),
-    columns: { id: true, standId: true },
-  });
-  return hold ? { id: hold.id, standId: hold.standId } : null;
-}
-
 async function reconcileExpiredHolds(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   input: { standId: number; userId: number; festivalId: number; now: Date },
@@ -211,7 +186,8 @@ export async function createStandHold(standIdInput: unknown): Promise<
   const standId = parsed.data.standId;
   const idempotencyKey = parsed.data.idempotencyKey;
   const singleStandOnly = parsed.data.singleStandOnly ?? false;
-  const now = new Date();
+  // Only widens the lock set below; every decision uses the post-lock `now`.
+  const requestedAt = new Date();
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -300,7 +276,7 @@ export async function createStandHold(standIdInput: unknown): Promise<
           and(
             eq(standHolds.userId, actor.id),
             eq(standHolds.festivalId, stand.festivalId),
-            gt(standHolds.expiresAt, now),
+            gt(standHolds.expiresAt, requestedAt),
           ),
         );
 
@@ -358,6 +334,9 @@ export async function createStandHold(standIdInput: unknown): Promise<
         tx,
         existingHoldPreview.map((hold) => hold.id),
       );
+      // The hold's clock starts once the festival locks are held: time spent
+      // queued for a pool connection or a lock is not the participant's.
+      const now = new Date();
 
       await reconcileExpiredHolds(tx, {
         standId: stand.id,
@@ -517,6 +496,10 @@ export async function createStandHold(standIdInput: unknown): Promise<
           userId: actor.id,
           festivalId: freshStand.festivalId,
           expiresAt,
+          // App-clock values, so the expires-after-created CHECK compares the
+          // same clock instead of the transaction's BEGIN time.
+          createdAt: now,
+          updatedAt: now,
           priceAmountSnapshot: roundMoney(freshStand.individualPrice ?? 0),
           // Both illustration prices are snapshotted even when the participant
           // is booking alone, so a later partner addition prices off the stand
@@ -556,7 +539,6 @@ export async function createStandHold(standIdInput: unknown): Promise<
       );
     });
 
-    guardedRevalidate();
     return result;
   } catch (error) {
     console.error("Error creating stand hold", error);
@@ -638,7 +620,6 @@ export async function cancelStandHold(
       return reservationSuccess(undefined, "Reserva temporal cancelada");
     });
 
-    guardedRevalidate();
     return outcome;
   } catch (error) {
     console.error("Error cancelling stand hold", error);
@@ -1097,10 +1078,7 @@ export async function confirmStandHold(
       );
     });
 
-    if (!result.success) {
-      guardedRevalidate();
-      return result;
-    }
+    if (!result.success) return result;
 
     const payload = result as {
       data?: { reservationId: number; jobIds?: number[] };
@@ -1109,14 +1087,10 @@ export async function confirmStandHold(
       message: string;
     };
     const reservationId = payload.reservationId ?? payload.data?.reservationId;
-    if (reservationId == null) {
-      guardedRevalidate();
-      return reservationFailure("CONFLICT_RETRY");
-    }
+    if (reservationId == null) return reservationFailure("CONFLICT_RETRY");
     scheduleReservationNotificationJobs(
       payload.jobIds ?? payload.data?.jobIds ?? [],
     );
-    guardedRevalidate();
     return reservationSuccess({ reservationId }, payload.message);
   } catch (error) {
     console.error("Error confirming stand hold", error);

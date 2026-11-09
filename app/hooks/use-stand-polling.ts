@@ -17,7 +17,7 @@ export function useStandPolling(
   sectorId: number | null,
   intervalMs: number = STAND_STATUS_POLL_INTERVAL_MS,
   onUpdate: (result: StandStatusPollResult) => void,
-): { stale: boolean } {
+): { stale: boolean; pollNow: () => void } {
   const onUpdateRef = useRef(onUpdate);
   useEffect(() => {
     onUpdateRef.current = onUpdate;
@@ -35,6 +35,10 @@ export function useStandPolling(
   const startedAtRef = useRef<number | null>(null);
   const failureCountRef = useRef(0);
   const trackerRef = useRef(new LatestRequest());
+  // Set by the effect for the current sector; `pollNow` calls through it.
+  const pollNowRef = useRef<(() => void) | null>(null);
+  // A `pollNow` that arrived mid-flight: one extra poll once it lands.
+  const queuedRef = useRef(false);
 
   const markStaleIfNeeded = useCallback(() => {
     const anchor = lastSuccessAtRef.current ?? startedAtRef.current;
@@ -56,6 +60,7 @@ export function useStandPolling(
     startedAtRef.current = Date.now();
     failureCountRef.current = 0;
     inFlightRef.current = false;
+    queuedRef.current = false;
 
     const clearTimer = () => {
       if (timer) {
@@ -130,8 +135,23 @@ export function useStandPolling(
       } finally {
         if (trackerRef.current.isCurrent(token)) {
           inFlightRef.current = false;
+          if (queuedRef.current && !cancelled) {
+            queuedRef.current = false;
+            void poll();
+          }
         }
       }
+    };
+
+    // No clearTimer() first: every completing poll reschedules, and
+    // `schedule` replaces the pending timer. A hidden tab makes it a no-op.
+    pollNowRef.current = () => {
+      if (cancelled) return;
+      if (inFlightRef.current) {
+        queuedRef.current = true;
+        return;
+      }
+      void poll();
     };
 
     void poll();
@@ -142,6 +162,7 @@ export function useStandPolling(
         clearPendingStaleDeadline();
         controller?.abort();
         inFlightRef.current = false;
+        queuedRef.current = false;
         return;
       }
       void poll();
@@ -150,16 +171,18 @@ export function useStandPolling(
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       cancelled = true;
+      pollNowRef.current = null;
+      queuedRef.current = false;
       clearTimer();
       clearPendingStaleDeadline();
       controller?.abort();
       inFlightRef.current = false;
-      document.removeEventListener(
-        "visibilitychange",
-        handleVisibilityChange,
-      );
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [sectorId, intervalMs, markStaleIfNeeded]);
 
-  return { stale };
+  /** Poll now, outside the timer; coalesced to one in flight + one queued. */
+  const pollNow = useCallback(() => pollNowRef.current?.(), []);
+
+  return { stale, pollNow };
 }

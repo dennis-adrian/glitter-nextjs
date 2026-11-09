@@ -72,6 +72,14 @@ export const FEATURE_FLAGS = {
       "Comunicaciones en el panel: escribir, programar y enviar comunicados a participantes, las listas de distribución y «Agregar una lista» en los regalos de créditos. Solo administradores globales. Mientras esté oculta, se habilita marcando a cada administrador. Ocultarla no frena lo ya confirmado: un envío se frena cancelando su programación o retirándolo.",
     defaultVisibility: "hidden",
   },
+  reservation_created_admin_email: {
+    label: "Correo a administración por reserva creada",
+    description:
+      "Pública = cada administrador recibe el correo «Nueva reserva creada». Oculta o Solo administración = no se envía; la notificación en Administración se guarda igual. Las personas agregadas abajo no cuentan para esta bandera.",
+    // Public on deploy: today's behaviour. It is flipped to hidden to pause
+    // the per-admin fan-out during a reservation burst.
+    defaultVisibility: "public",
+  },
 } as const satisfies Record<string, FeatureFlagDefinition>;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;

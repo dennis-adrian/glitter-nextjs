@@ -19,12 +19,12 @@ export default function StepIndicator({
   backHref,
   onBack,
 }: StepIndicatorProps) {
-  // The installed app's top bar carries back, so the in-page one steps aside
-  // there; the step count stays.
+  // The installed app's top bar carries back and says where you are, so the
+  // whole row steps aside there; a browser tab keeps it.
   const showBack = backLabel && (backHref || onBack);
 
   return (
-    <div className="border-b bg-background px-4 py-3">
+    <div className="border-b bg-background px-4 py-3" data-installed-hidden="">
       <div className="mx-auto max-w-3xl">
         <div className="flex items-center justify-between text-xs">
           {showBack &&

@@ -13,6 +13,7 @@ import {
 } from "@/app/components/ui/dialog";
 import { adminAttachOrderVoucher } from "@/app/lib/orders/actions";
 import { BaseOrder } from "@/app/lib/orders/definitions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 export default function AdminVoucherUploadDialog({
   order,
@@ -39,8 +40,8 @@ export default function AdminVoucherUploadDialog({
       } else {
         toast.error(result.message);
       }
-    } catch {
-      toast.error("No se pudo guardar el comprobante.");
+    } catch (error) {
+      toastActionError(error, "No se pudo guardar el comprobante.");
     } finally {
       setIsUploading(false);
     }

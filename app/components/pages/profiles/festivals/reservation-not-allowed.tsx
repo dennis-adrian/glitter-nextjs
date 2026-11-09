@@ -6,6 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
+import OpensAtRefresh from "@/app/components/festivals/reservations/opens-at-refresh";
 import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import {
   RESERVATION_ERROR_MESSAGES,
@@ -30,6 +31,8 @@ type ReservationNotAllowedProps = {
   festival: ReservationFestivalSummary;
   policyCode?: ReservationErrorCode;
   sanctionBlock?: Extract<ReservationEligibility, { eligible: false }>;
+  /** The server's clock when the page rendered; see `OpensAtRefresh`. */
+  serverNow?: string;
 };
 
 export default function ReservationNotAllowed(
@@ -111,11 +114,18 @@ export default function ReservationNotAllowed(
                 </span>
                 <CopyLinkButtonComponent />
                 <div className="text-xs text-muted-foreground italic mt-1">
-                  Si te quedaste en la página, recargala cuando las reservas ya
-                  estén habilitadas.
+                  Si te quedás en esta página, se actualiza sola a las{" "}
+                  {formatDisplayDate(formattedStartDate, DateTime.TIME_SIMPLE)}.
                 </div>
               </div>
             )}
+            {props.policyCode === "RESERVATIONS_NOT_OPEN" ? (
+              <OpensAtRefresh
+                startsAt={props.festival.reservationsStartDate.toISOString()}
+                serverNow={props.serverNow}
+                className="text-xs text-muted-foreground italic"
+              />
+            ) : null}
           </div>
         </CardContent>
       </Card>

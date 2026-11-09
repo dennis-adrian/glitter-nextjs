@@ -126,6 +126,10 @@ export function evaluateSelfServiceEligibility(
     return { allowed: false, code: "FESTIVAL_NOT_ACTIVE" };
   }
 
+  // `entry.ts` relies on every check up to and including this one preceding
+  // the read-dependent inputs (terms, sanctions, reservations): it evaluates
+  // them first with empty reads and skips the reads when one applies. A
+  // reorder must update `PRE_READ_CODES` there and its pinned test.
   if (input.now.getTime() < input.festival.reservationsStartDate.getTime()) {
     return { allowed: false, code: "RESERVATIONS_NOT_OPEN" };
   }

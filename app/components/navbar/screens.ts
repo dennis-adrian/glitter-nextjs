@@ -275,6 +275,7 @@ export const SCREENS: Record<string, ScreenDef> = {
     parent: `${FEST}/reservations`,
     close: true,
   },
+  [`${FEST}/finance`]: { title: "Finanzas", parent: FEST },
   [`${FEST}/collaborators`]: { title: "Colaboradores", parent: FEST },
   [`${FEST}/allowed_participants`]: {
     title: "Participantes habilitados",

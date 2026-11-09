@@ -1,14 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
 const currentProfileMock = vi.hoisted(() => vi.fn());
+// The seven-relation profile must stay off this hot path.
+const fullProfileMock = vi.hoisted(() => vi.fn());
 const transactionMock = vi.hoisted(() => vi.fn());
 const lockReservationAggregateMock = vi.hoisted(() => vi.fn());
 const releaseStandMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/helpers", () => ({
-  getCurrentUserProfile: currentProfileMock,
+  getCurrentBaseProfile: currentProfileMock,
+  getCurrentUserProfile: fullProfileMock,
 }));
 
 vi.mock("@/db", () => ({
@@ -160,4 +163,8 @@ describe("cancelStandHold", () => {
     expect(tx.delete).toHaveBeenCalled();
     expect(releaseStandMock).toHaveBeenCalledWith(tx, 7);
   });
+});
+
+afterEach(() => {
+  expect(fullProfileMock).not.toHaveBeenCalled();
 });

@@ -27,6 +27,8 @@ export type PartnerSearchResultDto = {
   imageUrl: string | null;
   selectable: boolean;
   denialCode?: ReservationErrorCode;
+  /** Set when the reason is more specific than `denialCode`'s message. */
+  denialMessage?: string;
 };
 
 export type ReservationStandRefDto = {
@@ -206,7 +208,8 @@ export type FestivalReservationConfirmationDto = {
     category: UserCategory;
     imageUrl: string | null;
   };
-  hold: { id: number; expiresAt: string };
+  /** `serverNow` is the instant the hold was checked live; the countdown's clock. */
+  hold: { id: number; expiresAt: string; serverNow: string };
   stand: ReservationConfirmationStandDto;
   sector: {
     id: number;

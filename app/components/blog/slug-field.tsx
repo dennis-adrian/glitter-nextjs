@@ -9,6 +9,10 @@ import { Label } from "@/app/components/ui/label";
 import { checkSlugAvailability } from "@/app/lib/posts/actions";
 import { PLACEHOLDER_SLUG_RE } from "@/app/lib/posts/definitions";
 import { slugifyName } from "@/app/lib/posts/slug";
+import {
+  isStaleDeploymentError,
+  toastStaleDeployment,
+} from "@/app/lib/errors/action-error";
 
 type Status =
   | { kind: "idle" }
@@ -77,6 +81,7 @@ export default function SlugField({
       } catch (error) {
         if (requestRef.current !== version) return;
         console.error("checkSlugAvailability", error);
+        if (isStaleDeploymentError(error)) toastStaleDeployment();
         setStatus({ kind: "error" });
       }
     },

@@ -112,9 +112,12 @@ async function fetchFlagTargets(flagId: number): Promise<FeatureFlagTarget[]> {
  *
  * - It is the same value `fetchOrCreateFlagRow` would have written had it been
  *   able to reach the database, so the fallback invents no new behaviour.
- * - Every default is `hidden` or `admin_only` and the target list empties, so
- *   the failure is fail-closed for participants: an unreachable database can
- *   only ever hide a feature from them, never reveal one.
+ * - Almost every default is `hidden` or `admin_only` and the target list
+ *   empties, so the failure is fail-closed for participants: an unreachable
+ *   database can only ever hide such a feature from them, never reveal one.
+ *   The exception is `reservation_created_admin_email`, whose default is
+ *   `public`: a read failure keeps sending the admin email, which is the
+ *   behaviour from before the flag existed.
  *
  * That keeps a prerender of a public page from dying on a flag lookup — during
  * `next build` without a database, or on a transient outage in production,

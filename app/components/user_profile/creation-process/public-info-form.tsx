@@ -10,6 +10,7 @@ import { nameValidator } from "@/app/components/form/input-validators";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { updateProfile } from "@/app/lib/users/actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 const FormSchema = z.object({
   firstName: nameValidator(),
@@ -47,7 +48,7 @@ export default function PublicInfoForm(props: PublicInfoFormProps) {
         toast.error(res.message);
       }
     } catch (error) {
-      toast.error("Error al guardar los datos");
+      toastActionError(error, "Error al guardar los datos");
     }
   });
 

@@ -12,6 +12,7 @@ import {
   AvatarImage,
 } from "@/app/components/ui/avatar-radix";
 import { Badge } from "@/app/components/ui/badge";
+import OpensAtRefresh from "@/app/components/festivals/reservations/opens-at-refresh";
 import { CATEGORY_LABELS } from "@/app/lib/festival-terms/copy";
 import { formatDisplayDate, formatFullDate } from "@/app/lib/formatters";
 import { PARTICIPANT_SUPPORT_EMAIL } from "@/app/lib/participants/helpers";
@@ -100,7 +101,68 @@ function reservationHref(hub: ParticipationHub, reservationId: number) {
 const ACTION_LABELS: Record<string, string> = {
   "festival-products": "Subir productos",
   "festival-team": "Agregar a tu equipo",
+  "festival-terms": "Aceptar nuevos términos",
 };
+
+const STALE_TERMS_NOTE =
+  "Los términos y condiciones se actualizaron después de que los aceptaste.";
+
+/** States in which accepting the new terms is the one thing to do next. */
+const STALE_TERMS_BLOCKS = new Set<HubStatus>([
+  "approved_enrollment",
+  "waiting_for_reservations",
+  "no_stands_available",
+  "enrollment_pending_approval",
+  "reservations_blocked",
+]);
+
+/**
+ * The terms changed after they accepted them. Before a reservation the map
+ * refuses them until they accept again, so the card says that instead of
+ * sending them to reserve; with a reservation already made it is still asked
+ * of them, beside what the state says.
+ */
+function staleTermsCopy(hub: ParticipationHub, copy: Copy): Copy {
+  const { status, festival, links } = hub;
+  const enrolled =
+    hub.enrollment?.status === "accepted" ||
+    hub.enrollment?.status === "pending" ||
+    hub.hasReservation;
+  if (!hub.termsStale || !enrolled || isParticipationEnded(status)) {
+    return copy;
+  }
+  // A ban closes the edition whatever they accept: its explanation stays.
+  if (status === "reservations_blocked" && !hub.reservationBlock?.eligibleAt) {
+    return copy;
+  }
+
+  const accept = {
+    label: "Aceptar nuevos términos",
+    href: links.terms,
+    primary: true,
+  };
+  if (STALE_TERMS_BLOCKS.has(status)) {
+    const reservationsOpen = new Date() >= festival.reservationsStartDate;
+    return {
+      ...copy,
+      title: "Aceptá los nuevos términos y condiciones",
+      body: `${STALE_TERMS_NOTE} ${
+        status === "approved_enrollment" && reservationsOpen
+          ? "Leé la nueva versión y aceptala para poder reservar tu stand."
+          : "Leé la nueva versión y aceptala para seguir con tu participación."
+      }`,
+      quote: undefined,
+      actions: [accept, ...copy.actions.filter((action) => !action.primary)],
+    };
+  }
+  // A confirmed stand's button is the first pending task, which is this one.
+  if (status === "confirmed_reservation") return copy;
+  return {
+    ...copy,
+    note: copy.note ? `${copy.note} ${STALE_TERMS_NOTE}` : STALE_TERMS_NOTE,
+    actions: [...copy.actions, { ...accept, primary: false }],
+  };
+}
 
 /** What the card says, and offers, in each state of the participation. */
 function copyFor(hub: ParticipationHub, tasks: HomeTask[]): Copy {
@@ -108,6 +170,10 @@ function copyFor(hub: ParticipationHub, tasks: HomeTask[]): Copy {
   const opensOn = formatFullDate(
     festival.reservationsStartDate,
     DateTime.DATE_FULL,
+  );
+  const opensAtTime = formatDisplayDate(
+    festival.reservationsStartDate,
+    DateTime.TIME_SIMPLE,
   );
   const category = categoryName(profile.category);
   const released = hub.releasedReservation;
@@ -144,8 +210,8 @@ function copyFor(hub: ParticipationHub, tasks: HomeTask[]): Copy {
       };
     case "waiting_for_reservations":
       return {
-        title: `Las reservas abren el ${opensOn}`,
-        body: "Ya completaste tu inscripción. Te avisamos cuando puedas elegir tu espacio.",
+        title: `Las reservas abren el ${opensOn} a las ${opensAtTime}`,
+        body: "Ya completaste tu inscripción. Cuando llegue la hora, esta pantalla se actualiza sola y vas a poder elegir tu espacio.",
         actions: [],
       };
     case "approved_enrollment":
@@ -390,7 +456,7 @@ export default function ParticipationStatusCard({
   hub: ParticipationHub;
 }) {
   const tasks = participationTasks(hub);
-  const copy = copyFor(hub, tasks);
+  const copy = staleTermsCopy(hub, copyFor(hub, tasks));
   const badge = badgeFor(hub.status, hub.reservationBlock);
   const confirmed = hub.status === "confirmed_reservation";
   const ended = isParticipationEnded(hub.status);
@@ -441,6 +507,13 @@ export default function ParticipationStatusCard({
             <p className="text-sm leading-relaxed text-brand-neutral">
               {copy.body}
             </p>
+          ) : null}
+          {hub.status === "waiting_for_reservations" ? (
+            <OpensAtRefresh
+              startsAt={hub.festival.reservationsStartDate.toISOString()}
+              serverNow={new Date().toISOString()}
+              className="text-xs text-brand-neutral"
+            />
           ) : null}
         </div>
       )}

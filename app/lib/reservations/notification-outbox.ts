@@ -22,6 +22,8 @@ import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { getUserName } from "@/app/lib/users/utils";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { drainDuePushDeliveries } from "@/app/lib/notifications/deliveries";
+import { fetchFeatureFlagRule } from "@/app/lib/feature_flags/data";
+import { isFeatureLaunchedForParticipants } from "@/app/lib/feature_flags/visibility";
 import { sendEmail } from "@/app/vendors/resend";
 import { assertSent } from "@/app/vendors/resend-result";
 import { db } from "@/db";
@@ -349,6 +351,7 @@ async function deliverJob(
         standLabel: reservationStandLabel(reservation),
         reservationId: reservation.id,
         totalCredits: payloadAmount(payload, "totalCredits") ?? 0,
+        sharedPriceDifference: payloadAmount(payload, "sharedPriceDifference"),
       }),
     });
     return;
@@ -550,6 +553,19 @@ function isCreditNotificationKind(kind: string) {
 }
 
 /**
+ * Whether the per-admin «Nueva reserva creada» email goes out. Read at
+ * delivery time so the job row, its dedupe key and the admin inbox mirror are
+ * untouched while it is paused; `sharedCache` serves the rule for up to 300 s.
+ * Only admins ever hold `reservation_created` jobs, so keying on the kind alone
+ * cannot silence a participant's email.
+ */
+async function adminReservationCreatedEmailOn() {
+  return isFeatureLaunchedForParticipants(
+    await fetchFeatureFlagRule("reservation_created_admin_email"),
+  );
+}
+
+/**
  * Credit mail, which hangs off a top-up rather than a reservation.
  *
  * The amount and reason are read back from the row instead of the payload:
@@ -615,7 +631,14 @@ export async function attemptReservationNotificationJob(jobId: number) {
   // is deduplicated by Resend instead of delivered twice.
   const idempotencyKey = `reservation-notification-${job.id}`;
   try {
-    if (isEnrollmentNotificationKind(job.notificationKind)) {
+    const skipped =
+      job.notificationKind === "reservation_created" &&
+      !(await adminReservationCreatedEmailOn());
+    if (skipped) {
+      console.warn("[reservation-notify] reservation_created email paused", {
+        jobId: job.id,
+      });
+    } else if (isEnrollmentNotificationKind(job.notificationKind)) {
       await deliverEnrollmentJob(
         job.notificationKind as ReservationNotificationKind,
         job.recipientEmail,
@@ -648,7 +671,7 @@ export async function attemptReservationNotificationJob(jobId: number) {
         completedAt: now,
         leaseOwner: null,
         leaseExpiresAt: null,
-        lastError: null,
+        lastError: skipped ? "skipped:admin_email_paused" : null,
         updatedAt: now,
       })
       .where(
