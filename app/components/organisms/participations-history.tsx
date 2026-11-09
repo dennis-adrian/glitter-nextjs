@@ -85,8 +85,8 @@ export default function ParticipationsHistory({
                 placeholder="blur"
               />
             </div>
-            <div className="flex flex-col gap-2 grow">
-              <Heading level={4} className="my-0">
+            <div className="flex min-w-0 flex-col gap-2 grow">
+              <Heading level={4} className="my-0 wrap-anywhere">
                 {activeFestival.name}
               </Heading>
               <ReservationStatusBadge

@@ -46,8 +46,8 @@ export default function UserParticipationCard({
           fill
         />
       </div>
-      <div className="flex flex-col gap-1">
-        <p className="text-sm md:text-base font-medium leading-tight">
+      <div className="flex min-w-0 flex-col gap-1">
+        <p className="wrap-anywhere text-sm md:text-base font-medium leading-tight">
           {participation.reservation.festival.name}
         </p>
         <ReservationStatusBadge
