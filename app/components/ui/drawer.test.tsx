@@ -130,3 +130,67 @@ describe("Drawer on an iPhone, with the page scrolled", () => {
     expect(scrollTo).toHaveBeenCalledWith(0, 0);
   });
 });
+
+describe("Drawer, closing", () => {
+  beforeEach(() => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+    }));
+    HTMLElement.prototype.animate = function () {
+      return { finished: new Promise(() => {}) } as unknown as Animation;
+    };
+    Element.prototype.setPointerCapture ??= () => {};
+    Element.prototype.releasePointerCapture ??= () => {};
+    Element.prototype.hasPointerCapture ??= () => false;
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(HTMLElement.prototype, "animate");
+    document.querySelectorAll("[data-drawer-ghost]").forEach((n) => n.remove());
+  });
+
+  it("gives the page back at once and slides a stand-in away", async () => {
+    render(<InfoDrawer />);
+    fireEvent.click(screen.getByText("Qué es Cobrado"));
+    await screen.findByRole("dialog");
+    expect(document.body.hasAttribute("data-scroll-locked")).toBe(true);
+
+    fireEvent.click(screen.getByText("Entendido"));
+
+    // The real drawer, its overlay and the page's scroll lock are gone...
+    await waitFor(() =>
+      expect(document.querySelector("[data-vaul-drawer]")).toBeNull(),
+    );
+    expect(document.querySelector("[data-vaul-overlay]")).toBeNull();
+    expect(document.body.hasAttribute("data-scroll-locked")).toBe(false);
+    // ...and what slides away is a copy that nothing can reach.
+    const content = document.querySelector<HTMLElement>(
+      '[data-drawer-ghost="content"]',
+    );
+    expect(content?.textContent).toContain("Entendido");
+    expect(content?.inert).toBe(true);
+    expect(document.querySelector('[data-drawer-ghost="overlay"]')).not.toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("still hands the caller's ref the drawer", async () => {
+    const ref = { current: null as HTMLDivElement | null };
+    render(
+      <Drawer defaultOpen>
+        <DrawerContent ref={ref}>
+          <DrawerTitle>Con ref</DrawerTitle>
+          <DrawerDescription>Texto</DrawerDescription>
+        </DrawerContent>
+      </Drawer>,
+    );
+    await screen.findByRole("dialog");
+    expect(ref.current?.hasAttribute("data-vaul-drawer")).toBe(true);
+  });
+});
