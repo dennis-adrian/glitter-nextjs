@@ -98,6 +98,14 @@ describe("AppSidebar", () => {
     ).toBe("/dashboard/festivals");
   });
 
+  it("ends with Ayuda for participants and staff, outside the account menu", () => {
+    for (const viewer of [participant, admin]) {
+      const { unmount } = renderSidebar(viewer);
+      expect(screen.getByRole("button", { name: "Ayuda" })).toBeTruthy();
+      unmount();
+    }
+  });
+
   it("marks the current page", () => {
     pathnameMock.mockReturnValue("/my_credits");
     renderSidebar();

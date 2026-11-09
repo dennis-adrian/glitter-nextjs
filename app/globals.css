@@ -915,7 +915,7 @@ html:has([data-vaul-drawer], [data-drawer-ghost]) {
     --app-sidebar-width: 4.5rem;
   }
 
-  body:has([data-app-sidebar]) > :is([data-site-navbar], main, footer) {
+  body:has([data-app-sidebar]) > :is([data-site-navbar], main) {
     margin-left: var(--app-sidebar-width);
   }
 }
