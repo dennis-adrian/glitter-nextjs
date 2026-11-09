@@ -15,7 +15,11 @@ import {
   type NavViewer,
 } from "@/app/components/navbar/app-navigation";
 import { prepareSignOut } from "@/app/components/impersonation/view-state";
-import ContactList from "@/app/components/contact/contact-list";
+import {
+  HELP_LABEL,
+  HelpEmailRow,
+  HelpSocialLinks,
+} from "@/app/components/help/help-menu";
 import { copyrightNotice } from "@/app/lib/site-contact";
 import { Button } from "@/app/components/ui/button";
 
@@ -64,13 +68,18 @@ function Row({ link }: { link: NavLink }) {
 }
 
 /**
- * Signed-in screens have no site footer, so its contact lives here: the
- * email and the social networks.
+ * Signed-in screens have no site footer, so its contact lives here, as in
+ * the sidebar's and the phone menu's "Ayuda": the email and the networks.
+ * No install guide: this is the installed app's own tab.
  */
-function ContactCard() {
+function HelpCard() {
   return (
-    <Card title="Contacto">
-      <ContactList />
+    <Card title={HELP_LABEL}>
+      <div className="flex flex-col py-1.5">
+        <HelpEmailRow className="-mx-2" />
+        <div className="my-1 h-px bg-brand-border" />
+        <HelpSocialLinks className="py-1.5" />
+      </div>
     </Card>
   );
 }
@@ -203,7 +212,7 @@ export default function MoreMenu({
         </Card>
       ))}
 
-      <ContactCard />
+      <HelpCard />
 
       <section className="flex flex-col gap-2">
         <h2 className="text-xs font-semibold text-brand-neutral">Tema</h2>

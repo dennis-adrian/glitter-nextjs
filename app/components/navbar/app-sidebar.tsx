@@ -17,12 +17,12 @@ import {
 
 import type { NavbarProfile } from "@/app/api/users/definitions";
 import ThemeImage from "@/app/components/atoms/theme-image";
+import { SidebarHelp } from "@/app/components/help/help-menu";
 import {
   ModeToggle,
   ThemeSegmentedControl,
 } from "@/app/components/mode-toggle";
 import {
-  CONTACT_LINK,
   IMPERSONATE_HREF,
   isNavLinkActive,
   mostSpecificActiveKey,
@@ -464,15 +464,11 @@ export default function AppSidebar({
             </ul>
           </div>
         ))}
-        {/* After every group, where a footer's links would sit: the site
-            footer is for visitors only. */}
-        <ul className="mt-auto flex flex-col gap-0.5 pt-4">
-          <SidebarLink
-            link={CONTACT_LINK}
-            pathname={pathname}
-            collapsed={collapsed}
-          />
-        </ul>
+        {/* After every group, apart from the destinations: the site footer
+            is for visitors only, so its contact lives here. */}
+        <div className="mt-auto pt-4">
+          <SidebarHelp collapsed={collapsed} />
+        </div>
       </nav>
 
       <div className="flex shrink-0 flex-col gap-2 border-t border-brand-border p-3">
