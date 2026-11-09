@@ -120,14 +120,16 @@ function ProductCard({
           <p className="text-sm font-medium leading-tight line-clamp-2">
             {product.name}
           </p>
-          <div className="flex items-center justify-between gap-2">
+          {/* A half-width card at 320px is ~114px inside: "Bs 120.00" next to
+              "24 unid · 4 var." does not fit on one line. */}
+          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
             <span className="text-sm font-semibold tabular-nums">
               Bs {product.price.toFixed(2)}
             </span>
             <StatusDot
               tone={stockTone}
               label={stockLabel}
-              className="shrink-0 text-xs tabular-nums"
+              className="min-w-0 whitespace-normal text-xs tabular-nums"
             />
           </div>
           {(showStatusBadge || categoryScope === "all") && (

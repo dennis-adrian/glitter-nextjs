@@ -72,11 +72,11 @@ export default function SessionSpeakersPanel({
               className="flex items-center justify-between gap-3 rounded-md bg-muted/50 px-3 py-2"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium">
+                <p className="text-sm font-medium break-words">
                   {entry.speaker.publicName}
                 </p>
                 {entry.role ? (
-                  <p className="truncate text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground break-words">
                     {entry.role}
                   </p>
                 ) : null}
