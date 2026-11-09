@@ -34,6 +34,22 @@ function Drawer({
       )}
       <DrawerPrimitive.Root
         data-slot="drawer"
+        /*
+         * Off: vaul's iOS scroll lock (a copy of react-aria's
+         * usePreventScroll, active whenever `navigator.platform` is an
+         * iPhone or iPad). It scrolls the window to the top on open without
+         * the negative body margin that would hide it, so a scrolled page
+         * jumps to its top under the drawer. It also switches itself off
+         * while a finger is down on the drawer and back on as it lifts, so
+         * every tap inside scrolls the page back and then to the top again
+         * mid-touch; iOS takes that for a scroll and drops the click, and a
+         * close button does nothing once the page has been scrolled. The
+         * page stays locked without it: Radix's modal layer blocks scrolling
+         * outside the drawer. Despite its name and its docs, vaul runs this
+         * lock when the prop is `true` (its default) and skips it on `false`.
+         * Placed before the spread so a caller can still opt back in.
+         */
+        disablePreventScroll={false}
         open={open}
         defaultOpen={defaultOpen}
         onOpenChange={(next) => {
