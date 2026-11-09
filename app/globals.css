@@ -550,6 +550,14 @@
   }
 }
 
+/* In a Safari tab, a drawer pins the body at its scroll offset and puts the
+ * page back with a plain `window.scrollTo` as it closes, while the drawer is
+ * still animating out. Smooth, that would slide the page down from its top.
+ * Unlayered, so it wins over the base rule above. */
+html:has([data-vaul-drawer]) {
+  scroll-behavior: auto;
+}
+
 .cl-formButtonPrimary {
   background-color: hsl(var(--primary));
 }
