@@ -39,6 +39,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/app/components/ui/dropdown-menu";
+import ContactMenuItems from "@/app/components/user_dropdown/contact-menu-items";
 import SignOutButton from "@/app/components/user_dropdown/sign-out-button";
 import { cn } from "@/app/lib/utils";
 
@@ -337,6 +338,8 @@ function AccountCard({
             </Link>
           </DropdownMenuItem>
         ) : null}
+        <DropdownMenuSeparator />
+        <ContactMenuItems />
         <DropdownMenuSeparator />
         <SignOutButton />
       </DropdownMenuContent>

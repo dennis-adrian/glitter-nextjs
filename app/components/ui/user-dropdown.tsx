@@ -18,6 +18,7 @@ import { NavbarProfile } from "@/app/api/users/definitions";
 import { IMPERSONATE_HREF } from "@/app/components/navbar/app-navigation";
 
 import MissingProfileDropdown from "@/app/components/user_dropdown/missing-profile-dropdown";
+import ContactMenuItems from "@/app/components/user_dropdown/contact-menu-items";
 import SignOutButton from "@/app/components/user_dropdown/sign-out-button";
 import { UserDropdownSkeleton } from "@/app/components/user_dropdown/skeleton";
 import {
@@ -123,6 +124,8 @@ export default function UserDropdown({
               </Link>
             </DropdownMenuItem>
           )}
+          <DropdownMenuSeparator />
+          <ContactMenuItems />
           <DropdownMenuSeparator />
           <SignOutButton />
         </DropdownMenuContent>
