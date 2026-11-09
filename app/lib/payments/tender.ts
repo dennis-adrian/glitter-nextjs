@@ -12,10 +12,29 @@ import { roundMoney } from "@/app/lib/reservations/money";
 export type InvoiceTender = {
   /** `invoices.amount` — the bill after any discount. */
   totalAmount: number;
-  /** Cash backing an approved settlement submission. */
+  /**
+   * Cash backing an approved settlement submission. A fact about the rows, so
+   * gross of any repricing refund — see `refundedAmount`.
+   */
   approvedCashAmount: number;
-  /** Credits allocated and not since reversed. */
+  /** Credits allocated and not since reversed; gross, like the cash. */
   confirmedCreditAmount: number;
+  /**
+   * What a repricing already handed back from this cobro's tender.
+   *
+   * A move to a cheaper stand (or an upgrade that leaves the reservation
+   * overpaid) returns the surplus as a credit grant tagged to the reservation
+   * and leaves the payments and allocations standing, so the rows alone
+   * overstate what still pays the cobro: Bs500 paid, moved to a Bs300 stand
+   * with Bs200 back, then moved back to Bs500, is Bs200 short — and the rows
+   * still say Bs500. The reservation's outstanding refunds are netted here,
+   * once, against its live cobro, so every screen and every settlement guard
+   * reads the same balance the repricing model does.
+   *
+   * Never more than the cash and credits it is netted against; a cancelled
+   * cobro carries none.
+   */
+  refundedAmount: number;
   /**
    * Cash on a submission still awaiting review.
    *
@@ -25,6 +44,7 @@ export type InvoiceTender = {
    * point of the settlement screen.
    */
   submittedCashAmount: number;
+  /** Approved cash plus confirmed credits, less `refundedAmount`. */
   coveredAmount: number;
   outstandingAmount: number;
   /**
@@ -61,6 +81,12 @@ export type InvoiceTenderInput = {
   allocations: readonly TenderAllocationInput[];
   payments: readonly TenderPaymentInput[];
   submissions: readonly TenderSubmissionInput[];
+  /**
+   * The share of the reservation's outstanding repricing refunds attributed to
+   * this cobro (`attributeRepricingRefunds`). Absent or 0 for a caller that
+   * only asks about the rows themselves, such as the downgrade's money check.
+   */
+  refundedAmount?: number;
 };
 
 function toAmount(value: number | string): number {
@@ -99,9 +125,11 @@ function sumPaymentsForSubmissionStatus(
 /**
  * The single definition of invoice coverage.
  *
- * `getInvoiceTenderTotalsInTx` computes the same totals in SQL for the locked
- * write paths; it delegates the arithmetic here so the list screens and the
- * settlement engine can never disagree about what an invoice is owed.
+ * `loadInvoiceTenders` (`tender-queries.ts`) reads the rows and the
+ * reservation's repricing refunds for both the locked write paths
+ * (`getInvoiceTenderTotalsInTx`) and the list screens (`fetchInvoiceTenders`),
+ * and hands them here, so the settlement engine and every screen can never
+ * disagree about what an invoice is owed.
  */
 export function computeInvoiceTender(input: InvoiceTenderInput): InvoiceTender {
   const totalAmount = roundMoney(toAmount(input.amount));
@@ -123,7 +151,18 @@ export function computeInvoiceTender(input: InvoiceTenderInput): InvoiceTender {
     "submitted",
   );
 
-  const coveredAmount = roundMoney(approvedCashAmount + confirmedCreditAmount);
+  const tenderedAmount = roundMoney(approvedCashAmount + confirmedCreditAmount);
+  // Clamped to what it is netted against, so coverage never goes negative. A
+  // guard, not a rule: the one refund that could exceed the cobro's tender — a
+  // late partner's payment beyond a cheaper stand's price — is recorded as the
+  // late partner's and taken off that figure instead (`latePartnerRefundedAmount`),
+  // never netted here. Clamping it here would read as dropped, then come back
+  // against the next payment.
+  const refundedAmount = Math.min(
+    tenderedAmount,
+    Math.max(0, roundMoney(toAmount(input.refundedAmount ?? 0))),
+  );
+  const coveredAmount = roundMoney(tenderedAmount - refundedAmount);
 
   const pendingZeroValueRequest = input.submissions.some(
     (submission) =>
@@ -135,6 +174,7 @@ export function computeInvoiceTender(input: InvoiceTenderInput): InvoiceTender {
     totalAmount,
     approvedCashAmount,
     confirmedCreditAmount,
+    refundedAmount,
     submittedCashAmount,
     coveredAmount,
     // Clamped: an over-allocated invoice is a bug to surface elsewhere, not a
@@ -142,6 +182,47 @@ export function computeInvoiceTender(input: InvoiceTenderInput): InvoiceTender {
     outstandingAmount: Math.max(0, roundMoney(totalAmount - coveredAmount)),
     pendingZeroValueRequest,
   };
+}
+
+/** A live cobro of one reservation, as the refund attribution sees it. */
+export type RefundAttributionInvoice = {
+  id: number;
+  /** Approved cash plus confirmed credits: the tender a refund came out of. */
+  tenderedAmount: number;
+};
+
+/**
+ * Splits a reservation's outstanding repricing refunds across its live cobros.
+ *
+ * A reservation carries one live cobro — both creation paths insert exactly
+ * one and repricing keeps it — so in practice the whole refund lands on it.
+ * Nothing in the schema enforces that, though, so a second live cobro is
+ * handled deterministically rather than by whichever row a query returned
+ * first: in ascending id, each cobro absorbs up to its own tender and passes
+ * the rest on. The total netted is then exactly `min(refund, Σ tender)`, the
+ * reservation-wide figure the repricing model has always used.
+ *
+ * Nothing should be left over. The one refund larger than the tender — a late
+ * partner's payment beyond a cheaper stand's price — arrives without its
+ * late-partner part, which the grant records and the late-partner figure
+ * absorbs instead (`repricing-refund-ledger.ts`). Anything left despite that
+ * is dropped by the tender's clamp rather than turned into a negative cover.
+ */
+export function attributeRepricingRefunds(input: {
+  refundedAmount: number;
+  invoices: readonly RefundAttributionInvoice[];
+}): Map<number, number> {
+  const attributed = new Map<number, number>();
+  let remaining = Math.max(0, roundMoney(input.refundedAmount));
+  for (const invoice of [...input.invoices].sort((a, b) => a.id - b.id)) {
+    const share = Math.min(
+      remaining,
+      Math.max(0, roundMoney(invoice.tenderedAmount)),
+    );
+    attributed.set(invoice.id, share);
+    remaining = roundMoney(remaining - share);
+  }
+  return attributed;
 }
 
 /**
@@ -159,6 +240,53 @@ export function shortfallWriteOff(tender: InvoiceTender): number {
   return Math.max(0, roundMoney(tender.totalAmount - settled));
 }
 
+export type CreditReleasePreview = {
+  /** Every unreversed credit allocation on the cobro — what is released. */
+  creditAmount: number;
+  /**
+   * The part of those credits a repricing already handed back as a refund,
+   * which the release takes out again rather than returning twice.
+   */
+  alreadyReturnedAmount: number;
+  /** What actually reaches the wallet. */
+  returnedAmount: number;
+  /** The cobro's outstanding balance once the credits are gone. */
+  nextOutstandingAmount: number;
+};
+
+/**
+ * What "Devolver créditos" will do to this cobro, for the dialog to say before
+ * the admin confirms.
+ *
+ * Mirrors `releaseReservationInvoiceCreditsInTx`: every allocation is released
+ * whole, and the refund netted against this cobro comes out of those credits
+ * first — a refund larger than them was partly funded by cash, which a release
+ * never hands back, so that part stays. Exact whenever the refund and the
+ * credits are the same person's, which is every cobro the current creation
+ * paths make; the server's result says the final figure regardless.
+ */
+export function creditReleasePreview(
+  tender: InvoiceTender,
+): CreditReleasePreview {
+  const creditAmount = roundMoney(tender.confirmedCreditAmount);
+  const alreadyReturnedAmount = Math.min(
+    creditAmount,
+    Math.max(0, roundMoney(tender.refundedAmount)),
+  );
+  const returnedAmount = roundMoney(creditAmount - alreadyReturnedAmount);
+  return {
+    creditAmount,
+    alreadyReturnedAmount,
+    returnedAmount,
+    // Coverage drops by what actually leaves, not by the gross credits: the
+    // refunded part had already left it.
+    nextOutstandingAmount: Math.max(
+      0,
+      roundMoney(tender.totalAmount - (tender.coveredAmount - returnedAmount)),
+    ),
+  };
+}
+
 /** True when the tender covers more than the invoice asks for. */
 export function isOverAllocated(tender: InvoiceTender): boolean {
   return tender.coveredAmount > tender.totalAmount;
@@ -168,6 +296,7 @@ export const EMPTY_TENDER: InvoiceTender = {
   totalAmount: 0,
   approvedCashAmount: 0,
   confirmedCreditAmount: 0,
+  refundedAmount: 0,
   submittedCashAmount: 0,
   coveredAmount: 0,
   outstandingAmount: 0,

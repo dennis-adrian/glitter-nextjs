@@ -18,6 +18,7 @@ import {
 import { Button } from "@/app/components/ui/button";
 import { upgradeFullTableReservationAction } from "@/app/lib/reservations/full-table-actions";
 import type { FullTableUpgradePreview } from "@/app/lib/reservations/full-table-upgrade-queries";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 /**
  * Widens a half-table reservation to the full table its stand belongs to
@@ -68,7 +69,10 @@ export default function FullTableUpgradeButton({
         });
       } catch (error) {
         console.error("Error upgrading to full table", error);
-        toast.error("No se pudo ampliar la reserva. Intentá nuevamente.");
+        toastActionError(
+          error,
+          "No se pudo ampliar la reserva. Intentá nuevamente.",
+        );
         return;
       }
 
@@ -125,7 +129,6 @@ export default function FullTableUpgradeButton({
                     reservationStatus: preview.reservationStatus,
                     keptStandLabel: preview.keptStand.label,
                     companionStandLabel: companion.label,
-                    hasOwner: preview.hasOwner,
                     hasTender: preview.hasTender,
                   }).map((paragraph) => (
                     <p key={paragraph}>{paragraph}</p>

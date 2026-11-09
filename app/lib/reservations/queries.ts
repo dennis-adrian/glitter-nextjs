@@ -12,7 +12,7 @@ import {
   type ReservationStandRefDto,
 } from "@/app/lib/reservations/dto";
 import { canViewAdminReservationData } from "@/app/lib/reservations/policy";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { reservationParticipants, standReservations } from "@/db/schema";
 
@@ -69,7 +69,7 @@ export async function fetchPublicFestivalParticipantSummaries(
 export async function fetchFestivalReservationStandRefs(
   festivalId: number,
 ): Promise<ReservationStandRefDto[]> {
-  const actor = await getCurrentUserProfile();
+  const actor = await getCurrentBaseProfile();
   if (!actor) return [];
 
   const rows = await db.query.standReservations.findMany({
@@ -100,7 +100,7 @@ export async function fetchReservationForAdmin(
 ): Promise<
   ReservationWithParticipantsAndUsersAndStandAndFestival | null | undefined
 > {
-  const actor = await getCurrentUserProfile();
+  const actor = await getCurrentBaseProfile();
   if (!canViewAdminReservationData(actor)) return null;
 
   try {
@@ -148,7 +148,7 @@ export async function fetchReservationForAdmin(
  * email.
  */
 export async function fetchReservationForParticipant(reservationId: number) {
-  const actor = await getCurrentUserProfile();
+  const actor = await getCurrentBaseProfile();
   if (!actor) return null;
 
   try {
@@ -182,7 +182,7 @@ export async function fetchReservationForParticipant(reservationId: number) {
 export async function fetchActorReservationsByFestival(
   festivalId: number,
 ): Promise<ReservationWithParticipantsAndUsersAndStandAndCollaborators[]> {
-  const actor = await getCurrentUserProfile();
+  const actor = await getCurrentBaseProfile();
   if (!actor) return [];
 
   try {

@@ -29,6 +29,7 @@ import { formatMoney } from "@/app/lib/programs/pricing";
 import { submitPurchaseVoucher } from "@/app/lib/programs/voucher-actions";
 import { formatDateWithTime, formatFullDate } from "@/app/lib/formatters";
 import { useUploadThing } from "@/app/vendors/uploadthing";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   purchaseId: number;
@@ -190,7 +191,7 @@ export default function VoucherUploadCard({
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setPreviewUrl(null);
       router.refresh();
-    } catch {
+    } catch (error) {
       // No `reason`: an arbitrary throw carries an unbounded message (network
       // text, vendor internals) that would blow up the breakdown and can leak
       // internals. `capture_exceptions` already ships the real stack to error
@@ -199,7 +200,10 @@ export default function VoucherUploadCard({
         ...attemptProperties,
         failure: "exception",
       });
-      toast.error("No pudimos registrar el comprobante. Intentá de nuevo.");
+      toastActionError(
+        error,
+        "No pudimos registrar el comprobante. Intentá de nuevo.",
+      );
     } finally {
       setIsSubmitting(false);
     }

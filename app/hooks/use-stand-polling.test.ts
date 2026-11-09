@@ -17,9 +17,11 @@ describe("useStandPolling", () => {
     vi.useFakeTimers();
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        jsonResponse({ stands: [], availableCount: 0, version: 1 }),
-      ),
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ stands: [], availableCount: 0, version: 1 }),
+        ),
     );
     Object.defineProperty(document, "hidden", {
       configurable: true,
@@ -199,5 +201,102 @@ describe("useStandPolling", () => {
     expect(seenSignal?.aborted).toBe(false);
     unmount();
     expect(seenSignal?.aborted).toBe(true);
+  });
+  describe("pollNow", () => {
+    /** Lets fetch → json → finally settle under fake timers. */
+    async function flush() {
+      await act(async () => {
+        for (let i = 0; i < 5; i += 1) await Promise.resolve();
+      });
+    }
+
+    it("fetches once at once and pushes the next timer poll a full interval out", async () => {
+      const { result } = renderHook(() => useStandPolling(4, 4000, vi.fn()));
+      await flush();
+      expect(fetch).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        vi.advanceTimersByTime(2000);
+      });
+      act(() => result.current.pollNow());
+      expect(fetch).toHaveBeenCalledTimes(2);
+      await flush();
+
+      await act(async () => {
+        vi.advanceTimersByTime(3999);
+      });
+      expect(fetch).toHaveBeenCalledTimes(2);
+      await act(async () => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(fetch).toHaveBeenCalledTimes(3);
+    });
+
+    it("coalesces calls during an in-flight fetch into one extra fetch after it", async () => {
+      const resolvers: Array<(value: unknown) => void> = [];
+      vi.mocked(fetch).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolvers.push(resolve);
+          }),
+      );
+      const { result } = renderHook(() => useStandPolling(4, 4000, vi.fn()));
+      expect(fetch).toHaveBeenCalledTimes(1);
+
+      act(() => {
+        result.current.pollNow();
+        result.current.pollNow();
+      });
+      expect(fetch).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        resolvers[0]?.(
+          jsonResponse({ stands: [], availableCount: 0, version: 1 }),
+        );
+      });
+      await flush();
+      expect(fetch).toHaveBeenCalledTimes(2);
+
+      await act(async () => {
+        resolvers[1]?.(
+          jsonResponse({ stands: [], availableCount: 0, version: 2 }),
+        );
+      });
+      await flush();
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("does nothing after unmount", async () => {
+      const { result, unmount } = renderHook(() =>
+        useStandPolling(4, 4000, vi.fn()),
+      );
+      await flush();
+      const { pollNow } = result.current;
+      unmount();
+      pollNow();
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("does nothing while the document is hidden", async () => {
+      const { result } = renderHook(() => useStandPolling(4, 4000, vi.fn()));
+      await flush();
+      Object.defineProperty(document, "hidden", {
+        configurable: true,
+        writable: true,
+        value: true,
+      });
+      act(() => result.current.pollNow());
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps the same identity across re-renders", async () => {
+      const { result, rerender } = renderHook(() =>
+        useStandPolling(4, 4000, vi.fn()),
+      );
+      const first = result.current.pollNow;
+      rerender();
+      await flush();
+      expect(result.current.pollNow).toBe(first);
+    });
   });
 });

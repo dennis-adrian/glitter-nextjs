@@ -21,11 +21,16 @@ export type LatePartnerOffer = {
   festivalId: number;
   /** When the feature closes, so the panel can say so (§5). */
   deadlineAt: Date | null;
-  /** What two people cost minus what one costs, on this reservation. */
+  /**
+   * What two people cost minus what one costs, on this reservation. Zero on a
+   * full table, whose price does not depend on its headcount.
+   */
   sharedPriceDifference: number;
   /** The festival's fee for adding somebody after booking. */
   featurePrice: number;
   totalCredits: number;
+  /** A full table: the quote is the fee alone, and must not mention a difference. */
+  fullTable: boolean;
   spendableBalance: number;
   /** Credits still needed; zero once the balance covers the total. */
   shortfall: number;
@@ -38,6 +43,7 @@ const NOT_OFFERED: LatePartnerOffer = {
   sharedPriceDifference: 0,
   featurePrice: 0,
   totalCredits: 0,
+  fullTable: false,
   spendableBalance: 0,
   shortfall: 0,
 };
@@ -68,6 +74,7 @@ export async function fetchLatePartnerOffer(input: {
       ownerUserId: standReservations.ownerUserId,
       individualPriceSnapshot: standReservations.individualPriceSnapshot,
       sharedPriceSnapshot: standReservations.sharedPriceSnapshot,
+      fullTablePriceSnapshot: standReservations.fullTablePriceSnapshot,
       standCategory: stands.standCategory,
     })
     .from(standReservations)
@@ -107,6 +114,7 @@ export async function fetchLatePartnerOffer(input: {
   const price = latePartnerPrice({
     individualPriceSnapshot: reservation.individualPriceSnapshot,
     sharedPriceSnapshot: reservation.sharedPriceSnapshot,
+    fullTablePriceSnapshot: reservation.fullTablePriceSnapshot,
     featurePrice: config.creditPrice,
   });
   if (!price) return NOT_OFFERED;
@@ -120,6 +128,7 @@ export async function fetchLatePartnerOffer(input: {
     sharedPriceDifference: price.sharedPriceDifference,
     featurePrice: price.featurePrice,
     totalCredits: price.totalCredits,
+    fullTable: price.fullTable,
     spendableBalance: balances.spendableBalance,
     shortfall: exactCreditShortfall(
       price.totalCredits,

@@ -42,6 +42,42 @@ function allowedInput(
 }
 
 describe("evaluateSelfServiceEligibility", () => {
+  // entry.ts skips the terms/sanctions/reservations reads while the clock
+  // blocks; that is only sound if none of them can change the answer.
+  it("answers RESERVATIONS_NOT_OPEN before the clock whatever the reads say", () => {
+    const beforeOpen = new Date("2026-08-01T09:59:59.000Z");
+    for (const publishedTermsVersionId of [null, 1, 2])
+      for (const enrollment of [
+        null,
+        {
+          type: "festival_participation",
+          status: "pending",
+          termsVersionId: 1,
+        },
+        {
+          type: "festival_participation",
+          status: "accepted",
+          termsVersionId: 1,
+        },
+      ])
+        for (const sanctionBlocked of [false, true])
+          for (const hasLiveSelfServiceReservation of [false, true])
+            for (const hasRejectedFestivalReservation of [false, true])
+              expect(
+                evaluateSelfServiceEligibility(
+                  allowedInput({
+                    now: beforeOpen,
+                    intent: "view",
+                    publishedTermsVersionId,
+                    enrollment,
+                    sanctionBlocked,
+                    hasLiveSelfServiceReservation,
+                    hasRejectedFestivalReservation,
+                  }),
+                ),
+              ).toEqual({ allowed: false, code: "RESERVATIONS_NOT_OPEN" });
+  });
+
   it("allows a verified enrolled participant during an open active festival", () => {
     expect(evaluateSelfServiceEligibility(allowedInput())).toEqual({
       allowed: true,

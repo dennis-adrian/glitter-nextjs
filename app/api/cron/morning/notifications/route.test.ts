@@ -1,21 +1,26 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { calls, giftsMock, pushMock, emailMock } = vi.hoisted(() => {
-  const calls: { pass: string; budgetMs: number }[] = [];
-  return {
-    calls,
-    giftsMock: vi.fn(),
-    pushMock: vi.fn(),
-    emailMock: vi.fn(),
-  };
-});
+const { calls, giftsMock, pushMock, festivalPushMock, emailMock } =
+  vi.hoisted(() => {
+    const calls: { pass: string; budgetMs: number }[] = [];
+    return {
+      calls,
+      giftsMock: vi.fn(),
+      pushMock: vi.fn(),
+      festivalPushMock: vi.fn(),
+      emailMock: vi.fn(),
+    };
+  });
 
 vi.mock("@/app/lib/cron/auth", () => ({
   isAuthorizedCronRequest: () => true,
 }));
 vi.mock("@/app/lib/credit_gifts/service", () => ({
   resumeProcessingCreditGifts: giftsMock,
+}));
+vi.mock("@/app/lib/notifications/festival-bulk-pushes", () => ({
+  sendFestivalBulkPushes: festivalPushMock,
 }));
 vi.mock("@/app/lib/notifications/deliveries", () => ({
   sendDuePushDeliveries: pushMock,
@@ -37,6 +42,9 @@ describe("the notifications cron", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     calls.length = 0;
+    festivalPushMock.mockImplementation(
+      pass("festival-push", 0, { scanned: 0 }),
+    );
   });
 
   afterEach(() => {
@@ -51,7 +59,12 @@ describe("the notifications cron", () => {
     const response = await GET(new Request("https://glitter.test/cron"));
 
     expect(response.status).toBe(200);
-    expect(calls.map((call) => call.pass)).toEqual(["gifts", "push", "email"]);
+    expect(calls.map((call) => call.pass)).toEqual([
+      "gifts",
+      "push",
+      "festival-push",
+      "email",
+    ]);
     expect(pushMock).toHaveBeenCalledWith({ limit: 100, budgetMs: 10_000 });
   });
 
@@ -67,6 +80,7 @@ describe("the notifications cron", () => {
     expect(calls).toEqual([
       { pass: "gifts", budgetMs: 25_000 },
       { pass: "push", budgetMs: 10_000 },
+      { pass: "festival-push", budgetMs: 5_000 },
       { pass: "email", budgetMs: 5_000 },
     ]);
   });
@@ -80,6 +94,6 @@ describe("the notifications cron", () => {
 
     await GET(new Request("https://glitter.test/cron"));
 
-    expect(calls.slice(1).map((call) => call.budgetMs)).toEqual([0, 0]);
+    expect(calls.slice(1).map((call) => call.budgetMs)).toEqual([0, 0, 0]);
   });
 });

@@ -19,6 +19,7 @@ import {
 import { exportFestivalData } from "@/app/lib/festival_exports/actions";
 import { fetchFestivalWithDatesAndSectors } from "@/app/lib/festivals/actions";
 import { FestivalWithDatesAndSectors } from "@/app/lib/festivals/definitions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type ExportScope = "all" | "basic_info" | "sectors_only";
 
@@ -53,7 +54,7 @@ export default function FestivalExportDialog({
       }
     } catch (error) {
       console.error("Error loading festival data", error);
-      toast.error("Error al cargar los datos del festival");
+      toastActionError(error, "Error al cargar los datos del festival");
     } finally {
       setIsLoading(false);
     }
@@ -134,7 +135,7 @@ export default function FestivalExportDialog({
       onOpenChange(false);
     } catch (error) {
       console.error("Error downloading export", error);
-      toast.error("Error al exportar los datos");
+      toastActionError(error, "Error al exportar los datos");
     } finally {
       setIsExporting(false);
     }

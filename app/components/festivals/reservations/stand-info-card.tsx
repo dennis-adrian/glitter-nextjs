@@ -27,10 +27,15 @@ import {
   type HoldIntentCache,
 } from "@/app/lib/stands/hold-intent";
 import { toast } from "sonner";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
-type ActiveHold =
+/**
+ * The viewer's live hold as the map knows it: the DTO's, or the one a
+ * selection on this map just created (which has no `expiresAt` yet).
+ */
+export type ActiveHold =
   | ReservationActiveHoldDto
-  | { id: number; standId: number; standIds?: number[] }
+  | { id: number; standId: number; standIds: number[]; expiresAt?: undefined }
   | null;
 
 /**
@@ -42,8 +47,7 @@ type ActiveHold =
  */
 function heldByViewer(standId: number, hold: ActiveHold): boolean {
   if (!hold) return false;
-  const held = "standIds" in hold && hold.standIds ? hold.standIds : [];
-  return hold.standId === standId || held.includes(standId);
+  return hold.standId === standId || hold.standIds.includes(standId);
 }
 
 type StandInfoCardProps = {
@@ -62,6 +66,12 @@ type StandInfoCardProps = {
   /** Set when the viewer could activate full-table access without buying. */
   fullTableActivationPrice?: number | null;
   onHoldChange?: (hold: ActiveHold) => void;
+  /**
+   * A take failed in a way that says the map is out of date. The ids are
+   * stands the server just said are gone (mark them taken now); an empty
+   * array only asks for a fresh poll.
+   */
+  onStandUnavailable?: (standIds: number[]) => void;
   onClose: () => void;
   isPending: boolean;
   startTransition: (callback: () => void | Promise<void>) => void;
@@ -133,6 +143,7 @@ export function StandInfoCard({
   fullTableAccessActive = false,
   fullTableActivationPrice = null,
   onHoldChange,
+  onStandUnavailable,
   onClose,
   isPending,
   startTransition,
@@ -248,7 +259,7 @@ export function StandInfoCard({
         }
       } catch (error) {
         console.error("Error activating full table", error);
-        toast.error("No se pudo activar la mesa completa.");
+        toastActionError(error, "No se pudo activar la mesa completa.");
         return;
       }
       takeStand();
@@ -287,16 +298,43 @@ export function StandInfoCard({
           return;
         }
         if (res.success && res.data.holdId) {
-          onHoldChange?.({ id: res.data.holdId, standId: stand.id });
+          // What the server actually took — never `fullTableSelection`,
+          // which only describes what the card offered.
+          const heldStandIds =
+            res.data.isFullTable && stand.standGroupId != null
+              ? [
+                  ...new Set([
+                    stand.id,
+                    ...(sectorStands ?? [])
+                      .filter((s) => s.standGroupId === stand.standGroupId)
+                      .map((s) => s.id),
+                  ]),
+                ]
+              : [stand.id];
+          onHoldChange?.({
+            id: res.data.holdId,
+            standId: stand.id,
+            standIds: heldStandIds,
+          });
           onClose();
           router.replace(
             `/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${stand.festivalSectorId}/confirm/${res.data.holdId}`,
           );
         } else {
-          toast.error(res.message);
+          if (!res.success && res.code === "STAND_UNAVAILABLE") {
+            // Authoritative: the stand was taken under lock.
+            onStandUnavailable?.([stand.id]);
+          } else if (!res.success && res.code === "CONFLICT_RETRY") {
+            onStandUnavailable?.([]);
+          }
+          toast.error(res.message, { duration: 8000 });
         }
-      } catch {
-        toast.error("No se pudo seleccionar el espacio");
+      } catch (error) {
+        // The hold may exist server-side; let the poll say.
+        onStandUnavailable?.([]);
+        toastActionError(error, "No se pudo seleccionar el espacio", {
+          duration: 8000,
+        });
       }
     });
   };
@@ -312,12 +350,11 @@ export function StandInfoCard({
   };
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 animate-slide-up-fast md:bottom-6 md:left-auto md:right-6 md:w-100">
-      <div className="bg-card rounded-xl border border-border shadow-lg flex flex-col">
+    <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 right-4 z-50 animate-slide-up-fast md:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] md:left-auto md:right-6 md:w-100">
+      <div className="bg-card rounded-xl border border-border shadow-lg flex flex-col max-h-[55dvh] md:max-h-[calc(100dvh-6rem)]">
         <Button
-          className="self-end m-2 text-muted-foreground"
+          className="self-end m-1 h-11 min-w-11 px-3 text-muted-foreground"
           variant="ghost"
-          size="sm"
           onClick={onClose}
           aria-label="Cerrar"
         >
@@ -325,7 +362,7 @@ export function StandInfoCard({
           Cerrar
         </Button>
 
-        <div className="px-6 pb-6 flex flex-col gap-6">
+        <div className="px-6 pb-6 flex flex-col gap-6 min-h-0 overflow-y-auto overscroll-contain">
           <div className="flex items-start justify-between">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
@@ -338,10 +375,14 @@ export function StandInfoCard({
                     className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
                       stand.effectiveStatus === "held"
                         ? "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400"
-                        : "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400"
+                        : "bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400"
                     }`}
                   >
-                    {stand.effectiveStatus === "held" ? "EN ESPERA" : "OCUPADO"}
+                    {stand.effectiveStatus === "held"
+                      ? "EN ESPERA"
+                      : stand.effectiveStatus === "reserved"
+                        ? "RESERVADO"
+                        : "OCUPADO"}
                   </span>
                 )}
               </div>

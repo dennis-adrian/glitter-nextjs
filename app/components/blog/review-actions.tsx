@@ -21,6 +21,7 @@ import {
   rejectPost,
   requestChanges,
 } from "@/app/lib/posts/actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type Props = {
   postId: number;
@@ -48,7 +49,7 @@ export default function ReviewActions({ postId }: Props) {
       } else {
         toast.error(res.message);
       }
-    } catch {
+    } catch (error) {
       /**
        * The action returns `{ success: false }` for anything it can foresee,
        * so a rejection here is the transport failing — the request never
@@ -56,7 +57,7 @@ export default function ReviewActions({ postId }: Props) {
        * this branch `finally` reset the button and the reviewer saw nothing
        * at all, which reads as a dead control rather than a failure.
        */
-      toast.error(FAILED);
+      toastActionError(error, FAILED);
     } finally {
       setBusy(false);
     }
@@ -74,8 +75,8 @@ export default function ReviewActions({ postId }: Props) {
       } else {
         toast.error(res.message);
       }
-    } catch {
-      toast.error(FAILED);
+    } catch (error) {
+      toastActionError(error, FAILED);
     } finally {
       setBusy(false);
     }
@@ -93,8 +94,8 @@ export default function ReviewActions({ postId }: Props) {
       } else {
         toast.error(res.message);
       }
-    } catch {
-      toast.error(FAILED);
+    } catch (error) {
+      toastActionError(error, FAILED);
     } finally {
       setBusy(false);
     }

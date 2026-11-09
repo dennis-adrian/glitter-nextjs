@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { formatCreditCount } from "@/app/components/credits/credit-amount";
 import { Button } from "@/app/components/ui/button";
 import { createDebtCreditTopUpAction } from "@/app/lib/credits/purchase-actions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 type BuyDebtCreditsButtonProps = {
   /** Display only. The server recalculates the exact debt under lock. */
@@ -43,7 +44,10 @@ export default function BuyDebtCreditsButton({
         router.push(`/my_credits/${result.topUpId}`);
       } catch (error) {
         console.error("Error creating debt credit top-up", error);
-        toast.error("No se pudo iniciar la compra. Intentá nuevamente.");
+        toastActionError(
+          error,
+          "No se pudo iniciar la compra. Intentá nuevamente.",
+        );
         setIdempotencyKey(crypto.randomUUID());
       }
     });

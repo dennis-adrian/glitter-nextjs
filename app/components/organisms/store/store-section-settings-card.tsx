@@ -20,6 +20,7 @@ import {
   type StoreSettings,
   type StoreStatusMode,
 } from "@/app/lib/store_settings/definitions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 const MODE_OPTIONS: {
   value: StoreStatusMode;
@@ -76,8 +77,8 @@ export default function StoreSectionSettingsCard({ settings }: Props) {
         } else {
           toast.error(result.message);
         }
-      } catch {
-        toast.error("No se pudo guardar la configuración");
+      } catch (error) {
+        toastActionError(error, "No se pudo guardar la configuración");
       }
     });
   }

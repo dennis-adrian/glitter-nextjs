@@ -44,6 +44,7 @@ import {
   getProductPriceAtPurchase,
 } from "@/app/lib/orders/utils";
 import CartItemSkeleton from "./cart-item-skeleton";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 const hasStockProblem = (check: GuestStockValidationResult) =>
   check.isUnavailable || check.isOutOfStock || check.quantityExceedsStock;
@@ -85,8 +86,8 @@ function AuthBundleCartRow({
         toast.info(result.message);
       }
       await onCartUpdate();
-    } catch {
-      toast.error(fallback);
+    } catch (error) {
+      toastActionError(error, fallback);
     } finally {
       setPending(false);
     }
@@ -192,10 +193,10 @@ export default function CartSheet() {
             toast.error("No se pudo cargar el carrito");
           }
         }
-      } catch {
+      } catch (error) {
         if (generation === fetchGenerationRef.current) {
           setFetchError(true);
-          toast.error("No se pudo cargar el carrito");
+          toastActionError(error, "No se pudo cargar el carrito");
         }
       } finally {
         if (!silent) setLoading(false);
@@ -341,8 +342,8 @@ export default function CartSheet() {
         }
         closeCart();
         router.push("/checkout");
-      } catch {
-        toast.error("No se pudo validar el carrito");
+      } catch (error) {
+        toastActionError(error, "No se pudo validar el carrito");
       } finally {
         setGuestValidating(false);
       }

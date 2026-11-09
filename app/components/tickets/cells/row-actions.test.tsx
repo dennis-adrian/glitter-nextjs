@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { UnrecognizedActionError } from "next/dist/client/components/unrecognized-action-error";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // The menu reaches a "use server" module that imports `server-only`, which
@@ -76,6 +77,26 @@ describe("TicketRowActions", () => {
       ),
     );
     expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  /** Retrying from a tab older than the deploy fails forever; reloading does not. */
+  it("asks a tab left open across a deploy to reload", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    action.mockRejectedValue(
+      new UnrecognizedActionError(
+        'Server Action "7f3a" was not found on the server.',
+      ),
+    );
+    render(<TicketRowActions ticketId={42} />);
+    fireEvent.click(resendItem());
+
+    await vi.waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Hay una nueva versión de la app. Recargá la página para continuar.",
+        expect.objectContaining({ action: expect.anything() }),
+      ),
+    );
+    expect(toast.error).toHaveBeenCalledTimes(1);
   });
 
   /** A vanished action reads as a broken feature; this one says why. */

@@ -18,6 +18,14 @@ const { claimed, updates, reservationFindFirst } = vi.hoisted(() => ({
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/server", () => ({ after: vi.fn() }));
+// Every case here is a `reservation_created` job; keep its email switch on
+// so the flag read does not fall through to the mocked `db`.
+vi.mock("@/app/lib/feature_flags/data", () => ({
+  fetchFeatureFlagRule: vi.fn(async () => ({
+    visibility: "public",
+    targetedUserIds: [],
+  })),
+}));
 vi.mock("@/env", () => ({
   serverEnv: { RESEND_API_KEY: "re_test", VERCEL_ENV: "production" },
 }));

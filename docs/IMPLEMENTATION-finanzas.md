@@ -854,6 +854,13 @@ Editable on `/dashboard/finanzas/recurrentes` (name, amount, cadence, day, archi
 One row per festival, created lazily the first time `/festivales/[id]` opens. Holds the two things §7
 needs that `festivals` has no column for, without touching `festivals`.
 
+> **Shipped early, partly (migration 0311).** The table already exists with `festival_id`,
+> `credit_lead_days`, `updated_by_user_id` and `updated_at`, for the festival finance page at
+> `/dashboard/festivals/[id]/finance`. `credit_lead_days` (0–30, null = 5) sets how many days before
+> `festivals.reservations_start_date` a credit purchase counts as that edition's money there. The columns
+> below arrive with Phase 3/4 as an additive migration; the merch window must be added nullable (or with a
+> default) since rows may already exist.
+
 ```ts
 export const financeFestivalSettings = pgTable(
   "finance_festival_settings",

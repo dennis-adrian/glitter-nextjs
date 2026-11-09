@@ -1,16 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.mock("server-only", () => ({}));
 
 const currentProfileMock = vi.hoisted(() => vi.fn());
+// The seven-relation profile must stay off this hot path.
+const fullProfileMock = vi.hoisted(() => vi.fn());
 const consumeRateLimitMock = vi.hoisted(() => vi.fn());
 const getSectorMock = vi.hoisted(() => vi.fn());
 const enrollmentMock = vi.hoisted(() => vi.fn());
 const loadRowsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app/lib/users/helpers", () => ({
-  getCurrentUserProfile: currentProfileMock,
+  getCurrentBaseProfile: currentProfileMock,
+  getCurrentUserProfile: fullProfileMock,
 }));
 
 vi.mock("@/app/lib/rate-limit", () => ({
@@ -115,4 +118,8 @@ describe("GET /api/stands/status", () => {
     const response = await GET(request("4"));
     expect(response.status).toBe(200);
   });
+});
+
+afterEach(() => {
+  expect(fullProfileMock).not.toHaveBeenCalled();
 });

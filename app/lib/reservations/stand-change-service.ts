@@ -23,27 +23,25 @@ import {
   completeRequest,
 } from "@/app/lib/reservations/request-registry";
 import {
-  coveredAmountForInvoices,
+  applyReservationRepricing,
   invoicesHaveProofUnderReview,
   invoicesHaveTender,
+  latePartnerPrepaidAmount,
   liveReservationIdForStand,
+  readRepricingMoneyInputs,
   readReservationInvoices,
-  refundOverpaymentAsCredits,
-  reopenReservationForBalance,
-  repriceLiveInvoices,
-  standChangeRefundedAmount,
   standHasLiveHold,
   type ReservationInvoiceRow,
 } from "@/app/lib/reservations/reservation-repricing";
 import {
+  planReservationRepricing,
+  type ReservationRepricing,
+} from "@/app/lib/reservations/repricing";
+import {
   isMovableReservationStatus,
-  repriceInvoice,
   resolveStandChangePricing,
-  resolveStandChangeSettlement,
   type MovableReservationStatus,
-  type StandChangeSettlement,
 } from "@/app/lib/reservations/stand-change";
-import { roundMoney } from "@/app/lib/reservations/money";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { standReservationStands, standReservations, stands } from "@/db/schema";
@@ -148,11 +146,10 @@ type SidePlan = {
   pricing: ReturnType<typeof resolveStandChangePricing>;
   invoices: ReservationInvoiceRow[];
   /**
-   * Approved cash plus confirmed credits before the move, less whatever
-   * earlier stand changes already refunded out of it.
+   * The shared repricing model's verdict: the new cobro, and whether the move
+   * reopens a balance, hands back credits, or completes the acceptance.
    */
-  coveredAmount: number;
-  settlement: StandChangeSettlement;
+  repricing: ReservationRepricing;
   /** The command's idempotency key, so the credit grant inherits it. */
   requestKey: string;
 };
@@ -165,65 +162,65 @@ type SidePlan = {
  * around a parking step, and burying that ordering inside a per-side helper
  * would hide the one part of this feature that has to happen in a fixed order.
  */
-async function applySidePointerAndMoney(tx: DbTx, plan: SidePlan, now: Date) {
+async function applySidePointerAndMoney(
+  tx: DbTx,
+  plan: SidePlan,
+  actorUserId: number,
+  now: Date,
+) {
   await tx
     .update(standReservations)
     .set({
       standId: plan.toStandId,
-      priceAmountSnapshot: plan.pricing.priceAmount,
+      // Net of a late partner's payment, like the cobro: the snapshot is what
+      // the reservation bills, and the difference already sits on the feature
+      // action.
+      priceAmountSnapshot: plan.repricing.grossAmount,
       individualPriceSnapshot: plan.pricing.individualPrice,
       sharedPriceSnapshot: plan.pricing.sharedPrice,
       updatedAt: now,
     })
     .where(eq(standReservations.id, plan.reservation.id));
 
-  if (!plan.pricing.priceChanged) return;
-
-  await repriceLiveInvoices(tx, {
+  await applyReservationRepricing(tx, {
+    reservationId: plan.reservation.id,
+    ownerUserId: plan.reservation.ownerUserId,
+    standId: plan.toStandId,
     invoices: plan.invoices,
-    priceAmount: plan.pricing.priceAmount,
-    settlement: plan.settlement,
-    now,
-  });
-
-  if (plan.settlement.kind === "balance_due") {
-    await reopenReservationForBalance(
-      tx,
-      {
-        reservationId: plan.reservation.id,
-        ownerUserId: plan.reservation.ownerUserId,
-      },
-      now,
-    );
-    return;
-  }
-  if (plan.settlement.kind === "overpaid") {
-    await refundOverpaymentAsCredits(tx, {
-      reservationId: plan.reservation.id,
-      ownerUserId: plan.reservation.ownerUserId,
-      refundAmount: plan.settlement.refundAmount,
+    plan: plan.repricing,
+    actorUserId,
+    refund: {
       reason: `Cambio de espacio: diferencia a favor de la reserva #${plan.reservation.id}`,
       idempotencyKey: `stand-change-refund:${plan.requestKey}:${plan.reservation.id}`,
-    });
-  }
+    },
+    now,
+  });
 }
 
 /**
  * The status the destination stand actually lands on.
  *
- * Normally the origin's, so a paid reservation carries `confirmed` across. A
- * balance owed is the exception: the reservation goes back to `pending`, and a
- * stand left `confirmed` under it would read as paid on every map and report
- * that trusts `stands.status`.
+ * Normally the origin's, so a paid reservation carries `confirmed` across. Two
+ * exceptions follow the reservation's own new status. A balance owed sends it
+ * back to `pending`, and a stand left `confirmed` under it would read as paid
+ * on every map and report that trusts `stands.status`. A move that leaves a
+ * waiting reservation fully paid accepts it, and its stand is `confirmed` like
+ * any accepted one.
  */
 function effectiveStandStatus(plan: SidePlan): SidePlan["carriedStandStatus"] {
+  if (plan.repricing.completesAcceptance) return "confirmed";
   if (
-    plan.settlement.kind === "balance_due" &&
+    plan.repricing.settlement.kind === "balance_due" &&
     plan.carriedStandStatus === "confirmed"
   ) {
     return "reserved";
   }
   return plan.carriedStandStatus;
+}
+
+function sidePlanResultingStatus(plan: SidePlan): MovableReservationStatus {
+  const status = plan.repricing.resultingStatus;
+  return isMovableReservationStatus(status) ? status : plan.reservation.status;
 }
 
 async function buildSidePlan(
@@ -243,24 +240,17 @@ async function buildSidePlan(
   const liveInvoices = invoiceRows.filter(
     (invoice) => invoice.status !== "cancelled",
   );
-  // Net of what earlier moves handed back. Clamped at zero so `coveredAmount`
-  // keeps meaning what its name says: a voucher rejected after a refund can
-  // leave the two out of step, and that is a debt for the wallet to carry, not
-  // a negative coverage for the settlement to reason about.
-  const coveredAmount = Math.max(
-    0,
-    roundMoney(
-      (await coveredAmountForInvoices(tx, liveInvoices)) -
-        (await standChangeRefundedAmount(tx, reservation.id)),
-    ),
-  );
-  // Priced against the discount the invoice already carries, so the settlement
-  // is measured against what will actually be owed rather than the gross price.
-  const newInvoiceAmount =
-    liveInvoices.length === 0
-      ? pricing.priceAmount
-      : repriceInvoice(pricing.priceAmount, liveInvoices[0].discountAmount)
-          .amount;
+  // Priced against the discount and write-off the invoice already carries, so
+  // the settlement is measured against what will actually be owed; and net of
+  // a late partner's payment, which is money paid for the stand. Coverage is
+  // the cobro's own tender, earlier refunds already out of it.
+  const repricing = planReservationRepricing({
+    newStandPrice: pricing.standPrice,
+    priceAmountSnapshot: reservation.priceAmountSnapshot,
+    liveInvoice: liveInvoices[0] ?? null,
+    reservationStatus: reservation.status,
+    ...(await readRepricingMoneyInputs(tx, reservation.id, liveInvoices)),
+  });
 
   return {
     reservation,
@@ -269,10 +259,7 @@ async function buildSidePlan(
     carriedStandStatus,
     pricing,
     invoices: invoiceRows,
-    coveredAmount,
-    settlement: pricing.priceChanged
-      ? resolveStandChangeSettlement({ newInvoiceAmount, coveredAmount })
-      : { kind: "none" },
+    repricing,
     requestKey,
   };
 }
@@ -338,13 +325,25 @@ export async function changeReservationStand(input: {
               .limit(1)
           )[0]?.ownerUserId ?? null);
 
+    // The invoice payers belong in the set too: the aggregate lock discovers
+    // every locked invoice's user and refuses a set that differs from this
+    // preview, so a payer who is neither owner nor participant (a legacy row
+    // with no owner) would otherwise turn every attempt into a conflict.
     const previewUserIds = uniqueSortedIds([
       ...(await readReservationParticipantIds(tx, reservationRow.id)),
       ...(reservationRow.ownerUserId != null
         ? [reservationRow.ownerUserId]
         : []),
+      ...(await readReservationInvoices(tx, reservationRow.id)).map(
+        (invoice) => invoice.userId,
+      ),
       ...(counterpartPreviewId != null
-        ? await readReservationParticipantIds(tx, counterpartPreviewId)
+        ? [
+            ...(await readReservationParticipantIds(tx, counterpartPreviewId)),
+            ...(await readReservationInvoices(tx, counterpartPreviewId)).map(
+              (invoice) => invoice.userId,
+            ),
+          ]
         : []),
       ...(counterpartOwnerUserId != null ? [counterpartOwnerUserId] : []),
     ]);
@@ -448,12 +447,18 @@ export async function changeReservationStand(input: {
     // A move that could hand credits back needs the owners' credit accounts
     // locked, and the canonical order places them before stands — so the
     // decision has to be made here, before prices are known. Any money already
-    // against an invoice is enough to take the lock; most moves have none and
-    // skip it.
-    const lockedCreditUserIds = (await invoicesHaveTender(
-      tx,
-      previewInvoiceIds,
-    ))
+    // against an invoice is enough to take the lock, and so is a late
+    // partner's payment: a stand cheaper than what it covers is a surplus with
+    // no invoice tender at all. Most moves have neither and skip it.
+    const mayRefund =
+      (await invoicesHaveTender(tx, previewInvoiceIds)) ||
+      (await latePartnerPrepaidAmount(tx, preview.reservation.id)) > 0 ||
+      (counterpartPreview != null &&
+        (await latePartnerPrepaidAmount(
+          tx,
+          counterpartPreview.reservation.id,
+        )) > 0);
+    const lockedCreditUserIds = mayRefund
       ? uniqueSortedIds([
           ...(preview.reservation.ownerUserId != null
             ? [preview.reservation.ownerUserId]
@@ -576,7 +581,7 @@ export async function changeReservationStand(input: {
     // throws, so it must not leave a half-applied move behind it.
     for (const plan of [sourcePlan, counterpartPlan]) {
       if (!plan) continue;
-      if (!plan.pricing.priceChanged) continue;
+      if (!plan.repricing.priceChanged) continue;
       if (
         await invoicesHaveProofUnderReview(
           tx,
@@ -585,15 +590,19 @@ export async function changeReservationStand(input: {
       ) {
         return fail(reservationFailure("STAND_CHANGE_PROOF_UNDER_REVIEW"));
       }
-      // Handing money back needs the credit account locked, and the lock order
-      // puts credit accounts before stands — too early to take one now. The
-      // preview decides whether to hold it, so a settlement that appeared since
-      // then is a conflict rather than an out-of-order lock.
-      if (
-        plan.settlement.kind === "overpaid" &&
-        !lockedCreditUserIds.includes(plan.reservation.ownerUserId ?? -1)
-      ) {
-        return fail(reservationFailure("CONFLICT_RETRY"));
+      if (plan.repricing.settlement.kind === "overpaid") {
+        // Nobody to hand the surplus to. Refused outright rather than reported
+        // as a conflict, which a retry could never get past.
+        if (plan.reservation.ownerUserId == null) {
+          return fail(reservationFailure("STAND_CHANGE_REFUND_NO_OWNER"));
+        }
+        // Handing money back needs the credit account locked, and the lock
+        // order puts credit accounts before stands — too early to take one
+        // now. The preview decides whether to hold it, so a settlement that
+        // appeared since then is a conflict rather than an out-of-order lock.
+        if (!lockedCreditUserIds.includes(plan.reservation.ownerUserId)) {
+          return fail(reservationFailure("CONFLICT_RETRY"));
+        }
       }
     }
 
@@ -639,9 +648,9 @@ export async function changeReservationStand(input: {
       await moveReservationMember(tx, sourcePlan);
     }
 
-    await applySidePointerAndMoney(tx, sourcePlan, now);
+    await applySidePointerAndMoney(tx, sourcePlan, actorId, now);
     if (counterpartPlan) {
-      await applySidePointerAndMoney(tx, counterpartPlan, now);
+      await applySidePointerAndMoney(tx, counterpartPlan, actorId, now);
     }
 
     // Stand statuses carry across with their reservations, so a paid
@@ -666,13 +675,15 @@ export async function changeReservationStand(input: {
       actorUserId: actorId,
       eventType: "status_changed",
       fromStatus: sourcePlan.reservation.status,
-      toStatus: sourcePlan.reservation.status,
+      // The real resulting status: a balance reopens, a fully paid move
+      // accepts.
+      toStatus: sidePlanResultingStatus(sourcePlan),
       payload: {
         action: counterpartPlan ? "stand_exchanged" : "stand_switched",
         fromStandId: sourcePlan.fromStandId,
         toStandId: sourcePlan.toStandId,
         fromPrice: sourcePlan.reservation.priceAmountSnapshot,
-        toPrice: sourcePlan.pricing.priceAmount,
+        toPrice: sourcePlan.repricing.grossAmount,
         counterpartReservationId: counterpartPlan?.reservation.id ?? null,
       },
       idempotencyKey: `stand-change:${input.idempotencyKey}`,
@@ -683,13 +694,13 @@ export async function changeReservationStand(input: {
         actorUserId: actorId,
         eventType: "status_changed",
         fromStatus: counterpartPlan.reservation.status,
-        toStatus: counterpartPlan.reservation.status,
+        toStatus: sidePlanResultingStatus(counterpartPlan),
         payload: {
           action: "stand_exchanged",
           fromStandId: counterpartPlan.fromStandId,
           toStandId: counterpartPlan.toStandId,
           fromPrice: counterpartPlan.reservation.priceAmountSnapshot,
-          toPrice: counterpartPlan.pricing.priceAmount,
+          toPrice: counterpartPlan.repricing.grossAmount,
           counterpartReservationId: sourcePlan.reservation.id,
         },
         idempotencyKey: `stand-change:${input.idempotencyKey}`,

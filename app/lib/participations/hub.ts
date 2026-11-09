@@ -10,6 +10,8 @@ import {
   type CardStatus,
 } from "@/app/components/participant_dashboard/reservation-card";
 import { fetchOutstandingInvoiceCountByProfileAndFestival } from "@/app/data/invoices/actions";
+import { needsFestivalTermsReacceptance } from "@/app/lib/festival-terms/acceptance";
+import { fetchPublishedFestivalTermsVersion } from "@/app/lib/festival-terms/queries";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import type {
   FestivalActivityWithDetailsAndParticipants,
@@ -83,6 +85,11 @@ export type ParticipationHub = {
     reason: "ban" | "reservation_delay";
     eligibleAt: Date | null;
   } | null;
+  /**
+   * The terms were republished after they accepted them: the map refuses a
+   * new reservation until they accept the current version.
+   */
+  termsStale: boolean;
 };
 
 type UpcomingSession = Awaited<
@@ -141,6 +148,7 @@ export const loadParticipationHub = cache(
       sessions,
       endedReservations,
       eligibility,
+      publishedTerms,
     ] = await Promise.all([
       fetchProfileEnrollmentInFestival(profile.id, festival.id),
       fetchActorReservationsByFestival(festival.id),
@@ -156,6 +164,7 @@ export const loadParticipationHub = cache(
           Math.max(Date.now(), festival.reservationsStartDate.getTime()),
         ),
       }),
+      fetchPublishedFestivalTermsVersion(),
     ]);
     const reservationBlock = eligibility.eligible
       ? null
@@ -219,6 +228,13 @@ export const loadParticipationHub = cache(
     const teamCount = reservation?.collaborators.length ?? 0;
     const isGastronomy = profile.category === "gastronomy";
     const enrollmentStatus = (enrollment?.status ?? null) as EnrollmentStatus;
+    // Judged on the enrollment row itself, which is fresher than the
+    // profile's copy right after they accept.
+    const termsStale = needsFestivalTermsReacceptance(
+      festival,
+      { userRequests: enrollment ? [enrollment] : [] },
+      publishedTerms?.id ?? null,
+    );
 
     const base = `/profiles/${profile.id}/festivals/${festival.id}`;
     const reservationIds = new Set(
@@ -261,6 +277,7 @@ export const loadParticipationHub = cache(
         shouldSubmitProducts: Boolean(profile.shouldSubmitProducts),
         teamCount,
         links,
+        termsStale,
       }),
       links,
       enrollment,
@@ -295,6 +312,7 @@ export const loadParticipationHub = cache(
       closedReservation: hasReservation ? null : endedReservations.closed,
       releasedReservation: hasReservation ? null : endedReservations.released,
       reservationBlock,
+      termsStale,
     };
   },
 );

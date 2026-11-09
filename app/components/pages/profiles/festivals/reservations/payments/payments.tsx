@@ -60,6 +60,7 @@ export default async function PaymentsPage(props: PaymentsPageProps) {
                 festivalId={festival.id}
                 approvedCashAmount={tender?.approvedCashAmount}
                 creditAppliedAmount={tender?.confirmedCreditAmount}
+                refundedAmount={tender?.refundedAmount}
                 outstandingAmount={outstandingAmount}
               />
             </div>
@@ -83,6 +84,7 @@ export default async function PaymentsPage(props: PaymentsPageProps) {
                 // contradicts the summary beside it on the same screen.
                 approvedCashAmount={tender?.approvedCashAmount}
                 creditAppliedAmount={tender?.confirmedCreditAmount}
+                refundedAmount={tender?.refundedAmount}
                 outstandingAmount={outstandingAmount}
               />
             )}

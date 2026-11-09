@@ -25,6 +25,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 const AUDIENCE_OPTIONS: {
   value: MarketingBannerRow["audience"];
@@ -123,7 +124,8 @@ export default function BannerForm(props: Props) {
           }
           toast.success("Banner creado");
         } catch (err) {
-          toast.error(
+          toastActionError(
+            err,
             err instanceof Error && err.message
               ? err.message
               : "No se pudo crear el banner.",
@@ -150,7 +152,8 @@ export default function BannerForm(props: Props) {
           }
           toast.success("Cambios guardados");
         } catch (err) {
-          toast.error(
+          toastActionError(
+            err,
             err instanceof Error && err.message
               ? err.message
               : "No se pudieron guardar los cambios.",

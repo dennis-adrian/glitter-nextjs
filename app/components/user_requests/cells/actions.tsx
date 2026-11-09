@@ -19,6 +19,7 @@ import { UserRequest } from "@/app/api/user_requests/definitions";
 import GuardedMenuItem from "@/app/components/payments/guarded-menu-item";
 import RejectRequestDialog from "@/app/components/user_requests/reject-request-dialog";
 import { toast } from "sonner";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 export function ActionsCell({ request }: { request: UserRequest }) {
   const [openReject, setOpenReject] = useState(false);
@@ -41,7 +42,8 @@ export function ActionsCell({ request }: { request: UserRequest }) {
       // A thrown action (network, server crash) resolves false like a refused
       // one, so the reject dialog stays open with the typed reason.
       console.error("Error reviewing the request", error);
-      toast.error(
+      toastActionError(
+        error,
         "No pudimos guardar la revisión. Intentá de nuevo en unos minutos.",
       );
       return false;

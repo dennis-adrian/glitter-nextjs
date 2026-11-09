@@ -4,14 +4,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { sendEmailMock, findReservationMock, selectMock, setCalls, claimed } =
-  vi.hoisted(() => ({
-    sendEmailMock: vi.fn(),
-    findReservationMock: vi.fn(),
-    selectMock: vi.fn(),
-    setCalls: [] as Record<string, unknown>[],
-    claimed: { current: null as Record<string, unknown> | null },
-  }));
+const {
+  sendEmailMock,
+  findReservationMock,
+  selectMock,
+  setCalls,
+  claimed,
+  flagRuleMock,
+} = vi.hoisted(() => ({
+  flagRuleMock: vi.fn(),
+  sendEmailMock: vi.fn(),
+  findReservationMock: vi.fn(),
+  selectMock: vi.fn(),
+  setCalls: [] as Record<string, unknown>[],
+  claimed: { current: null as Record<string, unknown> | null },
+}));
 
 vi.mock("next/server", () => ({ after: vi.fn() }));
 
@@ -21,6 +28,10 @@ vi.mock("@/env", () => ({
 }));
 
 vi.mock("@/app/vendors/resend", () => ({ sendEmail: sendEmailMock }));
+
+vi.mock("@/app/lib/feature_flags/data", () => ({
+  fetchFeatureFlagRule: flagRuleMock,
+}));
 
 // Loose on purpose: the claim, complete and fail writes are only recorded, so
 // a change to how the runner stamps a job does not break these delivery tests.
@@ -161,6 +172,72 @@ describe("attemptReservationNotificationJob", () => {
     selectMock.mockReset();
     setCalls.length = 0;
     claimed.current = null;
+    flagRuleMock.mockReset();
+    flagRuleMock.mockResolvedValue({
+      visibility: "public",
+      targetedUserIds: [],
+    });
+  });
+
+  describe("reservation_created", () => {
+    function pauseWith(visibility: string) {
+      flagRuleMock.mockResolvedValue({ visibility, targetedUserIds: [] });
+    }
+
+    it.each(["hidden", "admin_only"])(
+      "completes without sending when the admin email flag is %s",
+      async (visibility) => {
+        pauseWith(visibility);
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        queueJob({ kind: "reservation_created", recipientEmail: ADMIN_EMAIL });
+
+        await attemptReservationNotificationJob(1);
+
+        expect(flagRuleMock).toHaveBeenCalledWith(
+          "reservation_created_admin_email",
+        );
+        expect(sendEmailMock).not.toHaveBeenCalled();
+        expect(findReservationMock).not.toHaveBeenCalled();
+        expect(setCalls.at(-1)).toEqual(
+          expect.objectContaining({
+            status: "completed",
+            lastError: "skipped:admin_email_paused",
+          }),
+        );
+        expect(warn).toHaveBeenCalledWith(
+          "[reservation-notify] reservation_created email paused",
+          { jobId: 1 },
+        );
+        warn.mockRestore();
+      },
+    );
+
+    it("sends the admin email when the flag is public", async () => {
+      pauseWith("public");
+      queueJob({ kind: "reservation_created", recipientEmail: ADMIN_EMAIL });
+
+      await attemptReservationNotificationJob(1);
+
+      const { subject } = await sentEmail();
+      expect(subject).toBe("Nueva reserva creada");
+      expect(setCalls.at(-1)).toEqual(
+        expect.objectContaining({ status: "completed", lastError: null }),
+      );
+    });
+
+    it("leaves other admin kinds alone while it is paused", async () => {
+      pauseWith("hidden");
+      queueJob({ kind: "proof_submitted", recipientEmail: ADMIN_EMAIL });
+
+      await attemptReservationNotificationJob(1);
+
+      const { subject } = await sentEmail();
+      expect(subject).toBe("Ana Ilustra hizo el pago de su reserva");
+      expect(flagRuleMock).not.toHaveBeenCalled();
+      expect(setCalls.at(-1)).toEqual(
+        expect.objectContaining({ status: "completed", lastError: null }),
+      );
+    });
   });
 
   describe("settlement_approved", () => {

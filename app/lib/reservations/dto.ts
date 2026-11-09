@@ -206,7 +206,8 @@ export type FestivalReservationConfirmationDto = {
     category: UserCategory;
     imageUrl: string | null;
   };
-  hold: { id: number; expiresAt: string };
+  /** `serverNow` is the instant the hold was checked live; the countdown's clock. */
+  hold: { id: number; expiresAt: string; serverNow: string };
   stand: ReservationConfirmationStandDto;
   sector: {
     id: number;

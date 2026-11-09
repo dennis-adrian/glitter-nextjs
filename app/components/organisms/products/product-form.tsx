@@ -39,6 +39,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import type { CollectionOption } from "@/app/lib/merch/definitions";
+import { toastActionError } from "@/app/lib/errors/action-error";
 
 const VARIANT_KEY_SEPARATOR = "\u001f";
 
@@ -700,8 +701,8 @@ export default function ProductForm({
       } else {
         toast.error(res.message);
       }
-    } catch {
-      toast.error("No se pudo eliminar la imagen.");
+    } catch (error) {
+      toastActionError(error, "No se pudo eliminar la imagen.");
     } finally {
       setDeletingIds((prev) => {
         const s = new Set(prev);

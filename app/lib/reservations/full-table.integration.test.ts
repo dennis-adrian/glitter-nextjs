@@ -48,6 +48,7 @@ const currentProfileMock = vi.hoisted(() => vi.fn());
 vi.mock("server-only", () => ({}));
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: currentProfileMock,
+  getCurrentBaseProfile: currentProfileMock,
 }));
 vi.mock("@/app/lib/reservations/notification-outbox", () => ({
   enqueueAdminAndOwnerNotifications: vi.fn().mockResolvedValue([]),
@@ -736,12 +737,16 @@ describeDatabase("full table", () => {
       .from(standHolds)
       .where(eq(standHolds.festivalId, festival.id));
 
+    const now = new Date();
     const confirmation = await fetchFestivalReservationConfirmationDto({
       festivalId: festival.id,
       profileId: owner.id,
       holdId: hold.id,
+      now,
     });
 
+    // The countdown's clock is the instant the hold was checked live.
+    expect(confirmation?.hold.serverNow).toBe(now.toISOString());
     expect(confirmation?.fullTable.isFullTable).toBe(true);
     expect(confirmation?.stand).toMatchObject({
       price: FULL_TABLE_PRICE,
@@ -768,13 +773,120 @@ describeDatabase("full table", () => {
       .from(standHolds)
       .where(eq(standHolds.festivalId, festival.id));
 
+    const now = new Date();
+    const confirmation = await fetchFestivalReservationConfirmationDto({
+      festivalId: festival.id,
+      profileId: owner.id,
+      holdId: hold.id,
+      now,
+    });
+
+    // The countdown's clock is the instant the hold was checked live.
+    expect(confirmation?.hold.serverNow).toBe(now.toISOString());
+    expect(confirmation?.fullTable.isFullTable).toBe(false);
+    expect(confirmation?.stand).toMatchObject({
+      price: STAND_PRICE,
+      sharedPrice: SHARED_PRICE,
+    });
+  });
+
+  it("has no confirmation screen for an expired hold", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+
+    const held = await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+    });
+    expect(held.success).toBe(true);
+
+    const [hold] = await integrationDb!
+      .update(standHolds)
+      .set({
+        createdAt: new Date(Date.now() - 120_000),
+        expiresAt: new Date(Date.now() - 60_000),
+      })
+      .where(eq(standHolds.festivalId, festival.id))
+      .returning({ id: standHolds.id });
+
     const confirmation = await fetchFestivalReservationConfirmationDto({
       festivalId: festival.id,
       profileId: owner.id,
       holdId: hold.id,
     });
 
-    expect(confirmation?.fullTable.isFullTable).toBe(false);
+    expect(confirmation).toBeNull();
+  });
+
+  it("does not show somebody else's hold on the confirmation screen", async () => {
+    const {
+      festival,
+      users: [viewer, holder],
+      standIds,
+    } = await seed({ userCount: 2 });
+    asUser(holder);
+
+    const held = await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+    });
+    expect(held.success).toBe(true);
+
+    const [hold] = await integrationDb!
+      .select({ id: standHolds.id, userId: standHolds.userId })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+    expect(hold.userId).toBe(holder.id);
+
+    const confirmation = await fetchFestivalReservationConfirmationDto({
+      festivalId: festival.id,
+      profileId: viewer.id,
+      holdId: hold.id,
+    });
+
+    expect(confirmation).toBeNull();
+  });
+
+  it("flags a one-stand hold under active access as the half-table fallback", async () => {
+    const {
+      festival,
+      users: [owner],
+      standIds,
+    } = await seed();
+    asUser(owner);
+
+    await activateFullTableAccess({
+      festivalId: festival.id,
+      idempotencyKey: randomUUID(),
+    });
+
+    const held = await createStandHold({
+      standId: standIds[0],
+      idempotencyKey: randomUUID(),
+      singleStandOnly: true,
+    });
+    expect(held.success).toBe(true);
+
+    const [hold] = await integrationDb!
+      .select({ id: standHolds.id })
+      .from(standHolds)
+      .where(eq(standHolds.festivalId, festival.id));
+
+    const confirmation = await fetchFestivalReservationConfirmationDto({
+      festivalId: festival.id,
+      profileId: owner.id,
+      holdId: hold.id,
+    });
+
+    expect(confirmation?.fullTable).toMatchObject({
+      isFullTable: false,
+      isHalfTableFallback: true,
+      standIds: [standIds[0]],
+    });
     expect(confirmation?.stand).toMatchObject({
       price: STAND_PRICE,
       sharedPrice: SHARED_PRICE,
