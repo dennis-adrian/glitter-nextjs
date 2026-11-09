@@ -241,6 +241,7 @@ function PushControlInner({
       {support !== "unknown" && !support.startsWith("ios-") && (
         <Button
           size="sm"
+          wrap
           disabled={busy || reason != null || device.phase === "checking"}
           aria-busy={device.phase === "working"}
           onClick={turnOn}
@@ -308,7 +309,8 @@ function PushOfferInner({
         <Button
           variant="link"
           size="sm"
-          className="h-auto p-0"
+          wrap
+          className="min-h-0 p-0 text-left"
           // Not `disabled`: that would drop focus out of the popover.
           aria-disabled={working}
           aria-busy={working}

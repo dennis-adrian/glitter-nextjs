@@ -110,7 +110,7 @@ export default function EnterAsButton({
           <AlertDialogTitle>Entrar como {person.name}</AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-3 text-sm text-muted-foreground">
-              <p>
+              <p className="wrap-anywhere">
                 {person.email} · {person.statusLabel}
               </p>
               <p>

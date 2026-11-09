@@ -72,7 +72,7 @@ export default function PastFestivalsList({
                 ) : null}
               </span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="truncate font-display text-base font-bold leading-tight text-brand-ink">
+                <span className="break-words font-display text-base font-bold leading-tight text-brand-ink">
                   {festival.name}
                 </span>
                 {line ? (

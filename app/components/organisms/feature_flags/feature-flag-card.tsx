@@ -99,7 +99,7 @@ export default function FeatureFlagCard({ flag, definition }: Props) {
 
         <div className="flex items-center justify-between gap-4">
           <span className="text-xs text-muted-foreground">
-            Clave: <code>{flag.key}</code>
+            Clave: <code className="break-all">{flag.key}</code>
           </span>
           <Button onClick={handleSubmit} disabled={isPending || !hasChanges}>
             {isPending ? "Guardando..." : "Guardar"}

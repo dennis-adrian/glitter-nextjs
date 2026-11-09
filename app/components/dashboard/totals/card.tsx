@@ -19,7 +19,7 @@ export default function TotalsCard({
   Icon?: LucideIcon;
 }) {
   return (
-    <div className="p-4 border rounded-lg w-full flex-1 min-w-[320px]">
+    <div className="p-4 border rounded-lg w-full flex-1 min-w-0 sm:min-w-[320px]">
       <div className="flex justify-around items-center">
         <div className="capitalize text-muted-foreground">{title}</div>
         <div className="font-bold text-xl">{amount}</div>

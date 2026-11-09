@@ -56,7 +56,12 @@ export default function ListOriginCard({
       </div>
       {origin.source && !readOnly && (
         <>
-          <Button type="button" variant="outline" onClick={() => setOpen(true)}>
+          <Button
+            type="button"
+            variant="outline"
+            wrap
+            onClick={() => setOpen(true)}
+          >
             <DownloadIcon className="mr-2 h-4 w-4" aria-hidden />
             {pullButtonLabel(origin.name)}
           </Button>

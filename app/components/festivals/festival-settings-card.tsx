@@ -424,7 +424,7 @@ export default function FestivalSettingsCard({
                     Descargar QR
                   </a>
                 </Button>
-                <Button asChild size="sm" variant="ghost">
+                <Button asChild size="sm" variant="ghost" wrap>
                   <Link
                     href={`/festivals/${festival.id}/event_day_registration`}
                     target="_blank"

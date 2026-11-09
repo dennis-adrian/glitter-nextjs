@@ -72,10 +72,10 @@ export default function RestrictedDashboard({ profile, status }: Props) {
   return (
     <div className="container p-3 md:p-6">
       <div>
-        <div className="flex items-start justify-between">
-          <div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
             <VerificationStatusLabel status={status} />
-            <h1 className="font-bold tracking-tight text-3xl md:text-5xl">
+            <h1 className="break-words font-bold tracking-tight text-3xl md:text-5xl">
               Hola, {profile.firstName ?? profile.displayName ?? "artista"}
             </h1>
           </div>

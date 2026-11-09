@@ -115,7 +115,7 @@ function Kpi({
       </span>
       <span
         className={cn(
-          "font-display text-2xl font-bold tabular-nums md:text-3xl",
+          "font-display text-2xl font-bold tabular-nums break-words md:text-3xl",
           lead && "text-primary",
         )}
       >
@@ -525,7 +525,7 @@ function Discounts({ finance }: { finance: FestivalFinance }) {
             {rows.map((row) => (
               <li key={row.key} className="flex items-center gap-3 py-3 text-sm">
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className={cn(row.mono && "font-mono text-[13px]")}>{row.name}</span>
+                  <span className={cn(row.mono && "font-mono text-[13px] break-all")}>{row.name}</span>
                   <span className="text-xs text-muted-foreground">
                     {row.kind} · {row.uses} {row.uses === 1 ? "uso" : "usos"}
                   </span>

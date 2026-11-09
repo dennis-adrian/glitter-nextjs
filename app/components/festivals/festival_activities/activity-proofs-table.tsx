@@ -422,7 +422,7 @@ export default function ActivityProofsTable({
               key={participant.id}
               className={`rounded-md border p-3 space-y-2 ${isRemoved ? "opacity-60" : ""}`}
             >
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <span className="text-xs text-muted-foreground shrink-0">
                     {index + 1}
@@ -438,7 +438,7 @@ export default function ActivityProofsTable({
                   </Avatar>
                   <div className="min-w-0">
                     <p
-                      className={`text-sm font-medium truncate ${isRemoved ? "line-through text-muted-foreground" : ""}`}
+                      className={`text-sm font-medium break-words ${isRemoved ? "line-through text-muted-foreground" : ""}`}
                     >
                       {participant.user.displayName ?? "—"}
                     </p>

@@ -131,9 +131,9 @@ export default function VenuesManager({ venues }: Props) {
                   className="flex items-center justify-between gap-3 rounded-md bg-muted/50 px-3 py-2"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{venue.name}</p>
+                    <p className="text-sm font-medium break-words">{venue.name}</p>
                     {venue.address ? (
-                      <p className="truncate text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground break-words">
                         {venue.address}
                       </p>
                     ) : null}

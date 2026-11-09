@@ -74,7 +74,7 @@ export default async function InfractionDetailPage({
           <p className="font-medium">
             {participantDisplayName(infraction.user)}
           </p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground break-all">
             {infraction.user.email}
           </p>
           <div className="flex flex-wrap gap-3 text-sm">

@@ -54,7 +54,13 @@ export default function BuyDebtCreditsButton({
   }
 
   return (
-    <Button type="button" onClick={buyCredits} disabled={isPending}>
+    <Button
+      type="button"
+      // The label carries the amount owed; the alert it sits in is narrow.
+      wrap
+      onClick={buyCredits}
+      disabled={isPending}
+    >
       {isPending
         ? "Preparando la compra..."
         : `Regularizar ${formatCreditCount(debtAmount)}`}

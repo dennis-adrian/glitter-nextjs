@@ -723,7 +723,7 @@ export default function BundleForm({
         </Button>
         {bundle &&
           (confirmingDelete ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm">¿Eliminar este combo?</span>
               <Button
                 type="button"

@@ -744,7 +744,7 @@ function Partners({
                 <p className="text-xs text-brand-neutral">{cta.emailLabel}</p>
                 <a
                   href={`mailto:${cta.email}`}
-                  className="font-display text-lg font-bold text-brand-ink underline-offset-4 hover:underline sm:text-xl"
+                  className="wrap-anywhere font-display text-lg font-bold text-brand-ink underline-offset-4 hover:underline sm:text-xl"
                 >
                   {cta.email}
                 </a>

@@ -254,7 +254,7 @@ export default function FestivalNavMap({
       {/* Compact header */}
       {!embedded ? (
         <div className="px-4">
-          <h1 className="truncate text-base font-semibold">{festivalName}</h1>
+          <h1 className="break-words text-base font-semibold">{festivalName}</h1>
           <p className="text-xs text-muted-foreground">Mapa del festival</p>
         </div>
       ) : null}

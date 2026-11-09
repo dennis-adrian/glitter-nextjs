@@ -118,7 +118,7 @@ export default function PublicMapStandCard({
 							/>
 						</Avatar>
 						<div className="flex-1 min-w-0">
-							<h3 className="text-xl font-bold text-foreground mb-0.5 truncate">
+							<h3 className="text-xl font-bold text-foreground mb-0.5 break-words">
 								{currentParticipant.displayName}
 							</h3>
 							<p className="text-sm text-muted-foreground">

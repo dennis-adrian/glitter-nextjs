@@ -208,7 +208,7 @@ export default async function OrderDetailPage({
             </CardHeader>
             <CardContent className="space-y-1 text-sm">
               <p className="font-medium">{customerName}</p>
-              <p className="text-muted-foreground">{customerEmail}</p>
+              <p className="text-muted-foreground break-all">{customerEmail}</p>
               <p className="text-muted-foreground">{customerPhone}</p>
               {!order.customer && (
                 <p className="text-xs text-muted-foreground mt-1">

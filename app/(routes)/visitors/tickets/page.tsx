@@ -121,7 +121,9 @@ export default async function Page(props: {
                 className="flex flex-wrap items-center justify-between gap-2 p-3"
               >
                 <div className="min-w-0">
-                  <p className="truncate font-medium">{entry.festival.name}</p>
+                  <p className="break-words font-medium">
+                    {entry.festival.name}
+                  </p>
                   <p className="text-sm text-muted-foreground">
                     {formatDisplayDate(entry.date, DateTime.DATE_MED)} ·{" "}
                     {entry.code}

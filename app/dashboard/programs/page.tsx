@@ -111,7 +111,12 @@ export default async function ProgramsDashboardPage() {
                         : "Borrador"}
                     </Badge>
                     {program.festival ? (
-                      <Badge variant="secondary">{program.festival.name}</Badge>
+                      <Badge
+                        variant="secondary"
+                        className="max-w-full whitespace-normal"
+                      >
+                        {program.festival.name}
+                      </Badge>
                     ) : null}
                   </div>
                   <CardTitle>
