@@ -358,7 +358,7 @@ export default function SessionPageContent({
           </div>
 
           <section id="horarios" tabIndex={-1} className="scroll-mt-28">
-            <div className="rounded-2xl border border-brand-ink/10 bg-brand-card p-5 sm:p-7 lg:sticky lg:top-[calc(85px+var(--top-chrome-extra,0px)+1.5rem)]">
+            <div className="rounded-2xl border border-brand-ink/10 bg-brand-card p-5 sm:p-7 lg:sticky lg:top-[calc(var(--app-header-height)+var(--top-chrome-extra,0px)+1.5rem)]">
               <h2 className="mb-2 font-display text-2xl font-extrabold tracking-[-0.5px] sm:text-3xl">
                 Elegí un horario
               </h2>

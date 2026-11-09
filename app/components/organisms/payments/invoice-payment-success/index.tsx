@@ -78,7 +78,7 @@ export default function InvoicePaymentSuccess(
       {products.length > 0 && (
         <div className="flex flex-col gap-4">
           <div ref={sentinelRef} />
-          <div className="sticky top-[calc(4rem+var(--top-chrome-extra,0px))] md:top-[calc(5rem+var(--top-chrome-extra,0px))] z-40 bg-background border-b py-3 flex items-center justify-between">
+          <div className="sticky top-[calc(var(--app-header-height)+var(--top-chrome-extra,0px))] z-40 bg-background border-b py-3 flex items-center justify-between">
             <div
               key={isSticky ? 1 : 0}
               className="animate-in fade-in-0 slide-in-from-top-1 duration-200"
