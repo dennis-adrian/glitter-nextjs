@@ -122,9 +122,9 @@ export default function AppTabBar({ tabs }: { tabs: NavLink[] }) {
     <nav
       data-app-tabbar=""
       aria-label="Navegación principal"
-      className="fixed inset-x-0 bottom-0 z-40 hidden border-t border-brand-border bg-brand-elevated/95 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] backdrop-blur standalone:max-lg:block"
+      className="fixed inset-x-0 bottom-0 z-40 hidden h-(--app-tabbar-height) border-t border-brand-border bg-brand-elevated/95 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] backdrop-blur standalone:max-lg:block"
     >
-      <ul className="mx-auto flex h-16 max-w-xl items-stretch px-2">
+      <ul className="mx-auto flex h-full max-w-xl items-stretch px-2">
         {tabs.map((tab) => {
           const active = tab.key === activeKey;
           const Icon = tab.icon;
