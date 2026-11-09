@@ -42,6 +42,22 @@ describe("Ayuda", () => {
     expectContactLinks();
   });
 
+  it.each([/Escribinos/, /Instalá la app/, /Instagram/, /TikTok/, /Facebook/])(
+    "closes the sidebar popover when %s is followed",
+    (name) => {
+      render(<SidebarHelp collapsed={false} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Ayuda" }));
+      fireEvent.click(screen.getByRole("link", { name }));
+      expect(screen.queryByRole("link", { name: /Escribinos/ })).toBeNull();
+      expect(
+        screen
+          .getByRole("button", { name: "Ayuda" })
+          .getAttribute("aria-expanded"),
+      ).toBe("false");
+    },
+  );
+
   it("keeps its name on the collapsed rail", () => {
     render(<SidebarHelp collapsed />);
 
@@ -54,6 +70,9 @@ describe("Ayuda", () => {
 
     expect(screen.getByRole("dialog", { name: "Ayuda" })).toBeTruthy();
     fireEvent.click(screen.getByRole("link", { name: /Instalá la app/ }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    onOpenChange.mockClear();
+    fireEvent.click(screen.getByRole("link", { name: /Instagram/ }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 
 import { CircleHelpIcon, DownloadIcon, MailIcon } from "lucide-react";
 
@@ -73,7 +74,13 @@ function HelpRow({
 }
 
 /** "Seguinos" and the three networks, as icon buttons. */
-export function HelpSocialLinks({ className }: { className?: string }) {
+export function HelpSocialLinks({
+  onNavigate,
+  className,
+}: {
+  onNavigate?: () => void;
+  className?: string;
+}) {
   return (
     <div className={cn("flex items-center justify-between gap-3", className)}>
       <span className="text-sm text-brand-neutral">Seguinos</span>
@@ -85,6 +92,7 @@ export function HelpSocialLinks({ className }: { className?: string }) {
               target="_blank"
               rel="noopener noreferrer"
               aria-label={`${social.label} (se abre en otra pestaña)`}
+              onClick={onNavigate}
               className="inline-flex size-11 items-center justify-center rounded-full border border-brand-border bg-brand-card text-brand-ink transition-colors hover:bg-brand-lavender hover:text-brand-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
             >
               <SocialIcon network={social.network} className="size-5" />
@@ -116,7 +124,10 @@ export function HelpEmailRow({
   );
 }
 
-/** What the popover and the bottom sheet hold. */
+/**
+ * What the popover and the bottom sheet hold. `onNavigate` closes whichever
+ * holds it once a link is followed, a new tab included.
+ */
 export function HelpContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex flex-col gap-0.5">
@@ -131,15 +142,17 @@ export function HelpContent({ onNavigate }: { onNavigate?: () => void }) {
         className="standalone:hidden"
       />
       <div className="mx-1 my-1.5 h-px bg-brand-border" />
-      <HelpSocialLinks className="px-3 pb-1 pt-1" />
+      <HelpSocialLinks onNavigate={onNavigate} className="px-3 pb-1 pt-1" />
     </div>
   );
 }
 
 /** The desktop sidebar's "Ayuda": an entry at its foot that opens a popover. */
 export function SidebarHelp({ collapsed }: { collapsed: boolean }) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         title={collapsed ? HELP_LABEL : undefined}
         className={cn(
@@ -162,7 +175,7 @@ export function SidebarHelp({ collapsed }: { collapsed: boolean }) {
         <p className="px-3 pb-1.5 pt-2 font-display text-base font-bold text-brand-ink">
           {HELP_LABEL}
         </p>
-        <HelpContent />
+        <HelpContent onNavigate={() => setOpen(false)} />
       </PopoverContent>
     </Popover>
   );
