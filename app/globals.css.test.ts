@@ -58,10 +58,43 @@ describe("the installed app's styles", () => {
   });
 
   it("let the impersonation banner take the safe area in a marked window too", () => {
-    const rule = rulesFor(
-      `body:has([data-impersonation-banner]) [data-screen-bar]${MARK}`,
-    ).join("");
-    expect(rule).toContain("height:76px");
-    expect(rule).toContain("padding-top:0");
+    expect(
+      rulesFor(
+        `body:has([data-impersonation-banner]) [data-screen-bar]${MARK}`,
+      ).join(""),
+    ).toContain("padding-top:0");
+    expect(
+      rulesFor(
+        `body:has([data-impersonation-banner]):has([data-screen-bar])${MARK}`,
+      ).join(""),
+    ).toContain("--app-header-height:76px");
+  });
+
+  it("make exactly the tab bar's height of room, border and home indicator included", () => {
+    expect(css).toMatch(
+      /--app-tabbar-height:calc\(4rem \+ 1px \+ env\(safe-area-inset-bottom\)\)/,
+    );
+    const rule = rulesFor(`body:has([data-app-tabbar])${MARK}`).join("");
+    expect(rule).toContain("--app-bottom-chrome:var(--app-tabbar-height)");
+    expect(rule).toContain("padding-bottom:var(--app-bottom-chrome)");
+  });
+
+  it("size the header's place to the top bar, status bar included, on a deep screen", () => {
+    expect(rulesFor(`body:has([data-screen-bar])${MARK}`).join("")).toContain(
+      "--app-header-height:calc(76px + env(safe-area-inset-top))",
+    );
+  });
+
+  it("size the dashboard's box to the viewport between the bars, growing with a long page", () => {
+    const box = css.match(/\[data-app-viewport\]\{[^}]*\}/)?.[0] ?? "";
+    expect(box).toContain("var(--app-header-height)");
+    expect(box).toContain("var(--app-bottom-chrome,0px)");
+    expect(box).toContain("min-height:var(--app-viewport-height)");
+    expect(
+      rulesFor("[data-app-viewport]:has(>.flex-1.min-h-0)").join(""),
+    ).toContain("height:var(--app-viewport-height)");
+    expect(rulesFor(".bottom-app-chrome").join("")).toContain(
+      "bottom:var(--app-bottom-chrome,0px)",
+    );
   });
 });

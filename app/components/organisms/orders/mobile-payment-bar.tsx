@@ -154,7 +154,7 @@ export default function MobilePaymentBar({
   if (phase === "done") return null;
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-background border-t">
+    <div className="md:hidden fixed bottom-app-chrome left-0 right-0 z-40 bg-background border-t">
       <input
         ref={fileInputRef}
         type="file"

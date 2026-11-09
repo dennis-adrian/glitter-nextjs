@@ -209,7 +209,7 @@ export default async function UserOrderPage(props: {
       </div>
       {/* Mobile sticky action bar */}
       {canPay && (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-card border-t shadow-lg px-4 py-3 z-10">
+        <div className="lg:hidden fixed bottom-app-chrome left-0 right-0 bg-card border-t shadow-lg px-4 py-3 z-10">
           <div className="flex flex-col gap-2">
             <Button
               asChild

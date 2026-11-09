@@ -558,10 +558,11 @@ export default function OrdersCardList({
       {selectionMode && (
         <div
           // Bleeds to the edges of the store layout, which is px-3 / md:px-6.
-          className="sticky bottom-0 z-30 -mx-3 flex flex-col gap-2 border-t bg-background px-3 pt-3 sm:flex-row sm:items-center sm:justify-between md:-mx-6 md:px-6"
+          className="sticky bottom-app-chrome z-30 -mx-3 flex flex-col gap-2 border-t bg-background px-3 pt-3 sm:flex-row sm:items-center sm:justify-between md:-mx-6 md:px-6"
           // Keeps the actions clear of the iOS home indicator.
           style={{
-            paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
+            paddingBottom:
+              "max(0.75rem, var(--app-bottom-safe-area, env(safe-area-inset-bottom)))",
           }}
         >
           <button

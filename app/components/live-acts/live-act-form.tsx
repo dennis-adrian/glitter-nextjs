@@ -248,7 +248,7 @@ export default function LiveActForm() {
             />
           </div>
 
-          <div className="fixed bottom-0 left-0 right-0 border-t bg-background p-4 md:relative md:bottom-auto md:left-auto md:right-auto md:border-0 md:bg-transparent md:p-0">
+          <div className="fixed bottom-app-chrome left-0 right-0 border-t bg-background p-4 md:relative md:bottom-auto md:left-auto md:right-auto md:border-0 md:bg-transparent md:p-0">
             <Button
               type="submit"
               disabled={isLoading}
