@@ -54,6 +54,7 @@ export const SCREENS: Record<string, ScreenDef> = {
   // Más and its pages
   "/menu/programas": { title: "Programas", parent: MENU },
   "/menu/configuracion": { title: "Configuración", parent: MENU },
+  "/contacto": { title: "Contacto", parent: MENU },
   "/my_orders": { title: "Mis pedidos", parent: MENU },
   "/my_credits": { title: "Mis créditos", parent: MENU },
   "/my_credits/[topUpId]": {

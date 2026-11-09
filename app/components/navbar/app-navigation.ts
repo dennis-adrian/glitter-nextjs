@@ -16,6 +16,7 @@ import {
   MailXIcon,
   MegaphoneIcon,
   MenuIcon,
+  MessageCircleIcon,
   MicIcon,
   PackageIcon,
   QrCodeIcon,
@@ -149,6 +150,18 @@ export const PORTAL_HREF = "/portal";
 /** The festival in progress, or the archive when none is. */
 export const FESTIVALS_HREF = "/festivals";
 export const MORE_MENU_HREF = "/menu";
+export const CONTACT_HREF = "/contacto";
+
+/**
+ * The site footer's contact, for signed-in screens, which have no footer. The
+ * sidebar and the phone menu end with it; Más shows the contact itself.
+ */
+export const CONTACT_LINK: NavLink = {
+  key: "contact",
+  label: "Contacto",
+  href: CONTACT_HREF,
+  icon: MessageCircleIcon,
+};
 
 function isVerified(viewer: NavViewer | null) {
   return viewer?.status === "verified";
@@ -681,6 +694,7 @@ function buildStaffNavigation(
       // Whatever a destination tab does not own, including their account.
       activePrefixes: [
         MORE_MENU_HREF,
+        CONTACT_HREF,
         "/dashboard",
         "/my_profile",
         "/my_orders",
@@ -777,6 +791,7 @@ function buildStaffNavigation(
 /** Pages a signed-in person reaches through "Más", so its tab stays lit there. */
 const MORE_PREFIXES = [
   MORE_MENU_HREF,
+  CONTACT_HREF,
   "/my_orders",
   "/my_credits",
   "/my_history",

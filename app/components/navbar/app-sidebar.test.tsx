@@ -98,6 +98,15 @@ describe("AppSidebar", () => {
     ).toBe("/dashboard/festivals");
   });
 
+  it("ends with Contacto for participants and staff, outside the account menu", () => {
+    for (const viewer of [participant, admin]) {
+      const { unmount } = renderSidebar(viewer);
+      const link = screen.getByRole("link", { name: "Contacto" });
+      expect(link.getAttribute("href")).toBe("/contacto");
+      unmount();
+    }
+  });
+
   it("marks the current page", () => {
     pathnameMock.mockReturnValue("/my_credits");
     renderSidebar();

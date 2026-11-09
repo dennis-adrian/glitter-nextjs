@@ -12,6 +12,7 @@ import { ThemeSegmentedControl } from "@/app/components/mode-toggle";
 import {
   buildAppNavigation,
   buildPublicNavigation,
+  CONTACT_LINK,
   mostSpecificActiveKey,
   type StaffFestival,
   isNavLinkActive,
@@ -247,6 +248,11 @@ const MobileSidebar = ({
           )}
           {isSignedIn && (
             <>
+              {/* The site footer is for visitors only, so its contact is
+                  reached from here. */}
+              <ul className="mt-4 flex flex-col">
+                <SheetLink link={CONTACT_LINK} pathname={pathname} />
+              </ul>
               <Separator className="my-2" />
               <SheetClose asChild>
                 <Button

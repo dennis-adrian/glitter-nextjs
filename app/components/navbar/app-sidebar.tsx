@@ -22,6 +22,7 @@ import {
   ThemeSegmentedControl,
 } from "@/app/components/mode-toggle";
 import {
+  CONTACT_LINK,
   IMPERSONATE_HREF,
   isNavLinkActive,
   mostSpecificActiveKey,
@@ -39,7 +40,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/app/components/ui/dropdown-menu";
-import ContactMenuItems from "@/app/components/user_dropdown/contact-menu-items";
 import SignOutButton from "@/app/components/user_dropdown/sign-out-button";
 import { cn } from "@/app/lib/utils";
 
@@ -339,8 +339,6 @@ function AccountCard({
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuSeparator />
-        <ContactMenuItems />
-        <DropdownMenuSeparator />
         <SignOutButton />
       </DropdownMenuContent>
     </DropdownMenu>
@@ -466,6 +464,15 @@ export default function AppSidebar({
             </ul>
           </div>
         ))}
+        {/* After every group, where a footer's links would sit: the site
+            footer is for visitors only. */}
+        <ul className="mt-auto flex flex-col gap-0.5 pt-4">
+          <SidebarLink
+            link={CONTACT_LINK}
+            pathname={pathname}
+            collapsed={collapsed}
+          />
+        </ul>
       </nav>
 
       <div className="flex shrink-0 flex-col gap-2 border-t border-brand-border p-3">
