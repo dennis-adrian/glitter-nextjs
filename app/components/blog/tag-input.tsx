@@ -51,7 +51,11 @@ export default function TagInput({ value, onChange, max = 20 }: Props) {
       {value.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {value.map((t) => (
-            <Badge key={t} variant="secondary" className="pl-2 pr-1 py-1 gap-1">
+            <Badge
+              key={t}
+              variant="secondary"
+              className="pl-2 pr-1 py-1 gap-1 whitespace-normal break-words"
+            >
               {t}
               <button
                 type="button"

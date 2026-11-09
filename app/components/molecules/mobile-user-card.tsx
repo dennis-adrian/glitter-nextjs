@@ -157,8 +157,8 @@ export default function MobileUserCard({ user }: MobileUserCardProps) {
                 </p>
                 <div className="flex flex-col gap-1">
                   <div className="flex gap-3 items-center">
-                    <MailIcon className="w-4 h-4" />
-                    <span>{email}</span>
+                    <MailIcon className="w-4 h-4 shrink-0" />
+                    <span className="min-w-0 break-all">{email}</span>
                   </div>
                   {phoneNumber && (
                     <div className="flex gap-1 items-center">

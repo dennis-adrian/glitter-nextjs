@@ -129,7 +129,7 @@ export default function StoreNav({ pendingCount, isAdmin }: StoreNavProps) {
   return (
     <div
       data-sticky-top
-      className="sticky top-[calc(4rem+var(--top-chrome-extra,0px))] z-40 -mx-3 border-b bg-background/95 px-3 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 md:top-[calc(5rem+var(--top-chrome-extra,0px))] md:-mx-6 md:px-6"
+      className="sticky top-[calc(var(--app-header-height)+var(--top-chrome-extra,0px))] z-40 -mx-3 border-b bg-background/95 px-3 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 md:-mx-6 md:px-6"
     >
       <nav
         aria-label="Secciones de la tienda"

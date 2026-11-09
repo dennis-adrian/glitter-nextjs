@@ -442,7 +442,7 @@ export default function StandManageTable({
             />
           </div>
           {selectedIds.size > 0 && (
-            <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background px-4 py-3 shadow-lg">
+            <div className="fixed bottom-app-chrome left-0 right-0 z-50 border-t bg-background px-4 py-3 shadow-lg">
               <div className="mx-auto max-w-3xl">{bulkMenu}</div>
             </div>
           )}

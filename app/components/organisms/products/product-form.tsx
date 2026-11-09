@@ -1605,7 +1605,7 @@ export default function ProductForm({
           </aside>
         </div>
 
-        <div className="fixed bottom-0 left-0 right-0 border-t bg-background p-4 md:static md:border-0 md:bg-transparent md:p-0">
+        <div className="fixed bottom-app-chrome left-0 right-0 border-t bg-background p-4 md:static md:border-0 md:bg-transparent md:p-0">
           <div className="mx-auto flex max-w-7xl items-center gap-2">
             {/* The form already tracks this to gate Save; saying it out loud
                 is what tells you the draft is worth keeping. */}

@@ -340,7 +340,7 @@ export function AppScreenBar({ screen }: { screen: Screen }) {
   return (
     <div
       data-screen-bar=""
-      className="hidden h-[calc(76px+env(safe-area-inset-top))] grid-cols-[3.5rem_minmax(0,1fr)_3.5rem] items-center border-b border-brand-border bg-brand-elevated/95 px-2 pt-[env(safe-area-inset-top)] backdrop-blur standalone:max-lg:grid"
+      className="hidden h-(--app-header-height) grid-cols-[3.5rem_minmax(0,1fr)_3.5rem] items-center border-b border-brand-border bg-brand-elevated/95 px-2 pt-[env(safe-area-inset-top)] backdrop-blur standalone:max-lg:grid"
     >
       <BackButton close={close} onClick={back} />
       <p className="truncate text-center text-[17px] font-semibold text-brand-ink">

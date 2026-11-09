@@ -60,7 +60,7 @@ export default function StoreSubheader() {
       {isListingPage ? null : <ScreenAction>{barCart}</ScreenAction>}
       <div
         data-installed-hidden={isListingPage ? undefined : ""}
-        className="sticky top-[calc(77px+var(--top-chrome-extra,0px))] lg:top-[calc(85px+var(--top-chrome-extra,0px))] z-40 bg-background border-b"
+        className="sticky top-[calc(var(--app-header-height)+var(--top-chrome-extra,0px))] z-40 bg-background border-b"
       >
         <div className="container min-w-0 px-3 py-3 flex items-center justify-between">
           <div>

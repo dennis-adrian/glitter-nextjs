@@ -154,7 +154,7 @@ export default function FestivalNavStandDrawer({
                       />
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-bold truncate">
+                      <h3 className="text-lg font-bold break-words">
                         {currentParticipant.displayName}
                       </h3>
                       <p className="text-sm text-muted-foreground">

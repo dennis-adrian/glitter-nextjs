@@ -116,7 +116,12 @@ export default async function SessionDetailView({
               {SESSION_AUDIENCE_LABELS[session.audience]}
             </Badge>
             {session.festival ? (
-              <Badge variant="secondary">{session.festival.name}</Badge>
+              <Badge
+                variant="secondary"
+                className="max-w-full whitespace-normal"
+              >
+                {session.festival.name}
+              </Badge>
             ) : null}
           </div>
           <h1 className="text-2xl font-bold" data-installed-title="">

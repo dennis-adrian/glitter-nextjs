@@ -63,6 +63,35 @@ describe("canStartPull", () => {
     document.body.removeAttribute("data-scroll-locked");
   });
 
+  it("never starts behind a drawer, open or still sliding away", () => {
+    const target = () => document.getElementById("target");
+    // vaul's content as it renders: a Radix dialog marked as a drawer.
+    place(
+      '<main><p id="target">Hola</p></main><div role="dialog" data-state="open" data-vaul-drawer data-vaul-drawer-direction="bottom"></div>',
+    );
+    expect(canStartPull(target(), document)).toBe(false);
+    place(
+      '<main><p id="target">Hola</p></main><div role="dialog" data-state="closed" data-vaul-drawer></div>',
+    );
+    expect(canStartPull(target(), document)).toBe(false);
+  });
+
+  it("starts again while a closed drawer's stand-in slides away", () => {
+    const target = place(
+      '<main><p id="target">Hola</p></main><div data-drawer-ghost="content" aria-hidden="true" data-state="closed" style="pointer-events: none"></div>',
+    );
+    expect(canStartPull(target, document)).toBe(true);
+  });
+
+  it("never starts while a drawer pins the body at its scroll offset", () => {
+    const target = place('<main><p id="target">Hola</p></main>');
+    document.body.style.setProperty("position", "fixed", "important");
+    document.body.style.top = "-300px";
+    expect(canStartPull(target, document)).toBe(false);
+    document.body.removeAttribute("style");
+    expect(canStartPull(target, document)).toBe(true);
+  });
+
   it("never starts on a map or a pinch-zoom viewer", () => {
     expect(
       canStartPull(

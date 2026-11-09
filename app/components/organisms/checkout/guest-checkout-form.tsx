@@ -137,7 +137,7 @@ export function GuestCheckoutForm({
               </p>
             )}
 
-            <div className="fixed bottom-0 left-0 right-0 bg-background border-t px-4 py-4 z-40 md:static md:border-0 md:px-0 md:py-0 md:bg-transparent">
+            <div className="fixed bottom-app-chrome left-0 right-0 bg-background border-t px-4 py-4 z-40 md:static md:border-0 md:px-0 md:py-0 md:bg-transparent">
               <Button
                 type="submit"
                 disabled={loading || !!blockingMessage}

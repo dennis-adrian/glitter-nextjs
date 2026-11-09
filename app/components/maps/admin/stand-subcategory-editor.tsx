@@ -358,7 +358,7 @@ export default function StandSubcategoryEditor({
 
       {/* Sticky bulk action bar */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background shadow-lg px-4 py-3">
+        <div className="fixed bottom-app-chrome left-0 right-0 z-50 border-t bg-background shadow-lg px-4 py-3">
           <div className="max-w-3xl mx-auto flex items-center gap-3 flex-wrap">
             <span className="text-sm font-medium">
               {selectedIds.size} stand{selectedIds.size !== 1 ? "s" : ""}{" "}

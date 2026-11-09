@@ -144,7 +144,7 @@ export default function TermsForm({
               <span>{submitButtonLabel}</span>
             )}
           </Button>
-          <Button variant="outline" className="flex-1" asChild>
+          <Button variant="outline" wrap className="flex-1" asChild>
             <Link href="/">No quiero participar del festival</Link>
           </Button>
         </div>

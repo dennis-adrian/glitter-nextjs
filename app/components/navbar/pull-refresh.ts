@@ -40,13 +40,17 @@ export function canStartPull(
 ): boolean {
   if (!(target instanceof Element)) return false;
   // Something modal is open (a dialog, a confirmation, a sheet, a menu or a
-  // select): the pull belongs to it, or to nothing.
+  // select): the pull belongs to it, or to nothing. So does a drawer while it
+  // is mounted, and a body a drawer has pinned in place at its scroll offset
+  // (vaul in a Safari tab). A closed drawer's slide-out is an inert stand-in
+  // ([data-drawer-ghost]) and does not count: the page is back in hand.
   if (
     doc.querySelector(
-      '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [aria-modal="true"], [data-radix-popper-content-wrapper]',
+      '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [aria-modal="true"], [data-radix-popper-content-wrapper], [data-vaul-drawer]',
     ) ||
     doc.body.hasAttribute("data-scroll-locked") ||
-    doc.body.style.pointerEvents === "none"
+    doc.body.style.pointerEvents === "none" ||
+    doc.body.style.position === "fixed"
   ) {
     return false;
   }

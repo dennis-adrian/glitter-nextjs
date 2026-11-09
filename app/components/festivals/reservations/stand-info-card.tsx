@@ -535,6 +535,7 @@ export function StandInfoCard({
               </Button>
               <Button
                 type="button"
+                wrap
                 className="w-full"
                 onClick={
                   fullTableSelection.kind === "offer"

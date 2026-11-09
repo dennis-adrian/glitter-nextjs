@@ -321,7 +321,7 @@ export default function StandBulkActionsMenu({
           {count} espacio{count !== 1 ? "s" : ""} seleccionado
           {count !== 1 ? "s" : ""}
         </span>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="secondary" size="sm" disabled={pending}>
