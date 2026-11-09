@@ -2,6 +2,16 @@
 
 - Following the Conventional Commits guideline, write commit messages that briefly describe the staged changes. The commit message can be a one-liner subject, or a subject plus a body based on how large the diff is
 
+# Responsive UI
+
+- Every component and element must work at phone width (320–430px, often as the installed PWA) as well as on desktop. Nothing may run past its container or the screen.
+- Size every element for its longest real value, not the sample: festival, product and person names, amounts, dates, emails and interpolated strings.
+- `Button` is one line at a fixed height by default. Give it `wrap` (or `buttonVariants({ wrap: true })` on a link styled as a button) whenever its label carries data or is a long static string, so the label wraps and the button grows.
+- Give a text column `min-w-0` when it sits next to a fixed-width or `shrink-0` sibling.
+- Prefer wrapping to truncating. Truncate only when the full value is shown elsewhere on the same screen.
+- Emails, URLs and one-word names need `wrap-anywhere`; text with spaces needs `break-words`.
+- Wide tables go inside an `overflow-x-auto` wrapper.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know
