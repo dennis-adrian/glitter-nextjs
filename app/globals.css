@@ -552,10 +552,19 @@
 
 /* In a Safari tab, a drawer pins the body at its scroll offset and puts the
  * page back with a plain `window.scrollTo` as it closes, while the drawer is
- * still animating out. Smooth, that would slide the page down from its top.
- * Unlayered, so it wins over the base rule above. */
-html:has([data-vaul-drawer]) {
+ * still animating out (its stand-in, below). Smooth, that would slide the page
+ * down from its top. Unlayered, so it wins over the base rule above. */
+html:has([data-vaul-drawer], [data-drawer-ghost]) {
   scroll-behavior: auto;
+}
+
+/* A closing drawer and its overlay leave at once: with no exit animation,
+ * Radix unmounts them on the spot, and with them the scroll lock and the
+ * overlay that would otherwise hold the page for the 0.5s slide. An inert
+ * stand-in plays the slide instead (app/components/ui/drawer-exit.ts). */
+[data-slot="drawer-content"][data-state="closed"],
+[data-slot="drawer-overlay"][data-state="closed"] {
+  animation: none !important;
 }
 
 .cl-formButtonPrimary {

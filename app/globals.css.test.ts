@@ -98,3 +98,20 @@ describe("the installed app's styles", () => {
     );
   });
 });
+
+describe("a closing drawer", () => {
+  it("leaves at once, its slide played by an inert stand-in", () => {
+    // No exit animation on the real parts: Radix unmounts them, scroll lock
+    // and overlay included, the moment they close.
+    for (const part of ["drawer-content", "drawer-overlay"]) {
+      const rules = rulesFor(part).filter((rule) => rule.includes("closed"));
+      expect(rules.join("")).toMatch(/animation:none\s*!important/);
+    }
+  });
+
+  it("keeps the page's scroll restore instant while the stand-in plays", () => {
+    expect(rulesFor("data-drawer-ghost").join("")).toContain(
+      "scroll-behavior:auto",
+    );
+  });
+});
