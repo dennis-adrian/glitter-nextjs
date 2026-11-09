@@ -60,11 +60,11 @@ import {
   toastActionError,
 } from "@/app/lib/errors/action-error";
 
-function partnerDisabledReason(
-  denialCode: PartnerSearchResultDto["denialCode"],
-) {
-  if (!denialCode) return undefined;
-  return RESERVATION_ERROR_MESSAGES[denialCode];
+function partnerDisabledReason(partner: PartnerSearchResultDto) {
+  if (!partner.denialCode) return undefined;
+  return (
+    partner.denialMessage ?? RESERVATION_ERROR_MESSAGES[partner.denialCode]
+  );
 }
 
 type ThumbnailStand = {
@@ -252,7 +252,7 @@ export default function HoldConfirmationClient({
             value: String(p.id),
             imageUrl: p.imageUrl,
             disabled: !p.selectable,
-            disabledReason: partnerDisabledReason(p.denialCode),
+            disabledReason: partnerDisabledReason(p),
           })),
         );
       } finally {
@@ -271,7 +271,7 @@ export default function HoldConfirmationClient({
         value: String(partner.id),
         imageUrl: partner.imageUrl,
         disabled: !partner.selectable,
-        disabledReason: partnerDisabledReason(partner.denialCode),
+        disabledReason: partnerDisabledReason(partner),
       }),
     );
   }, [recentPartners]);

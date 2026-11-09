@@ -4,6 +4,7 @@ import {
   classifyPortion,
   type CreditBucket,
   type SpendAttribution,
+  type SpendPortion,
 } from "@/app/lib/festivals/finance/credit-attribution";
 import type { InvoiceTender } from "@/app/lib/payments/tender";
 import { roundMoney } from "@/app/lib/reservations/money";
@@ -131,6 +132,52 @@ function discountLabel(code: FinanceInvoice["discountCode"]) {
   return code.unit === "percentage" ? `${code.value}%` : `Bs${code.value}`;
 }
 
+/**
+ * The cash and credits a cobro kept once its repricing refund went back.
+ *
+ * A refund already returned to the participant is not collected. Like
+ * "Devolver créditos", it comes out of the credits first and then the cash,
+ * so the two always add up to `coveredAmount`.
+ */
+export function keptTender(tender: InvoiceTender): {
+  cash: number;
+  credits: number;
+} {
+  const refund = Math.max(0, tender.refundedAmount);
+  const refundedCredits = Math.min(tender.confirmedCreditAmount, refund);
+  const refundedCash = Math.min(
+    tender.approvedCashAmount,
+    roundMoney(refund - refundedCredits),
+  );
+  return {
+    cash: roundMoney(tender.approvedCashAmount - refundedCash),
+    credits: roundMoney(tender.confirmedCreditAmount - refundedCredits),
+  };
+}
+
+/**
+ * A cobro's credit portions with `refunded` taken back, newest first.
+ *
+ * The totals take a repricing refund out of the cobro's credits before its
+ * cash; the breakdown has to drop the same amount or its buckets add up to
+ * more than the credits it explains. Which credits went back is not recorded,
+ * so the last ones spent go first: the spends are ordered by ledger id and the
+ * portions inside each spend are already oldest first.
+ */
+function netRefundedCredits(
+  portions: readonly SpendPortion[],
+  refunded: number,
+): SpendPortion[] {
+  const out = portions.map((portion) => ({ ...portion }));
+  let remaining = refunded;
+  for (let i = out.length - 1; i >= 0 && remaining > 0; i--) {
+    const cut = Math.min(remaining, out[i].amount);
+    out[i].amount = roundMoney(out[i].amount - cut);
+    remaining = roundMoney(remaining - cut);
+  }
+  return out;
+}
+
 /** Everything the finance page shows, from one festival's billing rows. */
 export function summarizeFestivalFinance(
   input: FinanceInput,
@@ -146,8 +193,9 @@ export function summarizeFestivalFinance(
   const movable: MovablePortion[] = [];
   let fixedFestivalCredits = 0;
 
-  const addSpend = (spendId: number) => {
-    for (const portion of input.attribution.get(spendId) ?? []) {
+  const addPortions = (portions: readonly SpendPortion[]) => {
+    for (const portion of portions) {
+      if (portion.amount <= 0) continue;
       const bucket = classifyPortion(portion, input.festivalId, input.windowStart);
       credits[bucket] += portion.amount;
       const source = portion.source;
@@ -170,6 +218,8 @@ export function summarizeFestivalFinance(
       }
     }
   };
+  const addSpend = (spendId: number) =>
+    addPortions(input.attribution.get(spendId) ?? []);
 
   let reservations = 0;
   let gross = 0;
@@ -198,9 +248,20 @@ export function summarizeFestivalFinance(
 
     // Money that came in counts wherever it sits; a cancelled reservation
     // whose payment was kept still paid it.
-    directPayment += tender.approvedCashAmount;
-    invoiceCredits += tender.confirmedCreditAmount;
-    invoice.creditSpendIds.forEach(addSpend);
+    const kept = keptTender(tender);
+    const refundedCredits = roundMoney(
+      tender.confirmedCreditAmount - kept.credits,
+    );
+    directPayment += kept.cash;
+    invoiceCredits += kept.credits;
+    addPortions(
+      netRefundedCredits(
+        [...invoice.creditSpendIds]
+          .sort((a, b) => a - b)
+          .flatMap((spendId) => input.attribution.get(spendId) ?? []),
+        refundedCredits,
+      ),
+    );
 
     if (!live) {
       inactiveCollected += tender.coveredAmount;
