@@ -259,4 +259,48 @@ describe("FestivalReservationsOpenCard", () => {
     // Still open, and the button works again.
     await waitFor(() => expect(button("Enviar aviso").disabled).toBe(false));
   });
+
+  it("says so when the count fails, instead of loading forever", async () => {
+    fetchReservationsOpenAudience.mockRejectedValue(new Error("network"));
+    renderCard({ notices: [notice] });
+
+    fireEvent.click(button(/Volver a enviar/));
+    expect(
+      await screen.findByText(
+        "No se pudo calcular a quiénes se enviará el aviso.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Calculando destinatarios/)).toBeNull();
+    expect(button("Enviar aviso").disabled).toBe(true);
+  });
+
+  it("ignores a count that arrives for a dialog opened before", async () => {
+    let answerFirst: (value: unknown) => void = () => {};
+    fetchReservationsOpenAudience
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (answerFirst = resolve)),
+      )
+      .mockResolvedValueOnce({
+        success: true,
+        audience: { recipients: 80, withPush: 25 },
+      });
+    renderCard({ notices: [notice] });
+
+    fireEvent.click(button(/Volver a enviar/));
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    fireEvent.click(button(/Volver a enviar/));
+    expect(
+      await screen.findByText(/80 participantes verificados/),
+    ).toBeTruthy();
+
+    // The first dialog's answer, late.
+    answerFirst({
+      success: true,
+      audience: { recipients: 3, withPush: 0 },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.getByText(/80 participantes verificados/)).toBeTruthy();
+    expect(screen.queryByText(/3 participantes verificados/)).toBeNull();
+  });
 });

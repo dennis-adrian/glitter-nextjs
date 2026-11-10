@@ -3,7 +3,7 @@
 import { BellRingIcon, InfoIcon, Loader2Icon, SendIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
-import { type ReactNode, useId, useState } from "react";
+import { type ReactNode, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -93,6 +93,8 @@ export default function FestivalReservationsOpenCard({
   );
   const [audienceError, setAudienceError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  /** The dialog the audience count is for; an older answer is dropped. */
+  const currentDialog = useRef<string | null>(null);
 
   const opening = formatDisplayDate(
     reservationsStartDate,
@@ -147,14 +149,23 @@ export default function FestivalReservationsOpenCard({
 
   async function openDialog() {
     // One id per dialog: a double click on "Enviar" is one send.
-    setRequestId(crypto.randomUUID());
+    const id = crypto.randomUUID();
+    currentDialog.current = id;
+    setRequestId(id);
     setSendChannels(settings.channels);
     setAudience(null);
     setAudienceError(null);
     setDialogOpen(true);
-    const result = await fetchReservationsOpenAudience(festivalId);
-    if (result.success) setAudience(result.audience);
-    else setAudienceError(result.message);
+    try {
+      const result = await fetchReservationsOpenAudience(festivalId);
+      // A dialog opened since answers for itself.
+      if (currentDialog.current !== id) return;
+      if (result.success) setAudience(result.audience);
+      else setAudienceError(result.message);
+    } catch {
+      if (currentDialog.current !== id) return;
+      setAudienceError("No se pudo calcular a quiénes se enviará el aviso.");
+    }
   }
 
   async function send() {
