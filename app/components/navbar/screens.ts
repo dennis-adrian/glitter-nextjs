@@ -539,6 +539,10 @@ export const SCREENS: Record<string, ScreenDef> = {
   },
   "/dashboard/feature_flags": { title: "Funcionalidades", ...SETTINGS_PARENT },
   "/dashboard/emails": { title: "Correos bloqueados", ...SETTINGS_PARENT },
+  "/dashboard/notifications": {
+    title: "Notificaciones enviadas",
+    ...SETTINGS_PARENT,
+  },
   "/dashboard/blog": { title: "Blog", ...SETTINGS_PARENT },
   "/dashboard/blog/review": {
     title: "Cola de revisión",
