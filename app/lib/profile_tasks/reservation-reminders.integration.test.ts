@@ -258,6 +258,22 @@ describeDatabase("reservation payment reminders", () => {
     expect(await itemsFor(user.id)).toHaveLength(2);
   });
 
+  it("does not remind once the payment deadline has passed", async () => {
+    sendEmail.mockResolvedValue({ data: { id: "email-1" }, error: null });
+    const { user, task } = await makeReservation();
+    await integrationDb!
+      .update(scheduledTasks)
+      .set({ dueDate: new Date(Date.now() - 1000) })
+      .where(eq(scheduledTasks.id, task.id));
+
+    const sent = await handlers.handleReservationReminderEmails();
+    expect(sent.map((row) => row.id)).not.toContain(task.id);
+    expect(sendEmail).not.toHaveBeenCalledWith(
+      expect.objectContaining({ to: [user.email] }),
+    );
+    expect(await itemsFor(user.id)).toEqual([]);
+  });
+
   it("does not remind a reservation whose voucher is in", async () => {
     sendEmail.mockResolvedValue({ data: { id: "email-1" }, error: null });
     const { user } = await makeReservation("verification_payment");
