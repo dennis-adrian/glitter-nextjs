@@ -25,6 +25,15 @@ vi.mock("@/app/lib/posts/anonymization", () => ({
   detachPostsForDeletedUser: vi.fn(),
 }));
 
+// The payment reminder's in-app copy; these tests never reach it, and the
+// real modules read the environment on import.
+vi.mock("@/app/lib/notifications/notify", () => ({
+  notify: vi.fn(),
+}));
+vi.mock("@/app/lib/notifications/deliveries", () => ({
+  scheduleNotificationDeliveries: vi.fn(),
+}));
+
 vi.mock("@/app/vendors/resend", () => ({
   sendEmail: sendEmailMock,
 }));

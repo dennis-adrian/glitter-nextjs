@@ -12,6 +12,12 @@ vi.mock("@/app/lib/comunicados/delivery", () => ({
 vi.mock("@/app/lib/comunicados/contact-delivery", () => ({
   comunicadoContactBatchRenderer: {},
 }));
+vi.mock("@/app/lib/festivals/festival-notice-delivery", () => ({
+  RESERVATIONS_OPEN_TEMPLATE_KEY: "festival_reservations_open",
+  reservationsOpenBatchRenderer: {},
+  STANDS_AVAILABLE_TEMPLATE_KEY: "festival_stands_available",
+  standsAvailableBatchRenderer: {},
+}));
 
 import {
   BULK_TIMING,

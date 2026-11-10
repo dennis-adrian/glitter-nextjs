@@ -2178,6 +2178,13 @@
       "when": 1794172967044,
       "tag": "0311_finance_festival_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 312,
+      "version": "7",
+      "when": 1794280287553,
+      "tag": "0312_reservation_notices",
+      "breakpoints": true
     }
   ]
 }
