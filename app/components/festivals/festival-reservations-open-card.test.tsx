@@ -237,4 +237,26 @@ describe("FestivalReservationsOpenCard", () => {
     expect(input.requestId).toMatch(/^[0-9a-f-]{36}$/);
     expect(updateReservationsOpenNoticeSettings).not.toHaveBeenCalled();
   });
+
+  it("says so when the send fails, and lets the admin try again", async () => {
+    fetchReservationsOpenAudience.mockResolvedValue({
+      success: true,
+      audience: { recipients: 80, withPush: 25 },
+    });
+    resendReservationsOpenNotice.mockRejectedValue(new Error("network"));
+    renderCard({ notices: [notice] });
+
+    fireEvent.click(button(/Volver a enviar/));
+    await screen.findByText(/80 participantes verificados/);
+    fireEvent.click(button("Enviar aviso"));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "No se pudo enviar el aviso. Inténtalo nuevamente.",
+      ),
+    );
+    expect(refresh).not.toHaveBeenCalled();
+    // Still open, and the button works again.
+    await waitFor(() => expect(button("Enviar aviso").disabled).toBe(false));
+  });
 });

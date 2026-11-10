@@ -183,6 +183,8 @@ export default function FestivalReservationsOpenCard({
       }
       setDialogOpen(false);
       router.refresh();
+    } catch {
+      toast.error("No se pudo enviar el aviso. Inténtalo nuevamente.");
     } finally {
       setSending(false);
     }
