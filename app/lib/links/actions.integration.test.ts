@@ -23,7 +23,7 @@ import { siteLinks, siteLinksSettings } from "@/db/schema";
  *
  * `site_links` has no owner column to scope a test by, so the suite takes the
  * two tables over: it empties them before each test and puts back what was
- * there (the rows migration 0312 seeds) when it ends.
+ * there (the rows migration 0313 seeds) when it ends.
  */
 
 const currentProfileMock = vi.hoisted(() => vi.fn());

@@ -1,5 +1,5 @@
 {
-  "id": "e53e45f7-d323-4f8e-8c24-c570412aebc4",
+  "id": "d6e80790-6106-45cf-b383-544108e2e0b3",
   "prevId": "15083d74-b64f-4155-bd6e-3dc3a311aa21",
   "version": "7",
   "dialect": "postgresql",
@@ -4887,6 +4887,189 @@
       },
       "isRLSEnabled": false
     },
+    "public.festival_reservations_open_notices": {
+      "name": "festival_reservations_open_notices",
+      "schema": "",
+      "columns": {
+        "campaign_id": {
+          "name": "campaign_id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "festival_id": {
+          "name": "festival_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trigger": {
+          "name": "trigger",
+          "type": "reservations_open_notice_trigger",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reservations_start_date": {
+          "name": "reservations_start_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "env": {
+          "name": "env",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "in_app": {
+          "name": "in_app",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "push": {
+          "name": "push",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "recipients": {
+          "name": "recipients",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "emails": {
+          "name": "emails",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "pushes": {
+          "name": "pushes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "festival_reservations_open_notices_automatic_unique": {
+          "name": "festival_reservations_open_notices_automatic_unique",
+          "columns": [
+            {
+              "expression": "festival_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "reservations_start_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"festival_reservations_open_notices\".\"trigger\" = 'automatic'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "festival_reservations_open_notices_festival_idx": {
+          "name": "festival_reservations_open_notices_festival_idx",
+          "columns": [
+            {
+              "expression": "festival_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "festival_reservations_open_notices_campaign_id_notification_campaigns_id_fk": {
+          "name": "festival_reservations_open_notices_campaign_id_notification_campaigns_id_fk",
+          "tableFrom": "festival_reservations_open_notices",
+          "tableTo": "notification_campaigns",
+          "columnsFrom": [
+            "campaign_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "festival_reservations_open_notices_festival_id_festivals_id_fk": {
+          "name": "festival_reservations_open_notices_festival_id_festivals_id_fk",
+          "tableFrom": "festival_reservations_open_notices",
+          "tableTo": "festivals",
+          "columnsFrom": [
+            "festival_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "festival_reservations_open_notices_created_by_user_id_users_id_fk": {
+          "name": "festival_reservations_open_notices_created_by_user_id_users_id_fk",
+          "tableFrom": "festival_reservations_open_notices",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.festival_sectors": {
       "name": "festival_sectors",
       "schema": "",
@@ -5002,6 +5185,158 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.festival_stands_available_reminders": {
+      "name": "festival_stands_available_reminders",
+      "schema": "",
+      "columns": {
+        "campaign_id": {
+          "name": "campaign_id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "festival_id": {
+          "name": "festival_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "audience": {
+          "name": "audience",
+          "type": "stands_available_audience",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "env": {
+          "name": "env",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "in_app": {
+          "name": "in_app",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "push": {
+          "name": "push",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recipients": {
+          "name": "recipients",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "emails": {
+          "name": "emails",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "pushes": {
+          "name": "pushes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "festival_stands_available_reminders_festival_idx": {
+          "name": "festival_stands_available_reminders_festival_idx",
+          "columns": [
+            {
+              "expression": "festival_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "festival_stands_available_reminders_campaign_id_notification_campaigns_id_fk": {
+          "name": "festival_stands_available_reminders_campaign_id_notification_campaigns_id_fk",
+          "tableFrom": "festival_stands_available_reminders",
+          "tableTo": "notification_campaigns",
+          "columnsFrom": [
+            "campaign_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "festival_stands_available_reminders_festival_id_festivals_id_fk": {
+          "name": "festival_stands_available_reminders_festival_id_festivals_id_fk",
+          "tableFrom": "festival_stands_available_reminders",
+          "tableTo": "festivals",
+          "columnsFrom": [
+            "festival_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "festival_stands_available_reminders_created_by_user_id_users_id_fk": {
+          "name": "festival_stands_available_reminders_created_by_user_id_users_id_fk",
+          "tableFrom": "festival_stands_available_reminders",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -5577,6 +5912,34 @@
           "notNull": true,
           "default": false
         },
+        "reservations_open_notice_auto": {
+          "name": "reservations_open_notice_auto",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "reservations_open_notice_email": {
+          "name": "reservations_open_notice_email",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "reservations_open_notice_in_app": {
+          "name": "reservations_open_notice_in_app",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "reservations_open_notice_push": {
+          "name": "reservations_open_notice_push",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
         "reservations_start_date": {
           "name": "reservations_start_date",
           "type": "timestamp",
@@ -5731,6 +6094,10 @@
         "festivals_reservation_hold_minutes_range": {
           "name": "festivals_reservation_hold_minutes_range",
           "value": "\"festivals\".\"reservation_hold_minutes\" >= 1 AND \"festivals\".\"reservation_hold_minutes\" <= 30"
+        },
+        "festivals_reservations_open_notice_channels": {
+          "name": "festivals_reservations_open_notice_channels",
+          "value": "(\"festivals\".\"reservations_open_notice_email\" OR \"festivals\".\"reservations_open_notice_in_app\") AND (NOT \"festivals\".\"reservations_open_notice_push\" OR \"festivals\".\"reservations_open_notice_in_app\")"
         }
       },
       "isRLSEnabled": false
@@ -19094,158 +19461,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.site_links": {
-      "name": "site_links",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'link'"
-        },
-        "label": {
-          "name": "label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "href": {
-          "name": "href",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "icon": {
-          "name": "icon",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'link'"
-        },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "is_visible": {
-          "name": "is_visible",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "click_count": {
-          "name": "click_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "site_links_kind_sort_order_idx": {
-          "name": "site_links_kind_sort_order_idx",
-          "columns": [
-            {
-              "expression": "kind",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "sort_order",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "site_links_one_social_per_network": {
-          "name": "site_links_one_social_per_network",
-          "columns": [
-            {
-              "expression": "icon",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"site_links\".\"kind\" = 'social'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.site_links_settings": {
-      "name": "site_links_settings",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "integer",
-          "primaryKey": true,
-          "notNull": true,
-          "default": 1
-        },
-        "social_position": {
-          "name": "social_position",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'top'"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.speakers": {
       "name": "speakers",
       "schema": "",
@@ -22213,7 +22428,9 @@
       "schema": "public",
       "values": [
         "credit_gift",
-        "comunicado"
+        "comunicado",
+        "reservations_open",
+        "stands_available"
       ]
     },
     "public.notification_category": {
@@ -22569,6 +22786,14 @@
         "released"
       ]
     },
+    "public.reservations_open_notice_trigger": {
+      "name": "reservations_open_notice_trigger",
+      "schema": "public",
+      "values": [
+        "automatic",
+        "manual"
+      ]
+    },
     "public.sanction_event_type": {
       "name": "sanction_event_type",
       "schema": "public",
@@ -22770,6 +22995,14 @@
       "values": [
         "main",
         "secondary"
+      ]
+    },
+    "public.stands_available_audience": {
+      "name": "stands_available_audience",
+      "schema": "public",
+      "values": [
+        "terms_accepted",
+        "all_eligible"
       ]
     },
     "public.storage_cleanup_job_status": {
