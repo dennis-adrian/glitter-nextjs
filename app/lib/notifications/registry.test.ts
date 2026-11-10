@@ -165,6 +165,10 @@ const FIXTURES = {
     ownerUserId: 10,
     dueAt: "2026-11-05T22:00:00.000Z",
   },
+  reservation_payment_reminder: {
+    ...own,
+    dueAt: "2026-11-05T22:00:00.000Z",
+  },
   reservation_released: {
     ...own,
     role: "owner",
@@ -192,6 +196,15 @@ const FIXTURES = {
     festivalName: "Glitter Vol. 9",
     reservationsStartDate: "2026-11-20T14:00:00.000Z",
     reservationsOpen: false,
+  },
+  festival_reservations_open: {
+    festivalId: 3,
+    festivalName: "Glitter Vol. 9",
+  },
+  festival_stands_available: {
+    festivalId: 3,
+    festivalName: "Glitter Vol. 9",
+    category: "gastronomy",
   },
   festival_participation_rejected: {
     festivalId: 3,
@@ -254,6 +267,103 @@ const FIXTURES = {
     audienceCount: 312,
   },
 } satisfies Record<NotificationKind, unknown>;
+
+describe("reservation_payment_reminder", () => {
+  it("says when the reservation is due, and opens its payments page", () => {
+    const copy = buildInAppCopy("reservation_payment_reminder", {
+      ...own,
+      dueAt: "2026-11-05T22:00:00.000Z",
+    });
+    expect(copy.title).toBe(
+      `Recordá pagar tu reserva para ${own.festivalName}`,
+    );
+    expect(copy.body).toBe(
+      `Tu reserva del espacio ${own.standLabel} vence el 5 nov 2026 a las 6:00 PM. Subí el comprobante de pago antes para que no se cancele.`,
+    );
+    expect(copy.actionPath).toBe(
+      `/profiles/10/festivals/${own.festivalId}/reservations/${own.reservationId}/payments`,
+    );
+    expect(copy.actionLabel).toBe("Completar el pago");
+  });
+
+  it("names both stands of a full table", () => {
+    expect(
+      buildInAppCopy("reservation_payment_reminder", {
+        ...own,
+        standLabel: "B48 y B49",
+        standCount: 2,
+        dueAt: "2026-11-05T22:00:00.000Z",
+      }).body,
+    ).toMatch(/^Tu reserva de los espacios B48 y B49 vence/);
+  });
+
+  it("always pushes", () => {
+    expect(
+      notificationPushes("reservation_payment_reminder", {
+        ...own,
+        dueAt: "2026-11-05T22:00:00.000Z",
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("festival_stands_available", () => {
+  const data = {
+    festivalId: 3,
+    festivalName: "Festival Glitter Vol. 9",
+    category: "gastronomy" as const,
+  };
+
+  it("names the person's category, and links to the terms", () => {
+    expect(buildInAppCopy("festival_stands_available", data)).toEqual({
+      title: "Todavía hay espacios disponibles en Festival Glitter Vol. 9",
+      body: "Quedan espacios de Gastronomía sin reservar. Reservá el tuyo antes de que se agoten.",
+      actionPath: "/festivals/3/terms",
+      actionLabel: "Reservar mi espacio",
+    });
+  });
+
+  it("pushes only when the send asks, and leaves its email to the bulk lane", () => {
+    expect(hasEmail("festival_stands_available")).toBe(false);
+    expect(notificationPushes("festival_stands_available", data)).toBe(false);
+    expect(
+      notificationPushes("festival_stands_available", data, { push: true }),
+    ).toBe(true);
+  });
+
+  it("refuses a category no stand is for", () => {
+    expect(
+      parseNotificationData("festival_stands_available", {
+        ...data,
+        category: "none",
+      }),
+    ).toBeNull();
+  });
+});
+
+describe("festival_reservations_open", () => {
+  const data = { festivalId: 3, festivalName: "Glitter Vol. 9" };
+
+  it("says reservations are open, and links to the terms", () => {
+    expect(buildInAppCopy("festival_reservations_open", data)).toEqual({
+      title: "¡Ya abrieron las reservas para Glitter Vol. 9!",
+      body: "Ya podés reservar tu espacio. Leé con atención los términos y condiciones antes de elegirlo.",
+      actionPath: "/festivals/3/terms",
+      actionLabel: "Reservar mi espacio",
+    });
+  });
+
+  it("pushes only when the send asks, and leaves its email to the bulk lane", () => {
+    expect(hasEmail("festival_reservations_open")).toBe(false);
+    expect(notificationPushes("festival_reservations_open", data)).toBe(false);
+    expect(
+      notificationPushes("festival_reservations_open", data, { push: true }),
+    ).toBe(true);
+    expect(notificationCategory("festival_reservations_open")).toBe(
+      "reservations",
+    );
+  });
+});
 
 describe("festival_participant_invitation", () => {
   const data = {
@@ -356,7 +466,9 @@ describe("every kind", () => {
           notificationCategory(kind) !== "admin" &&
           (notificationStartsRead(kind, FIXTURES[kind] as never) ||
             kind === "comunicado" ||
-            kind === "festival_participant_invitation"),
+            kind === "festival_participant_invitation" ||
+            kind === "festival_reservations_open" ||
+            kind === "festival_stands_available"),
       ),
     );
     // Every sensitive kind pushes, with the generic text.

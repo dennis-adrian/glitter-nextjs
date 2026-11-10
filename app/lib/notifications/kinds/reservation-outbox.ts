@@ -71,6 +71,11 @@ const deadlineExtendedSchema = participantReservationSchema.extend({
   dueAt: z.string().datetime(),
 });
 
+/** Still pending a day before it is due: the reminder email's copy. */
+const paymentReminderSchema = participantReservationSchema.extend({
+  dueAt: z.string().datetime(),
+});
+
 const releasedSchema = participantReservationSchema.extend({
   role: roleSchema,
   ownerName: z.string(),
@@ -252,6 +257,23 @@ export const reservationOutboxKinds = {
             actionLabel: "Ver la reserva",
           },
   } satisfies KindDefinition<z.infer<typeof deadlineExtendedSchema>>,
+
+  /**
+   * To the owner, a day before an unpaid reservation is due, next to the
+   * reminder email (`handleReservationReminderEmails`), not through the
+   * outbox. Opens the payments page, as the email's button does.
+   */
+  reservation_payment_reminder: {
+    category: "reservations",
+    push: true,
+    schema: paymentReminderSchema,
+    inApp: (data) => ({
+      title: `Recordá pagar tu reserva para ${data.festivalName}`,
+      body: `Tu reserva ${ofTheStands(data)} vence el ${dateAndTime(data.dueAt)}. Subí el comprobante de pago antes para que no se cancele.`,
+      actionPath: `${reservationPath(data)}/payments`,
+      actionLabel: "Completar el pago",
+    }),
+  } satisfies KindDefinition<z.infer<typeof paymentReminderSchema>>,
 
   /** To the owner who released it and to the partner who is finding out. */
   reservation_released: {

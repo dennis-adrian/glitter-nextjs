@@ -13,6 +13,8 @@ import { notifications } from "@/db/schema";
  */
 export const FESTIVAL_BULK_PUSH_KINDS = [
   "festival_participant_invitation",
+  "festival_reservations_open",
+  "festival_stands_available",
 ] as const;
 
 export function sendFestivalBulkPushes({ budgetMs }: { budgetMs: number }) {
