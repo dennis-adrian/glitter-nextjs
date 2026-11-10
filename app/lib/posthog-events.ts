@@ -80,6 +80,11 @@ export const POSTHOG_EVENTS = {
   FIRST_STANDALONE_LAUNCH: "first_standalone_launch",
   PUSH_ENABLED: "push_enabled",
   PUSH_DISABLED: "push_disabled",
+  /**
+   * A tap on one of the `/links` page's links or social icons (`link_id`,
+   * `link_kind`, `link_label`, `link_href`). The dashboard's own count comes from `site_links`.
+   */
+  SITE_LINK_CLICKED: "site_link_clicked",
 } as const;
 
 export type PostHogEvent = (typeof POSTHOG_EVENTS)[keyof typeof POSTHOG_EVENTS];

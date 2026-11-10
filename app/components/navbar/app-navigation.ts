@@ -10,6 +10,7 @@ import {
   FileTextIcon,
   HomeIcon,
   ImagesIcon,
+  Link2Icon,
   LayoutDashboardIcon,
   LibraryBigIcon,
   ListIcon,
@@ -366,6 +367,13 @@ const bannersAdminLink: NavLink = {
   icon: ImagesIcon,
 };
 
+const linksAdminLink: NavLink = {
+  key: "admin-links",
+  label: "Enlaces",
+  href: "/dashboard/links",
+  icon: Link2Icon,
+};
+
 const landingAdminLink: NavLink = {
   key: "admin-landing",
   label: "Contenido de inicio",
@@ -383,6 +391,7 @@ const FESTIVAL_ADMIN: NavSection = {
     infractionsAdminLink,
     bannersAdminLink,
     landingAdminLink,
+    linksAdminLink,
   ],
 };
 
@@ -473,6 +482,7 @@ const ADMIN: NavSection = {
     },
     bannersAdminLink,
     landingAdminLink,
+    linksAdminLink,
     {
       key: "admin-feature-flags",
       label: "Funcionalidades",
@@ -528,6 +538,7 @@ const SETTINGS_KEYS = [
   "admin-blog",
   "admin-banners",
   "admin-landing",
+  "admin-links",
 ];
 
 const SETTINGS_SECTION: NavSection = {
@@ -560,6 +571,7 @@ const FESTIVAL_ADMIN_KEYS = [
   "admin-infractions",
   "admin-banners",
   "admin-landing",
+  "admin-links",
 ];
 
 /** The staff screens "Más" opens for a whole section. */
@@ -612,12 +624,14 @@ function staffFestivalGroup(
         href: `/dashboard/festivals/${festival.id}`,
         items: [
           allFestivals,
-          ...visibleFestivalSections(festival.status, { isAdmin }).map((section) => ({
-            key: `festival-${section.key}`,
-            label: section.label,
-            href: festivalSectionHref(festival.id, section),
-            icon: section.icon,
-          })),
+          ...visibleFestivalSections(festival.status, { isAdmin }).map(
+            (section) => ({
+              key: `festival-${section.key}`,
+              label: section.label,
+              href: festivalSectionHref(festival.id, section),
+              icon: section.icon,
+            }),
+          ),
         ],
       },
     ],
