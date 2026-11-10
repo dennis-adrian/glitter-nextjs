@@ -165,6 +165,10 @@ const FIXTURES = {
     ownerUserId: 10,
     dueAt: "2026-11-05T22:00:00.000Z",
   },
+  reservation_payment_reminder: {
+    ...own,
+    dueAt: "2026-11-05T22:00:00.000Z",
+  },
   reservation_released: {
     ...own,
     role: "owner",
@@ -263,6 +267,45 @@ const FIXTURES = {
     audienceCount: 312,
   },
 } satisfies Record<NotificationKind, unknown>;
+
+describe("reservation_payment_reminder", () => {
+  it("says when the reservation is due, and opens its payments page", () => {
+    const copy = buildInAppCopy("reservation_payment_reminder", {
+      ...own,
+      dueAt: "2026-11-05T22:00:00.000Z",
+    });
+    expect(copy.title).toBe(
+      `Recordá pagar tu reserva para ${own.festivalName}`,
+    );
+    expect(copy.body).toBe(
+      `Tu reserva del espacio ${own.standLabel} vence el 5 nov 2026 a las 6:00 PM. Subí el comprobante de pago antes para que no se cancele.`,
+    );
+    expect(copy.actionPath).toBe(
+      `/profiles/10/festivals/${own.festivalId}/reservations/${own.reservationId}/payments`,
+    );
+    expect(copy.actionLabel).toBe("Completar el pago");
+  });
+
+  it("names both stands of a full table", () => {
+    expect(
+      buildInAppCopy("reservation_payment_reminder", {
+        ...own,
+        standLabel: "B48 y B49",
+        standCount: 2,
+        dueAt: "2026-11-05T22:00:00.000Z",
+      }).body,
+    ).toMatch(/^Tu reserva de los espacios B48 y B49 vence/);
+  });
+
+  it("always pushes", () => {
+    expect(
+      notificationPushes("reservation_payment_reminder", {
+        ...own,
+        dueAt: "2026-11-05T22:00:00.000Z",
+      }),
+    ).toBe(true);
+  });
+});
 
 describe("festival_stands_available", () => {
   const data = {

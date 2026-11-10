@@ -37,6 +37,9 @@ import {
 } from "@/app/lib/emails/helpers";
 import { BaseProfile } from "@/app/api/users/definitions";
 import ReservationReminderTemplate from "@/app/emails/reservation-reminder";
+import { scheduleNotificationDeliveries } from "@/app/lib/notifications/deliveries";
+import { notify, type NotifyTx } from "@/app/lib/notifications/notify";
+import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
 import { deleteClerkUser } from "@/app/lib/users/clerk";
 
 // Leaves headroom under the 100s function limit set in vercel.json so a large
@@ -579,11 +582,56 @@ async function drainDeletionEmails(deadline: number) {
   );
 }
 
+/**
+ * The reminder's copy in Glitter, and its push: once per reservation and
+ * deadline, so a retried email or a second run adds nothing, and a moved
+ * deadline reminds again. Written in a savepoint: a failure here is logged
+ * and never holds the email back. Returns the deliveries to send.
+ */
+async function notifyPaymentReminder(
+  tx: NotifyTx,
+  task: ScheduledTaskWithProfileAndReservation,
+): Promise<number[]> {
+  const { reservation, profile } = task;
+  try {
+    return await tx.transaction(async (savepoint) => {
+      const result = await notify(savepoint, {
+        userId: profile.id,
+        kind: "reservation_payment_reminder",
+        data: {
+          reservationId: reservation.id,
+          festivalId: reservation.festivalId,
+          festivalName: reservation.festival.name,
+          standLabel: reservationStandLabel(reservation),
+          standCount: Math.max(
+            1,
+            (reservation.members ?? []).filter(
+              (member) => member.releasedAt == null,
+            ).length,
+          ),
+          profileId: profile.id,
+          dueAt: task.dueDate.toISOString(),
+        },
+        dedupeKey: `reservation-payment-reminder:${reservation.id}:${task.dueDate.toISOString()}`,
+      });
+      return result.deliveryIds;
+    });
+  } catch (error) {
+    // The type only: a query error's message carries its params.
+    console.error("Error writing the payment reminder notification", {
+      taskId: task.id,
+      errorType: error instanceof Error ? error.name : typeof error,
+    });
+    return [];
+  }
+}
+
 export async function handleReservationReminderEmails(): Promise<
   ScheduledTaskWithProfileAndReservation[]
 > {
+  const deliveryIds: number[] = [];
   try {
-    return await db.transaction(async (tx) => {
+    const sent = await db.transaction(async (tx) => {
       const pendingTasks = (await tx.query.scheduledTasks.findMany({
         where: and(
           isNull(scheduledTasks.completedAt),
@@ -610,7 +658,11 @@ export async function handleReservationReminderEmails(): Promise<
         (task) => task.reservation.status === "pending",
       );
 
-      let updatedTaskIds: number[] = [];
+      for (const task of tasksWithPendingReservations) {
+        deliveryIds.push(...(await notifyPaymentReminder(tx, task)));
+      }
+
+      const updatedTaskIds: number[] = [];
       await queueEmails<ScheduledTaskWithProfileAndReservation, number[]>(
         tasksWithPendingReservations,
         sendReservationReminderEmails,
@@ -621,6 +673,9 @@ export async function handleReservationReminderEmails(): Promise<
         updatedTaskIds.includes(task.id),
       );
     });
+    // After the commit: the pushes the items queued. The cron takes any left.
+    scheduleNotificationDeliveries(deliveryIds);
+    return sent;
   } catch (error) {
     console.error("Error sending reminder emails", error);
     return [] as ScheduledTaskWithProfileAndReservation[];
