@@ -614,6 +614,9 @@ function LinksSection({
       </div>
 
       <DndContext
+        // A fixed id: dnd-kit's own counter differs between the server and
+        // the browser, and React reports the mismatch on hydration.
+        id={`links-dnd-${kind}`}
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragEnd={handleDragEnd}

@@ -17,6 +17,9 @@ CREATE TABLE IF NOT EXISTS "site_links" (
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "site_links_kind_sort_order_idx" ON "site_links" USING btree ("kind","sort_order");
 --> statement-breakpoint
+-- One social icon per network, whatever two admins do at once.
+CREATE UNIQUE INDEX IF NOT EXISTS "site_links_one_social_per_network" ON "site_links" USING btree ("icon") WHERE "site_links"."kind" = 'social';
+--> statement-breakpoint
 -- Settings of the page as a whole: one row at most (id 1), none means the
 -- defaults. For now, where the row of social icons goes.
 CREATE TABLE IF NOT EXISTS "site_links_settings" (

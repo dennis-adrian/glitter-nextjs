@@ -528,7 +528,13 @@ export const siteLinks = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("site_links_kind_sort_order_idx").on(t.kind, t.sortOrder)],
+  (t) => [
+    index("site_links_kind_sort_order_idx").on(t.kind, t.sortOrder),
+    // Two admins adding the same network at once still leave one icon.
+    uniqueIndex("site_links_one_social_per_network")
+      .on(t.icon)
+      .where(sql`${t.kind} = 'social'`),
+  ],
 );
 
 /**

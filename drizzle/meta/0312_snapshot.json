@@ -19187,6 +19187,22 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "site_links_one_social_per_network": {
+          "name": "site_links_one_social_per_network",
+          "columns": [
+            {
+              "expression": "icon",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"site_links\".\"kind\" = 'social'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {},

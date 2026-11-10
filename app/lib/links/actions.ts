@@ -132,20 +132,26 @@ export async function createSocialLink(data: {
     .from(siteLinks)
     .where(and(eq(siteLinks.kind, "social"), eq(siteLinks.icon, data.network)))
     .limit(1);
-  if (existing) {
-    return {
-      success: false,
-      message: `Ya hay un ícono de ${label}. Edítalo en lugar de agregar otro.`,
-    };
-  }
+  const taken = {
+    success: false as const,
+    message: `Ya hay un ícono de ${label}. Edítalo en lugar de agregar otro.`,
+  };
+  if (existing) return taken;
 
-  await db.insert(siteLinks).values({
-    kind: "social",
-    label,
-    href: parsed.href,
-    icon: data.network,
-    sortOrder: await nextSortOrder("social"),
-  });
+  // The check above can pass twice at once; the unique index
+  // `site_links_one_social_per_network` lets only one of the two in.
+  const inserted = await db
+    .insert(siteLinks)
+    .values({
+      kind: "social",
+      label,
+      href: parsed.href,
+      icon: data.network,
+      sortOrder: await nextSortOrder("social"),
+    })
+    .onConflictDoNothing()
+    .returning({ id: siteLinks.id });
+  if (inserted.length === 0) return taken;
   invalidateLinks();
   return { success: true };
 }
