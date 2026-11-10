@@ -3,7 +3,7 @@
 import { InfoIcon, Loader2Icon, SendIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -95,6 +95,8 @@ export default function FestivalStandsAvailableReminder({
   );
   const [countsError, setCountsError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  /** The dialog the counts are for; an older answer is dropped. */
+  const currentDialog = useRef<string | null>(null);
 
   const available = STANDS_AVAILABLE_CATEGORIES.filter(
     (category) => (availableStands[category] ?? 0) > 0,
@@ -106,15 +108,26 @@ export default function FestivalStandsAvailableReminder({
 
   async function openDialog() {
     // One id per dialog: a double click on "Enviar" is one send.
-    setRequestId(crypto.randomUUID());
+    const id = crypto.randomUUID();
+    currentDialog.current = id;
+    setRequestId(id);
     setAudience("terms_accepted");
     setChannels(defaultChannels);
     setCounts(null);
     setCountsError(null);
     setDialogOpen(true);
-    const result = await fetchStandsAvailableAudience(festivalId);
-    if (result.success) setCounts(result.audiences);
-    else setCountsError(result.message);
+    try {
+      const result = await fetchStandsAvailableAudience(festivalId);
+      // A dialog opened since answers for itself.
+      if (currentDialog.current !== id) return;
+      if (result.success) setCounts(result.audiences);
+      else setCountsError(result.message);
+    } catch {
+      if (currentDialog.current !== id) return;
+      setCountsError(
+        "No se pudo calcular a quiénes se enviará el recordatorio.",
+      );
+    }
   }
 
   async function send() {
@@ -144,6 +157,8 @@ export default function FestivalStandsAvailableReminder({
       }
       setDialogOpen(false);
       router.refresh();
+    } catch {
+      toast.error("No se pudo enviar el recordatorio. Inténtalo nuevamente.");
     } finally {
       setSending(false);
     }
@@ -282,17 +297,24 @@ export default function FestivalStandsAvailableReminder({
                     className="text-sm font-normal"
                   >
                     {AUDIENCE_LABELS[value]}
-                    <span className="text-muted-foreground">
-                      {" · "}
-                      {counts ? (
-                        people(counts[value].recipients, "persona", "personas")
-                      ) : (
-                        <Loader2Icon
-                          className="inline h-3.5 w-3.5 animate-spin"
-                          aria-label="Calculando"
-                        />
-                      )}
-                    </span>
+                    {/* After a failed count, the error above says it all. */}
+                    {countsError ? null : (
+                      <span className="text-muted-foreground">
+                        {" · "}
+                        {counts ? (
+                          people(
+                            counts[value].recipients,
+                            "persona",
+                            "personas",
+                          )
+                        ) : (
+                          <Loader2Icon
+                            className="inline h-3.5 w-3.5 animate-spin"
+                            aria-label="Calculando"
+                          />
+                        )}
+                      </span>
+                    )}
                   </Label>
                 </div>
               ))}

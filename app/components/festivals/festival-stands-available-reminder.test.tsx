@@ -147,4 +147,87 @@ describe("FestivalStandsAvailableReminder", () => {
     });
     expect(input.requestId).toMatch(/^[0-9a-f-]{36}$/);
   });
+
+  it("says so when the counts fail, instead of loading forever", async () => {
+    fetchStandsAvailableAudience.mockRejectedValue(new Error("network"));
+    renderReminder();
+
+    fireEvent.click(sendButton());
+    expect(
+      await screen.findByText(
+        "No se pudo calcular a quiénes se enviará el recordatorio.",
+      ),
+    ).toBeTruthy();
+    const dialog = screen.getByRole("alertdialog");
+    expect(within(dialog).queryByLabelText("Calculando")).toBeNull();
+    expect(
+      (
+        within(dialog).getByRole("button", {
+          name: "Enviar recordatorio",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+  });
+
+  it("ignores counts that arrive for a dialog opened before", async () => {
+    let answerFirst: (value: unknown) => void = () => {};
+    fetchStandsAvailableAudience
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (answerFirst = resolve)),
+      )
+      .mockResolvedValueOnce({
+        success: true,
+        audiences: {
+          terms_accepted: { recipients: 35, withPush: 12 },
+          all_eligible: { recipients: 80, withPush: 20 },
+        },
+      });
+    renderReminder();
+
+    fireEvent.click(sendButton());
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    fireEvent.click(sendButton());
+    expect(await screen.findByText(/35 personas/)).toBeTruthy();
+
+    // The first dialog's answer, late.
+    answerFirst({
+      success: true,
+      audiences: {
+        terms_accepted: { recipients: 2, withPush: 0 },
+        all_eligible: { recipients: 4, withPush: 0 },
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.getByText(/35 personas/)).toBeTruthy();
+    expect(screen.queryByText(/2 personas/)).toBeNull();
+  });
+
+  it("says so when the send fails, and lets the admin try again", async () => {
+    fetchStandsAvailableAudience.mockResolvedValue({
+      success: true,
+      audiences: {
+        terms_accepted: { recipients: 35, withPush: 12 },
+        all_eligible: { recipients: 80, withPush: 20 },
+      },
+    });
+    sendStandsAvailableReminder.mockRejectedValue(new Error("network"));
+    renderReminder();
+
+    fireEvent.click(sendButton());
+    await screen.findByText(/35 personas/);
+    const dialog = screen.getByRole("alertdialog");
+    const confirm = within(dialog).getByRole("button", {
+      name: "Enviar recordatorio",
+    }) as HTMLButtonElement;
+    fireEvent.click(confirm);
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "No se pudo enviar el recordatorio. Inténtalo nuevamente.",
+      ),
+    );
+    expect(refresh).not.toHaveBeenCalled();
+    await waitFor(() => expect(confirm.disabled).toBe(false));
+  });
 });
