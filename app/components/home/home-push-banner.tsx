@@ -143,6 +143,7 @@ function HomePushBannerInner({ publicKey }: HomePushBannerProps) {
         ) : (
           <Button
             size="sm"
+            wrap
             aria-busy={working}
             disabled={working}
             onClick={async () => {

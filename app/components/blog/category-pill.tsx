@@ -23,8 +23,8 @@ export default function CategoryPill({
       variant="secondary"
       className={
         asLink
-          ? "hover:bg-pink-100 dark:hover:bg-pink-900/40 transition-colors"
-          : undefined
+          ? "whitespace-normal break-words hover:bg-pink-100 dark:hover:bg-pink-900/40 transition-colors"
+          : "whitespace-normal break-words"
       }
     >
       {category.name}

@@ -768,7 +768,7 @@ export default function FestivalActivityForm({
             </details>
           </Card>
         </fieldset>
-        <div className="sticky bottom-0 z-20 border-t bg-background/95 px-1 py-3 backdrop-blur-sm space-y-2">
+        <div className="sticky bottom-app-chrome z-20 border-t bg-background/95 px-1 py-3 backdrop-blur-sm space-y-2">
           {/* Validation error summary */}
           {Object.keys(formErrors).length > 0 && (
             <p role="alert" className="text-sm text-destructive">

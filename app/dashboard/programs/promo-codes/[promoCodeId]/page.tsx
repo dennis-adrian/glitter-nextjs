@@ -216,7 +216,7 @@ export default async function ProgramPromoCodeDetailPage({ params }: Props) {
                     key={event.id}
                     className="flex justify-between gap-4 border-b pb-3 last:border-0"
                   >
-                    <span>
+                    <span className="min-w-0 break-words">
                       {PROMO_EVENT_LABELS[event.eventType]} ·{" "}
                       {event.actor?.displayName ??
                         event.actor?.email ??

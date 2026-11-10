@@ -508,7 +508,7 @@ export default function EditOrderForm({
       </div>
 
       {/* Mobile sticky summary bar */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-background border-t shadow-lg px-4 py-3 z-10">
+      <div className="lg:hidden fixed bottom-app-chrome left-0 right-0 bg-background border-t shadow-lg px-4 py-3 z-10">
         <div className="flex items-center justify-between mb-2">
           <div>
             <p className="text-sm text-muted-foreground">Nuevo total</p>

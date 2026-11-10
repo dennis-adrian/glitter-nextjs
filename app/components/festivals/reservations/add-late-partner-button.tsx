@@ -262,6 +262,7 @@ export default function AddLatePartnerButton({
             ) : (
               <Button
                 type="button"
+                wrap
                 onClick={confirm}
                 disabled={pending || !selected}
               >

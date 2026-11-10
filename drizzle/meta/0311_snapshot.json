@@ -1,5 +1,5 @@
 {
-  "id": "8e23e777-4aec-4eb5-afe9-204946e7a65a",
+  "id": "15083d74-b64f-4155-bd6e-3dc3a311aa21",
   "prevId": "7f6013bf-0b1f-4dc8-9946-087de65e6528",
   "version": "7",
   "dialect": "postgresql",
@@ -4887,168 +4887,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.festival_reservations_open_notices": {
-      "name": "festival_reservations_open_notices",
-      "schema": "",
-      "columns": {
-        "campaign_id": {
-          "name": "campaign_id",
-          "type": "integer",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "festival_id": {
-          "name": "festival_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "trigger": {
-          "name": "trigger",
-          "type": "reservations_open_notice_trigger",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reservations_start_date": {
-          "name": "reservations_start_date",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "env": {
-          "name": "env",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "recipients": {
-          "name": "recipients",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "emails": {
-          "name": "emails",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "pushes": {
-          "name": "pushes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "created_by_user_id": {
-          "name": "created_by_user_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "festival_reservations_open_notices_automatic_unique": {
-          "name": "festival_reservations_open_notices_automatic_unique",
-          "columns": [
-            {
-              "expression": "festival_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "reservations_start_date",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"festival_reservations_open_notices\".\"trigger\" = 'automatic'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "festival_reservations_open_notices_festival_idx": {
-          "name": "festival_reservations_open_notices_festival_idx",
-          "columns": [
-            {
-              "expression": "festival_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "festival_reservations_open_notices_campaign_id_notification_campaigns_id_fk": {
-          "name": "festival_reservations_open_notices_campaign_id_notification_campaigns_id_fk",
-          "tableFrom": "festival_reservations_open_notices",
-          "tableTo": "notification_campaigns",
-          "columnsFrom": [
-            "campaign_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "festival_reservations_open_notices_festival_id_festivals_id_fk": {
-          "name": "festival_reservations_open_notices_festival_id_festivals_id_fk",
-          "tableFrom": "festival_reservations_open_notices",
-          "tableTo": "festivals",
-          "columnsFrom": [
-            "festival_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "festival_reservations_open_notices_created_by_user_id_users_id_fk": {
-          "name": "festival_reservations_open_notices_created_by_user_id_users_id_fk",
-          "tableFrom": "festival_reservations_open_notices",
-          "tableTo": "users",
-          "columnsFrom": [
-            "created_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.festival_sectors": {
       "name": "festival_sectors",
       "schema": "",
@@ -5893,6 +5731,76 @@
         "festivals_reservation_hold_minutes_range": {
           "name": "festivals_reservation_hold_minutes_range",
           "value": "\"festivals\".\"reservation_hold_minutes\" >= 1 AND \"festivals\".\"reservation_hold_minutes\" <= 30"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.finance_festival_settings": {
+      "name": "finance_festival_settings",
+      "schema": "",
+      "columns": {
+        "festival_id": {
+          "name": "festival_id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "credit_lead_days": {
+          "name": "credit_lead_days",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by_user_id": {
+          "name": "updated_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "finance_festival_settings_festival_id_festivals_id_fk": {
+          "name": "finance_festival_settings_festival_id_festivals_id_fk",
+          "tableFrom": "finance_festival_settings",
+          "tableTo": "festivals",
+          "columnsFrom": [
+            "festival_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "finance_festival_settings_updated_by_user_id_users_id_fk": {
+          "name": "finance_festival_settings_updated_by_user_id_users_id_fk",
+          "tableFrom": "finance_festival_settings",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "finance_festival_settings_credit_lead_days_range": {
+          "name": "finance_festival_settings_credit_lead_days_range",
+          "value": "\"finance_festival_settings\".\"credit_lead_days\" IS NULL OR \"finance_festival_settings\".\"credit_lead_days\" BETWEEN 0 AND 30"
         }
       },
       "isRLSEnabled": false
@@ -22153,8 +22061,7 @@
       "schema": "public",
       "values": [
         "credit_gift",
-        "comunicado",
-        "reservations_open"
+        "comunicado"
       ]
     },
     "public.notification_category": {
@@ -22508,14 +22415,6 @@
         "rejected",
         "cancelled",
         "released"
-      ]
-    },
-    "public.reservations_open_notice_trigger": {
-      "name": "reservations_open_notice_trigger",
-      "schema": "public",
-      "values": [
-        "automatic",
-        "manual"
       ]
     },
     "public.sanction_event_type": {

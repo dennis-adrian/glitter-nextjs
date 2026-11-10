@@ -51,7 +51,7 @@ export default function OrdersTabBar({
     <>
       {/* Tab bar — dims while pending to block re-clicks */}
       <div
-        className={`sticky top-[calc(4rem+var(--top-chrome-extra,0px))] md:top-[calc(5rem+var(--top-chrome-extra,0px))] z-40 bg-background mt-4 flex gap-1 overflow-x-auto border-b no-scrollbar transition-opacity ${
+        className={`sticky top-[calc(var(--app-header-height)+var(--top-chrome-extra,0px))] z-40 bg-background mt-4 flex gap-1 overflow-x-auto border-b no-scrollbar transition-opacity ${
           isPending ? "opacity-60 pointer-events-none" : ""
         }`}
       >

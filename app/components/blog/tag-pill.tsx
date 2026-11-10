@@ -6,7 +6,10 @@ import type { PostTagRow } from "@/app/lib/posts/definitions";
 export default function TagPill({ tag }: { tag: PostTagRow }) {
   return (
     <Link href={`/blog/tag/${tag.slug}`}>
-      <Badge variant="outline" className="hover:bg-muted transition-colors">
+      <Badge
+        variant="outline"
+        className="whitespace-normal break-words hover:bg-muted transition-colors"
+      >
         #{tag.name}
       </Badge>
     </Link>

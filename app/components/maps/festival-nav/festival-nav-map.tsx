@@ -254,7 +254,7 @@ export default function FestivalNavMap({
       {/* Compact header */}
       {!embedded ? (
         <div className="px-4">
-          <h1 className="truncate text-base font-semibold">{festivalName}</h1>
+          <h1 className="break-words text-base font-semibold">{festivalName}</h1>
           <p className="text-xs text-muted-foreground">Mapa del festival</p>
         </div>
       ) : null}
@@ -266,7 +266,7 @@ export default function FestivalNavMap({
             ref={controlsRef}
             className={cn(
               "z-20 border-b bg-background",
-              embedded ? "relative" : "sticky top-[calc(4rem+var(--top-chrome-extra,0px))] md:top-[calc(5rem+var(--top-chrome-extra,0px))]",
+              embedded ? "relative" : "sticky top-[calc(var(--app-header-height)+var(--top-chrome-extra,0px))]",
             )}
           >
             <FestivalNavSearch

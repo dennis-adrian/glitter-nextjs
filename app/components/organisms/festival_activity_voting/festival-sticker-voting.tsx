@@ -103,7 +103,9 @@ export default function FestivalStickerVoting({
                   onClick={() => setSelectedImage(participantImage)}
                 />
               )}
-              <p className="text-center">{participant.user.displayName}</p>
+              <p className="text-center break-words">
+                {participant.user.displayName}
+              </p>
               <div className="flex flex-col gap-1 justify-center">
                 <Button
                   disabled={currentProfile.id === participant.userId}

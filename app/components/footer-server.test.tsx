@@ -39,7 +39,10 @@ describe("FooterServer", () => {
   it("evaluates the blog flag for a signed-out visitor in a force-static render", async () => {
     headersMock.mockResolvedValue(new Headers());
 
-    expect((await FooterServer()).props).toEqual({ blogEnabled: false });
+    expect((await FooterServer()).props).toEqual({
+      blogEnabled: false,
+      signedIn: false,
+    });
     expect(currentProfileMock).not.toHaveBeenCalled();
   });
 
@@ -47,6 +50,19 @@ describe("FooterServer", () => {
     headersMock.mockResolvedValue(new Headers({ host: "localhost:3000" }));
     currentProfileMock.mockResolvedValue({ id: 7, role: "admin" });
 
-    expect((await FooterServer()).props).toEqual({ blogEnabled: true });
+    expect((await FooterServer()).props).toEqual({
+      blogEnabled: true,
+      signedIn: true,
+    });
+  });
+
+  it("tells the footer a visitor on a request is signed out", async () => {
+    headersMock.mockResolvedValue(new Headers({ host: "localhost:3000" }));
+    currentProfileMock.mockResolvedValue(null);
+
+    expect((await FooterServer()).props).toEqual({
+      blogEnabled: false,
+      signedIn: false,
+    });
   });
 });

@@ -47,7 +47,8 @@ export async function generateMetadata({
 export default async function Page({ params }: PageProps) {
   // The dashboard layout checks this too, but a layout is not a boundary: a
   // page must not render its data for a request the layout never saw.
-  if (!(await requireAdminOrFestivalAdmin())) redirect("/");
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) redirect("/");
 
   const parsed = ParamsSchema.safeParse(await params);
   if (!parsed.success) return notFound();
@@ -78,7 +79,11 @@ export default async function Page({ params }: PageProps) {
   return (
     <div className="container flex flex-col gap-6 p-3 pb-10 md:p-6">
       <FestivalDetailHeader festival={festival} />
-      <FestivalSectionsNav festival={festival} counts={counts} />
+      <FestivalSectionsNav
+        festival={festival}
+        counts={counts}
+        isAdmin={profile.role === "admin"}
+      />
       {/* One column on a phone, in reading order: switches, notifications,
           facts, then the long reservation-features panel. From lg the facts
           move to a side column spanning every row, beside the rest. */}

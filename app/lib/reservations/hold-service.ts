@@ -186,7 +186,8 @@ export async function createStandHold(standIdInput: unknown): Promise<
   const standId = parsed.data.standId;
   const idempotencyKey = parsed.data.idempotencyKey;
   const singleStandOnly = parsed.data.singleStandOnly ?? false;
-  const now = new Date();
+  // Only widens the lock set below; every decision uses the post-lock `now`.
+  const requestedAt = new Date();
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -275,7 +276,7 @@ export async function createStandHold(standIdInput: unknown): Promise<
           and(
             eq(standHolds.userId, actor.id),
             eq(standHolds.festivalId, stand.festivalId),
-            gt(standHolds.expiresAt, now),
+            gt(standHolds.expiresAt, requestedAt),
           ),
         );
 
@@ -333,6 +334,9 @@ export async function createStandHold(standIdInput: unknown): Promise<
         tx,
         existingHoldPreview.map((hold) => hold.id),
       );
+      // The hold's clock starts once the festival locks are held: time spent
+      // queued for a pool connection or a lock is not the participant's.
+      const now = new Date();
 
       await reconcileExpiredHolds(tx, {
         standId: stand.id,
@@ -492,6 +496,10 @@ export async function createStandHold(standIdInput: unknown): Promise<
           userId: actor.id,
           festivalId: freshStand.festivalId,
           expiresAt,
+          // App-clock values, so the expires-after-created CHECK compares the
+          // same clock instead of the transaction's BEGIN time.
+          createdAt: now,
+          updatedAt: now,
           priceAmountSnapshot: roundMoney(freshStand.individualPrice ?? 0),
           // Both illustration prices are snapshotted even when the participant
           // is booking alone, so a later partner addition prices off the stand

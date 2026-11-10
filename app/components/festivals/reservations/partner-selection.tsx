@@ -62,15 +62,15 @@ export default function PartnerSelection({
         <p className="text-sm text-muted-foreground">
           Compartirás espacio con:
         </p>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Avatar className="w-12 h-12">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-3">
+            <Avatar className="w-12 h-12 shrink-0">
               <AvatarImage
                 src={selectedPartner?.imageUrl ?? undefined}
                 alt="avatar"
               />
             </Avatar>
-            <span className="font-medium">
+            <span className="min-w-0 wrap-anywhere font-medium">
               {selectedPartner?.label ?? "Compañero seleccionado"}
             </span>
           </div>

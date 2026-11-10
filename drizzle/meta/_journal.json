@@ -2175,22 +2175,15 @@
     {
       "idx": 311,
       "version": "7",
-      "when": 1794007645500,
-      "tag": "0311_reservations_open_notices",
+      "when": 1794172967044,
+      "tag": "0311_finance_festival_settings",
       "breakpoints": true
     },
     {
       "idx": 312,
       "version": "7",
-      "when": 1794019103327,
-      "tag": "0312_reservations_open_notice_settings",
-      "breakpoints": true
-    },
-    {
-      "idx": 313,
-      "version": "7",
-      "when": 1794060081422,
-      "tag": "0313_stands_available_reminders",
+      "when": 1794280287553,
+      "tag": "0312_reservation_notices",
       "breakpoints": true
     }
   ]

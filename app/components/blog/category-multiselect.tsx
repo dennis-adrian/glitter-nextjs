@@ -89,7 +89,7 @@ export default function CategoryMultiselect({
             <Badge
               key={s.id}
               variant="secondary"
-              className="pl-2 pr-1 py-1 gap-1"
+              className="pl-2 pr-1 py-1 gap-1 whitespace-normal break-words"
             >
               {s.name}
               <button

@@ -166,11 +166,11 @@ export default function SpeakersManager({ speakers }: Props) {
                   className="flex items-center justify-between gap-3 rounded-md bg-muted/50 px-3 py-2"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
+                    <p className="text-sm font-medium break-words">
                       {speaker.publicName}
                     </p>
                     {speaker.occupation ? (
-                      <p className="truncate text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground break-words">
                         {speaker.occupation}
                       </p>
                     ) : null}

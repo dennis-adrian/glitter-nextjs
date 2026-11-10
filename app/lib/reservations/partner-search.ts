@@ -2,8 +2,12 @@ import "server-only";
 
 import { and, eq, inArray, not, sql } from "drizzle-orm";
 
+import { fetchPublishedFestivalTermsVersion } from "@/app/lib/festival-terms/queries";
 import type { PartnerSearchResultDto } from "@/app/lib/reservations/dto";
-import type { ReservationErrorCode } from "@/app/lib/reservations/errors";
+import {
+  partnerDenialMessage,
+  type ReservationErrorCode,
+} from "@/app/lib/reservations/errors";
 import {
   blocksFestivalParticipation,
   evaluatePartnerSearchDenial,
@@ -12,6 +16,7 @@ import {
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
+  festivals,
   reservationParticipants,
   standReservations,
   userRequests,
@@ -29,19 +34,76 @@ function toDto(
     displayName: string | null;
     imageUrl: string | null;
   },
-  denialCode?: ReservationErrorCode,
+  denial?: { code: ReservationErrorCode; message?: string },
 ): PartnerSearchResultDto {
   return {
     id: row.id,
     displayName: row.displayName,
     imageUrl: row.imageUrl,
-    selectable: denialCode == null,
-    denialCode,
+    selectable: denial == null,
+    denialCode: denial?.code,
+    denialMessage: denial?.message,
   };
 }
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * The terms version a partner's enrollment must carry, or null when the
+ * festival does not gate on terms.
+ *
+ * Confirming re-runs the self-service policy on the partner, which refuses an
+ * enrollment accepted under an older terms version (`TERMS_STALE`). Without
+ * this the search offered such a partner as selectable and the owner only
+ * learned otherwise when "Confirmar Reserva" failed. No published version at
+ * all blocks the owner too (`TERMS_UNAVAILABLE`), so it is not the partner's
+ * problem and is not flagged here.
+ */
+async function requiredTermsVersionId(
+  tx: Tx,
+  festivalId: number,
+): Promise<number | null> {
+  const [festival] = await tx
+    .select({ participantTermsEnabled: festivals.participantTermsEnabled })
+    .from(festivals)
+    .where(eq(festivals.id, festivalId))
+    .limit(1);
+  if (!festival?.participantTermsEnabled) return null;
+  const published = await fetchPublishedFestivalTermsVersion(tx);
+  return published?.id ?? null;
+}
+
+function partnerSearchDenial(
+  user: { status: string; role: string; category: string },
+  input: {
+    enrollment: Map<number, number | null>;
+    userId: number;
+    requiredTermsVersionId: number | null;
+    festivalReservation?: "live" | "rejected";
+  },
+): { code: ReservationErrorCode; message?: string } | undefined {
+  const code = evaluatePartnerSearchDenial({
+    status: user.status,
+    role: user.role,
+    category: user.category,
+    enrolled: input.enrollment.has(input.userId),
+    festivalReservation: input.festivalReservation,
+  });
+  if (code) return { code };
+  if (
+    input.requiredTermsVersionId != null &&
+    input.enrollment.get(input.userId) !== input.requiredTermsVersionId
+  ) {
+    return {
+      code: "PARTNER_NOT_ELIGIBLE",
+      message: partnerDenialMessage("TERMS_STALE"),
+    };
+  }
+  return undefined;
+}
+
 async function festivalReservationByUserId(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  tx: Tx,
   festivalId: number,
   userIds?: number[],
 ) {
@@ -74,14 +136,18 @@ async function festivalReservationByUserId(
   return byUser;
 }
 
-async function enrolledUserIds(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+/** Accepted enrollments in the festival: user id → accepted terms version. */
+async function acceptedEnrollments(
+  tx: Tx,
   festivalId: number,
   userIds: number[],
 ) {
-  if (userIds.length === 0) return new Set<number>();
+  if (userIds.length === 0) return new Map<number, number | null>();
   const rows = await tx
-    .select({ userId: userRequests.userId })
+    .select({
+      userId: userRequests.userId,
+      termsVersionId: userRequests.termsVersionId,
+    })
     .from(userRequests)
     .where(
       and(
@@ -91,7 +157,7 @@ async function enrolledUserIds(
         inArray(userRequests.userId, userIds),
       ),
     );
-  return new Set(rows.map((row) => row.userId));
+  return new Map(rows.map((row) => [row.userId, row.termsVersionId]));
 }
 
 export async function searchPotentialPartnersForActor(
@@ -154,16 +220,16 @@ export async function searchPotentialPartnersForActor(
         festivalId,
         matchedIds,
       );
-      const enrolled = await enrolledUserIds(tx, festivalId, matchedIds);
+      const enrollment = await acceptedEnrollments(tx, festivalId, matchedIds);
+      const termsVersionId = await requiredTermsVersionId(tx, festivalId);
 
       const evaluated = matchedUsers.map((user) =>
         toDto(
           user,
-          evaluatePartnerSearchDenial({
-            status: user.status,
-            role: user.role,
-            category: user.category,
-            enrolled: enrolled.has(user.id),
+          partnerSearchDenial(user, {
+            enrollment,
+            userId: user.id,
+            requiredTermsVersionId: termsVersionId,
             festivalReservation: reservedByUser.get(user.id),
           }),
         ),
@@ -244,11 +310,12 @@ export async function searchRecentPartners(
         festivalId,
         recent.map((row) => row.userId),
       );
-      const enrolled = await enrolledUserIds(
+      const enrollment = await acceptedEnrollments(
         tx,
         festivalId,
         recent.map((row) => row.userId),
       );
+      const termsVersionId = await requiredTermsVersionId(tx, festivalId);
 
       return recent.map((user) =>
         toDto(
@@ -257,11 +324,10 @@ export async function searchRecentPartners(
             displayName: user.displayName,
             imageUrl: user.imageUrl,
           },
-          evaluatePartnerSearchDenial({
-            status: user.status,
-            role: user.role,
-            category: user.category,
-            enrolled: enrolled.has(user.userId),
+          partnerSearchDenial(user, {
+            enrollment,
+            userId: user.userId,
+            requiredTermsVersionId: termsVersionId,
             festivalReservation: reservedByUser.get(user.userId),
           }),
         ),

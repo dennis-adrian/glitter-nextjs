@@ -97,7 +97,9 @@ export default function ParticipantsModal({
                       onClick={() => setSelectedImage(standImage)}
                     />
                   )}
-                  <p className="text-center">{participant.standName}</p>
+                  <p className="text-center break-words">
+                    {participant.standName}
+                  </p>
                   <div className="flex flex-col gap-1 justify-center">
                     <Button
                       disabled={

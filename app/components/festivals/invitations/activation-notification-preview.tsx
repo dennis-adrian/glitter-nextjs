@@ -70,6 +70,7 @@ export default function ActivationNotificationPreview({
         type="button"
         variant="outline"
         size="sm"
+        wrap
         className="w-full"
         disabled={disabled}
         aria-expanded={open}

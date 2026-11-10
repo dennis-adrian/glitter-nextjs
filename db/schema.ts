@@ -1967,6 +1967,37 @@ export const reservationFeatureActionItemsRelations = relations(
   }),
 );
 
+/**
+ * Per-edition finance parameters (docs/IMPLEMENTATION-finanzas.md §4.12). One
+ * row per festival, written the first time an admin changes a value; no row
+ * means every value is its default.
+ */
+export const financeFestivalSettings = pgTable(
+  "finance_festival_settings",
+  {
+    festivalId: integer("festival_id")
+      .primaryKey()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    /**
+     * How many days before `festivals.reservations_start_date` a credit
+     * purchase starts counting as this edition's money on the finance page.
+     * Null is the default (`DEFAULT_CREDIT_LEAD_DAYS`). It only regroups
+     * figures on that page: no balance, payment or reservation reads it.
+     */
+    creditLeadDays: smallint("credit_lead_days"),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check(
+      "finance_festival_settings_credit_lead_days_range",
+      sql`${t.creditLeadDays} IS NULL OR ${t.creditLeadDays} BETWEEN 0 AND 30`,
+    ),
+  ],
+);
+
 /** Locked projection; the append-only ledger remains the source of truth. */
 export const creditAccounts = pgTable(
   "credit_accounts",

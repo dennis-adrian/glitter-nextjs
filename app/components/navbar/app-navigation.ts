@@ -585,7 +585,10 @@ export function staffMenuSection(
 }
 
 /** The festival in progress and its admin sections, or the festivals list. */
-function staffFestivalGroup(festival: StaffFestival | null): NavGroup {
+function staffFestivalGroup(
+  festival: StaffFestival | null,
+  isAdmin: boolean,
+): NavGroup {
   const allFestivals: NavLink = {
     key: "admin-festivals",
     label: festival ? "Todos los festivales" : "Festivales",
@@ -609,7 +612,7 @@ function staffFestivalGroup(festival: StaffFestival | null): NavGroup {
         href: `/dashboard/festivals/${festival.id}`,
         items: [
           allFestivals,
-          ...visibleFestivalSections(festival.status).map((section) => ({
+          ...visibleFestivalSections(festival.status, { isAdmin }).map((section) => ({
             key: `festival-${section.key}`,
             label: section.label,
             href: festivalSectionHref(festival.id, section),
@@ -704,7 +707,7 @@ function buildStaffNavigation(
 
   const groups: NavGroup[] = [
     { key: "home", label: "", items: [home] },
-    staffFestivalGroup(activeFestival),
+    staffFestivalGroup(activeFestival, isAdmin),
     isAdmin
       ? {
           key: "operation",

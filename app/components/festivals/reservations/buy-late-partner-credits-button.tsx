@@ -65,6 +65,7 @@ export default function BuyLatePartnerCreditsButton({
   return (
     <Button
       type="button"
+      wrap
       className="w-full sm:w-auto"
       disabled={isPending}
       onClick={buyCredits}

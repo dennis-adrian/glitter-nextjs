@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import {
@@ -15,6 +15,7 @@ import {
 
 import * as schema from "@/db/schema";
 import {
+  festivalTermsVersions,
   festivals,
   reservationParticipants,
   standReservations,
@@ -170,16 +171,40 @@ describeDatabase("searchPotentialPartnersForActor", () => {
         category: "illustration",
       })
       .returning();
+    const [stalePartner] = await db
+      .insert(users)
+      .values({
+        clerkId: `partner-search-stale-${suffix}`,
+        email: `partner-search-stale-${suffix}@example.test`,
+        displayName: `QvrmStale ${suffix}`,
+        status: "verified",
+        category: "illustration",
+      })
+      .returning();
+
+    // The migrated test DB carries a published terms version, and the festival
+    // gates on terms: everyone accepted it except the stale partner, whose
+    // enrollment has no accepted version.
+    const published = await db.query.festivalTermsVersions.findFirst({
+      where: eq(festivalTermsVersions.status, "published"),
+      orderBy: [desc(festivalTermsVersions.versionNumber)],
+    });
+    if (!published) {
+      throw new Error("Missing published festival terms version in test DB.");
+    }
 
     const enrollmentRows = await db
       .insert(userRequests)
       .values(
-        [actor, livePartner, rejectedPartner, openPartner].map((user) => ({
-          userId: user.id,
-          festivalId: festival.id,
-          type: "festival_participation" as const,
-          status: "accepted" as const,
-        })),
+        [actor, livePartner, rejectedPartner, openPartner, stalePartner].map(
+          (user) => ({
+            userId: user.id,
+            festivalId: festival.id,
+            type: "festival_participation" as const,
+            status: "accepted" as const,
+            termsVersionId: user.id === stalePartner.id ? null : published.id,
+          }),
+        ),
       )
       .returning();
 
@@ -233,7 +258,13 @@ describeDatabase("searchPotentialPartnersForActor", () => {
       standIds: [liveStand.id, rejectedStand.id],
       reservationIds: [liveReservation.id, rejectedReservation.id],
       requestIds: enrollmentRows.map((row) => row.id),
-      userIds: [actor.id, livePartner.id, rejectedPartner.id, openPartner.id],
+      userIds: [
+        actor.id,
+        livePartner.id,
+        rejectedPartner.id,
+        openPartner.id,
+        stalePartner.id,
+      ],
     });
 
     currentProfileMock.mockResolvedValue({ id: actor.id, role: "user" });
@@ -249,6 +280,10 @@ describeDatabase("searchPotentialPartnersForActor", () => {
     const openResults = await searchPotentialPartnersForActor(
       festival.id,
       openPartner.displayName!,
+    );
+    const staleResults = await searchPotentialPartnersForActor(
+      festival.id,
+      stalePartner.displayName!,
     );
 
     expect(liveResults).toEqual(
@@ -275,6 +310,18 @@ describeDatabase("searchPotentialPartnersForActor", () => {
           id: openPartner.id,
           selectable: true,
           denialCode: undefined,
+        }),
+      ]),
+    );
+    expect(staleResults).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: stalePartner.id,
+          selectable: false,
+          denialCode: "PARTNER_NOT_ELIGIBLE",
+          denialMessage: expect.stringContaining(
+            "todavía no aceptó la versión actual de los términos",
+          ),
         }),
       ]),
     );

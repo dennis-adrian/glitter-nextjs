@@ -76,7 +76,12 @@ export default function RetryFailedButton({
 
   return (
     <>
-      <Button type="button" variant="outline" onClick={() => setOpen(true)}>
+      <Button
+        type="button"
+        variant="outline"
+        wrap
+        onClick={() => setOpen(true)}
+      >
         <RotateCcwIcon className="mr-2 h-4 w-4" aria-hidden />
         {label}
       </Button>

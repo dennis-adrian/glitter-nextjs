@@ -11,7 +11,7 @@ import {
 
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import confetti from "canvas-confetti";
-import { ArrowRight, TimerIcon } from "lucide-react";
+import { AlertCircleIcon, ArrowRight, TimerIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { toast } from "sonner";
@@ -30,6 +30,7 @@ import {
   SELECTED_TEXT,
   STAND_SIZE,
 } from "@/app/components/maps/map-utils";
+import { Alert, AlertDescription } from "@/app/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,16 +51,20 @@ import {
   confirmStandHold,
 } from "@/app/lib/stands/hold-actions";
 import PartnerSelection from "./partner-selection";
+import { useHoldCountdown } from "./use-hold-countdown";
 import type { PartnerSearchResultDto } from "@/app/lib/reservations/dto";
 import { cn } from "@/app/lib/utils";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
-import { toastActionError } from "@/app/lib/errors/action-error";
+import {
+  isStaleDeploymentError,
+  toastActionError,
+} from "@/app/lib/errors/action-error";
 
-function partnerDisabledReason(
-  denialCode: PartnerSearchResultDto["denialCode"],
-) {
-  if (!denialCode) return undefined;
-  return RESERVATION_ERROR_MESSAGES[denialCode];
+function partnerDisabledReason(partner: PartnerSearchResultDto) {
+  if (!partner.denialCode) return undefined;
+  return (
+    partner.denialMessage ?? RESERVATION_ERROR_MESSAGES[partner.denialCode]
+  );
 }
 
 type ThumbnailStand = {
@@ -76,6 +81,8 @@ type HoldConfirmationClientProps = {
   hold: {
     id: number;
     expiresAt: string;
+    /** When the server read the hold; the countdown's clock. */
+    serverNow: string;
   };
   /** What the hold really covers; `stand` is only the half picked first. */
   fullTable: {
@@ -197,7 +204,6 @@ export default function HoldConfirmationClient({
   mapBounds,
   profile,
   recentPartners,
-  sectorId,
   sectorName,
   sectorStands,
   stand,
@@ -246,7 +252,7 @@ export default function HoldConfirmationClient({
             value: String(p.id),
             imageUrl: p.imageUrl,
             disabled: !p.selectable,
-            disabledReason: partnerDisabledReason(p.denialCode),
+            disabledReason: partnerDisabledReason(p),
           })),
         );
       } finally {
@@ -265,7 +271,7 @@ export default function HoldConfirmationClient({
         value: String(partner.id),
         imageUrl: partner.imageUrl,
         disabled: !partner.selectable,
-        disabledReason: partnerDisabledReason(partner.denialCode),
+        disabledReason: partnerDisabledReason(partner),
       }),
     );
   }, [recentPartners]);
@@ -283,60 +289,23 @@ export default function HoldConfirmationClient({
     }, 100);
   };
 
-  // Countdown timer
-  const [remainingSeconds, setRemainingSeconds] = useState(() => {
-    const diff = new Date(hold.expiresAt).getTime() - Date.now();
-    return Math.max(0, Math.floor(diff / 1000));
-  });
+  // Display only, on the server's clock: expiry is the server's call.
+  const remainingSeconds = useHoldCountdown(hold.expiresAt, hold.serverNow);
 
+  // Set before every navigation away, so the expiry effect never replaces
+  // the screen after another path already left it (e.g. a confirm that
+  // succeeded as the clock reached 0).
+  const leftRef = useRef(false);
+
+  // At 0 the hold is already invisible to every server reader and the cron
+  // removes the row within a minute; no round trip, and never a cancel from
+  // the phone's clock.
   useEffect(() => {
-    if (remainingSeconds <= 0) return;
-
-    const expiresAtMs = new Date(hold.expiresAt).getTime();
-    const timer = setInterval(() => {
-      const remaining = Math.max(
-        0,
-        Math.floor((expiresAtMs - Date.now()) / 1000),
-      );
-      setRemainingSeconds(remaining);
-      if (remaining <= 0) clearInterval(timer);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [remainingSeconds, hold.expiresAt]);
-
-  // Auto-expire: when timer hits 0, cancel hold and redirect
-  useEffect(() => {
-    if (remainingSeconds === 0 && !isSubmitting) {
-      let cancelled = false;
-      (async () => {
-        try {
-          await cancelStandHold(hold.id);
-          toast.info("Tu reserva temporal expiró");
-        } catch (error) {
-          console.error("Error expiring hold", error);
-          toastActionError(error, "No se pudo cancelar la reserva temporal");
-        } finally {
-          if (!cancelled) {
-            router.replace(mapUrl);
-          }
-        }
-      })();
-
-      return () => {
-        cancelled = true;
-      };
-    }
-  }, [
-    remainingSeconds,
-    isSubmitting,
-    hold.id,
-    profile.id,
-    festival.id,
-    sectorId,
-    router,
-    mapUrl,
-  ]);
+    if (remainingSeconds !== 0 || isSubmitting || leftRef.current) return;
+    leftRef.current = true;
+    toast.info("Tu reserva temporal expiró", { duration: 8000 });
+    router.replace(mapUrl);
+  }, [remainingSeconds, isSubmitting, router, mapUrl]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -351,10 +320,41 @@ export default function HoldConfirmationClient({
       minimumFractionDigits: 2,
     }).format(price);
 
+  // One key per (hold, partner) attempt: the server's request registry is
+  // scoped to both, so a retry must resend the same partner with the same
+  // key, and a different partner is a new request.
   const confirmIntentKeyRef = useRef(crypto.randomUUID());
+  const lastAttemptPartnerRef = useRef<number | undefined | null>(null);
+  // Consecutive retryable failures; some CONFLICT_RETRYs are deterministic.
+  const retryCountRef = useRef(0);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+
+  // A thrown confirm rolled back, so the hold is still alive: stay here and
+  // offer the same request again, up to three times in a row.
+  const handleRetryableConfirmFailure = () => {
+    retryCountRef.current += 1;
+    if (retryCountRef.current >= 3) {
+      toast.info(RESERVATION_ERROR_MESSAGES.CONFLICT_RETRY, { duration: 8000 });
+      leftRef.current = true;
+      router.replace(mapUrl);
+      return;
+    }
+    setConfirmError(
+      "No pudimos confirmar tu reserva. Tu espacio sigue en espera: intentá de nuevo.",
+    );
+  };
 
   const handleConfirm = () => {
     if (isSubmitting) return;
+    if (
+      lastAttemptPartnerRef.current !== null &&
+      lastAttemptPartnerRef.current !== selectedPartnerId
+    ) {
+      confirmIntentKeyRef.current = crypto.randomUUID();
+      retryCountRef.current = 0;
+    }
+    lastAttemptPartnerRef.current = selectedPartnerId;
+    setConfirmError(null);
     startSubmitTransition(async () => {
       try {
         const res = await confirmStandHold({
@@ -363,6 +363,7 @@ export default function HoldConfirmationClient({
           idempotencyKey: confirmIntentKeyRef.current,
         });
         if (res.success && res.data.reservationId) {
+          retryCountRef.current = 0;
           confetti({
             particleCount: 100,
             spread: 70,
@@ -379,6 +380,7 @@ export default function HoldConfirmationClient({
             reservation_id: res.data.reservationId,
           });
           toast.success(res.message);
+          leftRef.current = true;
           router.replace(
             `/profiles/${profile.id}/festivals/${festival.id}/reservations/${res.data.reservationId}/payments`,
           );
@@ -388,14 +390,23 @@ export default function HoldConfirmationClient({
             res.code === "PARTNER_ALREADY_RESERVED")
         ) {
           toast.error(res.message, { duration: 8000 });
+        } else if (!res.success && res.code === "CONFLICT_RETRY") {
+          handleRetryableConfirmFailure();
         } else {
           toast.info(res.message, { duration: 8000 });
+          leftRef.current = true;
           router.replace(mapUrl);
         }
       } catch (error) {
-        toastActionError(error, "Error al confirmar la reserva", {
-          duration: 8000,
-        });
+        // A tab on an old build fails every action until it reloads; a
+        // retry cannot help, so that one keeps the reload notice.
+        if (isStaleDeploymentError(error)) {
+          toastActionError(error, "Error al confirmar la reserva", {
+            duration: 8000,
+          });
+          return;
+        }
+        handleRetryableConfirmFailure();
       }
     });
   };
@@ -416,6 +427,7 @@ export default function HoldConfirmationClient({
           toast.info(res.message, {
             duration: 2000,
           });
+          leftRef.current = true;
           router.replace(mapUrl);
         } else {
           toast.error(res.message);
@@ -440,6 +452,7 @@ export default function HoldConfirmationClient({
   // first. The top bar needs the override — its default `router.back()`
   // would skip the map, which was reached with `replace`.
   const goToMap = useCallback(() => {
+    leftRef.current = true;
     router.replace(mapUrl);
   }, [router, mapUrl]);
   useScreenBack(goToMap);
@@ -577,7 +590,10 @@ export default function HoldConfirmationClient({
               isSearching={isSearching}
               onPartnerSearch={handlePartnerSearch}
               onRefreshPartners={handleRefreshPartners}
-              onSelectPartner={setSelectedPartnerId}
+              onSelectPartner={(id) => {
+                setSelectedPartnerId(id);
+                setConfirmError(null);
+              }}
               selectedPartner={selectedPartner}
             />
           )}
@@ -586,6 +602,24 @@ export default function HoldConfirmationClient({
 
       {/* Action buttons */}
       <div className="sticky bottom-0 border-t bg-background px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        {confirmError && (
+          <Alert variant="destructive" className="mx-auto mb-3 max-w-lg">
+            <AlertCircleIcon className="h-4 w-4" />
+            <AlertDescription>
+              {confirmError}{" "}
+              <Button
+                type="button"
+                size="sm"
+                variant="link"
+                className="h-auto p-0"
+                onClick={handleConfirm}
+                disabled={isSubmitting || isExpired}
+              >
+                Reintentar
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="mx-auto max-w-lg flex gap-3">
           <Button
             className="shrink"

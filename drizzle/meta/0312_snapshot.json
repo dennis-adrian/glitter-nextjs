@@ -1,6 +1,6 @@
 {
-  "id": "59613464-7d5f-4141-b647-5183c884be8f",
-  "prevId": "8e23e777-4aec-4eb5-afe9-204946e7a65a",
+  "id": "d6e80790-6106-45cf-b383-544108e2e0b3",
+  "prevId": "15083d74-b64f-4155-bd6e-3dc3a311aa21",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -5194,6 +5194,158 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.festival_stands_available_reminders": {
+      "name": "festival_stands_available_reminders",
+      "schema": "",
+      "columns": {
+        "campaign_id": {
+          "name": "campaign_id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "festival_id": {
+          "name": "festival_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "audience": {
+          "name": "audience",
+          "type": "stands_available_audience",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "env": {
+          "name": "env",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "in_app": {
+          "name": "in_app",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "push": {
+          "name": "push",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recipients": {
+          "name": "recipients",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "emails": {
+          "name": "emails",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "pushes": {
+          "name": "pushes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "festival_stands_available_reminders_festival_idx": {
+          "name": "festival_stands_available_reminders_festival_idx",
+          "columns": [
+            {
+              "expression": "festival_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "festival_stands_available_reminders_campaign_id_notification_campaigns_id_fk": {
+          "name": "festival_stands_available_reminders_campaign_id_notification_campaigns_id_fk",
+          "tableFrom": "festival_stands_available_reminders",
+          "tableTo": "notification_campaigns",
+          "columnsFrom": [
+            "campaign_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "festival_stands_available_reminders_festival_id_festivals_id_fk": {
+          "name": "festival_stands_available_reminders_festival_id_festivals_id_fk",
+          "tableFrom": "festival_stands_available_reminders",
+          "tableTo": "festivals",
+          "columnsFrom": [
+            "festival_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "festival_stands_available_reminders_created_by_user_id_users_id_fk": {
+          "name": "festival_stands_available_reminders_created_by_user_id_users_id_fk",
+          "tableFrom": "festival_stands_available_reminders",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.festival_status_events": {
       "name": "festival_status_events",
       "schema": "",
@@ -5946,6 +6098,76 @@
         "festivals_reservations_open_notice_channels": {
           "name": "festivals_reservations_open_notice_channels",
           "value": "(\"festivals\".\"reservations_open_notice_email\" OR \"festivals\".\"reservations_open_notice_in_app\") AND (NOT \"festivals\".\"reservations_open_notice_push\" OR \"festivals\".\"reservations_open_notice_in_app\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.finance_festival_settings": {
+      "name": "finance_festival_settings",
+      "schema": "",
+      "columns": {
+        "festival_id": {
+          "name": "festival_id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "credit_lead_days": {
+          "name": "credit_lead_days",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by_user_id": {
+          "name": "updated_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "finance_festival_settings_festival_id_festivals_id_fk": {
+          "name": "finance_festival_settings_festival_id_festivals_id_fk",
+          "tableFrom": "finance_festival_settings",
+          "tableTo": "festivals",
+          "columnsFrom": [
+            "festival_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "finance_festival_settings_updated_by_user_id_users_id_fk": {
+          "name": "finance_festival_settings_updated_by_user_id_users_id_fk",
+          "tableFrom": "finance_festival_settings",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "finance_festival_settings_credit_lead_days_range": {
+          "name": "finance_festival_settings_credit_lead_days_range",
+          "value": "\"finance_festival_settings\".\"credit_lead_days\" IS NULL OR \"finance_festival_settings\".\"credit_lead_days\" BETWEEN 0 AND 30"
         }
       },
       "isRLSEnabled": false
@@ -22207,7 +22429,8 @@
       "values": [
         "credit_gift",
         "comunicado",
-        "reservations_open"
+        "reservations_open",
+        "stands_available"
       ]
     },
     "public.notification_category": {
@@ -22772,6 +22995,14 @@
       "values": [
         "main",
         "secondary"
+      ]
+    },
+    "public.stands_available_audience": {
+      "name": "stands_available_audience",
+      "schema": "public",
+      "values": [
+        "terms_accepted",
+        "all_eligible"
       ]
     },
     "public.storage_cleanup_job_status": {

@@ -196,7 +196,9 @@ export default function OrderVoucherReviewDialog({
                       order.guestName ??
                       "Invitado"}
                   </p>
-                  <p>{order.customer?.email ?? order.guestEmail ?? "—"}</p>
+                  <p className="break-all">
+                    {order.customer?.email ?? order.guestEmail ?? "—"}
+                  </p>
                   <p>
                     {order.customer?.phoneNumber ??
                       order.guestPhone ??

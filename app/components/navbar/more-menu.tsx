@@ -15,6 +15,12 @@ import {
   type NavViewer,
 } from "@/app/components/navbar/app-navigation";
 import { prepareSignOut } from "@/app/components/impersonation/view-state";
+import {
+  HELP_LABEL,
+  HelpEmailRow,
+  HelpSocialLinks,
+} from "@/app/components/help/help-menu";
+import { copyrightNotice } from "@/app/lib/site-contact";
 import { Button } from "@/app/components/ui/button";
 
 function statusLabel(viewer: NavViewer) {
@@ -58,6 +64,23 @@ function Row({ link }: { link: NavLink }) {
         />
       </Link>
     </li>
+  );
+}
+
+/**
+ * Signed-in screens have no site footer, so its contact lives here, as in
+ * the sidebar's and the phone menu's "Ayuda": the email and the networks.
+ * No install guide: this is the installed app's own tab.
+ */
+function HelpCard() {
+  return (
+    <Card title={HELP_LABEL}>
+      <div className="flex flex-col py-1.5">
+        <HelpEmailRow className="-mx-2" />
+        <div className="my-1 h-px bg-brand-border" />
+        <HelpSocialLinks className="py-1.5" />
+      </div>
+    </Card>
   );
 }
 
@@ -189,6 +212,8 @@ export default function MoreMenu({
         </Card>
       ))}
 
+      <HelpCard />
+
       <section className="flex flex-col gap-2">
         <h2 className="text-xs font-semibold text-brand-neutral">Tema</h2>
         <ThemeSegmentedControl />
@@ -207,6 +232,10 @@ export default function MoreMenu({
         <LogOutIcon className="mr-2 size-4" aria-hidden="true" />
         Cerrar sesión
       </Button>
+
+      <p className="text-center text-xs text-brand-neutral">
+        {copyrightNotice()}
+      </p>
     </div>
   );
 }

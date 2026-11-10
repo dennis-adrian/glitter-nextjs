@@ -470,8 +470,8 @@
        mapColor() in app/components/maps/map-utils.ts; only the dark sheet is
        defined here. Translucent fills are tuned over --card, and every stand
        label clears 6.5:1 on its fill. Solid fills that carry white text
-       (occupied, selected, confirmed, external) work on both sheets and have
-       no override. */
+       (selected, confirmed, external) work on both sheets and have no
+       override; `reserved` is a rose tint with its own dark values. */
     --map-ground: hsl(var(--card));
     --map-grid: rgb(255 255 255 / 0.16);
     --map-grid-line: rgb(255 255 255 / 0.1);
@@ -490,6 +490,10 @@
     --map-taken-hover: rgb(156 163 175 / 0.32);
     --map-taken-stroke: rgb(156 163 175 / 0.5);
     --map-taken-text: #d1d5db;
+    --map-reserved-fill: rgb(244 63 94 / 0.32);
+    --map-reserved-hover: rgb(244 63 94 / 0.44);
+    --map-reserved-stroke: rgb(251 113 133 / 0.9);
+    --map-reserved-text: #ffe4e6;
     --map-unavailable-fill: rgb(255 255 255 / 0.04);
     --map-unavailable-hover: rgb(255 255 255 / 0.07);
     --map-unavailable-stroke: rgb(255 255 255 / 0.14);
@@ -544,6 +548,23 @@
       scroll-behavior: auto;
     }
   }
+}
+
+/* In a Safari tab, a drawer pins the body at its scroll offset and puts the
+ * page back with a plain `window.scrollTo` as it closes, while the drawer is
+ * still animating out (its stand-in, below). Smooth, that would slide the page
+ * down from its top. Unlayered, so it wins over the base rule above. */
+html:has([data-vaul-drawer], [data-drawer-ghost]) {
+  scroll-behavior: auto;
+}
+
+/* A closing drawer and its overlay leave at once: with no exit animation,
+ * Radix unmounts them on the spot, and with them the scroll lock and the
+ * overlay that would otherwise hold the page for the 0.5s slide. An inert
+ * stand-in plays the slide instead (app/components/ui/drawer-exit.ts). */
+[data-slot="drawer-content"][data-state="closed"],
+[data-slot="drawer-overlay"][data-state="closed"] {
+  animation: none !important;
 }
 
 .cl-formButtonPrimary {
@@ -868,6 +889,14 @@
  * it is in the document, so the layout never needs to know who is signed in. */
 :root {
   --app-sidebar-width: 16.5rem;
+  /* The site header below the strips: its 76px row and 1px bottom border
+   * (84px and 1px on a desktop). The installed app's top bar takes its place
+   * on deep screens and its height from here (see below). */
+  --app-header-height: 77px;
+  /* The installed app's tab bar, all of it: the 4rem row of tabs, its 1px top
+   * border and the home indicator's safe area it pads. AppTabBar takes its
+   * height from here, so the room the page leaves always matches the bar. */
+  --app-tabbar-height: calc(4rem + 1px + env(safe-area-inset-bottom));
   /* What sits above the header inside the sticky navbar besides itself: the
    * announcement strip and, during a view as a participant, its banner. Each
    * publishes its own height on <html>. */
@@ -878,11 +907,15 @@
 }
 
 @media (width >= 64rem) {
+  :root {
+    --app-header-height: 85px;
+  }
+
   body:has([data-app-sidebar][data-collapsed]) {
     --app-sidebar-width: 4.5rem;
   }
 
-  body:has([data-app-sidebar]) > :is([data-site-navbar], main, footer) {
+  body:has([data-app-sidebar]) > :is([data-site-navbar], main) {
     margin-left: var(--app-sidebar-width);
   }
 }
@@ -890,9 +923,61 @@
 body:has([data-app-tabbar]) {
   @variant standalone {
     @variant max-lg {
-      /* Read by pages sized to the viewport, like the dashboard. */
-      --app-bottom-chrome: calc(4rem + env(safe-area-inset-bottom));
+      /* What the tab bar covers at the bottom of the viewport. Read by pages
+       * sized to the viewport (the dashboard), by bars fixed to the bottom
+       * (`bottom-app-chrome`, which then sit on top of the tab bar) and by
+       * the toasts. Undefined wherever the tab bar is not on screen. */
+      --app-bottom-chrome: var(--app-tabbar-height);
+      /* The tab bar pads the home indicator, so whatever sits above it does
+       * not pad it a second time. */
+      --app-bottom-safe-area: 0px;
       padding-bottom: var(--app-bottom-chrome);
+    }
+  }
+}
+
+/* The dashboard's page box ([data-app-viewport]): at least one viewport tall
+ * between the sticky navbar and the tab bar. It grows with a page taller than
+ * that, so the body's padding still lands after the page's end (clear of the
+ * tab bar) and the sticky navbar, held inside the body, stays up to the end.
+ * A page that fills it with `flex min-h-0 flex-1 flex-col` fits the screen
+ * instead: the box keeps exactly that height and the page's tables scroll
+ * inside themselves, ending where the tab bar starts. */
+[data-app-viewport] {
+  --app-viewport-height: calc(
+    100dvh - var(--app-header-height) - var(--top-chrome-extra, 0px) -
+      var(--app-bottom-chrome, 0px)
+  );
+  display: flex;
+  flex-direction: column;
+  min-height: var(--app-viewport-height);
+}
+
+[data-app-viewport]:has(> .flex-1.min-h-0) {
+  height: var(--app-viewport-height);
+}
+
+/* For bars fixed (or stuck) to the bottom of the window: on the tab bar when
+ * it is on screen, at the bottom of the window otherwise. */
+@utility bottom-app-chrome {
+  bottom: var(--app-bottom-chrome, 0px);
+}
+
+/* On a deep screen the installed app's top bar replaces the header. It pads
+ * the status bar's safe area, unless an impersonation banner above it already
+ * does (the banner publishes its own height, safe area included). */
+body:has([data-screen-bar]) {
+  @variant standalone {
+    @variant max-lg {
+      --app-header-height: calc(76px + env(safe-area-inset-top));
+    }
+  }
+}
+
+body:has([data-impersonation-banner]):has([data-screen-bar]) {
+  @variant standalone {
+    @variant max-lg {
+      --app-header-height: 76px;
     }
   }
 }
@@ -942,7 +1027,6 @@ body:has([data-screen-bar]) [data-announcement-strip] {
  * the safe area itself; the bar must not pad for it a second time. */
 body:has([data-impersonation-banner]) [data-screen-bar] {
   @variant standalone {
-    height: 76px;
     padding-top: 0;
   }
 }

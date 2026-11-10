@@ -64,9 +64,11 @@ export default function CategoriesTable({
       <ul className="divide-y">
         {categories.map((c) => (
           <li key={c.id} className="flex items-center gap-3 p-4">
-            <div className="flex-1">
-              <div className="font-medium">{c.name}</div>
-              <div className="text-xs text-muted-foreground">/{c.slug}</div>
+            <div className="min-w-0 flex-1">
+              <div className="font-medium break-words">{c.name}</div>
+              <div className="text-xs text-muted-foreground break-all">
+                /{c.slug}
+              </div>
               {c.description && (
                 <p className="text-sm text-muted-foreground mt-1">
                   {c.description}

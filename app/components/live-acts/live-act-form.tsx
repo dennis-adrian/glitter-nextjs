@@ -133,7 +133,7 @@ export default function LiveActForm() {
     <>
       {/* Only back and the title: the installed app's top bar has both. */}
       <div
-        className="sticky top-[calc(4rem+var(--top-chrome-extra,0px))] md:top-[calc(5rem+var(--top-chrome-extra,0px))] z-10 -mx-4 -mt-8 mb-2 flex items-center gap-2 border-b bg-background px-4 py-3 md:-mx-6 md:-mt-12 md:mb-4 md:px-6 md:py-4"
+        className="sticky top-[calc(var(--app-header-height)+var(--top-chrome-extra,0px))] z-10 -mx-4 -mt-8 mb-2 flex items-center gap-2 border-b bg-background px-4 py-3 md:-mx-6 md:-mt-12 md:mb-4 md:px-6 md:py-4"
         data-installed-hidden=""
       >
         <Button
@@ -248,7 +248,7 @@ export default function LiveActForm() {
             />
           </div>
 
-          <div className="fixed bottom-0 left-0 right-0 border-t bg-background p-4 md:relative md:bottom-auto md:left-auto md:right-auto md:border-0 md:bg-transparent md:p-0">
+          <div className="fixed bottom-app-chrome left-0 right-0 border-t bg-background p-4 md:relative md:bottom-auto md:left-auto md:right-auto md:border-0 md:bg-transparent md:p-0">
             <Button
               type="submit"
               disabled={isLoading}

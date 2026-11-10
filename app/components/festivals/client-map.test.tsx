@@ -16,6 +16,7 @@ import type {
 import type { StandStatusPollResult } from "@/app/lib/stands/status-poll";
 
 const createStandHold = vi.hoisted(() => vi.fn());
+const pollNow = vi.hoisted(() => vi.fn());
 const pollCallback = vi.hoisted(() => ({
   current: null as null | ((result: StandStatusPollResult) => void),
 }));
@@ -37,7 +38,7 @@ vi.mock("@/app/hooks/use-stand-polling", () => ({
     onUpdate: (result: StandStatusPollResult) => void,
   ) => {
     pollCallback.current = onUpdate;
-    return { stale: false };
+    return { stale: false, pollNow };
   },
 }));
 vi.mock("@/app/components/maps/user/user-map", () => ({
@@ -97,7 +98,10 @@ function stand(
 
 const stands = [stand(21, "A1"), stand(22, "A2")];
 
-function renderMap(activeHold: ReservationActiveHoldDto | null) {
+function renderMap(
+  activeHold: ReservationActiveHoldDto | null,
+  sectorStands: ReservationMapStandDto[] = stands,
+) {
   return render(
     <ClientMap
       festival={{
@@ -115,7 +119,7 @@ function renderMap(activeHold: ReservationActiveHoldDto | null) {
       }}
       sectorId={7}
       sectorName="Sector A"
-      stands={stands}
+      stands={sectorStands}
       activeHold={activeHold}
       alreadyReserved={false}
     />,
@@ -132,6 +136,7 @@ const ownFullTableHold: ReservationActiveHoldDto = {
 afterEach(() => {
   cleanup();
   createStandHold.mockReset();
+  pollNow.mockReset();
   pollCallback.current = null;
 });
 
@@ -197,6 +202,70 @@ describe("ClientMap", () => {
     expect(
       screen.getByText(/Tenés este espacio reservado temporalmente/),
     ).toBeTruthy();
+  });
+
+  describe("losing a race for a stand", () => {
+    const free = (id: number, label: string) =>
+      stand(id, label, {
+        effectiveStatus: "available",
+        status: "available",
+        standGroupId: null,
+        isFullTableHalf: false,
+      });
+
+    function tapAndTake(label: string) {
+      renderMap(null, [free(21, "A1"), free(22, "A2")]);
+      fireEvent.click(screen.getByRole("button", { name: `stand-${label}` }));
+      fireEvent.click(
+        screen.getByRole("button", { name: /Seleccionar Stand/ }),
+      );
+    }
+
+    it("marks the stand taken at once and polls now on STAND_UNAVAILABLE", async () => {
+      createStandHold.mockResolvedValue({
+        success: false,
+        code: "STAND_UNAVAILABLE",
+        message: "Este espacio ya no está disponible",
+      });
+      tapAndTake("A1");
+
+      expect(
+        await screen.findByText(/Otro participante está considerando/),
+      ).toBeTruthy();
+      expect(
+        screen.getByRole("button", { name: /Stand No Disponible/ }),
+      ).toHaveProperty("disabled", true);
+      expect(pollNow).toHaveBeenCalledTimes(1);
+
+      // A2 is untouched until the poll says otherwise.
+      fireEvent.click(screen.getByRole("button", { name: "stand-A2" }));
+      expect(screen.queryByText(/Otro participante/)).toBeNull();
+      act(() => {
+        pollCallback.current?.({
+          stands: [{ standId: 22, effectiveStatus: "held", updatedAt: null }],
+          availableCount: 0,
+          version: 2,
+        });
+      });
+      expect(
+        screen.getByText(/Otro participante está considerando/),
+      ).toBeTruthy();
+    });
+
+    it("only polls on CONFLICT_RETRY and keeps the stand reservable", async () => {
+      createStandHold.mockResolvedValue({
+        success: false,
+        code: "CONFLICT_RETRY",
+        message: "Reintentá",
+      });
+      tapAndTake("A1");
+
+      await vi.waitFor(() => expect(pollNow).toHaveBeenCalledTimes(1));
+      expect(screen.queryByText(/Otro participante/)).toBeNull();
+      expect(
+        screen.getByRole("button", { name: /Seleccionar Stand/ }),
+      ).toHaveProperty("disabled", false);
+    });
   });
 
   describe("tapping outside the card", () => {

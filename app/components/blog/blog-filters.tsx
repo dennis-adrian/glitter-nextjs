@@ -122,7 +122,10 @@ export default function BlogFilters({
       {hasFilters && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           {activeTag && (
-            <Badge variant="secondary" className="gap-1">
+            <Badge
+              variant="secondary"
+              className="gap-1 whitespace-normal wrap-anywhere"
+            >
               #{activeTag}
               <Link
                 href={hrefWith({ tag: undefined })}
@@ -133,7 +136,10 @@ export default function BlogFilters({
             </Badge>
           )}
           {q && (
-            <Badge variant="secondary" className="gap-1">
+            <Badge
+              variant="secondary"
+              className="gap-1 whitespace-normal wrap-anywhere"
+            >
               “{q}”
               <Link
                 href={hrefWith({ q: undefined })}

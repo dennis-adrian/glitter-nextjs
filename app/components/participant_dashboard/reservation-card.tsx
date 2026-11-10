@@ -349,7 +349,10 @@ export default function ReservationCard({
               {getFestivalDateLabel(activeFestival, true)}
             </p>
             <Badge
-              className={cn("flex items-center gap-1", cardConfig.badgeStyle)}
+              className={cn(
+                "flex items-center gap-1 whitespace-normal",
+                cardConfig.badgeStyle,
+              )}
             >
               <cardConfig.icon className="w-3.5 h-3.5 shrink-0" />
               {cardConfig.label}

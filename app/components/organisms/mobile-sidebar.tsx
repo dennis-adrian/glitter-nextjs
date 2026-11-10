@@ -4,10 +4,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 import { useClerk, useUser } from "@clerk/nextjs";
-import { LogOutIcon } from "lucide-react";
+import { CircleHelpIcon, LogOutIcon } from "lucide-react";
+import { useState } from "react";
 
 import { NavbarProfile } from "@/app/api/users/definitions";
 import ThemeImage from "@/app/components/atoms/theme-image";
+import { HELP_LABEL, HelpDrawer } from "@/app/components/help/help-menu";
 import { ThemeSegmentedControl } from "@/app/components/mode-toggle";
 import {
   buildAppNavigation,
@@ -119,6 +121,8 @@ const MobileSidebar = ({
   const { isSignedIn } = useUser();
   const router = useRouter();
   const pathname = usePathname() ?? "/";
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   if (isNoNavigationPage(pathname)) return null;
 
@@ -142,138 +146,162 @@ const MobileSidebar = ({
     : buildPublicNavigation({ programsHref, blogEnabled });
 
   return (
-    <Sheet>
-      <SheetTrigger
-        aria-label="Abrir menú de navegación"
-        className="cursor-default rounded-full border-brand-border text-brand-ink hover:bg-brand-lavender hover:text-brand-primary"
-        variant="outline"
-        size="icon"
-      >
-        {children}
-      </SheetTrigger>
-      <SheetContent
-        side="left"
-        className="flex flex-col border-brand-border bg-brand-elevated"
-      >
-        <SheetHeader>
-          <SheetTitle>
-            <SheetClose asChild>
-              <Link href={isSignedIn ? PORTAL_HREF : "/"}>
-                <ThemeImage
-                  srcLight="/img/logo/glitter-logo-full-primary-1696x739.png"
-                  srcDark="/img/logo/glitter-logo-full-white-1696x741.png"
-                  alt="Productora Glitter"
-                  width={1696}
-                  height={739}
-                  className="h-auto w-[120px] object-contain"
-                />
-              </Link>
-            </SheetClose>
-          </SheetTitle>
-        </SheetHeader>
-        <Separator className="my-2" />
-        <nav aria-label="Menú" className="flex flex-1 flex-col overflow-y-auto">
-          {groups ? (
-            groups.map((group) => (
-              <div key={group.key}>
-                {group.label ? (
-                  <GroupHeading>{group.label}</GroupHeading>
-                ) : null}
-                <ul className="flex flex-col">
-                  {group.items.map((item) =>
-                    item.children?.length ? (
-                      <li key={item.key}>
-                        <span className="flex items-center gap-3 p-2 text-brand-neutral">
-                          <item.icon
-                            className="h-6 w-6 shrink-0"
-                            aria-hidden="true"
-                          />
-                          {item.label}
-                        </span>
-                        <ul
-                          aria-label={item.label}
-                          className="ml-5 flex flex-col border-l border-brand-border pl-2"
-                        >
-                          {item.children.map((child) => (
-                            <SheetLink
-                              key={child.key}
-                              link={child}
-                              pathname={pathname}
+    <>
+      <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+        <SheetTrigger
+          aria-label="Abrir menú de navegación"
+          className="cursor-default rounded-full border-brand-border text-brand-ink hover:bg-brand-lavender hover:text-brand-primary"
+          variant="outline"
+          size="icon"
+        >
+          {children}
+        </SheetTrigger>
+        <SheetContent
+          side="left"
+          className="flex flex-col border-brand-border bg-brand-elevated"
+        >
+          <SheetHeader>
+            <SheetTitle>
+              <SheetClose asChild>
+                <Link href={isSignedIn ? PORTAL_HREF : "/"}>
+                  <ThemeImage
+                    srcLight="/img/logo/glitter-logo-full-primary-1696x739.png"
+                    srcDark="/img/logo/glitter-logo-full-white-1696x741.png"
+                    alt="Productora Glitter"
+                    width={1696}
+                    height={739}
+                    className="h-auto w-[120px] object-contain"
+                  />
+                </Link>
+              </SheetClose>
+            </SheetTitle>
+          </SheetHeader>
+          <Separator className="my-2" />
+          <nav
+            aria-label="Menú"
+            className="flex flex-1 flex-col overflow-y-auto"
+          >
+            {groups ? (
+              groups.map((group) => (
+                <div key={group.key}>
+                  {group.label ? (
+                    <GroupHeading>{group.label}</GroupHeading>
+                  ) : null}
+                  <ul className="flex flex-col">
+                    {group.items.map((item) =>
+                      item.children?.length ? (
+                        <li key={item.key}>
+                          <span className="flex items-center gap-3 p-2 text-brand-neutral">
+                            <item.icon
+                              className="h-6 w-6 shrink-0"
+                              aria-hidden="true"
                             />
-                          ))}
-                        </ul>
-                      </li>
-                    ) : (
-                      <SheetLink
-                        key={item.key}
-                        link={item}
-                        pathname={pathname}
-                      />
-                    ),
-                  )}
-                </ul>
-                {group.sections?.map((section) => (
-                  <div key={section.key} className="mt-1">
-                    <h4 className="flex items-center gap-3 p-2 font-medium text-brand-ink">
-                      <section.icon
-                        className="h-6 w-6 shrink-0"
-                        aria-hidden="true"
-                      />
-                      {section.label}
-                    </h4>
-                    <ul className="ml-4 flex flex-col">
-                      {section.items.map((item) => (
+                            {item.label}
+                          </span>
+                          <ul
+                            aria-label={item.label}
+                            className="ml-5 flex flex-col border-l border-brand-border pl-2"
+                          >
+                            {item.children.map((child) => (
+                              <SheetLink
+                                key={child.key}
+                                link={child}
+                                pathname={pathname}
+                              />
+                            ))}
+                          </ul>
+                        </li>
+                      ) : (
                         <SheetLink
                           key={item.key}
                           link={item}
                           pathname={pathname}
-                          active={
-                            item.key ===
-                            mostSpecificActiveKey(section.items, pathname)
-                          }
                         />
-                      ))}
-                    </ul>
-                  </div>
+                      ),
+                    )}
+                  </ul>
+                  {group.sections?.map((section) => (
+                    <div key={section.key} className="mt-1">
+                      <h4 className="flex items-center gap-3 p-2 font-medium text-brand-ink">
+                        <section.icon
+                          className="h-6 w-6 shrink-0"
+                          aria-hidden="true"
+                        />
+                        {section.label}
+                      </h4>
+                      <ul className="ml-4 flex flex-col">
+                        {section.items.map((item) => (
+                          <SheetLink
+                            key={item.key}
+                            link={item}
+                            pathname={pathname}
+                            active={
+                              item.key ===
+                              mostSpecificActiveKey(section.items, pathname)
+                            }
+                          />
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              ))
+            ) : (
+              <ul className="flex flex-col">
+                {publicLinks.map((item) => (
+                  <SheetLink key={item.key} link={item} pathname={pathname} />
                 ))}
-              </div>
-            ))
-          ) : (
-            <ul className="flex flex-col">
-              {publicLinks.map((item) => (
-                <SheetLink key={item.key} link={item} pathname={pathname} />
-              ))}
-            </ul>
-          )}
-          {isSignedIn && (
-            <>
-              <Separator className="my-2" />
-              <SheetClose asChild>
-                <Button
-                  className="justify-start p-2"
-                  onClick={async () => {
-                    // Ends a view of the app as someone else first, then forgets this
-                    // browser's avisos for whoever is really signed in.
-                    await prepareSignOut();
-                    await signOut(() => router.push("/"));
+              </ul>
+            )}
+            {isSignedIn && (
+              <>
+                {/* The site footer is for visitors only, so its contact is
+                  reached from here, in a bottom sheet of its own. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setHelpOpen(true);
                   }}
-                  variant="ghost"
+                  className="mt-4 flex w-full items-center gap-3 rounded-xl p-2 text-left text-brand-neutral transition-colors hover:bg-brand-lavender hover:text-brand-primary"
                 >
-                  <LogOutIcon className="mr-2 h-6 w-6" aria-hidden="true" />
-                  <span className="w-full text-left text-base font-normal">
-                    Cerrar Sesión
-                  </span>
-                </Button>
-              </SheetClose>
-            </>
-          )}
-        </nav>
-        <div className="flex flex-col gap-2 border-t border-brand-border pt-4">
-          <span className="text-sm font-medium text-brand-neutral">Tema</span>
-          <ThemeSegmentedControl />
-        </div>
-      </SheetContent>
-    </Sheet>
+                  <CircleHelpIcon
+                    className="h-6 w-6 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span>{HELP_LABEL}</span>
+                </button>
+                <Separator className="my-2" />
+                <SheetClose asChild>
+                  <Button
+                    className="justify-start p-2"
+                    onClick={async () => {
+                      // Ends a view of the app as someone else first, then forgets this
+                      // browser's avisos for whoever is really signed in.
+                      await prepareSignOut();
+                      await signOut(() => router.push("/"));
+                    }}
+                    variant="ghost"
+                  >
+                    <LogOutIcon className="mr-2 h-6 w-6" aria-hidden="true" />
+                    <span className="w-full text-left text-base font-normal">
+                      Cerrar Sesión
+                    </span>
+                  </Button>
+                </SheetClose>
+              </>
+            )}
+          </nav>
+          <div className="flex flex-col gap-2 border-t border-brand-border pt-4">
+            <span className="text-sm font-medium text-brand-neutral">Tema</span>
+            <ThemeSegmentedControl />
+          </div>
+        </SheetContent>
+      </Sheet>
+      {isSignedIn ? (
+        <HelpDrawer open={helpOpen} onOpenChange={setHelpOpen} />
+      ) : null}
+    </>
   );
 };
 

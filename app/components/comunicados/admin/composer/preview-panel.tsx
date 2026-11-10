@@ -273,7 +273,7 @@ function DetailPreview({
       )}
       {action && (
         <span
-          className={cn(buttonVariants(), "pointer-events-none")}
+          className={cn(buttonVariants({ wrap: true }), "pointer-events-none")}
           aria-label={`Botón: ${action.label} (lleva a ${action.path})`}
         >
           {action.label}
@@ -282,4 +282,3 @@ function DetailPreview({
     </article>
   );
 }
-

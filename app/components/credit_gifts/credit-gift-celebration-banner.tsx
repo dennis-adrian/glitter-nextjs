@@ -51,7 +51,7 @@ export default function CreditGiftCelebrationBanner({
     <div className="border-b border-primary/15 bg-primary/5">
       <div
         role="status"
-        className="mx-auto flex w-full max-w-[1440px] items-center gap-3 px-5 py-3 sm:px-8 lg:px-12 xl:px-20"
+        className="mx-auto flex w-full max-w-[1440px] flex-wrap items-center gap-3 px-5 py-3 sm:px-8 lg:px-12 xl:px-20"
       >
         <span
           aria-hidden
@@ -59,7 +59,7 @@ export default function CreditGiftCelebrationBanner({
         >
           <GiftIcon className="h-5 w-5" />
         </span>
-        <div className="min-w-0 flex-1 space-y-0.5">
+        <div className="min-w-40 flex-1 space-y-0.5">
           <p className="text-sm">
             <span className="font-semibold">
               Recibiste {formatCreditCount(totalCredits)} de regalo.
