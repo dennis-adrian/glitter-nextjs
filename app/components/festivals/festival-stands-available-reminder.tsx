@@ -101,6 +101,10 @@ export default function FestivalStandsAvailableReminder({
   const available = STANDS_AVAILABLE_CATEGORIES.filter(
     (category) => (availableStands[category] ?? 0) > 0,
   );
+  const totalAvailable = available.reduce(
+    (sum, category) => sum + (availableStands[category] ?? 0),
+    0,
+  );
   const canSend =
     active && !archived && reservationsOpen && available.length > 0;
   const channelsProblem = reservationsOpenChannelsProblem(channels);
@@ -184,11 +188,11 @@ export default function FestivalStandsAvailableReminder({
       <p className="flex items-start gap-2 rounded-md border bg-muted/50 p-3 text-sm text-muted-foreground">
         <InfoIcon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
         {available.length > 0
-          ? `Quedan ${listJoin(
-              available.map(
-                (category, index) =>
-                  `${(availableStands[category] ?? 0).toLocaleString("es-BO")}${index === 0 ? " espacios" : ""} de ${STANDS_AVAILABLE_CATEGORY_LABELS[category]}`,
-              ),
+          ? `${totalAvailable === 1 ? "Queda" : "Quedan"} ${listJoin(
+              available.map((category, index) => {
+                const count = availableStands[category] ?? 0;
+                return `${index === 0 ? people(count, "espacio", "espacios") : count.toLocaleString("es-BO")} de ${STANDS_AVAILABLE_CATEGORY_LABELS[category]}`;
+              }),
             )}.`
           : "No quedan espacios disponibles: no hay a quién recordarle."}
       </p>
