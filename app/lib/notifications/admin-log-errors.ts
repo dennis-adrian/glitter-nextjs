@@ -4,7 +4,8 @@ import type { NotificationLogChannel } from "@/app/lib/notifications/admin-log-d
  * Plain-Spanish readings of the codes the senders store in `last_error`, for
  * the admin notification log. Client-safe: the table renders them.
  *
- * The codes come from `push/result.ts` (`push_<status>`, `push_network`,
+ * The codes come from `push/result.ts` (`push_<status>`, optionally with the
+ * service's reason as `push_<status>:<Reason>`, `push_network`,
  * `push_timeout`), `push/send.ts` (skip reasons, `endpoint_rejected`),
  * `deliveries.ts` and `bulk-email.ts` (email codes, `resend:<name>`) and the
  * comunicado renderers. The older outboxes store free-form messages; those,
@@ -14,6 +15,8 @@ import type { NotificationLogChannel } from "@/app/lib/notifications/admin-log-d
 export type NotificationLogErrorReading = {
   /** What happened, in a sentence an admin can act on. */
   summary: string;
+  /** What the push service said was wrong, when it gave a reason we know. */
+  detail?: string;
   /** What we did about it, or what to check. */
   hint?: string;
 };
@@ -63,6 +66,48 @@ function pushStatusReading(status: number): NotificationLogErrorReading {
     hint: `${NOT_RETRIED} El dispositivo se conserva.`,
   };
 }
+
+const SERVER_SIDE = "Es un problema del servidor, no del dispositivo.";
+
+/**
+ * The reasons Apple's web push service (`web.push.apple.com`) answers with,
+ * kept by `push/result.ts` after the status. Any other reason still gets the
+ * status's reading; the stored code shows it.
+ */
+const PUSH_REASONS: Record<string, string> = {
+  BadDeviceToken:
+    "Apple no reconoce la suscripción de este dispositivo (BadDeviceToken). Suele resolverse si la persona desactiva y vuelve a activar los avisos en ese iPhone o iPad.",
+  DeviceTokenNotForTopic:
+    "La suscripción del dispositivo no corresponde a nuestras claves (DeviceTokenNotForTopic). Pasa si cambiaron las claves VAPID: la persona tiene que volver a activar los avisos.",
+  BadExpirationDate: `Apple no aceptó la vigencia (TTL) del aviso (BadExpirationDate). ${SERVER_SIDE}`,
+  BadTopic: `Apple no aceptó el tema (Topic) del aviso (BadTopic). ${SERVER_SIDE}`,
+  MissingTopic: `Apple pidió un tema (Topic) que el aviso no tenía (MissingTopic). ${SERVER_SIDE}`,
+  TopicDisallowed: `Apple no permite el tema (Topic) del aviso (TopicDisallowed). ${SERVER_SIDE}`,
+  BadPriority: `Apple no aceptó la urgencia del aviso (BadPriority). ${SERVER_SIDE}`,
+  PayloadEmpty: `El aviso llegó vacío a Apple (PayloadEmpty). ${SERVER_SIDE}`,
+  BadJwtToken:
+    "Apple no aceptó nuestra firma VAPID (BadJwtToken). Revisá las claves VAPID y que VAPID_SUBJECT sea un mailto: o https: válido.",
+  InvalidProviderToken:
+    "Apple no aceptó nuestra firma VAPID (InvalidProviderToken). Revisá las claves VAPID.",
+  MissingProviderToken:
+    "El aviso salió sin firma VAPID (MissingProviderToken). Revisá la configuración de avisos push.",
+  ExpiredProviderToken:
+    "Apple dio por vencida nuestra firma VAPID (ExpiredProviderToken). Revisá que el reloj del servidor esté en hora.",
+  TooManyProviderTokenUpdates:
+    "Renovamos la firma VAPID más seguido de lo que Apple permite (TooManyProviderTokenUpdates).",
+  Unregistered:
+    "Apple dice que el dispositivo ya no está suscrito (Unregistered).",
+  ExpiredToken:
+    "Apple dice que la suscripción del dispositivo venció (ExpiredToken).",
+  PayloadTooLarge:
+    "El aviso supera el tamaño que acepta Apple (PayloadTooLarge).",
+  TooManyRequests:
+    "Enviamos demasiados avisos seguidos a este dispositivo (TooManyRequests).",
+  InternalServerError: "Falla interna de Apple (InternalServerError).",
+  ServiceUnavailable:
+    "El servicio de Apple no estaba disponible (ServiceUnavailable).",
+  Shutdown: "El servidor de Apple se estaba apagando (Shutdown).",
+};
 
 /** Codes that mean the same on every channel. */
 const SHARED: Record<string, NotificationLogErrorReading> = {
@@ -168,8 +213,15 @@ export function describeNotificationLogError(
   if (Object.prototype.hasOwnProperty.call(SHARED, code)) return SHARED[code]!;
 
   if (channel === "push") {
-    const status = /^push_(\d{3})$/.exec(code);
-    if (status) return pushStatusReading(Number(status[1]));
+    const status = /^push_(\d{3})(?::([A-Za-z]{1,40}))?$/.exec(code);
+    if (status) {
+      const reading = pushStatusReading(Number(status[1]));
+      const reason = status[2];
+      return reason &&
+        Object.prototype.hasOwnProperty.call(PUSH_REASONS, reason)
+        ? { ...reading, detail: PUSH_REASONS[reason]! }
+        : reading;
+    }
     return Object.prototype.hasOwnProperty.call(PUSH, code)
       ? PUSH[code]!
       : null;

@@ -128,6 +128,9 @@ function ErrorNote({
   return (
     <div className="space-y-0.5 text-xs">
       <p className={cn("break-words", tone)}>{reading.summary}</p>
+      {reading.detail ? (
+        <p className="break-words text-foreground">{reading.detail}</p>
+      ) : null}
       {reading.hint ? (
         <p className="break-words text-muted-foreground">{reading.hint}</p>
       ) : null}

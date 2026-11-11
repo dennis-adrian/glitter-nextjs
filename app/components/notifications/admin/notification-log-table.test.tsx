@@ -124,6 +124,23 @@ describe("notification log cells", () => {
     expect(screen.getByText("push_400")).toBeTruthy();
   });
 
+  it("adds what Apple said to a push failure, and keeps the code", () => {
+    render(
+      <StatusCell
+        row={row({
+          channel: "push",
+          status: "failed",
+          error: "push_400:BadDeviceToken",
+        })}
+      />,
+    );
+    expect(
+      screen.getByText("El servicio push rechazó el aviso (400)."),
+    ).toBeTruthy();
+    expect(screen.getByText(/Apple no reconoce la suscripción/)).toBeTruthy();
+    expect(screen.getByText("push_400:BadDeviceToken")).toBeTruthy();
+  });
+
   it("tells read from unread and retracted inbox items", () => {
     const { rerender } = render(
       <StatusCell row={row({ channel: "in_app", readAt: new Date() })} />,
