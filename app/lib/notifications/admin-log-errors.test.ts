@@ -34,6 +34,25 @@ describe("describeNotificationLogError", () => {
     );
   });
 
+  it("explains Apple's reason when the push service gave one", () => {
+    const reading = describeNotificationLogError(
+      "push_400:BadDeviceToken",
+      "push",
+    );
+    expect(reading?.summary).toBe("El servicio push rechazó el aviso (400).");
+    expect(reading?.hint).toMatch(/^Motivo: BadDeviceToken\. Apple dice/);
+    // An unknown reason is still named, after the status reading's hint.
+    expect(
+      describeNotificationLogError("push_400:SomethingNew", "push")?.hint,
+    ).toMatch(
+      /^Motivo que dio el servicio push: SomethingNew\. No se reintenta/,
+    );
+    // A prototype key is not a known reason.
+    expect(
+      describeNotificationLogError("push_400:constructor", "push")?.hint,
+    ).toMatch(/^Motivo que dio el servicio push: constructor/);
+  });
+
   it("reads push skip reasons", () => {
     expect(describeNotificationLogError("read", "push")?.summary).toMatch(
       /ya la había leído/,

@@ -4,7 +4,10 @@
  * as `resend-result.ts` does for email.
  *
  * `error` is what goes in `last_error`: a status or a type, never the
- * endpoint or the response body, which can echo it.
+ * endpoint or the response body, which can echo it. The one thing taken from
+ * a body is the reason word Apple's push service answers with
+ * (`{"reason":"BadDeviceToken"}`), and only when it is exactly that: a short
+ * run of letters. It is stored after the status, as `push_400:BadDeviceToken`.
  */
 export type PushAttemptResult =
   | { kind: "sent"; providerMessageId: string | null }
@@ -54,6 +57,37 @@ export function classifyPushResponse(response: {
   };
 }
 
+/** Longest body worth parsing: Apple's reason answers are a few dozen bytes. */
+const MAX_REASON_BODY_LENGTH = 1_000;
+const REASON_PATTERN = /^[A-Za-z]{1,40}$/;
+
+/**
+ * The provider's own reason for a refusal, or null. Apple answers with a JSON
+ * object holding a fixed identifier (`BadDeviceToken`, `ExpiredProviderToken`,
+ * …); anything else in the body, or a reason that is not a bare word, is
+ * dropped, so no URL or token can reach `last_error`.
+ */
+export function pushProviderReason(body: unknown): string | null {
+  const text =
+    body instanceof Uint8Array ? new TextDecoder().decode(body) : body;
+  if (typeof text !== "string" || text.length > MAX_REASON_BODY_LENGTH) {
+    return null;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return null;
+  }
+  const reason = (parsed as { reason?: unknown }).reason;
+  return typeof reason === "string" && REASON_PATTERN.test(reason)
+    ? reason
+    : null;
+}
+
 /**
  * `web-push` rejects with a `WebPushError` (`statusCode`, `headers`, `body`,
  * `endpoint`) for any non-2xx answer, and with a plain `Error` when the
@@ -77,7 +111,8 @@ export function classifyPushError(
     };
   }
 
-  const code = `push_${statusCode}`;
+  const reason = pushProviderReason((error as { body?: unknown }).body);
+  const code = reason ? `push_${statusCode}:${reason}` : `push_${statusCode}`;
   if (statusCode === 404 || statusCode === 410) {
     return { kind: "gone", error: code };
   }

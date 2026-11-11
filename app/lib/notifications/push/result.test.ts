@@ -5,6 +5,7 @@ import {
   classifyPushError,
   classifyPushResponse,
   parseRetryAfter,
+  pushProviderReason,
 } from "@/app/lib/notifications/push/result";
 
 /** The shape `web-push` rejects with for a non-2xx answer. */
@@ -110,5 +111,31 @@ describe("parseRetryAfter", () => {
     expect(parseRetryAfter("Wed, 21 Oct 2026 11:00:00 GMT", NOW)).toBe(0);
     expect(parseRetryAfter("soon", NOW)).toBeNull();
     expect(parseRetryAfter(null, NOW)).toBeNull();
+  });
+});
+
+describe("pushProviderReason", () => {
+  it("keeps Apple's reason word and stores it after the status", () => {
+    const error = Object.assign(webPushError(400), {
+      body: '{"reason":"BadDeviceToken"}',
+    });
+    expect(classifyPushError(error, NOW)).toEqual({
+      kind: "failed",
+      error: "push_400:BadDeviceToken",
+    });
+    expect(pushProviderReason(Buffer.from('{"reason":"Unregistered"}'))).toBe(
+      "Unregistered",
+    );
+  });
+
+  it("drops anything that is not a bare word", () => {
+    expect(
+      pushProviderReason('{"reason":"https://web.push.apple.com/secret"}'),
+    ).toBeNull();
+    expect(pushProviderReason('{"reason":"Bad Token"}')).toBeNull();
+    expect(pushProviderReason("endpoint-echoing body")).toBeNull();
+    expect(pushProviderReason('["BadDeviceToken"]')).toBeNull();
+    expect(pushProviderReason(`{"reason":"${"A".repeat(41)}"}`)).toBeNull();
+    expect(pushProviderReason(null)).toBeNull();
   });
 });

@@ -4,8 +4,8 @@ import type { NotificationLogChannel } from "@/app/lib/notifications/admin-log-d
  * Plain-Spanish readings of the codes the senders store in `last_error`, for
  * the admin notification log. Client-safe: the table renders them.
  *
- * The codes come from `push/result.ts` (`push_<status>`, `push_network`,
- * `push_timeout`), `push/send.ts` (skip reasons, `endpoint_rejected`),
+ * The codes come from `push/result.ts` (`push_<status>`, with Apple's reason
+ * after a colon when it gave one, `push_network`, `push_timeout`), `push/send.ts` (skip reasons, `endpoint_rejected`),
  * `deliveries.ts` and `bulk-email.ts` (email codes, `resend:<name>`) and the
  * comunicado renderers. The older outboxes store free-form messages; those,
  * and any code missing here, get no reading and are shown as stored.
@@ -61,6 +61,67 @@ function pushStatusReading(status: number): NotificationLogErrorReading {
   return {
     summary: `El servicio push rechazó el aviso (${status}).`,
     hint: `${NOT_RETRIED} El dispositivo se conserva.`,
+  };
+}
+
+const OUR_REQUEST =
+  "Es un problema de cómo armamos el aviso, no del dispositivo.";
+const OUR_SIGNATURE =
+  "Revisá las claves VAPID y el reloj del servidor: no es un problema del dispositivo.";
+const APPLE_SIDE =
+  "Es una falla del lado de Apple; se reintentó antes de darlo por fallido.";
+
+/**
+ * What Apple's push service means by each reason it answers with. Apple
+ * documents these identifiers for its push API; one missing here is still
+ * shown, by name.
+ */
+const APPLE_REASONS: Record<string, string> = {
+  BadDeviceToken: `Apple dice que la suscripción de este dispositivo no es válida. ${NOT_RETRIED} Que la persona desactive y vuelva a activar los avisos en ese dispositivo crea una suscripción nueva.`,
+  Unregistered: "El dispositivo se dio de baja de los avisos en Apple.",
+  ExpiredToken: "La suscripción de este dispositivo venció en Apple.",
+  BadJwtToken: `Apple no aceptó nuestra firma. ${OUR_SIGNATURE}`,
+  InvalidProviderToken: `Apple no aceptó nuestra firma. ${OUR_SIGNATURE}`,
+  ExpiredProviderToken: `Apple consideró vencida nuestra firma. ${OUR_SIGNATURE}`,
+  MissingProviderToken: `El aviso salió sin firma. ${OUR_SIGNATURE}`,
+  BadExpirationDate: `Apple no aceptó el vencimiento (TTL) del aviso. ${OUR_REQUEST}`,
+  BadPriority: `Apple no aceptó la urgencia del aviso. ${OUR_REQUEST}`,
+  BadTopic: `Apple no aceptó el tema (Topic) del aviso. ${OUR_REQUEST}`,
+  MissingTopic: `Apple pidió un tema (Topic) que el aviso no tenía. ${OUR_REQUEST}`,
+  BadWebPushTopic: `Apple no aceptó el tema (Topic) del aviso. ${OUR_REQUEST}`,
+  BadMessageId: `Apple no aceptó el identificador del aviso. ${OUR_REQUEST}`,
+  DuplicateHeaders: `El aviso salió con encabezados repetidos. ${OUR_REQUEST}`,
+  PayloadEmpty: `El aviso salió vacío. ${OUR_REQUEST}`,
+  PayloadTooLarge: `El aviso era demasiado grande para Apple. ${OUR_REQUEST}`,
+  TopicDisallowed:
+    "Apple no permite avisos con este tema para esta suscripción.",
+  DeviceTokenNotForTopic:
+    "Apple dice que esta suscripción no corresponde a nuestro sitio.",
+  Forbidden: "Apple no permitió el envío.",
+  TooManyRequests: "Apple pidió bajar el ritmo de avisos a este dispositivo.",
+  TooManyProviderTokenUpdates:
+    "Apple pidió renovar nuestra firma con menos frecuencia.",
+  InternalServerError: APPLE_SIDE,
+  ServiceUnavailable: APPLE_SIDE,
+  Shutdown: APPLE_SIDE,
+};
+
+/** A push status reading, made specific by the provider's reason if any. */
+function pushReading(
+  status: number,
+  reason: string | undefined,
+): NotificationLogErrorReading {
+  const reading = pushStatusReading(status);
+  if (!reason) return reading;
+  // Own keys only: a reason like "constructor" must not read the prototype.
+  const meaning = Object.prototype.hasOwnProperty.call(APPLE_REASONS, reason)
+    ? APPLE_REASONS[reason]
+    : undefined;
+  return {
+    summary: reading.summary,
+    hint: meaning
+      ? `Motivo: ${reason}. ${meaning}`
+      : `Motivo que dio el servicio push: ${reason}. ${reading.hint ?? ""}`.trim(),
   };
 }
 
@@ -168,8 +229,8 @@ export function describeNotificationLogError(
   if (Object.prototype.hasOwnProperty.call(SHARED, code)) return SHARED[code]!;
 
   if (channel === "push") {
-    const status = /^push_(\d{3})$/.exec(code);
-    if (status) return pushStatusReading(Number(status[1]));
+    const status = /^push_(\d{3})(?::([A-Za-z]{1,40}))?$/.exec(code);
+    if (status) return pushReading(Number(status[1]), status[2]);
     return Object.prototype.hasOwnProperty.call(PUSH, code)
       ? PUSH[code]!
       : null;
