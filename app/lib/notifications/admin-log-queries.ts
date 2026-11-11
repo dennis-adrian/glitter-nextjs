@@ -24,6 +24,7 @@ import {
   festivalReservationsOpenNotices,
   festivalStandsAvailableReminders,
   notificationCampaigns,
+  notificationDeliveryStatusEnum,
   users,
 } from "@/db/schema";
 
@@ -187,7 +188,9 @@ function deliveryArm(filters: Filters, channels: ("email" | "push")[]): Arm {
   const conditions = commonConditions(
     filters,
     sql`d.created_at`,
-    sql`d.status::text`,
+    // The enum column itself, not its text, so the status index can serve a
+    // status filter. The log's statuses are exactly this enum's values.
+    sql`d.status`,
     personCondition(
       filters,
       sql`coalesce(d.user_id, n.user_id)`,
@@ -220,6 +223,11 @@ function deliveryArm(filters: Filters, channels: ("email" | "push")[]): Arm {
     conditions,
   };
 }
+
+// The delivery arm filters on its enum column, so every log status must be
+// one of its values: one that is not would fail the query, not match nothing.
+// Checked by the compiler.
+NOTIFICATION_LOG_STATUSES satisfies readonly (typeof notificationDeliveryStatusEnum.enumValues)[number][];
 
 /** The outboxes say `completed` for what the deliveries call `sent`. */
 function outboxStatus(alias: string) {

@@ -2380,6 +2380,11 @@ export const reservationNotificationJobs = pgTable(
       table.status,
       table.nextAttemptAt,
     ),
+    // The admin notification log reads newest first; `id` breaks ties.
+    index("reservation_notification_jobs_created_at_idx").on(
+      table.createdAt,
+      table.id,
+    ),
   ],
 );
 export const reservationNotificationJobsRelations = relations(
@@ -7347,6 +7352,9 @@ export const notifications = pgTable(
       .on(t.userId, t.createdAt)
       .where(sql`${t.readAt} IS NULL AND ${t.archivedAt} IS NULL`),
     index("notifications_campaign_idx").on(t.campaignId),
+    // The admin notification log reads everyone's items newest first. `id`
+    // breaks ties: a fan-out inserts many rows with the same `created_at`.
+    index("notifications_created_at_idx").on(t.createdAt, t.id),
     check(
       "notifications_action_path_relative",
       sql`${t.actionPath} IS NULL OR ${t.actionPath} LIKE '/%'`,
@@ -7492,6 +7500,8 @@ export const notificationDeliveries = pgTable(
       t.nextAttemptAt,
     ),
     index("notification_deliveries_notification_idx").on(t.notificationId),
+    // The admin notification log reads newest first; `id` breaks ties.
+    index("notification_deliveries_created_at_idx").on(t.createdAt, t.id),
     // Both are SET NULL foreign keys: deleting a user or a device would
     // otherwise scan the table.
     index("notification_deliveries_user_idx").on(t.userId),
