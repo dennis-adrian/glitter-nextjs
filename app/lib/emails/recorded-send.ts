@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomUUID } from "crypto";
 import { sql } from "drizzle-orm";
+import { after } from "next/server";
 import type { CreateBatchOptions, CreateEmailOptions } from "resend";
 
 import {
@@ -32,8 +33,13 @@ import { isImpersonationReadOnlyError } from "@/db/write-guard";
  * drains only take `pending` rows and expired leases, and these are never
  * either, so no row here can cause a second send.
  *
- * Recording never changes the caller's outcome: a failed insert is logged
- * and swallowed, and the send's own result or throw is passed through as is.
+ * Recording never changes the caller's outcome or waits on it: the insert
+ * runs after the response (`after`), or detached outside a request, and a
+ * failed one is logged and swallowed. It must not be awaited: several callers
+ * send inside a transaction that holds row locks (the waitlist promotion locks
+ * the user `FOR UPDATE`), and the insert, on a connection of its own, checks
+ * its foreign key against those rows. Awaited, it would wait for a commit
+ * that waits for it.
  *
  * The stored payload is a snapshot of what identifies the email (subject,
  * sender, how many attachments), never its body: bodies carry ticket links,
@@ -175,7 +181,7 @@ async function writeRows(rows: RowInput[]) {
     });
 }
 
-async function record(rows: RowInput[]) {
+async function writeOrLog(rows: RowInput[]) {
   try {
     await writeRows(rows);
   } catch (error) {
@@ -185,6 +191,33 @@ async function record(rows: RowInput[]) {
       errorType: error instanceof Error ? error.name : typeof error,
     });
   }
+}
+
+const inFlight = new Set<Promise<void>>();
+
+function track(rows: RowInput[]) {
+  const task = writeOrLog(rows);
+  inFlight.add(task);
+  void task.finally(() => inFlight.delete(task));
+  return task;
+}
+
+/** Writes the rows once the response is out; never waits, never throws. */
+function record(rows: RowInput[]) {
+  try {
+    after(() => track(rows));
+  } catch {
+    // Outside a request (a script, a test): nothing ends before it lands.
+    void track(rows);
+  }
+}
+
+/**
+ * Waits for every record started outside a request. For tests and scripts
+ * that read the rows back; a request's records run in its `after`.
+ */
+export async function settleRecordedEmails() {
+  while (inFlight.size > 0) await Promise.all([...inFlight]);
 }
 
 function rowKey(callerKey: string | undefined, suffix = "") {
@@ -219,7 +252,7 @@ export async function sendRecordedEmail(
     result = await sendEmail(payload, sendOptions);
   } catch (error) {
     if (!isImpersonationReadOnlyError(error)) {
-      await record([
+      record([
         {
           ...base,
           outcome: {
@@ -233,7 +266,7 @@ export async function sendRecordedEmail(
     throw error;
   }
 
-  await record([{ ...base, outcome: singleOutcome(result) }]);
+  record([{ ...base, outcome: singleOutcome(result) }]);
   return result;
 }
 
@@ -323,11 +356,11 @@ export async function sendRecordedBatch<
         lastError: thrownSendError(error),
         providerMessageId: null,
       };
-      await record(rowsFor(emails.map(() => failure)));
+      record(rowsFor(emails.map(() => failure)));
     }
     throw error;
   }
 
-  await record(rowsFor(batchOutcomes(result, emails.length)));
+  record(rowsFor(batchOutcomes(result, emails.length)));
   return result;
 }

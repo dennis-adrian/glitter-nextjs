@@ -79,6 +79,7 @@ function email(to: string, subject = `Tu orden ${MARK}`) {
 }
 
 async function rowsFor(address: string) {
+  await recorded.settleRecordedEmails();
   return integrationDb!
     .select()
     .from(notificationDeliveries)
@@ -247,6 +248,7 @@ describeDatabase("recorded emails", () => {
   });
 
   it("is listed on the admin log with its label and subject", async () => {
+    await recorded.settleRecordedEmails();
     const page = await log.fetchNotificationLogPage({
       query: `ana-${MARK}`,
       channel: ["email"],

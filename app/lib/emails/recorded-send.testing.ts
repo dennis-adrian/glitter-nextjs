@@ -20,6 +20,7 @@ export async function passThrough() {
     );
   return {
     DIRECT_EMAIL_KEY_PREFIX: "direct:",
+    settleRecordedEmails: async () => {},
     sendRecordedEmail: vi.fn(
       (payload: unknown, options: Record<string, unknown>) => {
         const rest = strip(options);

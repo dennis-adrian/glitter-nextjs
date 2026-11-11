@@ -7,14 +7,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { sendEmail, sendBatchEmails, inserted, insertFailure } = vi.hoisted(
-  () => ({
+const { sendEmail, sendBatchEmails, inserted, insertFailure, insertGate } =
+  vi.hoisted(() => ({
     sendEmail: vi.fn(),
     sendBatchEmails: vi.fn(),
     inserted: [] as { values: unknown; conflict: unknown }[],
     insertFailure: { error: null as Error | null },
-  }),
-);
+    insertGate: { promise: null as Promise<void> | null },
+  }));
 
 vi.mock("@/app/vendors/resend", () => ({ sendEmail, sendBatchEmails }));
 vi.mock("@/db", () => ({
@@ -22,6 +22,7 @@ vi.mock("@/db", () => ({
     insert: () => ({
       values: (values: unknown) => ({
         onConflictDoUpdate: async (conflict: unknown) => {
+          if (insertGate.promise) await insertGate.promise;
           if (insertFailure.error) throw insertFailure.error;
           inserted.push({ values, conflict });
         },
@@ -35,13 +36,15 @@ import {
   recipientsOf,
   sendRecordedBatch,
   sendRecordedEmail,
+  settleRecordedEmails,
   singleOutcome,
 } from "@/app/lib/emails/recorded-send";
 import { ImpersonationReadOnlyError } from "@/db/write-guard";
 
 type Row = Record<string, unknown>;
 
-function rows(): Row[] {
+async function rows(): Promise<Row[]> {
+  await settleRecordedEmails();
   return inserted.flatMap((entry) => entry.values as Row[]);
 }
 
@@ -58,6 +61,7 @@ beforeEach(() => {
   sendBatchEmails.mockReset();
   inserted.length = 0;
   insertFailure.error = null;
+  insertGate.promise = null;
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -77,7 +81,7 @@ describe("sendRecordedEmail", () => {
     expect(sendEmail).toHaveBeenCalledWith(payload, {
       idempotencyKey: "order-12",
     });
-    expect(rows()).toEqual([
+    expect(await rows()).toEqual([
       expect.objectContaining({
         templateKey: "order_received",
         userId: 7,
@@ -97,7 +101,7 @@ describe("sendRecordedEmail", () => {
     sendEmail.mockResolvedValue({ data: { id: "re_1" }, error: null });
     await sendRecordedEmail(payload, { template: "ticket_issued" });
 
-    const stored = rows()[0]!.payload;
+    const stored = (await rows())[0]!.payload;
     expect(stored).toEqual({
       subject: "Tu orden #12 ha sido recibida",
       from: "Glitter Store <reservas@productoraglitter.com>",
@@ -111,7 +115,7 @@ describe("sendRecordedEmail", () => {
     await sendRecordedEmail(payload, { template: "ticket_issued" });
     await sendRecordedEmail(payload, { template: "ticket_issued" });
 
-    const [first, second] = rows();
+    const [first, second] = await rows();
     expect(first!.idempotencyKey).toMatch(/^direct:[0-9a-f-]{36}$/);
     expect(second!.idempotencyKey).not.toBe(first!.idempotencyKey);
     expect(sendEmail).toHaveBeenCalledWith(payload, {});
@@ -132,14 +136,14 @@ describe("sendRecordedEmail", () => {
     await expect(
       sendRecordedEmail(payload, { template: "order_received" }),
     ).resolves.toBe(result);
-    expect(rows()[0]).toMatchObject({
+    expect((await rows())[0]).toMatchObject({
       status: "failed",
       lastError: "resend:validation_error",
       providerMessageId: null,
       sentAt: null,
     });
     // The provider's message can echo the address.
-    expect(JSON.stringify(rows())).not.toContain("is invalid");
+    expect(JSON.stringify(await rows())).not.toContain("is invalid");
   });
 
   it("records a timeout as failed and still throws it", async () => {
@@ -149,7 +153,10 @@ describe("sendRecordedEmail", () => {
     await expect(
       sendRecordedEmail(payload, { template: "ticket_issued" }),
     ).rejects.toBe(timeout);
-    expect(rows()[0]).toMatchObject({ status: "failed", lastError: "timeout" });
+    expect((await rows())[0]).toMatchObject({
+      status: "failed",
+      lastError: "timeout",
+    });
   });
 
   it("records nothing for a send refused during a view as someone else", async () => {
@@ -159,7 +166,21 @@ describe("sendRecordedEmail", () => {
     await expect(
       sendRecordedEmail(payload, { template: "profile_verified" }),
     ).rejects.toBe(refusal);
+    await settleRecordedEmails();
     expect(inserted).toEqual([]);
+  });
+
+  it("never waits for the record", async () => {
+    sendEmail.mockResolvedValue({ data: { id: "re_1" }, error: null });
+    let release!: () => void;
+    insertGate.promise = new Promise<void>((resolve) => (release = resolve));
+
+    // Resolves although the insert is still held, as one blocked behind the
+    // caller's own transaction would be.
+    await sendRecordedEmail(payload, { template: "order_received" });
+    expect(inserted).toEqual([]);
+    release();
+    expect(await rows()).toHaveLength(1);
   });
 
   it("never fails the send over the record", async () => {
@@ -187,9 +208,10 @@ describe("sendRecordedEmail", () => {
     });
     // The conflict target is the key, and the update is limited to rows
     // this module wrote.
+    await settleRecordedEmails();
     const conflict = inserted[0]!.conflict as { target: unknown };
     expect(conflict.target).toBeDefined();
-    expect(rows()[0]!.idempotencyKey).toBe("direct:order-reminder-1");
+    expect((await rows())[0]!.idempotencyKey).toBe("direct:order-reminder-1");
   });
 });
 
@@ -254,7 +276,7 @@ describe("sendRecordedBatch", () => {
     expect(sendBatchEmails).toHaveBeenCalledWith(emails, {
       idempotencyKey: "invite-page-1",
     });
-    expect(rows()).toEqual([
+    expect(await rows()).toEqual([
       expect.objectContaining({
         recipientEmail: "a@example.com",
         userId: 3,
@@ -281,7 +303,7 @@ describe("sendRecordedBatch", () => {
     await sendRecordedBatch(emails, {
       template: "festival_visitor_invitation",
     });
-    expect(rows().map((row) => row.lastError)).toEqual([
+    expect((await rows()).map((row) => row.lastError)).toEqual([
       "resend:rate_limit_exceeded",
       "resend:rate_limit_exceeded",
     ]);
@@ -291,7 +313,10 @@ describe("sendRecordedBatch", () => {
     await expect(
       sendRecordedBatch(emails, { template: "festival_visitor_invitation" }),
     ).rejects.toThrow("timed out");
-    expect(rows().map((row) => row.status)).toEqual(["failed", "failed"]);
+    expect((await rows()).map((row) => row.status)).toEqual([
+      "failed",
+      "failed",
+    ]);
   });
 });
 

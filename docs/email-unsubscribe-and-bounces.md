@@ -107,8 +107,10 @@ exactly what the caller passed, then writes one already-settled row to
 `idempotency_key` starting with `direct:`, no inbox item, no push). The queue's
 drains only take pending rows, so these can never be sent a second time. A
 caller that retries under its own Resend key settles the same row again
-(attempts + 1; a sent row stays sent). A failed insert is logged and never
-fails the send; a send refused during "Entrar como participante" writes
+(attempts + 1; a sent row stays sent). The insert never delays the caller:
+it runs in `after()` (detached outside a request), because some callers send
+inside a transaction holding locks the insert's foreign key would wait on. A
+failed insert is logged and never fails the send; a send refused during "Entrar como participante" writes
 nothing. The stored payload is the subject, sender and attachment count only:
 never the body, whose links (ticket history, guest order tokens) must not sit
 in the table. A unit test fails when a new file calls `sendEmail` or
