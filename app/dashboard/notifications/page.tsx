@@ -6,6 +6,7 @@ import NotificationLogTable from "@/app/components/notifications/admin/notificat
 import type { RawSearchParams } from "@/app/lib/credits/admin-definitions";
 import { NotificationLogSearchParamsSchema } from "@/app/lib/notifications/admin-log-definitions";
 import { fetchNotificationLogPage } from "@/app/lib/notifications/admin-log-queries";
+import { withNotificationLogResends } from "@/app/lib/notifications/admin-resend";
 
 export const metadata: Metadata = {
   title: "Notificaciones enviadas",
@@ -13,7 +14,8 @@ export const metadata: Metadata = {
 
 /**
  * What we sent, to whom and how it went: inbox items, emails and pushes,
- * newest first. Read-only; resending lives on each comunicado's report.
+ * newest first. A failed transactional email can be resent from its row;
+ * comunicados are resent from their report.
  */
 export default async function NotificationLogPage(props: {
   searchParams: Promise<RawSearchParams>;
@@ -23,6 +25,7 @@ export default async function NotificationLogPage(props: {
   // A layout is not a boundary: the query refuses anyone but an admin.
   const page = await fetchNotificationLogPage(params);
   if (!page) redirect("/dashboard");
+  const rows = await withNotificationLogResends(page.rows);
 
   const filtered =
     params.query !== "" ||
@@ -72,7 +75,7 @@ export default async function NotificationLogPage(props: {
 
       <div className="flex min-h-0 flex-1 flex-col">
         <NotificationLogTable
-          rows={page.rows}
+          rows={rows}
           rowCount={page.total}
           filtered={filtered}
         />

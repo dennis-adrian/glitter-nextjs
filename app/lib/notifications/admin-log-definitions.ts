@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import type { NotificationLogResend } from "@/app/lib/notifications/admin-resend-definitions";
+
 /**
  * The admin log of notifications we sent: what it lists and what its URL may
  * say. Shared by the page, its queries and its client components, so nothing
@@ -173,6 +175,8 @@ export type NotificationLogRow = {
   /** An admin sent it again from a comunicado's report. */
   isResend: boolean;
   links: NotificationLogLink[];
+  /** Delivery rows only, added by `withNotificationLogResends`. */
+  resend?: NotificationLogResend;
 };
 
 export const NOTIFICATION_LOG_PAGE_SIZE = 25;

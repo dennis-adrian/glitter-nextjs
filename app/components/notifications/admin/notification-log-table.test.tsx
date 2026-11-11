@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+// The resend cell's server action pulls in server-only modules.
+vi.mock("@/app/lib/notifications/admin-resend-actions", () => ({
+  resendFailedNotificationEmailAction: vi.fn(),
+}));
 
 import {
   RecipientCell,

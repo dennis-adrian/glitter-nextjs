@@ -3,6 +3,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 
+import { NotificationLogResendCell } from "@/app/components/notifications/admin/notification-log-resend";
 import { Badge, type BadgeVariant } from "@/app/components/ui/badge";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { DataTableDateRangeFilter } from "@/app/components/ui/data_table/date-range-filter";
@@ -33,6 +34,7 @@ const columnTitles: Record<string, string> = {
   channel: "Canal",
   status: "Estado",
   when: "Fecha",
+  resend: "Reenvío",
 };
 
 /** Who it went to: the person, linked to their account, and the address. */
@@ -193,6 +195,12 @@ const columns: ColumnDef<NotificationLogRow>[] = [
     cell: ({ row }) => <WhenCell row={row.original} />,
     enableSorting: false,
   },
+  {
+    id: "resend",
+    header: () => columnTitles.resend,
+    cell: ({ row }) => <NotificationLogResendCell row={row.original} />,
+    enableSorting: false,
+  },
 ];
 
 export default function NotificationLogTable({
@@ -243,6 +251,7 @@ export default function NotificationLogTable({
           <WhatCell row={row} />
           <StatusCell row={row} fullError />
           <WhenCell row={row} />
+          <NotificationLogResendCell row={row} />
         </div>
       )}
       emptyMessage={
