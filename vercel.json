@@ -53,6 +53,10 @@
     {
       "path": "/api/cron/morning/orderCancellations",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/morning/reservationReminders",
+      "schedule": "0 * * * *"
     }
   ]
 }
