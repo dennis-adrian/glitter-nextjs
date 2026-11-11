@@ -111,6 +111,19 @@ describe("notification log cells", () => {
     expect(screen.getByText("resend 500")).toBeTruthy();
   });
 
+  it("explains a push failure in words and keeps the code", () => {
+    render(
+      <StatusCell
+        row={row({ channel: "push", status: "failed", error: "push_400" })}
+      />,
+    );
+    expect(
+      screen.getByText("El servicio push rechazó el aviso (400)."),
+    ).toBeTruthy();
+    expect(screen.getByText(/No se reintenta/)).toBeTruthy();
+    expect(screen.getByText("push_400")).toBeTruthy();
+  });
+
   it("tells read from unread and retracted inbox items", () => {
     const { rerender } = render(
       <StatusCell row={row({ channel: "in_app", readAt: new Date() })} />,
