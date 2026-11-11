@@ -4,7 +4,7 @@ import { fetchAdminUsers } from "@/app/lib/users/queries";
 import OrderConfirmationForAdminsEmailTemplate from "@/app/emails/order-confirmation-for-admins";
 import OrderConfirmationForUsersEmailTemplate from "@/app/emails/order-confirmation-for-user";
 import type { ProductTransactionType } from "@/app/lib/rentals/types";
-import { sendEmail } from "@/app/vendors/resend";
+import { sendRecordedEmail } from "@/app/lib/emails/recorded-send";
 import { assertSent } from "@/app/vendors/resend-result";
 
 /*
@@ -34,17 +34,20 @@ export async function sendOrderEmails(emailData: {
   // 1. Send to user. Caught on its own so a failure here does not also cost
   // the admins their notice.
   try {
-    const result = await sendEmail({
-      to: [customerEmail],
-      from: "Glitter Store <reservas@productoraglitter.com>",
-      subject: `Tu orden #${orderId} ha sido recibida`,
-      react: OrderConfirmationForUsersEmailTemplate({
-        customerName,
-        orderId: String(orderId),
-        products,
-        total,
-      }) as React.ReactElement,
-    });
+    const result = await sendRecordedEmail(
+      {
+        to: [customerEmail],
+        from: "Glitter Store <reservas@productoraglitter.com>",
+        subject: `Tu orden #${orderId} ha sido recibida`,
+        react: OrderConfirmationForUsersEmailTemplate({
+          customerName,
+          orderId: String(orderId),
+          products,
+          total,
+        }) as React.ReactElement,
+      },
+      { template: "order_received" },
+    );
     assertSent(result);
   } catch (error) {
     console.error("Failed to send order confirmation email", {
@@ -58,18 +61,21 @@ export async function sendOrderEmails(emailData: {
   const adminEmails = admins.map((a) => a.email).filter(Boolean);
 
   if (adminEmails.length > 0) {
-    const result = await sendEmail({
-      to: adminEmails,
-      from: "Glitter Store <store@productoraglitter.com>",
-      replyTo: "soporte@productoraglitter.com",
-      subject: `Nueva orden #${orderId} de ${customerName || "Cliente"}`,
-      react: OrderConfirmationForAdminsEmailTemplate({
-        customerName,
-        orderId: String(orderId),
-        products,
-        total,
-      }) as React.ReactElement,
-    });
+    const result = await sendRecordedEmail(
+      {
+        to: adminEmails,
+        from: "Glitter Store <store@productoraglitter.com>",
+        replyTo: "soporte@productoraglitter.com",
+        subject: `Nueva orden #${orderId} de ${customerName || "Cliente"}`,
+        react: OrderConfirmationForAdminsEmailTemplate({
+          customerName,
+          orderId: String(orderId),
+          products,
+          total,
+        }) as React.ReactElement,
+      },
+      { template: "order_received_admin" },
+    );
     assertSent(result);
   }
 }
@@ -104,18 +110,21 @@ export async function sendGuestOrderEmails(emailData: {
   // Caught on its own so a failure here does not also cost the admins their
   // notice.
   try {
-    const result = await sendEmail({
-      to: [customerEmail],
-      from: "Glitter Store <reservas@productoraglitter.com>",
-      subject: `Tu orden #${orderId} ha sido recibida`,
-      react: OrderConfirmationForUsersEmailTemplate({
-        customerName,
-        orderId: String(orderId),
-        products,
-        total,
-        trackingUrl,
-      }) as React.ReactElement,
-    });
+    const result = await sendRecordedEmail(
+      {
+        to: [customerEmail],
+        from: "Glitter Store <reservas@productoraglitter.com>",
+        subject: `Tu orden #${orderId} ha sido recibida`,
+        react: OrderConfirmationForUsersEmailTemplate({
+          customerName,
+          orderId: String(orderId),
+          products,
+          total,
+          trackingUrl,
+        }) as React.ReactElement,
+      },
+      { template: "order_received" },
+    );
     assertSent(result);
   } catch (error) {
     console.error("Failed to send guest order confirmation email", {
@@ -128,18 +137,21 @@ export async function sendGuestOrderEmails(emailData: {
   const adminEmails = admins.map((a) => a.email).filter(Boolean);
 
   if (adminEmails.length > 0) {
-    const result = await sendEmail({
-      to: adminEmails,
-      from: "Glitter Store <store@productoraglitter.com>",
-      replyTo: "soporte@productoraglitter.com",
-      subject: `Nueva orden #${orderId} de ${customerName || "Cliente"} (invitado)`,
-      react: OrderConfirmationForAdminsEmailTemplate({
-        customerName,
-        orderId: String(orderId),
-        products,
-        total,
-      }) as React.ReactElement,
-    });
+    const result = await sendRecordedEmail(
+      {
+        to: adminEmails,
+        from: "Glitter Store <store@productoraglitter.com>",
+        replyTo: "soporte@productoraglitter.com",
+        subject: `Nueva orden #${orderId} de ${customerName || "Cliente"} (invitado)`,
+        react: OrderConfirmationForAdminsEmailTemplate({
+          customerName,
+          orderId: String(orderId),
+          products,
+          total,
+        }) as React.ReactElement,
+      },
+      { template: "order_received_admin" },
+    );
     assertSent(result);
   }
 }

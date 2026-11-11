@@ -11,7 +11,7 @@ import {
 } from "@/app/lib/tickets/resend";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { buildTicketIssuedEmail } from "@/app/lib/visitors/tickets";
-import { sendEmail } from "@/app/vendors/resend";
+import { sendRecordedEmail } from "@/app/lib/emails/recorded-send";
 import { assertSent, sendFailureType } from "@/app/vendors/resend-result";
 import { db } from "@/db";
 import { tickets } from "@/db/schema";
@@ -115,7 +115,7 @@ export async function resendTicketEmail(
 
   const now = new Date();
   try {
-    const result = await sendEmail(
+    const result = await sendRecordedEmail(
       await buildTicketIssuedEmail({
         visitor: ticket.visitor,
         festival: ticket.festival,
@@ -123,7 +123,10 @@ export async function resendTicketEmail(
       }),
       // A resend is a distinct delivery from the original and from the last
       // click.
-      { idempotencyKey: `ticket-resend-${ticket.id}-${now.getTime()}` },
+      {
+        template: "ticket_resent",
+        idempotencyKey: `ticket-resend-${ticket.id}-${now.getTime()}`,
+      },
     );
     assertSent(result);
   } catch (error) {

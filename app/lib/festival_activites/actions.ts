@@ -13,7 +13,7 @@ import {
   FestivalActivity,
   FestivalBase,
 } from "@/app/lib/festivals/definitions";
-import { sendEmail } from "@/app/vendors/resend";
+import { sendRecordedEmail } from "@/app/lib/emails/recorded-send";
 import { assertSent } from "@/app/vendors/resend-result";
 import { hasPgErrorCode } from "@/app/lib/errors/postgres";
 import { db } from "@/db";
@@ -113,17 +113,20 @@ async function notifyAdminsOfEnrollment(input: {
     const admins = await fetchAdminUsers();
     const adminEmails = admins.map((admin) => admin.email);
 
-    const result = await sendEmail({
-      from: "Actividades del Festival <no-reply@productoraglitter.com>",
-      to: [...adminEmails],
-      subject: "Inscripción a una actividad del festival",
-      react: FestivalActivityRegistrationEmail({
-        festivalActivityName: input.activityName,
-        userDisplayName: input.userDisplayName,
-        festivalName: festival?.name,
-        festivalType: festival?.festivalType,
-      }),
-    });
+    const result = await sendRecordedEmail(
+      {
+        from: "Actividades del Festival <no-reply@productoraglitter.com>",
+        to: [...adminEmails],
+        subject: "Inscripción a una actividad del festival",
+        react: FestivalActivityRegistrationEmail({
+          festivalActivityName: input.activityName,
+          userDisplayName: input.userDisplayName,
+          festivalName: festival?.name,
+          festivalType: festival?.festivalType,
+        }),
+      },
+      { template: "activity_enrollment_admin" },
+    );
     assertSent(result);
   } catch (error) {
     console.error("Error notifying admins of activity enrollment", error);

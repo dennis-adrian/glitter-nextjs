@@ -60,6 +60,9 @@ vi.mock("@/app/lib/rate-limit", () => ({
   consumeActionRateLimit: consumeActionRateLimitMock,
   releaseActionRateLimit: releaseActionRateLimitMock,
 }));
+vi.mock("@/app/lib/emails/recorded-send", async () =>
+  (await import("@/app/lib/emails/recorded-send.testing")).passThrough(),
+);
 vi.mock("@/app/vendors/resend", () => ({ sendEmail: sendEmailMock }));
 vi.mock("@/app/lib/emails/suppressions", () => ({
   isSuppressed: isSuppressedMock,

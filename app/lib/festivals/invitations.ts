@@ -42,13 +42,9 @@ import {
   unsubscribeLinks,
 } from "@/app/lib/emails/unsubscribe-links";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
-import { sendBatchEmails } from "@/app/vendors/resend";
+import { sendRecordedBatch } from "@/app/lib/emails/recorded-send";
 import { db } from "@/db";
-import {
-  festivals,
-  users,
-  visitors,
-} from "@/db/schema";
+import { festivals, users, visitors } from "@/db/schema";
 
 const VISITOR_FROM = "Equipo Glitter <equipo@productoraglitter.com>";
 const VISITOR_REPLY_TO = "visitantes@productoraglitter.com";
@@ -608,7 +604,16 @@ export async function sendInvitationBatch(
             ? await buildVisitorEmails(valid as VisitorRecipient[], festival)
             : await buildParticipantEmails(valid as BaseProfile[], festival);
 
-        const response = await sendBatchEmails(emails, {
+        const response = await sendRecordedBatch(emails, {
+          template:
+            kind === "visitor_registration"
+              ? "festival_visitor_invitation"
+              : "festival_participant_invitation_email",
+          // Visitors have no account to point at.
+          userIds:
+            kind === "visitor_registration"
+              ? undefined
+              : valid.map((recipient) => recipient.id),
           idempotencyKey: invitationIdempotencyKey({
             kind,
             festivalId,
@@ -730,8 +735,12 @@ export async function sendParticipantInvitationsToUsers(
       };
     }
 
-    const response = await sendBatchEmails(
+    const response = await sendRecordedBatch(
       await buildParticipantEmails(valid, festival),
+      {
+        template: "festival_participant_invitation_email",
+        userIds: valid.map((recipient) => recipient.id),
+      },
     );
     if (response.error) {
       console.error("Resend refused a manual invitation batch", response.error);

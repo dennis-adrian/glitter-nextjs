@@ -16,7 +16,7 @@ import { anonymizeProgramPurchasesForUser } from "@/app/lib/programs/anonymizati
 import { detachPostsForDeletedUser } from "@/app/lib/posts/anonymization";
 import { db } from "@/db";
 import { pendingUserDeletions, scheduledTasks, users } from "@/db/schema";
-import { sendEmail } from "@/app/vendors/resend";
+import { sendRecordedEmail } from "@/app/lib/emails/recorded-send";
 import {
   and,
   asc,
@@ -427,14 +427,17 @@ async function sendReminderEmails(
   const { referenceEntity: updatedTaskIds, transactionScope: tx } = options;
   if (!(tx && updatedTaskIds)) return;
 
-  const { data, error } = await sendEmail({
-    from: "Equipo de Glitter <no-reply@productoraglitter.com>",
-    to: [task.profile.email],
-    subject: "Completá tu perfil para participar de nuestros eventos",
-    react: ProfileCompletionReminderTemplate({
-      task,
-    }) as React.ReactElement,
-  });
+  const { data, error } = await sendRecordedEmail(
+    {
+      from: "Equipo de Glitter <no-reply@productoraglitter.com>",
+      to: [task.profile.email],
+      subject: "Completá tu perfil para participar de nuestros eventos",
+      react: ProfileCompletionReminderTemplate({
+        task,
+      }) as React.ReactElement,
+    },
+    { template: "profile_completion_reminder", userId: task.profile.id },
+  );
 
   if (data) {
     const updatedTaskId = await tx
@@ -517,16 +520,19 @@ async function sendDeletionEmails(
   const deadline = options?.referenceEntity;
   if (deadline !== undefined && Date.now() >= deadline) return;
 
-  const { data, error } = await sendEmail({
-    from: "Equipo de Glitter <no-reply@productoraglitter.com>",
-    to: [entry.recipientEmail],
-    subject: "Tu cuenta ha sido eliminada",
-    react: ProfileDeletionTemplate({
-      // The profile row is gone; only the address survived. The template falls
-      // back to a generic greeting when the name fields are absent.
-      profile: { email: entry.recipientEmail } as BaseProfile,
-    }) as React.ReactElement,
-  });
+  const { data, error } = await sendRecordedEmail(
+    {
+      from: "Equipo de Glitter <no-reply@productoraglitter.com>",
+      to: [entry.recipientEmail],
+      subject: "Tu cuenta ha sido eliminada",
+      react: ProfileDeletionTemplate({
+        // The profile row is gone; only the address survived. The template falls
+        // back to a generic greeting when the name fields are absent.
+        profile: { email: entry.recipientEmail } as BaseProfile,
+      }) as React.ReactElement,
+    },
+    { template: "account_deleted" },
+  );
 
   if (error || !data) {
     console.error("Error sending deletion emails", error);
@@ -694,14 +700,17 @@ async function sendReservationReminderEmails(
   const { referenceEntity: updatedTaskIds, transactionScope: tx } = options;
   if (!(tx && updatedTaskIds)) return;
 
-  const { data, error } = await sendEmail({
-    from: "Equipo de Glitter <reservas@productoraglitter.com>",
-    to: [task.profile.email],
-    subject: "Recordatorio de pago de reserva",
-    react: ReservationReminderTemplate({
-      task,
-    }) as React.ReactElement,
-  });
+  const { data, error } = await sendRecordedEmail(
+    {
+      from: "Equipo de Glitter <reservas@productoraglitter.com>",
+      to: [task.profile.email],
+      subject: "Recordatorio de pago de reserva",
+      react: ReservationReminderTemplate({
+        task,
+      }) as React.ReactElement,
+    },
+    { template: "profile_task_reservation_reminder", userId: task.profile.id },
+  );
 
   if (data) {
     const updatedTaskId = await tx

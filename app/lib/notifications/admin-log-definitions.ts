@@ -8,8 +8,9 @@ import { z } from "zod";
  * Four tables feed it: `notifications` (inbox items), `notification_deliveries`
  * (emails and pushes, one row per device) and the two older outboxes that still
  * send their own emails, `reservation_notification_jobs` and
- * `disciplinary_notification_jobs`. Emails sent straight through `sendEmail`
- * leave no row anywhere, so they cannot be listed.
+ * `disciplinary_notification_jobs`. Emails sent outside those (orders,
+ * tickets, programs, account mail…) are recorded in `notification_deliveries`
+ * by `sendRecordedEmail` under one of `DIRECT_EMAIL_TEMPLATES`.
  */
 
 export const NOTIFICATION_LOG_CHANNELS = ["in_app", "email", "push"] as const;
@@ -63,6 +64,52 @@ export function notificationLogStatusLabel(
   if (channel === "email") return "Aceptado por Resend";
   return "Aceptado por el servicio push";
 }
+
+/**
+ * What an email sent outside the delivery queue is, by `template_key`. Its
+ * row is written once Resend answers (`app/lib/emails/recorded-send.ts`).
+ */
+export const DIRECT_EMAIL_TEMPLATE_LABELS = {
+  order_received: "Pedido recibido",
+  order_received_admin: "Nuevo pedido (admin)",
+  order_payment_confirmed: "Pago de pedido confirmado",
+  order_voucher_submitted_admin: "Comprobante de pedido (admin)",
+  order_payment_reminder: "Recordatorio de pago de pedido",
+  order_cancelled_unpaid: "Pedido cancelado por falta de pago",
+  ticket_issued: "Entrada",
+  ticket_resent: "Entrada reenviada",
+  ticket_history_link: "Enlace a las entradas",
+  program_registration_confirmed: "Inscripción a programa confirmada",
+  program_voucher_received: "Comprobante de programa recibido",
+  program_new_signup_admin: "Nueva inscripción a programa (admin)",
+  program_voucher_changes_requested: "Comprobante de programa por corregir",
+  program_payment_approved: "Pago de programa aprobado",
+  program_purchase_link: "Enlace de compra de programa",
+  program_waitlist_invitation: "Cupo disponible en programa",
+  program_session_reminder: "Recordatorio de sesión de programa",
+  activity_enrollment_admin: "Inscripción a actividad (admin)",
+  activity_waitlist_invitation: "Cupo disponible en actividad",
+  activity_proof_review: "Revisión de comprobante de actividad",
+  activity_participant_removed: "Baja de actividad",
+  profile_completion_reminder: "Recordatorio para completar el perfil",
+  profile_task_reservation_reminder: "Recordatorio de reserva pendiente",
+  account_deleted: "Cuenta eliminada",
+  account_paused: "Cuenta pausada",
+  profile_subcategory_updated: "Actualización de perfil",
+  profile_completed_admin: "Perfil completado (admin)",
+  profile_review_requested_admin: "Revisión de perfil pedida (admin)",
+  profile_verified: "Perfil verificado",
+  profile_rejected: "Perfil no verificado",
+  festival_terms_accepted_admin: "Inscripción a festival (admin)",
+  festival_visitor_invitation: "Invitación a visitantes",
+  festival_participant_invitation_email: "Invitación a festival (correo)",
+  comunicado_test: "Prueba de comunicado",
+} as const satisfies Record<string, string>;
+
+export type DirectEmailTemplate = keyof typeof DIRECT_EMAIL_TEMPLATE_LABELS;
+
+/** Every recorded email's `idempotency_key` starts with it, and no other's. */
+export const DIRECT_EMAIL_KEY_PREFIX = "direct:";
 
 /** Where a row was read from. Part of its key: ids repeat across tables. */
 export type NotificationLogSource =
@@ -123,12 +170,19 @@ const KIND_LABELS: Record<string, string> = {
   late_partner_added: "Compañero agregado a la reserva",
 };
 
+const LABELS: Record<string, string> = {
+  ...KIND_LABELS,
+  ...DIRECT_EMAIL_TEMPLATE_LABELS,
+};
+
 export function notificationLogKindLabel(kind: string) {
-  return KIND_LABELS[kind] ?? kind;
+  return Object.prototype.hasOwnProperty.call(LABELS, kind)
+    ? LABELS[kind]!
+    : kind;
 }
 
 export function hasNotificationLogKindLabel(kind: string) {
-  return Object.prototype.hasOwnProperty.call(KIND_LABELS, kind);
+  return Object.prototype.hasOwnProperty.call(LABELS, kind);
 }
 
 export type NotificationLogLink = { label: string; href: string };

@@ -10,7 +10,7 @@ import { ticketHolderIs } from "@/app/lib/visitors/registration-data";
 import { getTicketCode } from "@/app/lib/tickets/utils";
 import { generateQrBuffer } from "@/app/lib/utils";
 import { ticketHistoryToken } from "@/app/lib/visitors/session";
-import { sendEmail } from "@/app/vendors/resend";
+import { sendRecordedEmail } from "@/app/lib/emails/recorded-send";
 import { assertSent, sendFailureType } from "@/app/vendors/resend-result";
 import { db } from "@/db";
 import { tickets, visitors } from "@/db/schema";
@@ -145,8 +145,9 @@ export async function sendTicketIssuedEmail(
     });
     if (!visitor) return;
 
-    const result = await sendEmail(
+    const result = await sendRecordedEmail(
       await buildTicketIssuedEmail({ visitor, festival, ticket }),
+      { template: "ticket_issued" },
     );
     assertSent(result);
   } catch (error) {
@@ -166,15 +167,18 @@ export async function sendTicketHistoryLinkEmail(visitorId: number) {
     });
     if (!visitor) return;
 
-    const result = await sendEmail({
-      from: TICKETS_FROM,
-      to: [visitor.email],
-      subject: "Tus entradas de Productora Glitter",
-      react: TicketHistoryLinkEmailTemplate({
-        firstName: visitor.firstName,
-        ticketsUrl: ticketHistoryUrl(visitor.id),
-      }) as React.ReactElement,
-    });
+    const result = await sendRecordedEmail(
+      {
+        from: TICKETS_FROM,
+        to: [visitor.email],
+        subject: "Tus entradas de Productora Glitter",
+        react: TicketHistoryLinkEmailTemplate({
+          firstName: visitor.firstName,
+          ticketsUrl: ticketHistoryUrl(visitor.id),
+        }) as React.ReactElement,
+      },
+      { template: "ticket_history_link" },
+    );
     assertSent(result);
   } catch (error) {
     console.error("Ticket history link email failed", {

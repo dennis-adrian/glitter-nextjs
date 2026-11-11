@@ -18,6 +18,9 @@ vi.mock("next/cache", () => ({
   cacheLife: vi.fn(),
 }));
 vi.mock("next/headers", () => ({ cookies: vi.fn(), headers: vi.fn() }));
+vi.mock("@/app/lib/emails/recorded-send", async () =>
+  (await import("@/app/lib/emails/recorded-send.testing")).passThrough(),
+);
 vi.mock("@/app/vendors/resend", () => ({
   sendEmail: vi.fn(),
   sendBatchEmails: vi.fn(),

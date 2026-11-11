@@ -10,7 +10,7 @@ import "server-only";
 import { and, eq, sql } from "drizzle-orm";
 
 import ActivityWaitlistInvitationEmail from "@/app/emails/activity-waitlist-invitation";
-import { sendEmail } from "@/app/vendors/resend";
+import { sendRecordedEmail } from "@/app/lib/emails/recorded-send";
 import { assertSent } from "@/app/vendors/resend-result";
 import { db } from "@/db";
 import {
@@ -125,21 +125,27 @@ export async function promoteFromWaitlist(
         process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
       const activityUrl = `${baseUrl}/profiles/${claimedEntry.userId}/festivals/${variant.festivalId}/activity/${activityId}`;
 
-      const result = await sendEmail({
-        from: "Actividades del Festival <no-reply@productoraglitter.com>",
-        to: [nextUser.userEmail],
-        subject: `Tenés un cupo disponible en ${variant.activityName}`,
-        react: ActivityWaitlistInvitationEmail({
-          userDisplayName: nextUser.userDisplayName,
-          userFirstName: nextUser.userFirstName,
-          userLastName: nextUser.userLastName,
-          activityName: variant.activityName,
-          festivalName: variant.festivalName,
-          festivalType: variant.festivalType,
-          expiresAt,
-          activityUrl,
-        }),
-      });
+      const result = await sendRecordedEmail(
+        {
+          from: "Actividades del Festival <no-reply@productoraglitter.com>",
+          to: [nextUser.userEmail],
+          subject: `Tenés un cupo disponible en ${variant.activityName}`,
+          react: ActivityWaitlistInvitationEmail({
+            userDisplayName: nextUser.userDisplayName,
+            userFirstName: nextUser.userFirstName,
+            userLastName: nextUser.userLastName,
+            activityName: variant.activityName,
+            festivalName: variant.festivalName,
+            festivalType: variant.festivalType,
+            expiresAt,
+            activityUrl,
+          }),
+        },
+        {
+          template: "activity_waitlist_invitation",
+          userId: claimedEntry.userId,
+        },
+      );
       // Throwing rolls back the claim above, as a timeout already does: marked
       // notified without an email, the person would lose their place once the
       // window expired. Nothing retries on its own; the next freed seat or an

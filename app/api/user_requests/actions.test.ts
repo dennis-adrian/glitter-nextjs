@@ -51,6 +51,9 @@ vi.mock("@/app/lib/festival-terms/queries", () => ({
   fetchPublishedFestivalTermsVersion: publishedTermsMock,
 }));
 
+vi.mock("@/app/lib/emails/recorded-send", async () =>
+  (await import("@/app/lib/emails/recorded-send.testing")).passThrough(),
+);
 vi.mock("@/app/vendors/resend", () => ({
   sendEmail: sendEmailMock,
 }));

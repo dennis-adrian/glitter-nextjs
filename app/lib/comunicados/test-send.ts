@@ -26,7 +26,7 @@ import {
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { emailBaseUrlProblem, publicBaseUrl } from "@/app/lib/urls";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-import { sendEmail } from "@/app/vendors/resend";
+import { sendRecordedEmail } from "@/app/lib/emails/recorded-send";
 import { assertSent, sendFailureType } from "@/app/vendors/resend-result";
 import { db } from "@/db";
 import { comunicados, festivals } from "@/db/schema";
@@ -198,7 +198,7 @@ export async function sendComunicadoTestAction(
       baseUrl,
     });
 
-    const result = await sendEmail(
+    const result = await sendRecordedEmail(
       {
         from: email.from,
         to: address,
@@ -209,7 +209,10 @@ export async function sendComunicadoTestAction(
         headers: links.headers,
       },
       // Each click is its own test: the same key would 409 an edited body.
-      { idempotencyKey: `comunicado-test:${row.id}:${randomUUID()}` },
+      {
+        template: "comunicado_test",
+        idempotencyKey: `comunicado-test:${row.id}:${randomUUID()}`,
+      },
     );
     assertSent(result);
 

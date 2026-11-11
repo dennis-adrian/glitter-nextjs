@@ -46,6 +46,9 @@ vi.mock("@/app/lib/users/status-events", () => ({
   verificationReasonForStatus: () => "Verificación manual por administrador.",
 }));
 
+vi.mock("@/app/lib/emails/recorded-send", async () =>
+  (await import("@/app/lib/emails/recorded-send.testing")).passThrough(),
+);
 vi.mock("@/app/vendors/resend", () => ({ sendEmail: sendEmailMock }));
 vi.mock("@/app/emails/verification_confimation/email-template", () => ({
   default: vi.fn(),

@@ -16,7 +16,7 @@ import type { SessionType } from "@/app/lib/programs/definitions";
 import { formatMoney } from "@/app/lib/programs/pricing";
 import { publicBaseUrl } from "@/app/lib/urls";
 import { generateQrBuffer } from "@/app/lib/utils";
-import { sendEmail } from "@/app/vendors/resend";
+import { sendRecordedEmail } from "@/app/lib/emails/recorded-send";
 import { assertSent, sendFailureType } from "@/app/vendors/resend-result";
 
 export type FreeRegistrationEmailInput = {
@@ -96,7 +96,7 @@ export async function sendFreeRegistrationEmail(
   try {
     const qrBuffer = await generateQrBuffer(input.ticketCode);
 
-    const result = await sendEmail(
+    const result = await sendRecordedEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.attendeeEmail],
@@ -124,6 +124,7 @@ export async function sendFreeRegistrationEmail(
         ],
       },
       {
+        template: "program_registration_confirmed",
         // Keyed on the ticket, so a retry of the same registration cannot
         // deliver a second copy.
         idempotencyKey: `program-registration-${input.purchaseId}-${input.ticketCode}`,
@@ -178,7 +179,7 @@ export async function sendVoucherReceivedEmail(
   input: VoucherReceivedEmailInput,
 ): Promise<boolean> {
   try {
-    const result = await sendEmail(
+    const result = await sendRecordedEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.buyerEmail],
@@ -203,6 +204,7 @@ export async function sendVoucherReceivedEmail(
         }) as React.ReactElement,
       },
       {
+        template: "program_voucher_received",
         // Keyed on the version: each replacement earns one acknowledgement,
         // and a retry of the same one does not.
         idempotencyKey: `program-voucher-received-${input.purchaseId}-v${input.version}`,
@@ -236,7 +238,7 @@ export async function sendAdminNewSignupEmail(
   if (input.adminEmails.length === 0) return true;
 
   try {
-    const result = await sendEmail(
+    const result = await sendRecordedEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: input.adminEmails,
@@ -259,6 +261,7 @@ export async function sendAdminNewSignupEmail(
         }) as React.ReactElement,
       },
       {
+        template: "program_new_signup_admin",
         idempotencyKey: `program-admin-new-signup-${input.purchaseId}`,
       },
     );
@@ -290,7 +293,7 @@ export async function sendVoucherChangesEmail(
   input: VoucherChangesEmailInput,
 ): Promise<boolean> {
   try {
-    const result = await sendEmail(
+    const result = await sendRecordedEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.buyerEmail],
@@ -303,6 +306,7 @@ export async function sendVoucherChangesEmail(
         }) as React.ReactElement,
       },
       {
+        template: "program_voucher_changes_requested",
         idempotencyKey: `program-voucher-changes-${input.purchaseId}-${input.requestedAt.getTime()}`,
       },
     );
@@ -353,7 +357,7 @@ export async function sendPaymentApprovedEmail(
   try {
     const qrBuffer = await generateQrBuffer(input.ticketCode);
 
-    const result = await sendEmail(
+    const result = await sendRecordedEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.attendeeEmail],
@@ -379,6 +383,7 @@ export async function sendPaymentApprovedEmail(
         ],
       },
       {
+        template: "program_payment_approved",
         // Keyed on the ticket, so re-approval cannot deliver a second QR.
         idempotencyKey:
           `program-payment-approved-${input.purchaseId}-${input.ticketCode}` +
@@ -412,7 +417,7 @@ export async function sendPurchaseLinkEmail(
   input: PurchaseLinkEmailInput,
 ): Promise<boolean> {
   try {
-    const result = await sendEmail(
+    const result = await sendRecordedEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.buyerEmail],
@@ -424,6 +429,7 @@ export async function sendPurchaseLinkEmail(
         }) as React.ReactElement,
       },
       {
+        template: "program_purchase_link",
         idempotencyKey: `program-purchase-link-${input.purchaseId}-${input.resentAt.getTime()}`,
       },
     );
@@ -465,7 +471,7 @@ export async function sendWaitlistInvitationEmail(
   input: WaitlistInvitationEmailInput,
 ): Promise<boolean> {
   try {
-    const result = await sendEmail(
+    const result = await sendRecordedEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.buyerEmail],
@@ -485,6 +491,7 @@ export async function sendWaitlistInvitationEmail(
         }) as React.ReactElement,
       },
       {
+        template: "program_waitlist_invitation",
         // Keyed on the deadline: re-inviting the same person mints a new token
         // with a new window, and that is a genuinely different message.
         idempotencyKey: `program-waitlist-invite-${input.entryId}-${input.expiresAt.getTime()}`,
@@ -543,7 +550,7 @@ export async function sendSessionDayReminderEmail(
   const isSingle = input.lines.length === 1;
 
   try {
-    const result = await sendEmail(
+    const result = await sendRecordedEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.attendeeEmail],
@@ -568,7 +575,10 @@ export async function sendSessionDayReminderEmail(
             : null,
         }) as React.ReactElement,
       },
-      { idempotencyKey: input.idempotencyKey },
+      {
+        template: "program_session_reminder",
+        idempotencyKey: input.idempotencyKey,
+      },
     );
     assertSent(result);
 

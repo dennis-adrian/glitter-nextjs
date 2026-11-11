@@ -13,6 +13,9 @@ vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 vi.mock("next/server", () => ({ after: vi.fn() }));
+vi.mock("@/app/lib/emails/recorded-send", async () =>
+  (await import("@/app/lib/emails/recorded-send.testing")).passThrough(),
+);
 vi.mock("@/env", () => ({
   serverEnv: { RESEND_API_KEY: "re_test", VERCEL_ENV: "production" },
 }));

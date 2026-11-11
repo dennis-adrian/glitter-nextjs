@@ -13,6 +13,9 @@ const dbState = vi.hoisted(() => ({
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/server", () => ({ after: vi.fn() }));
+vi.mock("@/app/lib/emails/recorded-send", async () =>
+  (await import("@/app/lib/emails/recorded-send.testing")).passThrough(),
+);
 vi.mock("@/app/vendors/resend", () => ({ sendEmail: vi.fn() }));
 vi.mock("@/app/emails/festival-activity-registration", () => ({
   default: vi.fn(),

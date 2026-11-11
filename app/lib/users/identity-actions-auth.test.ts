@@ -68,6 +68,9 @@ vi.mock("@/app/lib/users/queries", () => {
 });
 // Collaborators that read the server env at import time, which a unit test
 // does not have. None of them can run before the gate anyway.
+vi.mock("@/app/lib/emails/recorded-send", async () =>
+  (await import("@/app/lib/emails/recorded-send.testing")).passThrough(),
+);
 vi.mock("@/app/vendors/resend", () => ({ sendEmail: vi.fn() }));
 vi.mock("@/app/server/uploadthing", () => ({ utapi: {} }));
 vi.mock("@/app/lib/posthog-server", () => ({

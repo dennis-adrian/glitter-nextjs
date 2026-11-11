@@ -45,15 +45,16 @@ export default async function NotificationLogPage(props: {
       {/* Both limits in the summary, so a closed box still says them. */}
       <details className="shrink-0 rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
         <summary className="cursor-pointer font-medium break-words text-foreground">
-          No aparecen todos los correos, y «Aceptado» no quiere decir que llegó.
+          «Aceptado» no quiere decir que llegó, y los correos de inicio de
+          sesión no aparecen.
         </summary>
         <div className="mt-2 space-y-1">
           <p>
-            Faltan los correos que se envían directo, sin quedar registrados:
-            pedidos de la tienda, entradas, invitaciones a festivales,
-            programas, actividades y listas de espera, recordatorios de tareas
-            del perfil y correos de la cuenta. Las copias en la app y los avisos
-            push de las invitaciones sí aparecen.
+            Aparece cada correo que manda la aplicación, también los de pedidos,
+            entradas, invitaciones a festivales, programas, actividades, tareas
+            del perfil y cuenta. No aparecen los códigos de acceso ni los
+            correos de verificación e inicio de sesión: esos los envía Clerk, no
+            la aplicación.
           </p>
           <p>
             «Aceptado» significa que Resend o el servicio push tomó el mensaje,

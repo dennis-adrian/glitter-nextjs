@@ -46,6 +46,9 @@ vi.mock("@/app/lib/notifications/deliveries", () => ({
   scheduleNotificationDeliveries: vi.fn(),
 }));
 
+vi.mock("@/app/lib/emails/recorded-send", async () =>
+  (await import("@/app/lib/emails/recorded-send.testing")).passThrough(),
+);
 vi.mock("@/app/vendors/resend", () => ({
   sendEmail: sendEmailMock,
 }));

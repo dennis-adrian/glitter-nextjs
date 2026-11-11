@@ -29,7 +29,7 @@ import {
 } from "@/app/lib/users/helpers";
 import { formatDate } from "@/app/lib/formatters";
 import { updateUserStatusWithAudit } from "@/app/lib/users/status-events";
-import { sendEmail } from "@/app/vendors/resend";
+import { sendRecordedEmail } from "@/app/lib/emails/recorded-send";
 import { assertSent } from "@/app/vendors/resend-result";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -559,14 +559,17 @@ export async function pauseParticipantAccount(
   }
 
   try {
-    const result = await sendEmail({
-      to: [targetProfile.email],
-      from: "Perfiles Glitter <perfiles@productoraglitter.com>",
-      subject: "Tu cuenta de participante fue pausada",
-      react: AccountPausedEmailTemplate({
-        profile: targetProfile,
-      }) as React.ReactElement,
-    });
+    const result = await sendRecordedEmail(
+      {
+        to: [targetProfile.email],
+        from: "Perfiles Glitter <perfiles@productoraglitter.com>",
+        subject: "Tu cuenta de participante fue pausada",
+        react: AccountPausedEmailTemplate({
+          profile: targetProfile,
+        }) as React.ReactElement,
+      },
+      { template: "account_paused", userId: targetProfile.id },
+    );
     assertSent(result);
   } catch (error) {
     console.error("Error sending pause notification email", error);

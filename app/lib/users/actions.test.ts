@@ -52,6 +52,9 @@ vi.mock("@/app/server/uploadthing", () => ({
   utapi: { deleteFiles: deleteFilesMock },
 }));
 
+vi.mock("@/app/lib/emails/recorded-send", async () =>
+  (await import("@/app/lib/emails/recorded-send.testing")).passThrough(),
+);
 vi.mock("@/app/vendors/resend", () => ({ sendEmail: sendEmailMock }));
 vi.mock("@/app/emails/profile-completion", () => ({ default: vi.fn() }));
 vi.mock("@/app/emails/subcategory-update", () => ({ default: vi.fn() }));

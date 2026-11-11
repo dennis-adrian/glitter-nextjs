@@ -19,7 +19,7 @@ import {
 } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { BaseProfile, ProfileType, UserCategory } from "./definitions";
-import { sendEmail } from "@/app/vendors/resend";
+import { sendRecordedEmail } from "@/app/lib/emails/recorded-send";
 import { assertSent } from "@/app/vendors/resend-result";
 import EmailTemplate from "@/app/emails/verification_confimation/email-template";
 import {
@@ -490,19 +490,22 @@ export async function verifyProfile(profileId: number, category: UserCategory) {
     // The verification is committed; a failed notice must not report it as
     // failed.
     try {
-      const result = await sendEmail({
-        to: [updatedUser.email],
-        from: "Equipo Glitter <equipo@productoraglitter.com>",
-        subject: "Perfil verificado",
-        react: EmailTemplate({
-          name: updatedUser.displayName || "Usuario",
-          category: updatedUser.category,
-          festival: festivalCategories.includes(updatedUser.category)
-            ? activeFestival
-            : null,
-          isFestivalFull: availableStands.length === 0,
-        }) as React.ReactElement,
-      });
+      const result = await sendRecordedEmail(
+        {
+          to: [updatedUser.email],
+          from: "Equipo Glitter <equipo@productoraglitter.com>",
+          subject: "Perfil verificado",
+          react: EmailTemplate({
+            name: updatedUser.displayName || "Usuario",
+            category: updatedUser.category,
+            festival: festivalCategories.includes(updatedUser.category)
+              ? activeFestival
+              : null,
+            isFestivalFull: availableStands.length === 0,
+          }) as React.ReactElement,
+        },
+        { template: "profile_verified", userId: updatedUser.id },
+      );
       assertSent(result);
     } catch (error) {
       console.error("Error sending profile verification email", error);
@@ -615,15 +618,18 @@ export async function rejectProfile(
     // The rejection is committed; a failed notice must not report it as
     // failed.
     try {
-      const result = await sendEmail({
-        to: [existingProfile.email],
-        from: "Equipo Glitter <equipo@productoraglitter.com>",
-        subject: "No pudimos verificar tu perfil",
-        react: ProfileRejectionEmailTemplate({
-          profile: existingProfile,
-          reason: rejectReason,
-        }) as React.ReactElement,
-      });
+      const result = await sendRecordedEmail(
+        {
+          to: [existingProfile.email],
+          from: "Equipo Glitter <equipo@productoraglitter.com>",
+          subject: "No pudimos verificar tu perfil",
+          react: ProfileRejectionEmailTemplate({
+            profile: existingProfile,
+            reason: rejectReason,
+          }) as React.ReactElement,
+        },
+        { template: "profile_rejected", userId: existingProfile.id },
+      );
       assertSent(result);
     } catch (error) {
       console.error("Error sending profile rejection email", error);

@@ -41,7 +41,7 @@ import { getUserName } from "@/app/lib/users/utils";
 import { verifyProfilePictureUpload } from "@/app/lib/uploadthing/profile-picture-receipt";
 import { isProfileComplete } from "@/app/lib/utils";
 import { utapi } from "@/app/server/uploadthing";
-import { sendEmail } from "@/app/vendors/resend";
+import { sendRecordedEmail } from "@/app/lib/emails/recorded-send";
 import { assertSent } from "@/app/vendors/resend-result";
 import { db } from "@/db";
 import {
@@ -382,14 +382,17 @@ async function sendSubcategoryUpdateEmail(profileId: number) {
       throw new Error(`Profile ${profileId} not found`);
     }
 
-    const result = await sendEmail({
-      to: [fullProfile.email],
-      from: "Perfiles Glitter <perfiles@productoraglitter.com>",
-      subject: "Actualización de perfil",
-      react: SubcategoryUpdateEmailTemplate({
-        profile: fullProfile,
-      }) as React.ReactElement,
-    });
+    const result = await sendRecordedEmail(
+      {
+        to: [fullProfile.email],
+        from: "Perfiles Glitter <perfiles@productoraglitter.com>",
+        subject: "Actualización de perfil",
+        react: SubcategoryUpdateEmailTemplate({
+          profile: fullProfile,
+        }) as React.ReactElement,
+      },
+      { template: "profile_subcategory_updated", userId: profileId },
+    );
     assertSent(result);
   } catch (error) {
     console.error("Error sending subcategory update email", error);
@@ -421,14 +424,17 @@ async function verifyProfileCompletion(userId: number, wasComplete: boolean) {
       // The profile update is committed; a failed notice must not report it
       // as failed.
       try {
-        const result = await sendEmail({
-          to: [...adminEmails],
-          from: "Perfiles Glitter <perfiles@productoraglitter.com>",
-          subject: `${fullProfile.displayName} ha completado su perfil`,
-          react: ProfileCompletionEmailTemplate({
-            profile: fullProfile,
-          }) as React.ReactElement,
-        });
+        const result = await sendRecordedEmail(
+          {
+            to: [...adminEmails],
+            from: "Perfiles Glitter <perfiles@productoraglitter.com>",
+            subject: `${fullProfile.displayName} ha completado su perfil`,
+            react: ProfileCompletionEmailTemplate({
+              profile: fullProfile,
+            }) as React.ReactElement,
+          },
+          { template: "profile_completed_admin" },
+        );
         assertSent(result);
       } catch (error) {
         console.error("Error sending profile completion email", error);
@@ -600,15 +606,18 @@ export async function requestProfileReview(profileId: number) {
   // failed.
   try {
     const admins = await fetchAdminUsers();
-    const result = await sendEmail({
-      to: admins.map((admin) => admin.email),
-      from: "Perfiles Glitter <perfiles@productoraglitter.com>",
-      subject: `${getUserName(actor)} pidió una nueva revisión de su perfil`,
-      react: ProfileReviewRequestEmailTemplate({
-        profile: actor,
-        previousReason,
-      }) as React.ReactElement,
-    });
+    const result = await sendRecordedEmail(
+      {
+        to: admins.map((admin) => admin.email),
+        from: "Perfiles Glitter <perfiles@productoraglitter.com>",
+        subject: `${getUserName(actor)} pidió una nueva revisión de su perfil`,
+        react: ProfileReviewRequestEmailTemplate({
+          profile: actor,
+          previousReason,
+        }) as React.ReactElement,
+      },
+      { template: "profile_review_requested_admin" },
+    );
     assertSent(result);
   } catch (error) {
     console.error("Error sending profile review request email", error);

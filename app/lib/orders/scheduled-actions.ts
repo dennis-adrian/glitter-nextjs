@@ -5,7 +5,7 @@ import OrderPaymentReminderTemplate from "@/app/emails/order-payment-reminder";
 import OrderPaymentWarningTemplate from "@/app/emails/order-payment-warning";
 import { queueEmails } from "@/app/lib/emails/helpers";
 import { restoreEffectiveOrdersStockInTx } from "@/app/lib/orders/cancellation";
-import { sendEmail } from "@/app/vendors/resend";
+import { sendRecordedEmail } from "@/app/lib/emails/recorded-send";
 import { db } from "@/db";
 import { orderEvents, orders } from "@/db/schema";
 import {
@@ -220,17 +220,20 @@ export async function handleOrderPaymentReminders(): Promise<{
           options?.referenceEntity?.push(order.id);
           return;
         }
-        const { data, error } = await sendEmail({
-          from: "Glitter Store <reservas@productoraglitter.com>",
-          to: [email],
-          subject: "Tu pedido aún está pendiente de pago",
-          react: OrderPaymentReminderTemplate({
-            customerName: getCustomerName(order),
-            orderId: order.id,
-            paymentDueDate: order.paymentDueDate,
-            ctaUrl: getCtaUrl(order),
-          }) as React.ReactElement,
-        });
+        const { data, error } = await sendRecordedEmail(
+          {
+            from: "Glitter Store <reservas@productoraglitter.com>",
+            to: [email],
+            subject: "Tu pedido aún está pendiente de pago",
+            react: OrderPaymentReminderTemplate({
+              customerName: getCustomerName(order),
+              orderId: order.id,
+              paymentDueDate: order.paymentDueDate,
+              ctaUrl: getCtaUrl(order),
+            }) as React.ReactElement,
+          },
+          { template: "order_payment_reminder", userId: order.userId ?? null },
+        );
         if (data) {
           options?.referenceEntity?.push(order.id);
         } else {
@@ -295,17 +298,20 @@ export async function handleOrderPaymentReminders(): Promise<{
           options?.referenceEntity?.push(order.id);
           return;
         }
-        const { data, error } = await sendEmail({
-          from: "Glitter Store <reservas@productoraglitter.com>",
-          to: [email],
-          subject: "Tu pedido está a punto de vencer",
-          react: OrderPaymentReminderTemplate({
-            customerName: getCustomerName(order),
-            orderId: order.id,
-            paymentDueDate: order.paymentDueDate,
-            ctaUrl: getCtaUrl(order),
-          }) as React.ReactElement,
-        });
+        const { data, error } = await sendRecordedEmail(
+          {
+            from: "Glitter Store <reservas@productoraglitter.com>",
+            to: [email],
+            subject: "Tu pedido está a punto de vencer",
+            react: OrderPaymentReminderTemplate({
+              customerName: getCustomerName(order),
+              orderId: order.id,
+              paymentDueDate: order.paymentDueDate,
+              ctaUrl: getCtaUrl(order),
+            }) as React.ReactElement,
+          },
+          { template: "order_payment_reminder", userId: order.userId ?? null },
+        );
         if (data) {
           options?.referenceEntity?.push(order.id);
         } else {
@@ -378,18 +384,21 @@ export async function handleOrderPaymentReminders(): Promise<{
         );
         const { subject, dueInPhrase } =
           paymentDueFinalWarningCopy(minutesRemaining);
-        const { data, error } = await sendEmail({
-          from: "Glitter Store <reservas@productoraglitter.com>",
-          to: [email],
-          subject,
-          react: OrderPaymentWarningTemplate({
-            customerName: getCustomerName(order),
-            orderId: order.id,
-            paymentDueDate: order.paymentDueDate,
-            dueInPhrase,
-            ctaUrl: getCtaUrl(order),
-          }) as React.ReactElement,
-        });
+        const { data, error } = await sendRecordedEmail(
+          {
+            from: "Glitter Store <reservas@productoraglitter.com>",
+            to: [email],
+            subject,
+            react: OrderPaymentWarningTemplate({
+              customerName: getCustomerName(order),
+              orderId: order.id,
+              paymentDueDate: order.paymentDueDate,
+              dueInPhrase,
+              ctaUrl: getCtaUrl(order),
+            }) as React.ReactElement,
+          },
+          { template: "order_payment_reminder", userId: order.userId ?? null },
+        );
         if (data) {
           options?.referenceEntity?.push(order.id);
         } else {
@@ -517,15 +526,18 @@ export async function handleOrderCancellations(): Promise<number> {
         );
         return;
       }
-      const { error } = await sendEmail({
-        from: "Glitter Store <reservas@productoraglitter.com>",
-        to: [email],
-        subject: `Tu orden #${order.id} fue cancelada por falta de pago`,
-        react: OrderCancellationTemplate({
-          customerName: getCustomerName(order),
-          orderId: order.id,
-        }) as React.ReactElement,
-      });
+      const { error } = await sendRecordedEmail(
+        {
+          from: "Glitter Store <reservas@productoraglitter.com>",
+          to: [email],
+          subject: `Tu orden #${order.id} fue cancelada por falta de pago`,
+          react: OrderCancellationTemplate({
+            customerName: getCustomerName(order),
+            orderId: order.id,
+          }) as React.ReactElement,
+        },
+        { template: "order_cancelled_unpaid", userId: order.userId ?? null },
+      );
       if (error) {
         console.error(
           `[handleOrderCancellations] failed to send cancellation email for order ${order.id}:`,

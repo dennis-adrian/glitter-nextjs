@@ -15,6 +15,9 @@ const { stored } = vi.hoisted(() => ({
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => ({ cookies: vi.fn(), headers: vi.fn() }));
+vi.mock("@/app/lib/emails/recorded-send", async () =>
+  (await import("@/app/lib/emails/recorded-send.testing")).passThrough(),
+);
 vi.mock("@/env", () => ({
   serverEnv: { RESEND_API_KEY: "re_test", VERCEL_ENV: "production" },
 }));

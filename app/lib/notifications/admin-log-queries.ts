@@ -5,6 +5,7 @@ import { DateTime } from "luxon";
 
 import { STORE_TIMEZONE } from "@/app/lib/formatters";
 import {
+  DIRECT_EMAIL_KEY_PREFIX,
   NOTIFICATION_LOG_CHANNELS,
   NOTIFICATION_LOG_STATUSES,
   type NotificationLogChannel,
@@ -35,7 +36,8 @@ import {
  * endpoint and keys, an email's payload snapshot and an inbox item's data
  * never leave the database. The one thing read from an inbox item's data is
  * the id of the infraction or sanction a disciplinary notice is about, to
- * link to it.
+ * link to it; the one thing read from a payload is the subject of an email
+ * recorded by `sendRecordedEmail`, which stores nothing else of its content.
  */
 
 /** Longest error text sent to the page; provider errors can be long. */
@@ -183,6 +185,14 @@ function inboxArm(filters: Filters): Arm {
   };
 }
 
+/**
+ * A recorded email's subject: it has no inbox item to take a title from.
+ * Only those rows, by their key, so a queued email's snapshot is never read.
+ */
+const RECORDED_SUBJECT = sql.raw(
+  `(CASE WHEN d.idempotency_key LIKE '${DIRECT_EMAIL_KEY_PREFIX}%' THEN d.payload->>'subject' END)`,
+);
+
 function deliveryArm(filters: Filters, channels: ("email" | "push")[]): Arm {
   const conditions = commonConditions(
     filters,
@@ -203,7 +213,8 @@ function deliveryArm(filters: Filters, channels: ("email" | "push")[]): Arm {
     // Only the device's label: its endpoint and keys stay in the table.
     select: sql`
       'delivery'::text AS source, d.id, d.channel::text AS channel,
-      d.status::text AS status, d.template_key AS kind, n.title,
+      d.status::text AS status, d.template_key AS kind,
+      coalesce(n.title, ${RECORDED_SUBJECT}) AS title,
       coalesce(d.user_id, n.user_id) AS user_id, d.recipient_email,
       ps.device_label,
       (d.channel = 'push' AND d.push_subscription_id IS NULL) AS device_removed,

@@ -18,7 +18,7 @@ import {
 } from "@/db/schema";
 import { and, asc, count, eq, gt, isNull, lte, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { sendEmail } from "@/app/vendors/resend";
+import { sendRecordedEmail } from "@/app/lib/emails/recorded-send";
 import { assertSent } from "@/app/vendors/resend-result";
 import ActivityProofReviewEmail from "@/app/emails/activity-proof-review";
 import ActivityWaitlistInvitationEmail from "@/app/emails/activity-waitlist-invitation";
@@ -622,24 +622,27 @@ export async function reviewActivityParticipantProof(
             rejected_resubmit: `Tu ${materialConfig.label} necesita correcciones - ${activity.name}`,
             rejected_removed: `Fuiste removido/a de la actividad - ${activity.name}`,
           };
-          const result = await sendEmail({
-            to: [user.email],
-            from: "Equipo Glitter <equipo@productoraglitter.com>",
-            subject: subjects[status],
-            react: React.createElement(ActivityProofReviewEmail, {
-              profile: user,
-              festivalId: activity.festivalId,
-              activityId: activity.id,
-              activityName: activity.name,
-              festivalName: festival.name,
-              festivalType: festival.festivalType,
-              status,
-              adminFeedback,
-              materialLabel: materialConfig.label,
-              materialArticle: materialConfig.article,
-              materialPastParticiple: materialConfig.pastParticiple,
-            }),
-          });
+          const result = await sendRecordedEmail(
+            {
+              to: [user.email],
+              from: "Equipo Glitter <equipo@productoraglitter.com>",
+              subject: subjects[status],
+              react: React.createElement(ActivityProofReviewEmail, {
+                profile: user,
+                festivalId: activity.festivalId,
+                activityId: activity.id,
+                activityName: activity.name,
+                festivalName: festival.name,
+                festivalType: festival.festivalType,
+                status,
+                adminFeedback,
+                materialLabel: materialConfig.label,
+                materialArticle: materialConfig.article,
+                materialPastParticiple: materialConfig.pastParticiple,
+              }),
+            },
+            { template: "activity_proof_review", userId: user.id },
+          );
           assertSent(result);
         }
       }
@@ -755,24 +758,27 @@ export async function removeActivityParticipant(
         });
         if (festival) {
           const materialConfig = getMaterialConfig(activity.type);
-          const result = await sendEmail({
-            to: [user.email],
-            from: "Equipo Glitter <equipo@productoraglitter.com>",
-            subject: `Fuiste removido/a de la actividad - ${activity.name}`,
-            react: React.createElement(ActivityProofReviewEmail, {
-              profile: user,
-              festivalId: activity.festivalId,
-              activityId: activity.id,
-              activityName: activity.name,
-              festivalName: festival.name,
-              festivalType: festival.festivalType,
-              status: "rejected_removed",
-              adminFeedback: reason,
-              materialLabel: materialConfig.label,
-              materialArticle: materialConfig.article,
-              materialPastParticiple: materialConfig.pastParticiple,
-            }),
-          });
+          const result = await sendRecordedEmail(
+            {
+              to: [user.email],
+              from: "Equipo Glitter <equipo@productoraglitter.com>",
+              subject: `Fuiste removido/a de la actividad - ${activity.name}`,
+              react: React.createElement(ActivityProofReviewEmail, {
+                profile: user,
+                festivalId: activity.festivalId,
+                activityId: activity.id,
+                activityName: activity.name,
+                festivalName: festival.name,
+                festivalType: festival.festivalType,
+                status: "rejected_removed",
+                adminFeedback: reason,
+                materialLabel: materialConfig.label,
+                materialArticle: materialConfig.article,
+                materialPastParticiple: materialConfig.pastParticiple,
+              }),
+            },
+            { template: "activity_participant_removed", userId: user.id },
+          );
           assertSent(result);
         }
       }
@@ -1232,21 +1238,24 @@ export async function notifyWaitlistEntry(
     const activityUrl = `${baseUrl}/profiles/${entry.userId}/festivals/${festivalId}/activity/${activity.id}`;
 
     try {
-      const result = await sendEmail({
-        from: "Actividades del Festival <no-reply@productoraglitter.com>",
-        to: [entry.user.email],
-        subject: `Tenés un cupo disponible en ${activity.name}`,
-        react: ActivityWaitlistInvitationEmail({
-          userDisplayName: entry.user.displayName,
-          userFirstName: entry.user.firstName,
-          userLastName: entry.user.lastName,
-          activityName: activity.name,
-          festivalName: activity.festival.name,
-          festivalType: activity.festival.festivalType,
-          expiresAt,
-          activityUrl,
-        }),
-      });
+      const result = await sendRecordedEmail(
+        {
+          from: "Actividades del Festival <no-reply@productoraglitter.com>",
+          to: [entry.user.email],
+          subject: `Tenés un cupo disponible en ${activity.name}`,
+          react: ActivityWaitlistInvitationEmail({
+            userDisplayName: entry.user.displayName,
+            userFirstName: entry.user.firstName,
+            userLastName: entry.user.lastName,
+            activityName: activity.name,
+            festivalName: activity.festival.name,
+            festivalType: activity.festival.festivalType,
+            expiresAt,
+            activityUrl,
+          }),
+        },
+        { template: "activity_waitlist_invitation", userId: entry.userId },
+      );
       assertSent(result);
     } catch (emailError) {
       console.error("Error sending waitlist invitation email:", emailError);

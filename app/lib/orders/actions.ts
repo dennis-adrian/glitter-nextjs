@@ -44,7 +44,7 @@ import {
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { cache } from "react";
-import { sendEmail } from "@/app/vendors/resend";
+import { sendRecordedEmail } from "@/app/lib/emails/recorded-send";
 import { fetchAdminUsers } from "@/app/lib/users/queries";
 import { assertSent } from "@/app/vendors/resend-result";
 import OrderPaymentConfirmationForUserEmailTemplate from "@/app/emails/order-payment-confirmation-for-user";
@@ -1011,16 +1011,19 @@ async function sendOrderPaymentConfirmationEmail(orderId: number) {
     "";
 
   try {
-    const result = await sendEmail({
-      to: [recipientEmail],
-      from: "Glitter Store <reservas@productoraglitter.com>",
-      subject: `Tu pago de la orden #${orderId} fue confirmado`,
-      react: OrderPaymentConfirmationForUserEmailTemplate({
-        customerName: recipientName,
-        orderId: String(orderId),
-        total: orderAfter.totalAmount,
-      }) as React.ReactElement,
-    });
+    const result = await sendRecordedEmail(
+      {
+        to: [recipientEmail],
+        from: "Glitter Store <reservas@productoraglitter.com>",
+        subject: `Tu pago de la orden #${orderId} fue confirmado`,
+        react: OrderPaymentConfirmationForUserEmailTemplate({
+          customerName: recipientName,
+          orderId: String(orderId),
+          total: orderAfter.totalAmount,
+        }) as React.ReactElement,
+      },
+      { template: "order_payment_confirmed" },
+    );
     assertSent(result);
   } catch (emailError) {
     console.error("Failed to send payment confirmation email", emailError);
@@ -1294,16 +1297,19 @@ export async function submitOrderPaymentVoucher(
       const admins = await fetchAdminUsers();
       const adminEmails = admins.map((a) => a.email).filter(Boolean);
       if (adminEmails.length > 0) {
-        const result = await sendEmail({
-          to: adminEmails,
-          from: "Glitter Store <store@productoraglitter.com>",
-          subject: `Nuevo comprobante de pago — orden #${orderId}`,
-          react: OrderVoucherSubmittedForAdminsEmailTemplate({
-            customerName:
-              currentUser.displayName ?? currentUser.firstName ?? "Cliente",
-            orderId: String(orderId),
-          }) as React.ReactElement,
-        });
+        const result = await sendRecordedEmail(
+          {
+            to: adminEmails,
+            from: "Glitter Store <store@productoraglitter.com>",
+            subject: `Nuevo comprobante de pago — orden #${orderId}`,
+            react: OrderVoucherSubmittedForAdminsEmailTemplate({
+              customerName:
+                currentUser.displayName ?? currentUser.firstName ?? "Cliente",
+              orderId: String(orderId),
+            }) as React.ReactElement,
+          },
+          { template: "order_voucher_submitted_admin" },
+        );
         assertSent(result);
       }
     } catch (adminEmailError) {
@@ -1409,15 +1415,18 @@ export async function submitGuestOrderPaymentVoucher(
       const admins = await fetchAdminUsers();
       const adminEmails = admins.map((a) => a.email).filter(Boolean);
       if (adminEmails.length > 0) {
-        const result = await sendEmail({
-          to: adminEmails,
-          from: "Glitter Store <store@productoraglitter.com>",
-          subject: `Nuevo comprobante de pago — orden #${orderId}`,
-          react: OrderVoucherSubmittedForAdminsEmailTemplate({
-            customerName: order.guestName ?? "Invitado",
-            orderId: String(orderId),
-          }) as React.ReactElement,
-        });
+        const result = await sendRecordedEmail(
+          {
+            to: adminEmails,
+            from: "Glitter Store <store@productoraglitter.com>",
+            subject: `Nuevo comprobante de pago — orden #${orderId}`,
+            react: OrderVoucherSubmittedForAdminsEmailTemplate({
+              customerName: order.guestName ?? "Invitado",
+              orderId: String(orderId),
+            }) as React.ReactElement,
+          },
+          { template: "order_voucher_submitted_admin" },
+        );
         assertSent(result);
       }
     } catch (adminEmailError) {

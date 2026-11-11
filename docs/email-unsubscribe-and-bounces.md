@@ -88,6 +88,35 @@ reports each refused send as `email.suppressed`, so the old undeliverable
 addresses in the visitor list are recorded here the next time an invitation
 goes out, and skipped after that.
 
+## Every email leaves a row
+
+`/dashboard/notifications` ("Notificaciones enviadas") lists every email the
+app sends, from three places:
+
+- the delivery queue and the bulk lane (`notification_deliveries`), which
+  write their row before sending;
+- the reservation and disciplinary outboxes, from their own job tables;
+- everything else (orders, tickets, programs, activities, festival
+  invitations, profile tasks, account mail, the comunicado test send), sent
+  inline through `sendRecordedEmail` / `sendRecordedBatch`
+  (`app/lib/emails/recorded-send.ts`).
+
+The last is a thin recording layer, not the queue: it calls `sendEmail` with
+exactly what the caller passed, then writes one already-settled row to
+`notification_deliveries` (`template_key` from `DIRECT_EMAIL_TEMPLATE_LABELS`,
+`idempotency_key` starting with `direct:`, no inbox item, no push). The queue's
+drains only take pending rows, so these can never be sent a second time. A
+caller that retries under its own Resend key settles the same row again
+(attempts + 1; a sent row stays sent). A failed insert is logged and never
+fails the send; a send refused during "Entrar como participante" writes
+nothing. The stored payload is the subject, sender and attachment count only:
+never the body, whose links (ticket history, guest order tokens) must not sit
+in the table. A unit test fails when a new file calls `sendEmail` or
+`sendBatchEmails` directly.
+
+Emails Clerk sends (sign-in codes, verification) are not ours and are not
+listed.
+
 ## Admin page: `/dashboard/emails`
 
 "Correos bloqueados", in the admin Dashboard menu. Admins only: festival
