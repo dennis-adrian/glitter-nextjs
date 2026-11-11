@@ -111,6 +111,18 @@ describe("notification log cells", () => {
     expect(screen.getByText("resend 500")).toBeTruthy();
   });
 
+  it("explains a known error and keeps its code visible", () => {
+    render(
+      <StatusCell
+        row={row({ channel: "push", status: "skipped", error: "push_410" })}
+      />,
+    );
+    expect(
+      screen.getByText(/^Es normal: el dispositivo dio de baja/),
+    ).toBeTruthy();
+    expect(screen.getByText("push_410").tagName).toBe("CODE");
+  });
+
   it("tells read from unread and retracted inbox items", () => {
     const { rerender } = render(
       <StatusCell row={row({ channel: "in_app", readAt: new Date() })} />,

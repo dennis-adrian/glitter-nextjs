@@ -15,6 +15,7 @@ import {
   type NotificationLogSource,
   type NotificationLogStatus,
 } from "@/app/lib/notifications/admin-log-definitions";
+import { redactNotificationLogError } from "@/app/lib/notifications/admin-log-errors";
 import { isSensitiveNotificationKind } from "@/app/lib/notifications/registry";
 import { buildSearchPattern } from "@/app/lib/programs/search";
 import { requireAdmin } from "@/app/lib/users/helpers";
@@ -476,7 +477,8 @@ export function notificationLogLinks(
 
 function truncateError(value: string | null) {
   if (!value) return null;
-  const text = value.trim();
+  // Outboxes store free text: nothing it quotes may reach the browser.
+  const text = redactNotificationLogError(value);
   if (!text) return null;
   return text.length > MAX_ERROR_LENGTH
     ? `${text.slice(0, MAX_ERROR_LENGTH - 1)}…`

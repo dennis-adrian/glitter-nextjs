@@ -17,6 +17,7 @@ import {
   type NotificationLogRow,
   type NotificationLogStatus,
 } from "@/app/lib/notifications/admin-log-definitions";
+import { notificationLogErrorExplanation } from "@/app/lib/notifications/admin-log-errors";
 import { cn } from "@/lib/utils";
 
 const STATUS_VARIANTS: Record<NotificationLogStatus, BadgeVariant> = {
@@ -124,17 +125,48 @@ export function StatusCell({
         <p className="text-xs text-muted-foreground">{notes.join(" · ")}</p>
       ) : null}
       {row.error && (row.status === "failed" || row.status === "skipped") ? (
-        <p
-          className={cn(
-            "text-xs break-words text-destructive",
-            row.status === "skipped" && "text-muted-foreground",
-            !fullError && "line-clamp-3",
-          )}
-          title={row.error}
-        >
-          {row.error}
-        </p>
+        <ErrorNote row={row} error={row.error} fullError={fullError} />
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * A known code in words, with the code itself underneath to search logs by;
+ * anything else as stored (the query already masked what it may quote).
+ */
+function ErrorNote({
+  row,
+  error,
+  fullError,
+}: {
+  row: NotificationLogRow;
+  error: string;
+  fullError: boolean;
+}) {
+  const explanation = notificationLogErrorExplanation(error, row);
+  const tone =
+    row.status === "skipped" ? "text-muted-foreground" : "text-destructive";
+  if (!explanation) {
+    return (
+      <p
+        className={cn(
+          "text-xs break-words",
+          tone,
+          !fullError && "line-clamp-3",
+        )}
+        title={error}
+      >
+        {error}
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-0.5">
+      <p className={cn("text-xs break-words", tone)}>{explanation}</p>
+      <p className="text-[0.6875rem] text-muted-foreground">
+        Código: <code className="font-mono wrap-anywhere">{error}</code>
+      </p>
     </div>
   );
 }

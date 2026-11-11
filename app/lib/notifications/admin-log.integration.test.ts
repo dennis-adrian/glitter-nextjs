@@ -287,7 +287,8 @@ describeDatabase("admin notification log", () => {
       payload: { secret: PAYLOAD_SECRET },
       status: "failed",
       attempts: 5,
-      lastError: "resend 500",
+      // Outboxes store the thrown message: a query error quotes its params.
+      lastError: `Failed query: select 1\nparams: ${PAYLOAD_SECRET},lola-${MARK}@example.test`,
       createdAt: day1,
     });
   }, 60_000);
@@ -440,6 +441,9 @@ describeDatabase("admin notification log", () => {
         row.kind === "infraction_registered",
     );
     expect(disciplinary).toHaveLength(2);
+    expect(bySource(disciplinary, "disciplinary_outbox")[0]!.error).toBe(
+      "Failed query",
+    );
     for (const row of disciplinary) {
       expect(row.reserved).toBe(true);
       expect(row.title).toBeNull();
