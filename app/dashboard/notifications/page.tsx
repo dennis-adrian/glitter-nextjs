@@ -2,9 +2,11 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import NotificationFailureSummaryPanel from "@/app/components/notifications/admin/notification-failure-summary";
 import NotificationLogTable from "@/app/components/notifications/admin/notification-log-table";
 import type { RawSearchParams } from "@/app/lib/credits/admin-definitions";
 import { NotificationLogSearchParamsSchema } from "@/app/lib/notifications/admin-log-definitions";
+import { fetchNotificationFailureSummary } from "@/app/lib/notifications/admin-log-failures";
 import { fetchNotificationLogPage } from "@/app/lib/notifications/admin-log-queries";
 import { withNotificationLogResends } from "@/app/lib/notifications/admin-resend";
 
@@ -25,7 +27,10 @@ export default async function NotificationLogPage(props: {
   // A layout is not a boundary: the query refuses anyone but an admin.
   const page = await fetchNotificationLogPage(params);
   if (!page) redirect("/dashboard");
-  const rows = await withNotificationLogResends(page.rows);
+  const [rows, failures] = await Promise.all([
+    withNotificationLogResends(page.rows),
+    fetchNotificationFailureSummary(),
+  ]);
 
   const filtered =
     params.query !== "" ||
@@ -44,6 +49,8 @@ export default async function NotificationLogPage(props: {
           push, de lo más reciente a lo más antiguo.
         </p>
       </div>
+
+      {failures ? <NotificationFailureSummaryPanel summary={failures} /> : null}
 
       {/* Both limits in the summary, so a closed box still says them. */}
       <details className="shrink-0 rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
