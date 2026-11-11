@@ -524,6 +524,51 @@ export const marketingBanners = pgTable(
   ],
 );
 
+/** The links on `/links`, the page Glitter's social profiles point to. */
+export const siteLinks = pgTable(
+  "site_links",
+  {
+    id: serial("id").primaryKey(),
+    /**
+     * `link` is a card in the list; `social` is an icon in the row of social
+     * profiles, one per network. Each kind is ordered on its own.
+     */
+    kind: text("kind").notNull().default("link"),
+    label: text("label").notNull(),
+    /** A path on this site, or an `https:` or `mailto:` address. */
+    href: text("href").notNull(),
+    /**
+     * One of `SITE_LINK_ICONS` (app/lib/links/definitions.ts). For a social
+     * icon it is the network itself.
+     */
+    icon: text("icon").notNull().default("link"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isVisible: boolean("is_visible").default(true).notNull(),
+    /** Taps on the public page, counted by `/api/links/[id]/click`. */
+    clickCount: integer("click_count").notNull().default(0),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("site_links_kind_sort_order_idx").on(t.kind, t.sortOrder),
+    // Two admins adding the same network at once still leave one icon.
+    uniqueIndex("site_links_one_social_per_network")
+      .on(t.icon)
+      .where(sql`${t.kind} = 'social'`),
+  ],
+);
+
+/**
+ * Settings of the `/links` page as a whole. One row at most (`id` 1); none
+ * means the defaults.
+ */
+export const siteLinksSettings = pgTable("site_links_settings", {
+  id: integer("id").primaryKey().default(1),
+  /** Where the row of social icons goes: `top` (under the description) or `bottom`. */
+  socialPosition: text("social_position").notNull().default("top"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 /** Mutable working copy for the public home page. */
 export const landingPageDrafts = pgTable("landing_page_drafts", {
   pageKey: text("page_key").primaryKey(),
