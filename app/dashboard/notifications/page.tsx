@@ -28,6 +28,7 @@ export default async function NotificationLogPage(props: {
     params.query !== "" ||
     params.channel.length > 0 ||
     params.status.length > 0 ||
+    params.outcome.length > 0 ||
     Boolean(params.from || params.to);
 
   return (
@@ -45,8 +46,8 @@ export default async function NotificationLogPage(props: {
       {/* Both limits in the summary, so a closed box still says them. */}
       <details className="shrink-0 rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
         <summary className="cursor-pointer font-medium break-words text-foreground">
-          «Aceptado» no quiere decir que llegó, y los correos de inicio de
-          sesión no aparecen.
+          «Aceptado por Resend» no quiere decir que llegó, y los correos de
+          inicio de sesión no aparecen.
         </summary>
         <div className="mt-2 space-y-1">
           <p>
@@ -57,9 +58,16 @@ export default async function NotificationLogPage(props: {
             la aplicación.
           </p>
           <p>
-            «Aceptado» significa que Resend o el servicio push tomó el mensaje,
-            no que llegó ni que se abrió. Los rebotes y reportes de spam se ven
-            en{" "}
+            Cuando Resend nos avisa qué pasó con un correo, el estado lo dice:
+            «Entregado» (el servidor del destinatario lo recibió, no que se
+            abrió), «Entrega demorada», «Rebotó», «Reportado como spam», «Resend
+            no lo envió» o «Bloqueado por Resend». Mientras no avise, queda
+            «Aceptado por Resend». Los correos de reservas e infracciones se
+            mandan por su propia cola y nunca muestran la entrega. Los avisos
+            push solo dicen que el servicio push los tomó.
+          </p>
+          <p>
+            Las direcciones que rebotaron o nos reportaron quedan en{" "}
             <Link
               href="/dashboard/emails"
               className="text-primary underline-offset-2 hover:underline"

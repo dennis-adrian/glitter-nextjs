@@ -8,6 +8,8 @@ import {
   NotificationLogSearchParamsSchema,
   notificationLogKindLabel,
   notificationLogStatusLabel,
+  DIRECT_EMAIL_TEMPLATE_LABELS,
+  type NotificationLogDelivery,
 } from "@/app/lib/notifications/admin-log-definitions";
 import { NOTIFICATION_KINDS } from "@/app/lib/notifications/registry";
 import { RESERVATION_NOTIFICATION_KINDS } from "@/app/lib/reservations/notification-queue";
@@ -18,6 +20,7 @@ describe("NotificationLogSearchParamsSchema", () => {
       query: "",
       channel: [],
       status: [],
+      outcome: [],
       from: undefined,
       to: undefined,
       limit: 25,
@@ -30,11 +33,13 @@ describe("NotificationLogSearchParamsSchema", () => {
       NotificationLogSearchParamsSchema.parse({
         channel: ["push", "email", "push", "fax"],
         status: "failed",
+        outcome: ["bounced", "opened", "unknown"],
         query: "  Lola  ",
       }),
     ).toMatchObject({
       channel: ["push", "email"],
       status: ["failed"],
+      outcome: ["bounced", "unknown"],
       query: "Lola",
     });
   });
@@ -69,6 +74,38 @@ describe("notificationLogStatusLabel", () => {
     expect(notificationLogStatusLabel("in_app", "sent")).toBe("En la bandeja");
     expect(notificationLogStatusLabel("email", "failed")).toBe("Falló");
   });
+
+  it("says what Resend reported once it has, for email only", () => {
+    const at = new Date("2026-11-10T12:00:00Z");
+    const delivery = (
+      outcome: NotificationLogDelivery["outcome"],
+      bounceType: string | null = null,
+    ): NotificationLogDelivery => ({ outcome, at, bounceType, detail: null });
+
+    expect(
+      notificationLogStatusLabel("email", "sent", delivery("delivered")),
+    ).toBe("Entregado");
+    expect(
+      notificationLogStatusLabel(
+        "email",
+        "sent",
+        delivery("bounced", "Permanent"),
+      ),
+    ).toBe("Rebotó (permanente)");
+    expect(
+      notificationLogStatusLabel(
+        "email",
+        "sent",
+        delivery("bounced", "Transient"),
+      ),
+    ).toBe("Rebotó (temporal)");
+    expect(
+      notificationLogStatusLabel("email", "sent", delivery("complained")),
+    ).toBe("Reportado como spam");
+    expect(
+      notificationLogStatusLabel("push", "sent", delivery("delivered")),
+    ).toBe("Aceptado por el servicio push");
+  });
 });
 
 describe("notificationLogKindLabel", () => {
@@ -79,6 +116,12 @@ describe("notificationLogKindLabel", () => {
       "comunicado_contact",
     ].filter((kind) => !hasNotificationLogKindLabel(kind));
     expect(missing).toEqual([]);
+  });
+
+  it("names every recorded email template", () => {
+    for (const key of Object.keys(DIRECT_EMAIL_TEMPLATE_LABELS)) {
+      expect(notificationLogKindLabel(key)).not.toBe(key);
+    }
   });
 
   it("shows an unknown key as stored", () => {

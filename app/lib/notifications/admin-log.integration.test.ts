@@ -89,6 +89,7 @@ function params(
     query: MARK,
     channel: [],
     status: [],
+    outcome: [],
     from: undefined,
     to: undefined,
     limit: 200,

@@ -34,6 +34,9 @@ function row(overrides: Partial<NotificationLogRow> = {}): NotificationLogRow {
     retractedAt: null,
     isResend: false,
     links: [],
+    delivery: null,
+    openedAt: null,
+    clickedAt: null,
     ...overrides,
   };
 }
@@ -121,5 +124,28 @@ describe("notification log cells", () => {
       <StatusCell row={row({ channel: "in_app", retractedAt: new Date() })} />,
     );
     expect(screen.getByText("Retirado")).toBeTruthy();
+  });
+
+  it("shows what Resend reported instead of «Aceptado», with its reason", () => {
+    render(
+      <StatusCell
+        row={row({
+          delivery: {
+            outcome: "bounced",
+            at: new Date("2026-11-10T14:05:00Z"),
+            bounceType: "Permanent",
+            detail: "General: Mailbox does not exist",
+          },
+        })}
+      />,
+    );
+    expect(screen.getByText("Rebotó (permanente)")).toBeTruthy();
+    expect(screen.getByText("General: Mailbox does not exist")).toBeTruthy();
+    expect(screen.queryByText("Aceptado por Resend")).toBeNull();
+  });
+
+  it("keeps «Aceptado por Resend» until Resend says more", () => {
+    render(<StatusCell row={row()} />);
+    expect(screen.getByText("Aceptado por Resend")).toBeTruthy();
   });
 });

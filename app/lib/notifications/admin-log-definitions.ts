@@ -51,14 +51,72 @@ export const NOTIFICATION_LOG_STATUS_LABELS: Record<
 };
 
 /**
+ * What Resend reported after accepting an email, from its webhook, and
+ * `unknown` for an accepted email it has said nothing more about yet (or one
+ * from the outboxes, which keep no Resend id). For the filter.
+ */
+export const NOTIFICATION_LOG_OUTCOMES = [
+  "delivered",
+  "delivery_delayed",
+  "bounced",
+  "complained",
+  "failed",
+  "suppressed",
+  "unknown",
+] as const;
+export type NotificationLogOutcomeFilter =
+  (typeof NOTIFICATION_LOG_OUTCOMES)[number];
+export type NotificationLogOutcome = Exclude<
+  NotificationLogOutcomeFilter,
+  "unknown"
+>;
+
+export const NOTIFICATION_LOG_OUTCOME_LABELS: Record<
+  NotificationLogOutcomeFilter,
+  string
+> = {
+  delivered: "Entregado",
+  delivery_delayed: "Entrega demorada",
+  bounced: "Rebotó",
+  complained: "Reportado como spam",
+  failed: "Resend no lo envió",
+  suppressed: "Bloqueado por Resend",
+  unknown: "Aceptado, sin confirmar entrega",
+};
+
+export type NotificationLogDelivery = {
+  outcome: NotificationLogOutcome;
+  /** When Resend recorded it. */
+  at: Date | null;
+  /** A bounce's type as Resend says it: `Permanent`, `Transient`… */
+  bounceType: string | null;
+  /** Why it bounced, failed or was suppressed. */
+  detail: string | null;
+};
+
+/** "Rebotó (permanente)": a temporary bounce reads differently to an admin. */
+export function notificationLogOutcomeLabel(delivery: NotificationLogDelivery) {
+  const label = NOTIFICATION_LOG_OUTCOME_LABELS[delivery.outcome];
+  if (delivery.outcome !== "bounced" || !delivery.bounceType) return label;
+  const type = delivery.bounceType.toLowerCase();
+  if (type === "permanent") return `${label} (permanente)`;
+  if (type === "transient") return `${label} (temporal)`;
+  return `${label} (${delivery.bounceType})`;
+}
+
+/**
  * What `sent` means on each channel. Resend and the push services only say
- * they took the message: nobody tells us it arrived or was opened, so the
- * label never claims it.
+ * they took the message; an email whose webhook reported more says that
+ * instead ("Entregado", "Rebotó"), never "llegó" for one it did not.
  */
 export function notificationLogStatusLabel(
   channel: NotificationLogChannel,
   status: NotificationLogStatus,
+  delivery: NotificationLogDelivery | null = null,
 ) {
+  if (delivery && channel === "email") {
+    return notificationLogOutcomeLabel(delivery);
+  }
   if (status !== "sent") return NOTIFICATION_LOG_STATUS_LABELS[status];
   if (channel === "in_app") return "En la bandeja";
   if (channel === "email") return "Aceptado por Resend";
@@ -226,6 +284,11 @@ export type NotificationLogRow = {
   retractedAt: Date | null;
   /** An admin sent it again from a comunicado's report. */
   isResend: boolean;
+  /** Email only: what Resend reported after accepting it, if anything. */
+  delivery: NotificationLogDelivery | null;
+  /** First open and click; only reported when tracking is on in Resend. */
+  openedAt: Date | null;
+  clickedAt: Date | null;
   links: NotificationLogLink[];
 };
 
@@ -263,6 +326,7 @@ export const NotificationLogSearchParamsSchema = z.object({
   query: z.string().trim().max(200).catch(""),
   channel: multiValue(NOTIFICATION_LOG_CHANNELS),
   status: multiValue(NOTIFICATION_LOG_STATUSES),
+  outcome: multiValue(NOTIFICATION_LOG_OUTCOMES),
   from: isoDateSchema,
   to: isoDateSchema,
   limit: z.coerce

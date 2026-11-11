@@ -1,4 +1,6 @@
+import { recordDeliveryEvent } from "@/app/lib/emails/delivery-outcomes";
 import {
+  deliveryEvent,
   suppressionChanges,
   verifyResendWebhook,
 } from "@/app/lib/emails/resend-webhook";
@@ -14,7 +16,11 @@ const MAX_PAYLOAD_BYTES = 256 * 1024;
 
 /**
  * Resend's webhook: hard bounces, spam complaints and Resend's own
- * suppressions become entries that bulk mailings skip.
+ * suppressions become entries that bulk mailings skip, and every `email.*`
+ * outcome (delivered, delayed, bounced, failed, suppressed, complained, and
+ * first opens and clicks when tracking is on) is recorded on the email's
+ * delivery row. An event for an email we have no row for changes nothing
+ * and is still acknowledged.
  *
  * Any 2xx acknowledges an event; anything else makes Resend retry it for
  * about a day, so a database error answers 500. Deliveries can repeat and
@@ -62,6 +68,8 @@ export async function POST(request: Request) {
         await liftSuppression(change);
       }
     }
+    const delivery = deliveryEvent(event);
+    if (delivery) await recordDeliveryEvent(delivery);
   } catch (error) {
     console.error("Error applying Resend webhook", {
       type: (event as { type?: unknown })?.type,

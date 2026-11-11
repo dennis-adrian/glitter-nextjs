@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import {
+  deliveryEvent,
   suppressionChanges,
   verifyResendWebhook,
 } from "@/app/lib/emails/resend-webhook";
@@ -248,5 +249,93 @@ describe("suppressionChanges", () => {
     ]) {
       expect(suppressionChanges(event)).toEqual([]);
     }
+  });
+});
+
+describe("deliveryEvent", () => {
+  const base = {
+    created_at: "2026-11-10T12:00:00.000Z",
+    data: {
+      email_id: "re_1",
+      created_at: "2026-11-10T11:59:00.000Z",
+      to: ["ana@example.com"],
+    },
+  };
+
+  it("reads each outcome event with Resend's event time", () => {
+    for (const [type, outcome] of [
+      ["email.delivered", "delivered"],
+      ["email.delivery_delayed", "delivery_delayed"],
+      ["email.complained", "complained"],
+    ] as const) {
+      expect(deliveryEvent({ ...base, type })).toEqual({
+        kind: "outcome",
+        emailId: "re_1",
+        outcome,
+        bounceType: null,
+        detail: null,
+        eventAt: new Date("2026-11-10T12:00:00.000Z"),
+      });
+    }
+  });
+
+  it("keeps a bounce's type and reason, transient ones included", () => {
+    expect(
+      deliveryEvent({
+        ...base,
+        type: "email.bounced",
+        data: {
+          ...base.data,
+          bounce: { type: "Transient", subType: "MailboxFull", message: "" },
+        },
+      }),
+    ).toMatchObject({
+      outcome: "bounced",
+      bounceType: "Transient",
+      detail: "MailboxFull",
+    });
+  });
+
+  it("reads why Resend failed or suppressed it", () => {
+    expect(
+      deliveryEvent({
+        ...base,
+        type: "email.failed",
+        data: { ...base.data, failed: { reason: "reached_daily_quota" } },
+      }),
+    ).toMatchObject({ outcome: "failed", detail: "reached_daily_quota" });
+    expect(
+      deliveryEvent({
+        ...base,
+        type: "email.suppressed",
+        data: {
+          ...base.data,
+          suppressed: { type: "OnAccountSuppressionList", message: "x" },
+        },
+      }),
+    ).toMatchObject({
+      outcome: "suppressed",
+      detail: "OnAccountSuppressionList: x",
+    });
+  });
+
+  it("reads opens and clicks as engagement", () => {
+    expect(deliveryEvent({ ...base, type: "email.clicked" })).toEqual({
+      kind: "engagement",
+      emailId: "re_1",
+      engagement: "clicked",
+      eventAt: new Date("2026-11-10T12:00:00.000Z"),
+    });
+  });
+
+  it("means nothing for other events and unknown shapes", () => {
+    expect(deliveryEvent({ ...base, type: "email.sent" })).toBeNull();
+    expect(deliveryEvent({ ...base, type: "email.received" })).toBeNull();
+    expect(deliveryEvent({ ...base, type: "suppression.added" })).toBeNull();
+    expect(
+      deliveryEvent({ type: "email.delivered", data: { to: ["a@b.c"] } }),
+    ).toBeNull();
+    expect(deliveryEvent(null)).toBeNull();
+    expect(deliveryEvent("email.delivered")).toBeNull();
   });
 });

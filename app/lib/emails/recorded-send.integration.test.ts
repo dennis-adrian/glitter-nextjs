@@ -253,6 +253,7 @@ describeDatabase("recorded emails", () => {
       query: `ana-${MARK}`,
       channel: ["email"],
       status: [],
+      outcome: [],
       from: undefined,
       to: undefined,
       limit: 50,

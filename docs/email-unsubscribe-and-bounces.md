@@ -72,6 +72,24 @@ and 500 when the secret is not set (an empty value counts as not set).
 The unsubscribe page tells people whose address is suppressed that bulk mail
 stays blocked, instead of offering to resubscribe them.
 
+The same webhook records what happened to each email after Resend accepted
+it, on its `notification_deliveries` row (`app/lib/emails/delivery-outcomes.ts`),
+found by Resend's email id (`data.email_id` = `provider_message_id`; every row
+of a batch keeps its own). `status` stays our send state; the outcome lives in
+`delivery_outcome`, `delivery_outcome_at` (the event's `created_at`),
+`bounce_type`, `delivery_detail`, and the first `opened_at` / `clicked_at`.
+
+- Ranked, so order and repeats do not matter: delivery delayed < delivered <
+  bounced / failed / suppressed < complained. A weaker event never replaces a
+  stronger one; between equals the newer event wins, so a repeat is a no-op.
+- An event for an email with no row (sent before this, from the outboxes, or
+  from another environment on the same account) changes nothing and still
+  answers 200.
+- The reservation and disciplinary outboxes store no Resend id, so their
+  emails never get an outcome.
+- Opens and clicks only arrive with open/click tracking on in Resend, which
+  we leave off: it rewrites links and adds a pixel.
+
 Setup, once per environment that should receive events:
 
 1. Resend dashboard → Webhooks → Add endpoint:
@@ -79,7 +97,10 @@ Setup, once per environment that should receive events:
 2. Events: `email.bounced`, `email.complained`, `email.suppressed`,
    `suppression.added` and `suppression.removed`. The last one is what lets
    an address removed from Resend's suppression list be mailed again here
-   too. The admin page below is the other way to lift one.
+   too. The admin page below is the other way to lift one. For delivery
+   outcomes on the log, also `email.delivered`, `email.delivery_delayed`
+   and `email.failed` (plus `email.opened` / `email.clicked` only if tracking
+   is ever turned on).
 3. Copy the signing secret (`whsec_…`) into the environment as
    `RESEND_WEBHOOK_SECRET`, then redeploy.
 

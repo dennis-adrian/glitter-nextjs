@@ -7202,15 +7202,28 @@ export const notificationDeliveryLaneEnum = pgEnum(
   "notification_delivery_lane",
   ["transactional", "bulk"],
 );
+/**
+ * What Resend reported about an email after accepting it, from its webhook
+ * (docs/email-unsubscribe-and-bounces.md). Kept apart from `status`, which
+ * is our own send state: `sent` only means Resend took the email.
+ */
+export const emailDeliveryOutcomeEnum = pgEnum("email_delivery_outcome", [
+  "delivery_delayed",
+  "delivered",
+  "bounced",
+  "failed",
+  "suppressed",
+  "complained",
+]);
 export const notificationCampaignTypeEnum = pgEnum(
   "notification_campaign_type",
   ["credit_gift", "comunicado", "reservations_open", "stands_available"],
 );
 /** Who a "stands still available" reminder was for. */
-export const standsAvailableAudienceEnum = pgEnum(
-  "stands_available_audience",
-  ["terms_accepted", "all_eligible"],
-);
+export const standsAvailableAudienceEnum = pgEnum("stands_available_audience", [
+  "terms_accepted",
+  "all_eligible",
+]);
 /** What sent a "reservations are open" notice: the cron, or an admin's resend. */
 export const reservationsOpenNoticeTriggerEnum = pgEnum(
   "reservations_open_notice_trigger",
@@ -7480,10 +7493,32 @@ export const notificationDeliveries = pgTable(
       () => notificationCampaigns.id,
       { onDelete: "cascade" },
     ),
+    /**
+     * Email only: the strongest outcome Resend's webhook reported for
+     * `provider_message_id`, and when Resend recorded it. A weaker or older
+     * event never replaces it (`app/lib/emails/delivery-outcomes.ts`).
+     */
+    deliveryOutcome: emailDeliveryOutcomeEnum("delivery_outcome"),
+    deliveryOutcomeAt: timestamp("delivery_outcome_at"),
+    /** A bounce's type as Resend says it: `Permanent`, `Transient`… */
+    bounceType: text("bounce_type"),
+    /** Why it bounced, failed or was suppressed, as Resend worded it. */
+    deliveryDetail: text("delivery_detail"),
+    /** First open and click; only reported when tracking is on in Resend. */
+    openedAt: timestamp("opened_at"),
+    clickedAt: timestamp("clicked_at"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
+    // The webhook finds a row by Resend's email id.
+    index("notification_deliveries_provider_message_idx")
+      .on(t.providerMessageId)
+      .where(sql`${t.providerMessageId} IS NOT NULL`),
+    check(
+      "notification_deliveries_outcome_is_email",
+      sql`${t.deliveryOutcome} IS NULL OR ${t.channel} = 'email'`,
+    ),
     uniqueIndex("notification_deliveries_idempotency_key_unique").on(
       t.idempotencyKey,
     ),

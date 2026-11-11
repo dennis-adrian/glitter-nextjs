@@ -7,9 +7,12 @@ import { STORE_TIMEZONE } from "@/app/lib/formatters";
 import {
   DIRECT_EMAIL_KEY_PREFIX,
   NOTIFICATION_LOG_CHANNELS,
+  NOTIFICATION_LOG_OUTCOMES,
   NOTIFICATION_LOG_STATUSES,
   type NotificationLogChannel,
   type NotificationLogLink,
+  type NotificationLogOutcome,
+  type NotificationLogOutcomeFilter,
   type NotificationLogPage,
   type NotificationLogRow,
   type NotificationLogSearchParams,
@@ -81,6 +84,8 @@ export function parseLogTimestamp(value: unknown): Date | null {
 
 type Filters = {
   statuses: NotificationLogStatus[];
+  /** Resend's outcome; set, it keeps only emails. */
+  outcomes: NotificationLogOutcomeFilter[];
   from: string | null;
   toExclusive: string | null;
   pattern: string | null;
@@ -174,7 +179,10 @@ function inboxArm(filters: Filters): Arm {
       NULL::integer AS reservation_id,
       ${NOTIFICATION_ENTITY_TYPE} AS entity_type,
       ${NOTIFICATION_ENTITY_ID} AS entity_id,
-      false AS is_resend`,
+      false AS is_resend,
+      NULL::text AS delivery_outcome, NULL::timestamp AS delivery_outcome_at,
+      NULL::text AS bounce_type, NULL::text AS delivery_detail,
+      NULL::timestamp AS opened_at, NULL::timestamp AS clicked_at`,
     from: sql`FROM notifications n`,
     conditions: commonConditions(
       filters,
@@ -209,6 +217,24 @@ function deliveryArm(filters: Filters, channels: ("email" | "push")[]): Arm {
       sql`d.channel = ${channels[0]}::notification_delivery_channel`,
     );
   }
+  if (filters.outcomes.length > 0) {
+    const known = filters.outcomes.filter((value) => value !== "unknown");
+    const parts: SQL[] = [];
+    if (known.length > 0) {
+      parts.push(
+        sql`d.delivery_outcome::text IN (${sql.join(
+          known.map((value) => sql`${value}`),
+          sql`, `,
+        )})`,
+      );
+    }
+    if (filters.outcomes.includes("unknown")) {
+      parts.push(sql`(d.status = 'sent' AND d.delivery_outcome IS NULL)`);
+    }
+    conditions.push(
+      sql`d.channel = 'email' AND (${sql.join(parts, sql` OR `)})`,
+    );
+  }
   return {
     // Only the device's label: its endpoint and keys stay in the table.
     select: sql`
@@ -224,7 +250,9 @@ function deliveryArm(filters: Filters, channels: ("email" | "push")[]): Arm {
       NULL::integer AS reservation_id,
       ${NOTIFICATION_ENTITY_TYPE} AS entity_type,
       ${NOTIFICATION_ENTITY_ID} AS entity_id,
-      (d.resend_of_delivery_id IS NOT NULL) AS is_resend`,
+      (d.resend_of_delivery_id IS NOT NULL) AS is_resend,
+      d.delivery_outcome::text AS delivery_outcome, d.delivery_outcome_at,
+      d.bounce_type, d.delivery_detail, d.opened_at, d.clicked_at`,
     from: sql`FROM notification_deliveries d
       LEFT JOIN notifications n ON n.id = d.notification_id
       LEFT JOIN push_subscriptions ps ON ps.id = d.push_subscription_id`,
@@ -237,6 +265,15 @@ function outboxStatus(alias: string) {
   return sql.raw(
     `(CASE ${alias}.status::text WHEN 'completed' THEN 'sent' ELSE ${alias}.status::text END)`,
   );
+}
+
+/**
+ * The outboxes keep no Resend id, so their emails never get an outcome: an
+ * outcome filter keeps only their accepted ones, as `unknown`.
+ */
+function outboxOutcomeCondition(filters: Filters, alias: string): SQL[] {
+  if (filters.outcomes.length === 0) return [];
+  return [sql.raw(`${alias}.status = 'completed'`)];
 }
 
 function reservationOutboxArm(filters: Filters): Arm {
@@ -252,14 +289,20 @@ function reservationOutboxArm(filters: Filters): Arm {
       NULL::timestamp AS read_at, NULL::timestamp AS retracted_at,
       NULL::integer AS campaign_id, r.reservation_id,
       NULL::text AS entity_type, NULL::integer AS entity_id,
-      false AS is_resend`,
+      false AS is_resend,
+      NULL::text AS delivery_outcome, NULL::timestamp AS delivery_outcome_at,
+      NULL::text AS bounce_type, NULL::text AS delivery_detail,
+      NULL::timestamp AS opened_at, NULL::timestamp AS clicked_at`,
     from: sql`FROM reservation_notification_jobs r`,
-    conditions: commonConditions(
-      filters,
-      sql`r.created_at`,
-      status,
-      personCondition(filters, sql`r.user_id`, sql`r.recipient_email`),
-    ),
+    conditions: [
+      ...commonConditions(
+        filters,
+        sql`r.created_at`,
+        status,
+        personCondition(filters, sql`r.user_id`, sql`r.recipient_email`),
+      ),
+      ...outboxOutcomeCondition(filters, "r"),
+    ],
   };
 }
 
@@ -280,14 +323,20 @@ function disciplinaryOutboxArm(filters: Filters): Arm {
       NULL::timestamp AS read_at, NULL::timestamp AS retracted_at,
       NULL::integer AS campaign_id, NULL::integer AS reservation_id,
       (CASE WHEN j.entity_type LIKE 'sanction%' THEN 'sanction' ELSE 'infraction' END) AS entity_type,
-      j.entity_id, false AS is_resend`,
+      j.entity_id, false AS is_resend,
+      NULL::text AS delivery_outcome, NULL::timestamp AS delivery_outcome_at,
+      NULL::text AS bounce_type, NULL::text AS delivery_detail,
+      NULL::timestamp AS opened_at, NULL::timestamp AS clicked_at`,
     from: sql`FROM disciplinary_notification_jobs j`,
-    conditions: commonConditions(
-      filters,
-      sql`j.created_at`,
-      status,
-      personCondition(filters, sql`j.user_id`, sql`j.recipient_email`),
-    ),
+    conditions: [
+      ...commonConditions(
+        filters,
+        sql`j.created_at`,
+        status,
+        personCondition(filters, sql`j.user_id`, sql`j.recipient_email`),
+      ),
+      ...outboxOutcomeCondition(filters, "j"),
+    ],
   };
 }
 
@@ -299,6 +348,7 @@ function armsFor(channels: NotificationLogChannel[], filters: Filters): Arm[] {
   // An inbox item is always "sent": a status filter without it skips them.
   if (
     wanted.has("in_app") &&
+    filters.outcomes.length === 0 &&
     (filters.statuses.length === 0 || filters.statuses.includes("sent"))
   ) {
     arms.push(inboxArm(filters));
@@ -309,7 +359,9 @@ function armsFor(channels: NotificationLogChannel[], filters: Filters): Arm[] {
   if (deliveryChannels.length > 0) {
     arms.push(deliveryArm(filters, [...deliveryChannels]));
   }
-  if (wanted.has("email")) {
+  const outboxesMatch =
+    filters.outcomes.length === 0 || filters.outcomes.includes("unknown");
+  if (wanted.has("email") && outboxesMatch) {
     arms.push(reservationOutboxArm(filters));
     arms.push(disciplinaryOutboxArm(filters));
   }
@@ -339,6 +391,12 @@ type RawLogRow = {
   entity_type: "infraction" | "sanction" | null;
   entity_id: number | null;
   is_resend: boolean;
+  delivery_outcome: string | null;
+  delivery_outcome_at: unknown;
+  bounce_type: string | null;
+  delivery_detail: string | null;
+  opened_at: unknown;
+  clicked_at: unknown;
 };
 
 // Ties broken the same way on every page, so paging never repeats a row.
@@ -494,6 +552,14 @@ function truncateError(value: string | null) {
     : text;
 }
 
+function isOutcome(value: string | null): value is NotificationLogOutcome {
+  return (
+    value !== null &&
+    value !== "unknown" &&
+    (NOTIFICATION_LOG_OUTCOMES as readonly string[]).includes(value)
+  );
+}
+
 function isStatus(value: string): value is NotificationLogStatus {
   return (NOTIFICATION_LOG_STATUSES as readonly string[]).includes(value);
 }
@@ -522,6 +588,7 @@ export async function fetchNotificationLogPage(
   const query = params.query.trim();
   const filters: Filters = {
     statuses: params.status,
+    outcomes: params.outcome,
     from,
     toExclusive,
     pattern: query ? buildSearchPattern(query.toLowerCase()) : null,
@@ -588,6 +655,17 @@ export async function fetchNotificationLogPage(
       readAt: parseLogTimestamp(row.read_at),
       retractedAt: parseLogTimestamp(row.retracted_at),
       isResend: row.is_resend === true,
+      delivery:
+        row.channel === "email" && isOutcome(row.delivery_outcome)
+          ? {
+              outcome: row.delivery_outcome,
+              at: parseLogTimestamp(row.delivery_outcome_at),
+              bounceType: row.bounce_type,
+              detail: truncateError(row.delivery_detail),
+            }
+          : null,
+      openedAt: parseLogTimestamp(row.opened_at),
+      clickedAt: parseLogTimestamp(row.clicked_at),
       links: notificationLogLinks(row, campaign),
     };
   });

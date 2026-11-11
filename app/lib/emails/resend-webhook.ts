@@ -177,3 +177,84 @@ export function suppressionChanges(event: unknown): SuppressionChange[] {
       return [];
   }
 }
+
+export type DeliveryOutcome =
+  | "delivery_delayed"
+  | "delivered"
+  | "bounced"
+  | "failed"
+  | "suppressed"
+  | "complained";
+
+/** What one Resend `email.*` event says about the email it names. */
+export type DeliveryEvent =
+  | {
+      kind: "outcome";
+      emailId: string;
+      outcome: DeliveryOutcome;
+      /** A bounce's type: `Permanent`, `Transient` or `Undetermined`. */
+      bounceType: string | null;
+      detail: string | null;
+      eventAt: Date | null;
+    }
+  | {
+      kind: "engagement";
+      emailId: string;
+      engagement: "opened" | "clicked";
+      eventAt: Date | null;
+    };
+
+const OUTCOME_EVENTS: Record<string, DeliveryOutcome> = {
+  "email.delivered": "delivered",
+  "email.delivery_delayed": "delivery_delayed",
+  "email.bounced": "bounced",
+  "email.complained": "complained",
+  "email.failed": "failed",
+  "email.suppressed": "suppressed",
+};
+
+/**
+ * What a Resend event means for the delivery row of the email it names
+ * (`data.email_id`, the id the send returned). Null for every other event,
+ * and for a shape this does not recognise: nothing to record, not an error.
+ *
+ * `email.sent` adds nothing to our own `sent`; opens and clicks are kept
+ * only as first times, and Resend reports them only with tracking on.
+ */
+export function deliveryEvent(event: unknown): DeliveryEvent | null {
+  if (!event || typeof event !== "object") return null;
+  const { type, data } = event as { type?: unknown; data?: unknown };
+  if (typeof type !== "string" || !data || typeof data !== "object") {
+    return null;
+  }
+  const payload = data as Data;
+  const emailId = text(payload.email_id);
+  if (!emailId) return null;
+  const eventAt = eventTime(event as Data, payload);
+
+  if (type === "email.opened" || type === "email.clicked") {
+    return {
+      kind: "engagement",
+      emailId,
+      engagement: type === "email.opened" ? "opened" : "clicked",
+      eventAt,
+    };
+  }
+
+  const outcome = OUTCOME_EVENTS[type];
+  if (!outcome) return null;
+  let bounceType: string | null = null;
+  let detail: string | null = null;
+  if (outcome === "bounced") {
+    const bounce = (payload.bounce ?? {}) as Data;
+    bounceType = text(bounce.type);
+    detail = joined(bounce.subType, bounce.message);
+  } else if (outcome === "failed") {
+    detail = joined((payload.failed as Data | undefined)?.reason);
+  } else if (outcome === "suppressed") {
+    const suppressed = (payload.suppressed ?? {}) as Data;
+    // The SDK types say `type`; the suppression rules above read `reason`.
+    detail = joined(suppressed.type ?? suppressed.reason, suppressed.message);
+  }
+  return { kind: "outcome", emailId, outcome, bounceType, detail, eventAt };
+}

@@ -10,10 +10,13 @@ import { formatDateWithTime } from "@/app/lib/formatters";
 import {
   NOTIFICATION_LOG_CHANNEL_LABELS,
   NOTIFICATION_LOG_CHANNELS,
+  NOTIFICATION_LOG_OUTCOME_LABELS,
+  NOTIFICATION_LOG_OUTCOMES,
   NOTIFICATION_LOG_STATUS_LABELS,
   NOTIFICATION_LOG_STATUSES,
   notificationLogKindLabel,
   notificationLogStatusLabel,
+  type NotificationLogOutcome,
   type NotificationLogRow,
   type NotificationLogStatus,
 } from "@/app/lib/notifications/admin-log-definitions";
@@ -27,11 +30,21 @@ const STATUS_VARIANTS: Record<NotificationLogStatus, BadgeVariant> = {
   skipped: "amber",
 };
 
+const OUTCOME_VARIANTS: Record<NotificationLogOutcome, BadgeVariant> = {
+  delivered: "green",
+  delivery_delayed: "amber",
+  bounced: "red",
+  complained: "red",
+  failed: "red",
+  suppressed: "red",
+};
+
 const columnTitles: Record<string, string> = {
   recipient: "Para",
   what: "Qué",
   channel: "Canal",
   status: "Estado",
+  outcome: "Entrega",
   when: "Fecha",
 };
 
@@ -112,16 +125,32 @@ export function StatusCell({
   if (row.attempts !== null && row.attempts > 1) {
     notes.push(`${row.attempts} intentos`);
   }
+  if (row.delivery?.at) {
+    notes.push(`Resend: ${formatDateWithTime(row.delivery.at)}`);
+  }
+  if (row.clickedAt) notes.push("Con clic");
+  else if (row.openedAt) notes.push("Abierto");
+  const variant = row.delivery
+    ? OUTCOME_VARIANTS[row.delivery.outcome]
+    : STATUS_VARIANTS[row.status];
   return (
     <div className="min-w-0 max-w-72 space-y-1">
-      <Badge
-        variant={STATUS_VARIANTS[row.status]}
-        className="whitespace-normal"
-      >
-        {notificationLogStatusLabel(row.channel, row.status)}
+      <Badge variant={variant} className="whitespace-normal">
+        {notificationLogStatusLabel(row.channel, row.status, row.delivery)}
       </Badge>
       {notes.length > 0 ? (
         <p className="text-xs text-muted-foreground">{notes.join(" · ")}</p>
+      ) : null}
+      {row.delivery?.detail ? (
+        <p
+          className={cn(
+            "text-xs break-words text-muted-foreground",
+            !fullError && "line-clamp-3",
+          )}
+          title={row.delivery.detail}
+        >
+          {row.delivery.detail}
+        </p>
       ) : null}
       {row.error && (row.status === "failed" || row.status === "skipped") ? (
         <p
@@ -188,6 +217,17 @@ const columns: ColumnDef<NotificationLogRow>[] = [
     enableSorting: false,
   },
   {
+    // Only for the "Entrega" filter: the status badge already shows it.
+    id: "outcome",
+    header: () => columnTitles.outcome,
+    cell: ({ row }) =>
+      row.original.delivery
+        ? NOTIFICATION_LOG_OUTCOME_LABELS[row.original.delivery.outcome]
+        : null,
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
     id: "when",
     header: () => columnTitles.when,
     cell: ({ row }) => <WhenCell row={row.original} />,
@@ -230,7 +270,16 @@ export default function NotificationLogTable({
             label: NOTIFICATION_LOG_STATUS_LABELS[value],
           })),
         },
+        {
+          columnId: "outcome",
+          label: "Entrega",
+          options: NOTIFICATION_LOG_OUTCOMES.map((value) => ({
+            value,
+            label: NOTIFICATION_LOG_OUTCOME_LABELS[value],
+          })),
+        },
       ]}
+      initialState={{ columnVisibility: { outcome: false } }}
       toolbar={<DataTableDateRangeFilter />}
       renderMobileRow={(row) => (
         <div className="space-y-2 rounded-md border bg-background p-3 text-sm">
