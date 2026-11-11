@@ -5,7 +5,9 @@ vi.mock("@/db", () => ({ db: {} }));
 
 import {
   hasNotificationLogKindLabel,
+  notificationLogHrefWithoutUser,
   NotificationLogSearchParamsSchema,
+  notificationLogUserHref,
   notificationLogKindLabel,
   notificationLogStatusLabel,
 } from "@/app/lib/notifications/admin-log-definitions";
@@ -22,7 +24,22 @@ describe("NotificationLogSearchParamsSchema", () => {
       to: undefined,
       limit: 25,
       offset: 0,
+      user: undefined,
     });
+  });
+
+  it("reads one account id for the per-person view", () => {
+    expect(NotificationLogSearchParamsSchema.parse({ user: "42" }).user).toBe(
+      42,
+    );
+    for (const user of ["0", "-3", "4.5", "lola", "#42", "", "99999999999"]) {
+      expect(NotificationLogSearchParamsSchema.parse({ user }).user).toBe(
+        undefined,
+      );
+    }
+    expect(
+      NotificationLogSearchParamsSchema.parse({ user: ["1", "2"] }).user,
+    ).toBe(undefined);
   });
 
   it("keeps known channels and statuses, once each, from one or many values", () => {
@@ -83,5 +100,33 @@ describe("notificationLogKindLabel", () => {
 
   it("shows an unknown key as stored", () => {
     expect(notificationLogKindLabel("something_new")).toBe("something_new");
+  });
+});
+
+describe("per-person links", () => {
+  it("opens the log filtered to one account", () => {
+    expect(notificationLogUserHref(42)).toBe(
+      "/dashboard/notifications?user=42",
+    );
+  });
+
+  it("clears the person but keeps the other filters, from the first page", () => {
+    expect(
+      notificationLogHrefWithoutUser({
+        user: "42",
+        status: ["failed", "skipped"],
+        channel: "",
+        from: "2026-11-01",
+        query: "lola",
+        offset: "50",
+        limit: "50",
+        to: undefined,
+      }),
+    ).toBe(
+      "/dashboard/notifications?status=failed&status=skipped&channel=&from=2026-11-01&query=lola&limit=50",
+    );
+    expect(notificationLogHrefWithoutUser({ user: "42", offset: "25" })).toBe(
+      "/dashboard/notifications",
+    );
   });
 });

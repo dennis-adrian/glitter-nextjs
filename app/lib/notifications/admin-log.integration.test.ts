@@ -542,4 +542,127 @@ describeDatabase("admin notification log", () => {
     // Wildcards are literal.
     expect((await page({ query: `lola%${MARK}` })).total).toBe(0);
   });
+
+  it("filters to exactly one person, with mail to their address that names no account", async () => {
+    const db = integrationDb!;
+    const extra = await db
+      .insert(notificationDeliveries)
+      .values([
+        {
+          // No account on the row, sent to Lola's address: hers.
+          templateKey: "comunicado_contact",
+          channel: "email",
+          lane: "bulk",
+          campaignId: ids.campaign,
+          recipientEmail: ` LOLA-${MARK}@example.test `,
+          status: "sent",
+          idempotencyKey: `log:${MARK}:user-contact`,
+          createdAt: sql`'2026-03-04 15:00:00'::timestamp`,
+        },
+        {
+          // Another account's row at the same address: never hers.
+          userId: ids.other,
+          templateKey: "credit_gift_received",
+          channel: "email",
+          recipientEmail: `lola-${MARK}@example.test`,
+          status: "sent",
+          idempotencyKey: `log:${MARK}:user-other`,
+          createdAt: sql`'2026-03-04 15:00:00'::timestamp`,
+        },
+      ])
+      .returning({ id: notificationDeliveries.id });
+    try {
+      const mine = await page({ query: "", user: ids.person });
+      // Her six rows from the seed, plus the contact email.
+      expect(mine.total).toBe(7);
+      expect(mine.rows).toHaveLength(7);
+      expect(
+        mine.rows.every(
+          (row) =>
+            row.recipient.userId === ids.person ||
+            (row.recipient.userId === null &&
+              row.recipient.email?.trim().toLowerCase() ===
+                `lola-${MARK}@example.test`),
+        ),
+      ).toBe(true);
+      expect(mine.rows.map((row) => row.key)).toContain(
+        `delivery:${extra[0]!.id}`,
+      );
+      expect(mine.rows.map((row) => row.key)).not.toContain(
+        `delivery:${extra[1]!.id}`,
+      );
+
+      // With the other filters, and paged.
+      const failed = await page({
+        query: "",
+        user: ids.person,
+        status: ["failed"],
+      });
+      expect(failed.rows.map((row) => row.source).sort()).toEqual([
+        "delivery",
+        "disciplinary_outbox",
+      ]);
+      const pushOnly = await page({
+        query: "",
+        user: ids.person,
+        channel: ["push"],
+      });
+      expect(pushOnly.total).toBe(1);
+      const day2 = await page({
+        query: "",
+        user: ids.person,
+        from: "2026-03-02",
+        to: "2026-03-02",
+      });
+      expect(day2.total).toBe(3);
+      const seen: string[] = [];
+      for (let offset = 0; offset < mine.total; offset += 3) {
+        const next = await page({
+          query: "",
+          user: ids.person,
+          limit: 3,
+          offset,
+        });
+        expect(next.total).toBe(7);
+        seen.push(...next.rows.map((row) => row.key));
+      }
+      expect(seen).toEqual(mine.rows.map((row) => row.key));
+
+      // Combined with a search, both must hold.
+      expect(
+        (await page({ query: `otro ${MARK}`, user: ids.person })).total,
+      ).toBe(0);
+
+      // Someone else, and an id with no account.
+      const other = await page({ query: "", user: ids.other });
+      expect(
+        other.rows.every((row) => row.recipient.userId === ids.other),
+      ).toBe(true);
+      expect(other.total).toBe(2);
+      expect(await page({ query: "", user: 2_000_000_000 })).toEqual({
+        rows: [],
+        total: 0,
+      });
+
+      expect(await queries.fetchNotificationLogPerson(ids.person)).toEqual({
+        id: ids.person,
+        name: `Lola ${MARK}`,
+        email: `lola-${MARK}@example.test`,
+      });
+      expect(await queries.fetchNotificationLogPerson(2_000_000_000)).toEqual({
+        id: 2_000_000_000,
+        name: null,
+        email: null,
+      });
+      requireAdmin.mockResolvedValue(null);
+      expect(await queries.fetchNotificationLogPerson(ids.person)).toBeNull();
+    } finally {
+      await db.delete(notificationDeliveries).where(
+        inArray(
+          notificationDeliveries.id,
+          extra.map((row) => row.id),
+        ),
+      );
+    }
+  });
 });

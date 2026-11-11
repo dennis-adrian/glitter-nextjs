@@ -218,6 +218,14 @@ export const NotificationLogSearchParamsSchema = z.object({
     .max(200)
     .catch(NOTIFICATION_LOG_PAGE_SIZE),
   offset: z.coerce.number().int().min(0).catch(0),
+  /** One account, matched exactly: what we sent to this person. */
+  user: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(2_147_483_647)
+    .optional()
+    .catch(undefined),
 });
 export type NotificationLogSearchParams = z.infer<
   typeof NotificationLogSearchParamsSchema
@@ -227,4 +235,37 @@ export type NotificationLogPage = {
   rows: NotificationLogRow[];
   /** Rows matching the filters, across every page. */
   total: number;
+};
+
+export const NOTIFICATION_LOG_PATH = "/dashboard/notifications";
+
+/** The log filtered to one account, as the admin profile links to it. */
+export function notificationLogUserHref(userId: number) {
+  return `${NOTIFICATION_LOG_PATH}?user=${userId}`;
+}
+
+/**
+ * The same view without the person: every other filter stays, and the page
+ * goes back to the first, since the count changes.
+ */
+export function notificationLogHrefWithoutUser(
+  searchParams: Record<string, string | string[] | undefined>,
+) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (key === "user" || key === "offset" || value === undefined) continue;
+    for (const entry of typeof value === "string" ? [value] : value) {
+      params.append(key, entry);
+    }
+  }
+  const query = params.toString();
+  return query ? `${NOTIFICATION_LOG_PATH}?${query}` : NOTIFICATION_LOG_PATH;
+}
+
+/** Who the log is filtered to, for the banner above it. */
+export type NotificationLogPerson = {
+  id: number;
+  /** Null when no account has this id (any more). */
+  name: string | null;
+  email: string | null;
 };

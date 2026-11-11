@@ -1,6 +1,6 @@
 import "server-only";
 
-import { inArray, sql, type SQL } from "drizzle-orm";
+import { eq, inArray, sql, type SQL } from "drizzle-orm";
 import { DateTime } from "luxon";
 
 import { STORE_TIMEZONE } from "@/app/lib/formatters";
@@ -10,6 +10,7 @@ import {
   type NotificationLogChannel,
   type NotificationLogLink,
   type NotificationLogPage,
+  type NotificationLogPerson,
   type NotificationLogRow,
   type NotificationLogSearchParams,
   type NotificationLogSource,
@@ -85,7 +86,44 @@ type Filters = {
   pattern: string | null;
   /** A `#123` or `123` search also finds account 123. */
   userId: number | null;
+  /**
+   * `?user=`: only this account's rows, plus mail to its current address on
+   * rows that name no account. The address is lowercased and trimmed.
+   */
+  user: { id: number; email: string | null } | null;
 };
+
+/**
+ * The exact per-person filter. A row that names an account must name this
+ * one; a row that names none (a visitor's comunicado, an admin copy) counts
+ * when it went to this account's current address. Rows naming another
+ * account never match, whatever address they went to.
+ */
+function exactUserCondition(
+  filters: Filters,
+  userIdColumn: SQL,
+  emailColumn: SQL | null,
+): SQL | null {
+  const user = filters.user;
+  if (!user) return null;
+  if (!emailColumn || !user.email) {
+    return sql`${userIdColumn} = ${user.id}::integer`;
+  }
+  return sql`(${userIdColumn} = ${user.id}::integer OR (
+    ${userIdColumn} IS NULL AND lower(trim(${emailColumn})) = ${user.email}
+  ))`;
+}
+
+/** The arm's conditions with the per-person filter, when there is one. */
+function withUser(
+  conditions: SQL[],
+  filters: Filters,
+  userIdColumn: SQL,
+  emailColumn: SQL | null,
+) {
+  const condition = exactUserCondition(filters, userIdColumn, emailColumn);
+  return condition ? [...conditions, condition] : conditions;
+}
 
 /**
  * Matches the person by name, account email or `#id`, or the address an
@@ -175,11 +213,16 @@ function inboxArm(filters: Filters): Arm {
       ${NOTIFICATION_ENTITY_ID} AS entity_id,
       false AS is_resend`,
     from: sql`FROM notifications n`,
-    conditions: commonConditions(
+    conditions: withUser(
+      commonConditions(
+        filters,
+        sql`n.created_at`,
+        status,
+        personCondition(filters, sql`n.user_id`, null),
+      ),
       filters,
-      sql`n.created_at`,
-      status,
-      personCondition(filters, sql`n.user_id`, null),
+      sql`n.user_id`,
+      null,
     ),
   };
 }
@@ -195,6 +238,12 @@ function deliveryArm(filters: Filters, channels: ("email" | "push")[]): Arm {
       sql`d.recipient_email`,
     ),
   );
+  const userCondition = exactUserCondition(
+    filters,
+    sql`coalesce(d.user_id, n.user_id)`,
+    sql`d.recipient_email`,
+  );
+  if (userCondition) conditions.push(userCondition);
   if (channels.length === 1) {
     conditions.unshift(
       sql`d.channel = ${channels[0]}::notification_delivery_channel`,
@@ -244,11 +293,16 @@ function reservationOutboxArm(filters: Filters): Arm {
       NULL::text AS entity_type, NULL::integer AS entity_id,
       false AS is_resend`,
     from: sql`FROM reservation_notification_jobs r`,
-    conditions: commonConditions(
+    conditions: withUser(
+      commonConditions(
+        filters,
+        sql`r.created_at`,
+        status,
+        personCondition(filters, sql`r.user_id`, sql`r.recipient_email`),
+      ),
       filters,
-      sql`r.created_at`,
-      status,
-      personCondition(filters, sql`r.user_id`, sql`r.recipient_email`),
+      sql`r.user_id`,
+      sql`r.recipient_email`,
     ),
   };
 }
@@ -272,11 +326,16 @@ function disciplinaryOutboxArm(filters: Filters): Arm {
       (CASE WHEN j.entity_type LIKE 'sanction%' THEN 'sanction' ELSE 'infraction' END) AS entity_type,
       j.entity_id, false AS is_resend`,
     from: sql`FROM disciplinary_notification_jobs j`,
-    conditions: commonConditions(
+    conditions: withUser(
+      commonConditions(
+        filters,
+        sql`j.created_at`,
+        status,
+        personCondition(filters, sql`j.user_id`, sql`j.recipient_email`),
+      ),
       filters,
-      sql`j.created_at`,
-      status,
-      personCondition(filters, sql`j.user_id`, sql`j.recipient_email`),
+      sql`j.user_id`,
+      sql`j.recipient_email`,
     ),
   };
 }
@@ -497,6 +556,31 @@ function searchedUserId(query: string) {
   return id > 0 ? id : null;
 }
 
+/** An account by id; one that no longer exists keeps only its id. */
+async function lookupPerson(id: number): Promise<NotificationLogPerson> {
+  const [row] = await db
+    .select({
+      id: users.id,
+      displayName: users.displayName,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      email: users.email,
+    })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
+  if (!row) return { id, name: null, email: null };
+  return { id, name: getUserName(row) || null, email: row.email };
+}
+
+/** Who `?user=` names, for the page's banner. Admins only. */
+export async function fetchNotificationLogPerson(
+  id: number,
+): Promise<NotificationLogPerson | null> {
+  if (!(await requireAdmin())) return null;
+  return lookupPerson(id);
+}
+
 /**
  * One page of the log, newest first. Null for anyone but an admin: it names
  * everyone we wrote to and what about.
@@ -511,12 +595,20 @@ export async function fetchNotificationLogPage(
     params.to,
   );
   const query = params.query.trim();
+  const person =
+    params.user !== undefined ? await lookupPerson(params.user) : null;
   const filters: Filters = {
     statuses: params.status,
     from,
     toExclusive,
     pattern: query ? buildSearchPattern(query.toLowerCase()) : null,
     userId: searchedUserId(query),
+    user: person
+      ? {
+          id: person.id,
+          email: person.email ? person.email.trim().toLowerCase() : null,
+        }
+      : null,
   };
   const arms = armsFor(params.channel, filters);
   if (arms.length === 0) return { rows: [], total: 0 };

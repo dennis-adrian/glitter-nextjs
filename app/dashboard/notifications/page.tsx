@@ -4,8 +4,16 @@ import { redirect } from "next/navigation";
 
 import NotificationLogTable from "@/app/components/notifications/admin/notification-log-table";
 import type { RawSearchParams } from "@/app/lib/credits/admin-definitions";
-import { NotificationLogSearchParamsSchema } from "@/app/lib/notifications/admin-log-definitions";
-import { fetchNotificationLogPage } from "@/app/lib/notifications/admin-log-queries";
+import { buttonVariants } from "@/app/components/ui/button";
+import {
+  notificationLogHrefWithoutUser,
+  NotificationLogSearchParamsSchema,
+  type NotificationLogPerson,
+} from "@/app/lib/notifications/admin-log-definitions";
+import {
+  fetchNotificationLogPage,
+  fetchNotificationLogPerson,
+} from "@/app/lib/notifications/admin-log-queries";
 
 export const metadata: Metadata = {
   title: "Notificaciones enviadas",
@@ -23,11 +31,16 @@ export default async function NotificationLogPage(props: {
   // A layout is not a boundary: the query refuses anyone but an admin.
   const page = await fetchNotificationLogPage(params);
   if (!page) redirect("/dashboard");
+  const person =
+    params.user !== undefined
+      ? await fetchNotificationLogPerson(params.user)
+      : null;
 
   const filtered =
     params.query !== "" ||
     params.channel.length > 0 ||
     params.status.length > 0 ||
+    params.user !== undefined ||
     Boolean(params.from || params.to);
 
   return (
@@ -70,6 +83,13 @@ export default async function NotificationLogPage(props: {
         </div>
       </details>
 
+      {person ? (
+        <PersonBanner
+          person={person}
+          clearHref={notificationLogHrefWithoutUser(searchParams)}
+        />
+      ) : null}
+
       <div className="flex min-h-0 flex-1 flex-col">
         <NotificationLogTable
           rows={page.rows}
@@ -78,5 +98,54 @@ export default async function NotificationLogPage(props: {
         />
       </div>
     </div>
+  );
+}
+
+/** The log is filtered to one account: who, what counts, and the way out. */
+function PersonBanner({
+  person,
+  clearHref,
+}: {
+  person: NotificationLogPerson;
+  clearHref: string;
+}) {
+  const exists = person.name !== null || person.email !== null;
+  return (
+    <section
+      aria-label="Filtro por persona"
+      className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-md border bg-background p-3 text-sm"
+    >
+      <div className="min-w-0 flex-1 basis-60">
+        <p className="text-muted-foreground">Solo lo enviado a</p>
+        {exists ? (
+          <Link
+            href={`/dashboard/users/${person.id}`}
+            className="font-medium break-words underline-offset-2 hover:underline"
+          >
+            {person.name ?? person.email} · #{person.id}
+          </Link>
+        ) : (
+          <p className="font-medium">Cuenta #{person.id} (no existe)</p>
+        )}
+        {person.email ? (
+          <p className="text-xs text-muted-foreground">
+            Incluye los correos a{" "}
+            <span className="wrap-anywhere">{person.email}</span> que no
+            quedaron asociados a ninguna cuenta.
+          </p>
+        ) : null}
+      </div>
+      <Link
+        href={clearHref}
+        className={buttonVariants({
+          variant: "outline",
+          size: "sm",
+          wrap: true,
+          className: "shrink-0",
+        })}
+      >
+        Ver a todas las personas
+      </Link>
+    </section>
   );
 }

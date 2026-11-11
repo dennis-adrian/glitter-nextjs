@@ -15,6 +15,10 @@ import RecentImpersonations from "@/app/components/impersonation/recent-imperson
 import { canBeImpersonated } from "@/app/lib/impersonation/eligibility";
 import { listRecentImpersonations } from "@/app/lib/impersonation/queries";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { buttonVariants } from "@/app/components/ui/button";
+import { notificationLogUserHref } from "@/app/lib/notifications/admin-log-definitions";
+import { BellIcon } from "lucide-react";
+import Link from "next/link";
 
 type DashboardUserPageProps = {
   profileId: number;
@@ -80,6 +84,20 @@ export default async function DashboardUserPage(props: DashboardUserPageProps) {
           <AnnouncementCard profile={forProfile} />
         )}
         <div className="flex flex-wrap items-center justify-end gap-2 self-end">
+          {/* The log is admin-only; festival admins would be sent back. */}
+          {viewer?.role === "admin" ? (
+            <Link
+              href={notificationLogUserHref(forProfile.id)}
+              className={buttonVariants({
+                variant: "outline",
+                wrap: true,
+                className: "max-w-full gap-2",
+              })}
+            >
+              <BellIcon className="h-4 w-4 shrink-0" aria-hidden />
+              Notificaciones enviadas
+            </Link>
+          ) : null}
           {canEnterAs ? (
             <EnterAsButton
               person={{
