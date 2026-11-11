@@ -23,6 +23,7 @@ import {
   ReceiptTextIcon,
   ScanLineIcon,
   ScrollTextIcon,
+  SendIcon,
   ShoppingBagIcon,
   StoreIcon,
   TagsIcon,
@@ -496,6 +497,12 @@ const ADMIN: NavSection = {
       icon: MailXIcon,
     },
     {
+      key: "admin-notification-log",
+      label: "Notificaciones enviadas",
+      href: "/dashboard/notifications",
+      icon: SendIcon,
+    },
+    {
       key: "admin-blog",
       label: "Blog",
       href: "/dashboard/blog",
@@ -535,6 +542,7 @@ const SETTINGS_KEYS = [
   "admin-live-acts",
   "admin-feature-flags",
   "admin-emails",
+  "admin-notification-log",
   "admin-blog",
   "admin-banners",
   "admin-landing",

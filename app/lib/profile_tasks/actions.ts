@@ -638,6 +638,9 @@ export async function handleReservationReminderEmails(): Promise<
           isNull(scheduledTasks.reminderSentAt),
           isNotNull(scheduledTasks.reservationId),
           lte(scheduledTasks.reminderTime, sql`now()`),
+          // A reminder to pay before a deadline that has already passed is
+          // wrong, so a missed or retried run stops at the deadline.
+          gt(scheduledTasks.dueDate, sql`now()`),
           eq(scheduledTasks.taskType, "stand_reservation"),
         ),
         with: {
