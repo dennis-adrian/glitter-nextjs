@@ -2,13 +2,14 @@ import { isReservationHidden } from "@/app/lib/reservations/reveal";
 import { withMembershipReservations } from "@/app/lib/reservations/stand-occupancy";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { db } from "@/db";
-import { stands, standReservations } from "@/db/schema";
+import { profileSubcategories, stands, standReservations } from "@/db/schema";
 import { and, eq, inArray, isNotNull, or } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 const ALLOWED_ORIGINS = [
   "http://localhost:8080",
+  "http://localhost:5273",
   "https://game.glitter.com.bo",
 ];
 
@@ -19,8 +20,14 @@ function getCorsHeaders(request: NextRequest) {
     ...(allowed != null && { "Access-Control-Allow-Origin": allowed }),
     "Access-Control-Allow-Methods": "GET, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
+    // The allowed origin is echoed per request, so a shared cache must key on it.
+    Vary: "Origin",
   };
 }
+
+// Many visitors open the game at once; let the CDN answer most of them. A
+// timed reveal can therefore reach a visitor up to about a minute late.
+const SUCCESS_CACHE_CONTROL = "public, s-maxage=60, stale-while-revalidate=300";
 
 export function OPTIONS(request: NextRequest) {
   return new NextResponse(null, {
@@ -34,6 +41,8 @@ type FestivalStand = {
   standLabel: string | null;
   standNumber: number;
   standDisplayLabel: string;
+  status: (typeof stands.$inferSelect)["status"];
+  standCategory: (typeof stands.$inferSelect)["standCategory"];
   // When set and in the future, the reservation on this stand is still hidden
   // from participants: the client should withhold it until this moment.
   revealAt: string | null;
@@ -42,6 +51,8 @@ type FestivalStand = {
     imageUrl: string | null;
     displayName: string | null;
     category: string | null;
+    // Labels of the participant's profile subcategories.
+    subcategories: string[];
     socials: {
       type: string;
       username: string;
@@ -73,9 +84,10 @@ export async function GET(
 
   const { festivalId } = parsed.data;
 
-  let festivalStands;
+  let occupiedStands;
+  let subcategoriesByUserId;
   try {
-    festivalStands = await db.query.stands.findMany({
+    const festivalStands = await db.query.stands.findMany({
       where: eq(stands.festivalId, festivalId),
       with: {
         // The nested reservation is fetched under its own short alias:
@@ -111,6 +123,24 @@ export async function GET(
         reservationMembers: true,
       },
     });
+    occupiedStands = withMembershipReservations(festivalStands).map(
+      (stand) => ({
+        ...stand,
+        // Withhold participant identity until revealAt; revealAt itself is
+        // still sent so the game can schedule the reveal without receiving
+        // names/images/socials early.
+        visibleReservations: stand.reservations.filter(
+          (reservation) => !isReservationHidden(reservation),
+        ),
+      }),
+    );
+    subcategoriesByUserId = await fetchSubcategoryLabels(
+      occupiedStands.flatMap((stand) =>
+        stand.visibleReservations.flatMap((reservation) =>
+          reservation.participants.map((p) => p.user.id),
+        ),
+      ),
+    );
   } catch (err) {
     console.error("Failed to fetch festival stands", {
       festivalId,
@@ -122,37 +152,67 @@ export async function GET(
     );
   }
 
-  const result = withMembershipReservations(festivalStands).map((stand) => ({
+  const result: FestivalStand[] = occupiedStands.map((stand) => ({
     standId: stand.id,
     standLabel: stand.label,
     standNumber: stand.standNumber,
     standDisplayLabel: formatStandLabel(stand),
+    status: stand.status,
+    standCategory: stand.standCategory,
     revealAt:
       stand.reservations
         .map((reservation) => reservation.revealAt)
         .filter((date): date is Date => date != null)
         .sort((a, b) => b.getTime() - a.getTime())[0]
         ?.toISOString() ?? null,
-    // Withhold participant identity until revealAt; keep revealAt above so the
-    // game can schedule the reveal without receiving names/images/socials early.
-    participants: stand.reservations
-      .filter((reservation) => !isReservationHidden(reservation))
-      .flatMap((reservation) =>
-        reservation.participants.map((p) => ({
-          participantId: p.id,
-          imageUrl: p.user.imageUrl,
-          displayName: p.user.displayName,
-          category: p.user.category,
-          socials: p.user.userSocials.map((s) => ({
-            type: s.type,
-            username: s.username,
-          })),
+    participants: stand.visibleReservations.flatMap((reservation) =>
+      reservation.participants.map((p) => ({
+        participantId: p.id,
+        imageUrl: p.user.imageUrl,
+        displayName: p.user.displayName,
+        category: p.user.category,
+        subcategories: subcategoriesByUserId.get(p.user.id) ?? [],
+        socials: p.user.userSocials.map((s) => ({
+          type: s.type,
+          username: s.username,
         })),
-      ),
+      })),
+    ),
   }));
 
   return NextResponse.json(
     { stands: result },
-    { headers: getCorsHeaders(request) },
+    {
+      headers: {
+        ...getCorsHeaders(request),
+        "Cache-Control": SUCCESS_CACHE_CONTROL,
+      },
+    },
   );
+}
+
+/**
+ * Subcategory labels per user. Fetched on their own rather than nested under
+ * the stands query: `user -> profileSubcategories -> subcategory` beneath
+ * `reservations -> participants` pushes drizzle's aliases past Postgres's
+ * 63-byte identifier limit.
+ */
+async function fetchSubcategoryLabels(
+  userIds: number[],
+): Promise<Map<number, string[]>> {
+  const labels = new Map<number, string[]>();
+  const uniqueIds = [...new Set(userIds)];
+  if (uniqueIds.length === 0) return labels;
+
+  const rows = await db.query.profileSubcategories.findMany({
+    where: inArray(profileSubcategories.profileId, uniqueIds),
+    orderBy: profileSubcategories.id,
+    with: { subcategory: { columns: { label: true } } },
+  });
+  for (const row of rows) {
+    const list = labels.get(row.profileId) ?? [];
+    list.push(row.subcategory.label);
+    labels.set(row.profileId, list);
+  }
+  return labels;
 }
