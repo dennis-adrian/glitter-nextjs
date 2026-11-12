@@ -59,6 +59,10 @@ type FestivalStand = {
   // When set and in the future, the reservation on this stand is still hidden
   // from participants: the client should withhold it until this moment.
   revealAt: string | null;
+  // Set when a visible reservation on this stand occupies exactly two stands
+  // (a full table): the other half. Null while that reservation is hidden, so
+  // a timed reveal does not leak that two stands are booked together.
+  fullTable: { partnerStandId: number; partnerStandLabel: string } | null;
   participants: {
     participantId: number;
     imageUrl: string | null;
@@ -99,6 +103,7 @@ export async function GET(
 
   const now = new Date();
   let occupiedStands;
+  let standIdsByReservationId;
   let subcategoriesByUserId;
   try {
     const festivalStands = await db.query.stands.findMany({
@@ -137,6 +142,7 @@ export async function GET(
         reservationMembers: true,
       },
     });
+    standIdsByReservationId = indexActiveMemberStands(festivalStands);
     occupiedStands = withMembershipReservations(festivalStands).map(
       (stand) => ({
         ...stand,
@@ -166,6 +172,8 @@ export async function GET(
     );
   }
 
+  const standsById = new Map(occupiedStands.map((stand) => [stand.id, stand]));
+
   const result: FestivalStand[] = occupiedStands.map((stand) => ({
     standId: stand.id,
     standLabel: stand.label,
@@ -179,6 +187,7 @@ export async function GET(
         .filter((date): date is Date => date != null)
         .sort((a, b) => b.getTime() - a.getTime())[0]
         ?.toISOString() ?? null,
+    fullTable: findFullTablePartner(stand, standIdsByReservationId, standsById),
     participants: stand.visibleReservations.flatMap((reservation) =>
       reservation.participants.map((p) => ({
         participantId: p.id,
@@ -210,6 +219,54 @@ export async function GET(
       },
     },
   );
+}
+
+/** Stand ids each reservation occupies through its active (unreleased) members. */
+function indexActiveMemberStands(
+  festivalStands: readonly {
+    id: number;
+    reservationMembers: readonly {
+      reservationId: number;
+      releasedAt: Date | null;
+    }[];
+  }[],
+): Map<number, Set<number>> {
+  const standIds = new Map<number, Set<number>>();
+  for (const stand of festivalStands) {
+    for (const member of stand.reservationMembers) {
+      if (member.releasedAt != null) continue;
+      const ids = standIds.get(member.reservationId) ?? new Set<number>();
+      ids.add(stand.id);
+      standIds.set(member.reservationId, ids);
+    }
+  }
+  return standIds;
+}
+
+/**
+ * The other half of a full table. Only visible reservations are considered:
+ * a hidden one must not reveal that two stands are booked together.
+ */
+function findFullTablePartner(
+  stand: { id: number; visibleReservations: readonly { id: number }[] },
+  standIdsByReservationId: ReadonlyMap<number, ReadonlySet<number>>,
+  standsById: ReadonlyMap<
+    number,
+    { id: number; label: string | null; standNumber: number }
+  >,
+): FestivalStand["fullTable"] {
+  for (const reservation of stand.visibleReservations) {
+    const standIds = standIdsByReservationId.get(reservation.id);
+    if (standIds?.size !== 2 || !standIds.has(stand.id)) continue;
+    const partnerId = [...standIds].find((id) => id !== stand.id);
+    const partner = partnerId == null ? undefined : standsById.get(partnerId);
+    if (partner == null) continue;
+    return {
+      partnerStandId: partner.id,
+      partnerStandLabel: formatStandLabel(partner),
+    };
+  }
+  return null;
 }
 
 /**
