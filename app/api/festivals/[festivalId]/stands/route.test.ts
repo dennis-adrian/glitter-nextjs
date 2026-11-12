@@ -178,6 +178,33 @@ describe("GET /api/festivals/[festivalId]/stands", () => {
     );
   });
 
+  it("does not let a cached hidden snapshot outlive the reveal", async () => {
+    const hiddenStand = (revealAt: Date) =>
+      stand(1, {
+        status: "reserved",
+        reservations: [
+          { id: 10, revealAt, participants: [participant(100, 7)] },
+        ],
+      });
+
+    mocks.findStands.mockResolvedValue([hiddenStand(FUTURE)]);
+    expect((await get("3")).headers.get("cache-control")).toBe(
+      "public, s-maxage=60",
+    );
+
+    mocks.findStands.mockResolvedValue([
+      hiddenStand(new Date("2026-11-12T12:00:20Z")),
+    ]);
+    expect((await get("3")).headers.get("cache-control")).toBe(
+      "public, s-maxage=20",
+    );
+
+    mocks.findStands.mockResolvedValue([
+      hiddenStand(new Date("2026-11-12T12:00:00.500Z")),
+    ]);
+    expect((await get("3")).headers.get("cache-control")).toBe("no-store");
+  });
+
   it("does not allow an unknown origin", async () => {
     const response = await get("3", "https://evil.test");
 

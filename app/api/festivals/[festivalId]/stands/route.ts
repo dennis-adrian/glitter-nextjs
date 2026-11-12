@@ -25,9 +25,22 @@ function getCorsHeaders(request: NextRequest) {
   };
 }
 
-// Many visitors open the game at once; let the CDN answer most of them. A
-// timed reveal can therefore reach a visitor up to about a minute late.
+// Many visitors open the game at once; let the CDN answer most of them.
 const SUCCESS_CACHE_CONTROL = "public, s-maxage=60, stale-while-revalidate=300";
+
+/**
+ * While a reservation is still hidden, the cached copy carries its empty
+ * participant list, so it must expire by the reveal: no stale-while-revalidate,
+ * and a lifetime no longer than the time left until the earliest reveal.
+ */
+function successCacheControl(nextRevealAt: Date | null, now: Date): string {
+  if (nextRevealAt == null) return SUCCESS_CACHE_CONTROL;
+  const secondsLeft = Math.floor(
+    (nextRevealAt.getTime() - now.getTime()) / 1000,
+  );
+  if (secondsLeft <= 0) return "no-store";
+  return `public, s-maxage=${Math.min(60, secondsLeft)}`;
+}
 
 export function OPTIONS(request: NextRequest) {
   return new NextResponse(null, {
@@ -84,6 +97,7 @@ export async function GET(
 
   const { festivalId } = parsed.data;
 
+  const now = new Date();
   let occupiedStands;
   let subcategoriesByUserId;
   try {
@@ -130,7 +144,7 @@ export async function GET(
         // still sent so the game can schedule the reveal without receiving
         // names/images/socials early.
         visibleReservations: stand.reservations.filter(
-          (reservation) => !isReservationHidden(reservation),
+          (reservation) => !isReservationHidden(reservation, now),
         ),
       }),
     );
@@ -180,12 +194,19 @@ export async function GET(
     ),
   }));
 
+  const nextRevealAt =
+    occupiedStands
+      .flatMap((stand) => stand.reservations)
+      .filter((reservation) => isReservationHidden(reservation, now))
+      .map((reservation) => reservation.revealAt as Date)
+      .sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
+
   return NextResponse.json(
     { stands: result },
     {
       headers: {
         ...getCorsHeaders(request),
-        "Cache-Control": SUCCESS_CACHE_CONTROL,
+        "Cache-Control": successCacheControl(nextRevealAt, now),
       },
     },
   );
