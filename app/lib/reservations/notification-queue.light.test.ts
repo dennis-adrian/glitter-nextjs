@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
@@ -20,9 +22,11 @@ vi.mock("@/app/lib/notifications/push/config", () => {
 vi.mock("@/db", () => ({ db: {} }));
 
 describe("notification-queue", () => {
+  // The notification registry pulls in the email templates, so this one cold
+  // import takes 15-19s on a loaded machine, past the suite-wide 15s.
   it("loads without the env schema or Resend", async () => {
     await expect(
       import("@/app/lib/reservations/notification-queue"),
     ).resolves.toHaveProperty("enqueueReservationNotification");
-  });
+  }, 60_000);
 });
