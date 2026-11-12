@@ -17,6 +17,7 @@ import {
   type NotificationLogRow,
   type NotificationLogStatus,
 } from "@/app/lib/notifications/admin-log-definitions";
+import { describeNotificationLogError } from "@/app/lib/notifications/admin-log-errors";
 import { cn } from "@/lib/utils";
 
 const STATUS_VARIANTS: Record<NotificationLogStatus, BadgeVariant> = {
@@ -94,6 +95,47 @@ export function WhatCell({ row }: { row: NotificationLogRow }) {
   );
 }
 
+/**
+ * Why it failed or was skipped: a plain reading when the code has one, with
+ * the code itself kept underneath for searching the server logs.
+ */
+function ErrorNote({
+  row,
+  error,
+  fullError,
+}: {
+  row: NotificationLogRow;
+  error: string;
+  fullError: boolean;
+}) {
+  const reading = describeNotificationLogError(error, row.channel);
+  const tone =
+    row.status === "skipped" ? "text-muted-foreground" : "text-destructive";
+  if (!reading) {
+    return (
+      <p
+        className={cn(
+          "text-xs break-words",
+          tone,
+          !fullError && "line-clamp-3",
+        )}
+        title={error}
+      >
+        {error}
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-0.5 text-xs">
+      <p className={cn("break-words", tone)}>{reading.summary}</p>
+      {reading.hint ? (
+        <p className="break-words text-muted-foreground">{reading.hint}</p>
+      ) : null}
+      <p className="font-mono wrap-anywhere text-muted-foreground">{error}</p>
+    </div>
+  );
+}
+
 export function StatusCell({
   row,
   fullError = false,
@@ -124,16 +166,7 @@ export function StatusCell({
         <p className="text-xs text-muted-foreground">{notes.join(" · ")}</p>
       ) : null}
       {row.error && (row.status === "failed" || row.status === "skipped") ? (
-        <p
-          className={cn(
-            "text-xs break-words text-destructive",
-            row.status === "skipped" && "text-muted-foreground",
-            !fullError && "line-clamp-3",
-          )}
-          title={row.error}
-        >
-          {row.error}
-        </p>
+        <ErrorNote row={row} error={row.error} fullError={fullError} />
       ) : null}
     </div>
   );
