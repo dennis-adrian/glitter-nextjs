@@ -61,6 +61,7 @@ function link(overrides: Partial<SiteLinkRow>): SiteLinkRow {
     sortOrder: 0,
     iconSvg: null,
     imageUrl: null,
+    layout: "classic",
     isVisible: true,
     clickCount: 0,
     updatedAt: new Date("2026-11-09T12:00:00Z"),
@@ -90,6 +91,44 @@ const LINKS = [
   }),
 ];
 
+const SPOTIFY = {
+  ref: "si:spotify",
+  set: "si",
+  name: "spotify",
+  label: "Spotify",
+  svg: '<svg data-icon="spotify"></svg>',
+};
+const CAMERA = {
+  ref: "lucide:camera",
+  set: "lucide",
+  name: "camera",
+  label: "Camera",
+  svg: '<svg data-icon="camera"></svg>',
+};
+const CAT = {
+  ref: "lucide:cat",
+  set: "lucide",
+  name: "cat",
+  label: "Cat",
+  svg: '<svg data-icon="cat"></svg>',
+};
+
+/**
+ * The picker's endpoint: the whole library is `CAMERA` and then `CAT`, one
+ * per page; a search for "spoti" finds `SPOTIFY`.
+ */
+function iconPages() {
+  return vi.fn(async (url: string) => {
+    const params = new URL(url, "http://localhost").searchParams;
+    const offset = Number(params.get("offset"));
+    const body =
+      params.get("q") === "spoti"
+        ? { icons: [SPOTIFY], total: 1 }
+        : { icons: [[CAMERA], [CAT]][offset] ?? [], total: 2 };
+    return { ok: true, json: async () => body };
+  });
+}
+
 function renderManager(links = LINKS) {
   return render(
     <LinksManager
@@ -106,6 +145,8 @@ afterEach(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // The icon picker asks for its first page as it opens.
+  vi.stubGlobal("fetch", iconPages());
   // A phone: no room for the preview beside the editor. The drawer reads it.
   vi.stubGlobal(
     "matchMedia",
@@ -173,6 +214,7 @@ describe("the links manager", () => {
         href: "/festivals/festicker",
         icon: "ticket",
         imageUrl: null,
+        layout: "classic",
       }),
     );
     await waitFor(() => expect(refresh).toHaveBeenCalled());
@@ -215,6 +257,7 @@ describe("the links manager", () => {
         href: "/store",
         icon: "store",
         imageUrl: null,
+        layout: "classic",
       }),
     );
   });
@@ -261,6 +304,7 @@ describe("the links manager", () => {
           href: "https://quiz.productoraglitter.com/glitter",
           icon: "link",
           imageUrl: OG_IMAGE,
+          layout: "classic",
         }),
       );
     });
@@ -338,6 +382,7 @@ describe("the links manager", () => {
           href: "/store",
           icon: "link",
           imageUrl: null,
+          layout: "classic",
         }),
       );
     });
@@ -352,23 +397,13 @@ describe("the links manager", () => {
           href: "/store",
           icon: "none",
           imageUrl: null,
+          layout: "classic",
         }),
       );
     });
 
-    it("finds an icon in the whole library by name", async () => {
-      const fetchMock = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          icons: [
-            { ref: "si:spotify", set: "si", name: "spotify", label: "Spotify" },
-          ],
-        }),
-      });
-      vi.stubGlobal("fetch", fetchMock);
+    it("finds an icon in the whole library by name, without the featured ones", async () => {
       openNewLink("/store");
-      // The featured ones are there before anything is typed.
-      expect(screen.getByText("Destacados")).toBeTruthy();
       fireEvent.change(screen.getByLabelText("Buscar íconos"), {
         target: { value: "spoti" },
       });
@@ -376,7 +411,13 @@ describe("the links manager", () => {
       fireEvent.click(
         await screen.findByRole("button", { name: "Spotify (Marcas)" }),
       );
-      expect(fetchMock.mock.calls[0][0]).toBe("/api/links/icons?q=spoti");
+      expect(fetch).toHaveBeenLastCalledWith(
+        "/api/links/icons?q=spoti&offset=0",
+        expect.anything(),
+      );
+      // A search is its results alone.
+      expect(screen.queryByText("Destacados")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Corazón" })).toBeNull();
       expect(screen.getByText("Elegido: spotify")).toBeTruthy();
       save();
       await waitFor(() =>
@@ -385,8 +426,32 @@ describe("the links manager", () => {
           href: "/store",
           icon: "si:spotify",
           imageUrl: null,
+          layout: "classic",
         }),
       );
+    });
+
+    it("lists every icon under the featured ones, more as it is asked for", async () => {
+      openNewLink("/store");
+      expect(screen.getByText("Destacados")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Corazón" })).toBeTruthy();
+      expect(
+        await screen.findByRole("button", { name: "Camera (Lucide)" }),
+      ).toBeTruthy();
+      expect(screen.getByText("Todos los íconos")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Cat (Lucide)" })).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: "Cargar más" }));
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Cat (Lucide)" }),
+      );
+      expect(fetch).toHaveBeenLastCalledWith(
+        "/api/links/icons?q=&offset=1",
+        expect.anything(),
+      );
+      // Both pages are in: nothing more to ask for.
+      expect(screen.queryByRole("button", { name: "Cargar más" })).toBeNull();
+      expect(screen.getByText("Elegido: cat")).toBeTruthy();
     });
 
     it("opens a link on the thumbnail it has", () => {
@@ -422,6 +487,166 @@ describe("the links manager", () => {
       edit(2);
       expect(checked()).toBe("Ícono");
       expect(screen.getByText("Elegido: camera")).toBeTruthy();
+    });
+  });
+
+  describe("the featured design", () => {
+    const IMAGE = "https://app.ufs.sh/f/subida";
+
+    it("saves a link as featured with its image", async () => {
+      renderManager();
+      fireEvent.click(screen.getByRole("button", { name: "Nuevo enlace" }));
+      fireEvent.change(screen.getByLabelText("Título"), {
+        target: { value: "Entradas" },
+      });
+      fireEvent.change(screen.getByLabelText("Enlace"), {
+        target: { value: "/entradas" },
+      });
+      fireEvent.click(screen.getByRole("radio", { name: "Destacado" }));
+      // Featured is the image: the form goes to where one is added.
+      expect(
+        screen
+          .getByRole("radio", { name: "Imagen" })
+          .getAttribute("aria-checked"),
+      ).toBe("true");
+      fireEvent.click(screen.getByRole("button", { name: "Subir imagen" }));
+      fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+
+      await waitFor(() =>
+        expect(actions.createSiteLink).toHaveBeenCalledWith({
+          label: "Entradas",
+          href: "/entradas",
+          icon: "link",
+          imageUrl: IMAGE,
+          layout: "featured",
+        }),
+      );
+    });
+
+    it("asks for an image before saving a featured link without one", async () => {
+      renderManager();
+      fireEvent.click(screen.getAllByRole("button", { name: /Editar/ })[1]);
+      fireEvent.click(screen.getByRole("radio", { name: "Destacado" }));
+      fireEvent.click(screen.getByRole("radio", { name: "Ícono" }));
+      fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+
+      expect((await screen.findByRole("alert")).textContent).toMatch(
+        /destacado necesita una imagen/,
+      );
+      expect(actions.updateSiteLink).not.toHaveBeenCalled();
+    });
+
+    it("opens a featured link on that design", () => {
+      renderManager([
+        link({ id: 7, label: "Entradas", imageUrl: IMAGE, layout: "featured" }),
+      ]);
+      fireEvent.click(screen.getByRole("button", { name: /Editar/ }));
+      expect(
+        screen
+          .getByRole("radio", { name: "Destacado" })
+          .getAttribute("aria-checked"),
+      ).toBe("true");
+    });
+  });
+
+  describe("the preview, before anything is saved", () => {
+    /** The preview, which on a phone is behind its floating button. */
+    function openPreview() {
+      fireEvent.click(screen.getByRole("button", { name: /Vista previa/ }));
+      return within(screen.getByRole("dialog"));
+    }
+    const closePreview = () =>
+      fireEvent.click(
+        screen.getByRole("button", { name: "Cerrar vista previa" }),
+      );
+
+    it("shows a link as its open form has it, and the saved one again on cancel", async () => {
+      renderManager();
+      fireEvent.click(screen.getAllByRole("button", { name: /Editar/ })[1]);
+      fireEvent.change(screen.getByLabelText("Título"), {
+        target: { value: "Tienda nueva" },
+      });
+      fireEvent.change(screen.getByLabelText("Enlace"), {
+        target: { value: "javascript:alert(1)" },
+      });
+      // The form is modal, so what is behind it is inert: on a wide screen the
+      // preview is beside it, and here it is reached past the form.
+      fireEvent.click(screen.getByText("Vista previa"));
+      const card = screen.getByRole("link", {
+        name: "Tienda nueva",
+        hidden: true,
+      });
+      // Typed, not saved; and never an address that would not be saved.
+      expect(card.getAttribute("href")).toBe("/store");
+      expect(actions.updateSiteLink).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByLabelText("Cerrar vista previa"));
+
+      fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+      const preview = openPreview();
+      expect(preview.getByRole("link", { name: "Tiendita" })).toBeTruthy();
+      expect(preview.queryByText("Tienda nueva")).toBeNull();
+    });
+
+    it("shows a new link after the others while it is being written", () => {
+      renderManager();
+      fireEvent.click(screen.getByRole("button", { name: "Nuevo enlace" }));
+      fireEvent.change(screen.getByLabelText("Título"), {
+        target: { value: "Entradas" },
+      });
+      fireEvent.change(screen.getByLabelText("Enlace"), {
+        target: { value: "/entradas" },
+      });
+      fireEvent.click(screen.getByText("Vista previa"));
+
+      const cards = screen
+        .getAllByRole("link", { hidden: true })
+        .filter((card) => card.getAttribute("target") === "_blank")
+        .map((card) => card.textContent);
+      expect(cards.at(-1)).toBe("Entradas");
+      expect(actions.createSiteLink).not.toHaveBeenCalled();
+    });
+
+    it("hides a link in the preview as its switch is flipped, and shows it again if that is refused", async () => {
+      let refuse: (value: unknown) => void = () => {};
+      actions.setSiteLinkVisible.mockReturnValue(
+        new Promise((resolve) => {
+          refuse = resolve;
+        }),
+      );
+      renderManager();
+      const toggle = within(
+        screen.getByRole("region", { name: "Enlaces" }),
+      ).getByRole("switch", { checked: true });
+      fireEvent.click(toggle);
+
+      // Before the server has answered.
+      let preview = openPreview();
+      expect(preview.queryByRole("link", { name: "Tiendita" })).toBeNull();
+      closePreview();
+
+      refuse({ success: false, message: "No tienes permisos." });
+      await waitFor(() =>
+        expect(toggle.getAttribute("aria-checked")).toBe("true"),
+      );
+      preview = openPreview();
+      expect(preview.getByRole("link", { name: "Tiendita" })).toBeTruthy();
+    });
+
+    it("moves the social icons in the preview as the position is picked", () => {
+      actions.setSocialPosition.mockReturnValue(new Promise(() => {}));
+      renderManager();
+      const order = () => {
+        const preview = openPreview();
+        const names = preview
+          .getAllByRole("link")
+          .map((card) => card.getAttribute("aria-label") ?? card.textContent);
+        closePreview();
+        return names;
+      };
+      expect(order()).toEqual(["Instagram", "Tiendita"]);
+
+      fireEvent.click(screen.getByLabelText("Abajo"));
+      expect(order()).toEqual(["Tiendita", "Instagram"]);
     });
   });
 

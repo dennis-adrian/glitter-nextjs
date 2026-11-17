@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 
 import SiteLinkIcon, {
@@ -7,6 +8,7 @@ import SiteLinkIcon, {
 } from "@/app/components/links/site-link-icon";
 import {
   isExternalLink,
+  isFeaturedCard,
   mailtoAddress,
   thumbnailMode,
   toSiteLinkIcon,
@@ -16,8 +18,14 @@ import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { cn } from "@/app/lib/utils";
 
-const CARD_CLASS =
-  "flex min-h-16 w-full items-center gap-3 rounded-xl border border-brand-border bg-brand-card px-4 py-3 text-brand-ink shadow-xs transition hover:border-brand-primary hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary";
+/** What every card shares: its surface, its border and how it answers. */
+const CARD_SURFACE_CLASS =
+  "border border-brand-border bg-brand-card text-brand-ink shadow-xs transition hover:border-brand-primary hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary";
+
+const CARD_CLASS = `flex min-h-16 w-full items-center gap-3 rounded-xl px-4 py-3 ${CARD_SURFACE_CLASS}`;
+
+/** The image large, the title under it. */
+const FEATURED_CARD_CLASS = `flex w-full flex-col gap-2 rounded-xl p-2 ${CARD_SURFACE_CLASS}`;
 
 /**
  * Counts the tap without holding up the visitor: a beacon outlives the page
@@ -78,7 +86,29 @@ export default function SiteLinkCard({
 }) {
   const email = mailtoAddress(link.href);
   const thumbnail = thumbnailMode(link);
-  const content = (
+  const featured = isFeaturedCard(link);
+  const cardClass = featured ? FEATURED_CARD_CLASS : CARD_CLASS;
+  const content = featured ? (
+    <>
+      {/* Wide enough for a 430px phone at twice its pixels. */}
+      <Image
+        src={link.imageUrl!}
+        alt=""
+        width={832}
+        height={468}
+        sizes="(min-width: 448px) 416px, calc(100vw - 2rem)"
+        className="aspect-video w-full rounded-lg object-cover"
+      />
+      <span className="block px-2 py-1 text-center">
+        <span className="block font-semibold break-words">{link.label}</span>
+        {email ? (
+          <span className="block text-sm text-brand-neutral wrap-anywhere">
+            {email}
+          </span>
+        ) : null}
+      </span>
+    </>
+  ) : (
     <>
       <SiteLinkThumb
         link={link}
@@ -108,7 +138,7 @@ export default function SiteLinkCard({
     return (
       <a
         href={link.href}
-        className={CARD_CLASS}
+        className={cardClass}
         onClick={preview ? undefined : () => recordClick(link)}
         // A mailto opens the mail app; a new tab for it would stay blank.
         {...(email == null
@@ -123,7 +153,7 @@ export default function SiteLinkCard({
   return (
     <Link
       href={link.href}
-      className={CARD_CLASS}
+      className={cardClass}
       onClick={() => recordClick(link)}
     >
       {content}

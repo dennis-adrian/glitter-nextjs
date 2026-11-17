@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -87,14 +88,20 @@ import {
   LINKS_PATH,
   NO_ICON,
   SITE_LINK_ICON_LABELS,
+  SITE_LINK_LAYOUTS,
+  SITE_LINK_LAYOUT_LABELS,
   SITE_LINK_LABEL_MAX,
   SOCIAL_NETWORKS,
   SOCIAL_NETWORK_FIELDS,
   SOCIAL_POSITIONS,
   SOCIAL_POSITION_LABELS,
   isSocialNetwork,
+  parseSiteLinkHref,
   socialValueFromHref,
   thumbnailMode,
+  toSiteLinkLayout,
+  type PublicSiteLink,
+  type SiteLinkLayout,
   type ThumbnailMode,
   type SiteLinkKind,
   type SiteLinkRow,
@@ -262,14 +269,23 @@ function FormButtons({
 /** The form that is open, if any, and for which kind. */
 type Editing = null | { kind: SiteLinkKind; target: FormTarget };
 
+/**
+ * A link as its open form has it, saved or not: what the preview shows in
+ * place of the saved one (or after the last, for a new link).
+ */
+type LinkDraft = Omit<PublicSiteLink, "id" | "kind"> & { id: number | null };
+
 function LinkFormDialog({
   editing,
   onClose,
   onSaved,
+  onDraftChange,
 }: {
   editing: FormTarget;
   onClose: () => void;
   onSaved: () => void;
+  /** Called with what the form holds each time it changes. */
+  onDraftChange: (draft: LinkDraft) => void;
 }) {
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
   const existing = editing === "new" ? null : editing;
@@ -283,8 +299,14 @@ function LinkFormDialog({
   const [icon, setIcon] = useState(
     existing && existing.icon !== NO_ICON ? existing.icon : "link",
   );
+  const [iconSvg, setIconSvg] = useState<string | null>(
+    existing?.iconSvg ?? null,
+  );
   const [imageUrl, setImageUrl] = useState<string | null>(
     existing?.imageUrl ?? null,
+  );
+  const [layout, setLayout] = useState<SiteLinkLayout>(
+    toSiteLinkLayout(existing?.layout),
   );
   // Until the person chooses a thumbnail themselves, a new link takes the
   // image its own page offers, as Linktree does.
@@ -316,6 +338,41 @@ function LinkFormDialog({
     }
   }
 
+  // What the three thumbnail choices come to for the link itself.
+  const shown = {
+    icon: mode === "none" ? NO_ICON : icon,
+    iconSvg: mode === "none" ? null : iconSvg,
+    imageUrl: mode === "image" ? imageUrl : null,
+  };
+
+  // The preview follows the form as it is typed in, before any save.
+  const existingId = existing?.id ?? null;
+  const existingHref = existing?.href ?? null;
+  useEffect(() => {
+    // Never an address that would not be saved: the preview's card is a
+    // real link.
+    const parsed = parseSiteLinkHref(href);
+    onDraftChange({
+      id: existingId,
+      label: label.trim() || "Nuevo enlace",
+      href: parsed.ok ? parsed.href : (existingHref ?? "#"),
+      icon: shown.icon,
+      iconSvg: shown.iconSvg,
+      imageUrl: shown.imageUrl,
+      layout,
+    });
+  }, [
+    onDraftChange,
+    existingId,
+    existingHref,
+    label,
+    href,
+    shown.icon,
+    shown.iconSvg,
+    shown.imageUrl,
+    layout,
+  ]);
+
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
@@ -323,12 +380,17 @@ function LinkFormDialog({
       setError("Agrega una imagen, o elige un ícono o ninguna miniatura.");
       return;
     }
+    if (layout === "featured" && !shown.imageUrl) {
+      setError("El diseño destacado necesita una imagen como miniatura.");
+      return;
+    }
     startSaving(async () => {
       const input = {
         label,
         href,
-        icon: mode === "none" ? NO_ICON : icon,
-        imageUrl: mode === "image" ? imageUrl : null,
+        icon: shown.icon,
+        imageUrl: shown.imageUrl,
+        layout,
       };
       const res = await attempt(() =>
         existing ? updateSiteLink(existing.id, input) : createSiteLink(input),
@@ -399,9 +461,11 @@ function LinkFormDialog({
               setMode(next);
             }}
             icon={icon}
-            onIconChange={(next) => {
+            iconSvg={iconSvg}
+            onIconChange={(next, nextSvg) => {
               thumbnailChosen.current = true;
               setIcon(next);
+              setIconSvg(nextSvg);
             }}
             imageUrl={imageUrl}
             onImageChange={(next) => {
@@ -415,6 +479,57 @@ function LinkFormDialog({
               void takeLinkImage({ quiet: false });
             }}
           />
+          <fieldset className="flex min-w-0 flex-col gap-2">
+            <legend className="mb-2 text-sm font-medium">
+              Diseño del botón
+            </legend>
+            <div
+              role="radiogroup"
+              aria-label="Diseño del botón"
+              className="grid grid-cols-2 gap-2"
+            >
+              {SITE_LINK_LAYOUTS.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={layout === value}
+                  onClick={() => {
+                    setLayout(value);
+                    // Featured is the image, large: go to where one is added.
+                    if (value === "featured") {
+                      thumbnailChosen.current = true;
+                      setMode("image");
+                    }
+                  }}
+                  className={cn(
+                    "flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-lg border border-border p-2 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                    layout === value &&
+                      "border-primary bg-primary/10 font-medium text-primary hover:text-primary",
+                  )}
+                >
+                  {/* A sketch of each card: a row, or an image over a line. */}
+                  {value === "featured" ? (
+                    <span aria-hidden className="flex w-12 flex-col gap-1">
+                      <span className="h-5 rounded-sm bg-current opacity-40" />
+                      <span className="mx-auto h-1 w-6 rounded-full bg-current opacity-40" />
+                    </span>
+                  ) : (
+                    <span aria-hidden className="flex w-12 items-center gap-1">
+                      <span className="size-3 rounded-sm bg-current opacity-40" />
+                      <span className="h-1 flex-1 rounded-full bg-current opacity-40" />
+                    </span>
+                  )}
+                  {SITE_LINK_LAYOUT_LABELS[value]}
+                </button>
+              ))}
+            </div>
+            {layout === "featured" ? (
+              <p className="text-xs text-muted-foreground">
+                Muestra la imagen del enlace en grande, con el título debajo.
+              </p>
+            ) : null}
+          </fieldset>
           {error ? (
             <p role="alert" className="text-sm break-words text-destructive">
               {error}
@@ -597,9 +712,16 @@ const SECTION_COPY: Record<
 };
 
 /** Whether the row of social icons goes above the links or below them. */
-function SocialPositionPicker({ initial }: { initial: SocialPosition }) {
+function SocialPositionPicker({
+  position,
+  onPositionChange,
+}: {
+  /** As shown, which is ahead of what is saved while a change is sent. */
+  position: SocialPosition;
+  onPositionChange: (position: SocialPosition) => void;
+}) {
   const router = useRouter();
-  const [position, setPosition] = useState(initial);
+  const setPosition = onPositionChange;
   const [isPending, startTransition] = useTransition();
 
   function choose(next: SocialPosition) {
@@ -650,7 +772,8 @@ function SocialPositionPicker({ initial }: { initial: SocialPosition }) {
 /** One kind's rows: ordered, hidden and deleted apart from the other's. */
 function LinksSection({
   kind,
-  links,
+  items,
+  onItemsChange: setItems,
   canAdd = true,
   onAdd,
   onEdit,
@@ -659,7 +782,9 @@ function LinksSection({
   /** Shown under the rows: settings that belong to this kind alone. */
   children?: React.ReactNode;
   kind: SiteLinkKind;
-  links: SiteLinkRow[];
+  /** The rows as shown, ahead of what is saved while a change is sent. */
+  items: SiteLinkRow[];
+  onItemsChange: React.Dispatch<React.SetStateAction<SiteLinkRow[]>>;
   /** False once there is nothing left to add (every network has its icon). */
   canAdd?: boolean;
   onAdd: () => void;
@@ -667,16 +792,8 @@ function LinksSection({
 }) {
   const router = useRouter();
   const copy = SECTION_COPY[kind];
-  const [items, setItems] = useState(links);
   const [isPending, startTransition] = useTransition();
   const [deleting, setDeleting] = useState<SiteLinkRow | null>(null);
-
-  // The server's list replaces the local one whenever a refresh brings it.
-  const [syncedLinks, setSyncedLinks] = useState(links);
-  if (syncedLinks !== links) {
-    setSyncedLinks(links);
-    setItems(links);
-  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -711,17 +828,21 @@ function LinksSection({
   }
 
   function toggleVisible(link: SiteLinkRow, isVisible: boolean) {
+    // Shown at once, in the row and in the preview; undone if it is refused.
+    const show = (visible: boolean) =>
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === link.id ? { ...item, isVisible: visible } : item,
+        ),
+      );
+    show(isVisible);
     startTransition(async () => {
       const res = await attempt(() => setSiteLinkVisible(link.id, isVisible));
       if (!res.success) {
         toast.error(res.message);
+        show(!isVisible);
         return;
       }
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === link.id ? { ...item, isVisible } : item,
-        ),
-      );
       router.refresh();
     });
   }
@@ -737,6 +858,7 @@ function LinksSection({
         return;
       }
       toast.success(copy.deleted);
+      setItems((prev) => prev.filter((item) => item.id !== id));
       router.refresh();
     });
   }
@@ -837,7 +959,22 @@ function useIsWide() {
 }
 
 const PREVIEW_HINT =
-  "Así se ve la página con lo guardado. Los toques aquí no cuentan como clics.";
+  "Así se ve la página con tus cambios. Los toques aquí no cuentan como clics.";
+
+/**
+ * What is shown of something the server holds: the server's value, until a
+ * change is made here, and the server's again whenever a refresh brings a new
+ * one. Lets the rows and the preview show a change before it is saved.
+ */
+function useShown<T>(saved: T) {
+  const [shown, setShown] = useState(saved);
+  const [synced, setSynced] = useState(saved);
+  if (synced !== saved) {
+    setSynced(saved);
+    setShown(saved);
+  }
+  return [shown, setShown] as const;
+}
 
 export default function LinksManager({
   initialLinks,
@@ -852,96 +989,86 @@ export default function LinksManager({
   const [editing, setEditing] = useState<Editing>(null);
   const isWide = useIsWide();
 
-  // What a visitor gets: the visible rows, each kind in its order.
-  const preview = (
-    <LinksPageView
-      preview
-      links={initialLinks.filter((link) => link.isVisible)}
-      socialPosition={initialSocialPosition}
-    />
-  );
-
-  // The same arrays until the server sends a new list: a section takes a new
-  // one for a refresh and drops its optimistic order, so opening a form (a
-  // render of this component alone) must not hand it one.
-  const socials = useMemo(
+  // The same arrays until the server sends a new list: `useShown` takes a new
+  // one for a refresh and drops what is shown ahead of it, so opening a form
+  // (a render of this component alone) must not hand it one.
+  const savedSocials = useMemo(
     () => initialLinks.filter((link) => link.kind === "social"),
     [initialLinks],
   );
-  const links = useMemo(
+  const savedLinks = useMemo(
     () => initialLinks.filter((link) => link.kind !== "social"),
     [initialLinks],
   );
+  const [socials, setSocials] = useShown(savedSocials);
+  const [links, setLinks] = useShown(savedLinks);
+  const [socialPosition, setShownPosition] = useShown(initialSocialPosition);
+  const [draft, setDraft] = useState<LinkDraft | null>(null);
+
+  // What a visitor would get with everything on screen saved: the visible
+  // rows in their order, and the open form's link as the form has it.
+  const previewLinks = useMemo(() => {
+    const shown: PublicSiteLink[] = [...socials, ...links].filter(
+      (link) => link.isVisible,
+    );
+    if (!draft) return shown;
+    if (draft.id == null) {
+      return [...shown, { ...draft, id: -1, kind: "link" }];
+    }
+    return shown.map((link) =>
+      link.id === draft.id ? { ...link, ...draft, id: link.id } : link,
+    );
+  }, [socials, links, draft]);
+  const preview = (
+    <LinksPageView
+      preview
+      links={previewLinks}
+      socialPosition={socialPosition}
+    />
+  );
+
   const availableNetworks = SOCIAL_NETWORKS.filter(
     (network) => !socials.some((link) => link.icon === network),
   );
 
-  const closeForm = () => setEditing(null);
+  const closeForm = () => {
+    setEditing(null);
+    setDraft(null);
+  };
   const savedForm = () => {
     setEditing(null);
+    // The draft stays until the refresh brings the saved link, so the
+    // preview does not show the old one in between.
     router.refresh();
   };
+  // With the saved list in, the draft has nothing left to add.
+  const [draftFor, setDraftFor] = useState(initialLinks);
+  if (draftFor !== initialLinks) {
+    setDraftFor(initialLinks);
+    if (!editing) setDraft(null);
+  }
   // A fresh form for each row, never the last one's fields.
   const formKey = editing
     ? `${editing.kind}-${editing.target === "new" ? "new" : editing.target.id}`
     : undefined;
 
   return (
-    <div className="xl:grid xl:grid-cols-[minmax(0,48rem)_20rem] xl:items-start xl:gap-10">
+    // Room at the end of the list for the floating preview button.
+    <div className="pb-20 xl:grid xl:grid-cols-[minmax(0,48rem)_20rem] xl:items-start xl:gap-10 xl:pb-0">
       <div className="space-y-8">
         <div className="space-y-3">
-          {/* Side by side across the screen on a phone, their own width from
-              `sm` up, where the same split would leave them oversized. */}
-          <div
-            className={cn(
-              "gap-2",
-              isWide ? "flex" : "grid grid-cols-2 sm:flex sm:flex-wrap",
-            )}
+          {/* A path, not an address: it opens on whatever domain this is. */}
+          <Button
+            variant="outline"
+            size="lg"
+            className="w-full sm:w-auto"
+            asChild
           >
-            {isWide ? null : (
-              <Drawer>
-                <DrawerTrigger asChild>
-                  <Button type="button" size="lg" className="px-3 sm:px-6">
-                    <EyeIcon className="mr-2 size-4 shrink-0" />
-                    Vista previa
-                  </Button>
-                </DrawerTrigger>
-                {/* The whole screen: the page is a screen tall itself. */}
-                <DrawerContent className="data-[vaul-drawer-direction=bottom]:mt-0 data-[vaul-drawer-direction=bottom]:h-dvh data-[vaul-drawer-direction=bottom]:max-h-dvh pt-[env(safe-area-inset-top)]">
-                  <DrawerHeader className="relative px-12">
-                    <DrawerTitle>Vista previa</DrawerTitle>
-                    <DrawerDescription>{PREVIEW_HINT}</DrawerDescription>
-                    <DrawerClose asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute top-2 right-2"
-                        aria-label="Cerrar vista previa"
-                      >
-                        <XIcon className="size-5" />
-                      </Button>
-                    </DrawerClose>
-                  </DrawerHeader>
-                  <div className="min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
-                    {preview}
-                  </div>
-                </DrawerContent>
-              </Drawer>
-            )}
-            {/* A path, not an address: it opens on whatever domain this is. */}
-            <Button
-              variant="outline"
-              size="lg"
-              className="px-3 sm:px-6"
-              asChild
-            >
-              <a href={LINKS_PATH} target="_blank" rel="noopener noreferrer">
-                <ExternalLinkIcon className="mr-2 size-4 shrink-0" />
-                Ver página
-              </a>
-            </Button>
-          </div>
+            <a href={LINKS_PATH} target="_blank" rel="noopener noreferrer">
+              <ExternalLinkIcon className="mr-2 size-4 shrink-0" />
+              Ver página
+            </a>
+          </Button>
           <p className="text-sm text-muted-foreground wrap-anywhere">
             Dirección para la bio:{" "}
             <span className="font-medium">{publicUrl}</span>
@@ -950,16 +1077,21 @@ export default function LinksManager({
 
         <LinksSection
           kind="social"
-          links={socials}
+          items={socials}
+          onItemsChange={setSocials}
           canAdd={availableNetworks.length > 0}
           onAdd={() => setEditing({ kind: "social", target: "new" })}
           onEdit={(link) => setEditing({ kind: "social", target: link })}
         >
-          <SocialPositionPicker initial={initialSocialPosition} />
+          <SocialPositionPicker
+            position={socialPosition}
+            onPositionChange={setShownPosition}
+          />
         </LinksSection>
         <LinksSection
           kind="link"
-          links={links}
+          items={links}
+          onItemsChange={setLinks}
           onAdd={() => setEditing({ kind: "link", target: "new" })}
           onEdit={(link) => setEditing({ kind: "link", target: link })}
         />
@@ -970,6 +1102,7 @@ export default function LinksManager({
             editing={editing.target}
             onClose={closeForm}
             onSaved={savedForm}
+            onDraftChange={setDraft}
           />
         ) : null}
         {editing?.kind === "social" ? (
@@ -982,6 +1115,43 @@ export default function LinksManager({
           />
         ) : null}
       </div>
+      {isWide ? null : (
+        <Drawer>
+          {/* Always in reach, however far down the list of links goes: fixed
+              over the page, above the installed app's tab bar. */}
+          <DrawerTrigger asChild>
+            <Button
+              type="button"
+              size="lg"
+              className="fixed right-4 bottom-app-chrome z-40 mb-[calc(1rem+var(--app-bottom-safe-area,env(safe-area-inset-bottom)))] rounded-full px-5 shadow-lg"
+            >
+              <EyeIcon className="mr-2 size-4 shrink-0" />
+              Vista previa
+            </Button>
+          </DrawerTrigger>
+          {/* The whole screen: the page is a screen tall itself. */}
+          <DrawerContent className="data-[vaul-drawer-direction=bottom]:mt-0 data-[vaul-drawer-direction=bottom]:h-dvh data-[vaul-drawer-direction=bottom]:max-h-dvh pt-[env(safe-area-inset-top)]">
+            <DrawerHeader className="relative px-12">
+              <DrawerTitle>Vista previa</DrawerTitle>
+              <DrawerDescription>{PREVIEW_HINT}</DrawerDescription>
+              <DrawerClose asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-2 right-2"
+                  aria-label="Cerrar vista previa"
+                >
+                  <XIcon className="size-5" />
+                </Button>
+              </DrawerClose>
+            </DrawerHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+              {preview}
+            </div>
+          </DrawerContent>
+        </Drawer>
+      )}
       {isWide ? (
         <aside aria-label="Vista previa" className="sticky top-24 space-y-3">
           <div className="max-h-[calc(100dvh-11rem)] overflow-y-auto rounded-[2rem] border-4 border-border bg-background shadow-lg [scrollbar-width:thin]">

@@ -2199,6 +2199,13 @@
       "when": 1794882538801,
       "tag": "0314_site_link_thumbnails",
       "breakpoints": true
+    },
+    {
+      "idx": 315,
+      "version": "7",
+      "when": 1794918069327,
+      "tag": "0315_site_link_layout",
+      "breakpoints": true
     }
   ]
 }

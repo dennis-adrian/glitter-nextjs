@@ -80,14 +80,34 @@ const INDEX: (LibraryIcon & { key: string })[] = [
 
 export const ICON_LIBRARY_SIZE = INDEX.length;
 
+/** The icons a page of the picker holds. */
+export const ICON_PAGE_SIZE = 120;
+
 /**
- * The library's icons whose name has `query` in it, the closest names
- * first. Nothing for an empty query: the picker shows the featured icons
- * until something is typed.
+ * One page of the library for the picker. With nothing typed it is every
+ * icon, Lucide's first and then the brands, each in its own order. With a
+ * query it is the icons whose name has it, the closest names first.
  */
-export function searchLibraryIcons(query: string, limit = 96): LibraryIcon[] {
+export function listLibraryIcons(
+  query: string,
+  offset = 0,
+  limit = ICON_PAGE_SIZE,
+): { icons: LibraryIcon[]; total: number } {
   const key = searchKey(query.slice(0, 64));
-  if (!key) return [];
+  const start = Number.isSafeInteger(offset) && offset > 0 ? offset : 0;
+  if (!key) {
+    return {
+      icons: INDEX.slice(start, start + limit).map(
+        ({ ref, set, name, label }) => ({
+          ref,
+          set,
+          name,
+          label,
+        }),
+      ),
+      total: INDEX.length,
+    };
+  }
   const found: { icon: LibraryIcon; rank: number; length: number }[] = [];
   for (const { key: iconKey, ...icon } of INDEX) {
     const at = iconKey.indexOf(key);
@@ -96,10 +116,33 @@ export function searchLibraryIcons(query: string, limit = 96): LibraryIcon[] {
     // shorter name first, so "camera" comes before "camera off".
     found.push({ icon, rank: at === 0 ? 0 : 1, length: iconKey.length });
   }
-  return found
-    .sort((a, b) => a.rank - b.rank || a.length - b.length)
-    .slice(0, limit)
-    .map((entry) => entry.icon);
+  return {
+    icons: found
+      .sort((a, b) => a.rank - b.rank || a.length - b.length)
+      .slice(start, start + limit)
+      .map((entry) => entry.icon),
+    total: found.length,
+  };
+}
+
+/** A page of the picker with each icon's drawing, ready to show. */
+export async function listLibraryIconsWithSvg(
+  query: string,
+  offset = 0,
+): Promise<{ icons: (LibraryIcon & { svg: string })[]; total: number }> {
+  const page = listLibraryIcons(query, offset);
+  const drawn = await Promise.all(
+    page.icons.map(async (icon) => ({
+      ...icon,
+      svg: await libraryIconSvg(icon.ref),
+    })),
+  );
+  return {
+    icons: drawn.filter(
+      (icon): icon is LibraryIcon & { svg: string } => icon.svg != null,
+    ),
+    total: page.total,
+  };
 }
 
 function escapeAttribute(value: string) {

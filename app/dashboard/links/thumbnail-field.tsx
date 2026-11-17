@@ -9,7 +9,7 @@ import {
   WandSparklesIcon,
 } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import SiteLinkIcon from "@/app/components/links/site-link-icon";
@@ -22,7 +22,6 @@ import {
   THUMBNAIL_MODES,
   THUMBNAIL_MODE_LABELS,
   isFeaturedIcon,
-  libraryIconUrl,
   parseLibraryIcon,
   type IconLibrarySet,
   type ThumbnailMode,
@@ -35,6 +34,8 @@ type LibraryIcon = {
   set: IconLibrarySet;
   name: string;
   label: string;
+  /** Its drawing, built by the server from the libraries' own data. */
+  svg: string;
 };
 
 const ICON_BUTTON_CLASS =
@@ -43,80 +44,130 @@ const ICON_BUTTON_PICKED_CLASS =
   "border-primary bg-primary/10 text-primary hover:text-primary";
 
 /**
- * A library icon, drawn in the current colour from its file: the file is the
- * mask and the colour fills it. Keeps the two libraries out of the browser.
+ * A library icon from its drawing. The markup comes from our own server
+ * (`libraryIconSvg`), which builds it from the icon libraries' data and from
+ * nothing a person typed.
  */
-export function LibraryIconImage({
-  iconRef,
+function LibraryIconDrawing({
+  svg,
   className,
 }: {
-  iconRef: string;
+  svg: string;
   className?: string;
 }) {
-  const parsed = parseLibraryIcon(iconRef);
-  if (!parsed) return null;
-  const url = `url("${libraryIconUrl(parsed.set, parsed.name)}")`;
   return (
     <span
       aria-hidden
-      className={cn(
-        "inline-block bg-current [mask-position:center] [mask-repeat:no-repeat] [mask-size:contain]",
-        className,
-      )}
-      style={{ maskImage: url, WebkitMaskImage: url }}
+      className={cn("inline-flex [&>svg]:size-full", className)}
+      dangerouslySetInnerHTML={{ __html: svg }}
     />
   );
 }
 
-/** What the picker calls an icon of a library before its results arrive. */
+/** What the picker calls a library icon it has no label for. */
 function libraryIconName(iconRef: string) {
   const parsed = parseLibraryIcon(iconRef);
   return parsed ? parsed.name.replaceAll("-", " ") : iconRef;
 }
 
+type IconPage = { icons: LibraryIcon[]; total: number };
+
+async function fetchIconPage(
+  query: string,
+  offset: number,
+  signal: AbortSignal,
+): Promise<IconPage> {
+  const params = new URLSearchParams({ q: query, offset: String(offset) });
+  const response = await fetch(`/api/links/icons?${params}`, { signal });
+  if (!response.ok) throw new Error(String(response.status));
+  return (await response.json()) as IconPage;
+}
+
 /**
- * The featured icons first, then a search over every Lucide and Simple Icons
- * icon. The names are the libraries' own, in English.
+ * Every Lucide and Simple Icons icon, a page at a time as the list is
+ * scrolled, with the featured ones first. Typing filters the list to the
+ * icons the search finds, and leaves the featured ones out. The names are the
+ * libraries' own, in English.
  */
 function IconPicker({
   value,
+  valueSvg,
   onChange,
 }: {
   value: string;
-  onChange: (icon: string) => void;
+  /** The drawing of `value` when it is a library icon. */
+  valueSvg: string | null;
+  onChange: (icon: string, svg: string | null) => void;
 }) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<LibraryIcon[]>([]);
-  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const trimmed = query.trim();
+  // The list belongs to one search: `listFor` is the search it was asked for.
+  const [list, setList] = useState<IconPage & { listFor: string }>({
+    icons: [],
+    total: 0,
+    listFor: "",
+  });
+  const [status, setStatus] = useState<"loading" | "idle" | "error">("loading");
+  const loadingMore = useRef(false);
 
   useEffect(() => {
-    if (!trimmed) return;
     const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      setStatus("loading");
-      try {
-        const response = await fetch(
-          `/api/links/icons?q=${encodeURIComponent(trimmed)}`,
-          { signal: controller.signal },
-        );
-        if (!response.ok) throw new Error(String(response.status));
-        const data = (await response.json()) as { icons: LibraryIcon[] };
-        setResults(data.icons);
-        setStatus("idle");
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        console.error("icon search", error);
-        setStatus("error");
-      }
-    }, 250);
+    // At once when the picker opens; after a pause while typing.
+    const timer = setTimeout(
+      async () => {
+        setStatus("loading");
+        try {
+          const page = await fetchIconPage(trimmed, 0, controller.signal);
+          setList({ ...page, listFor: trimmed });
+          setStatus("idle");
+        } catch (error) {
+          if (controller.signal.aborted) return;
+          console.error("icon list", error);
+          setStatus("error");
+        }
+      },
+      trimmed ? 250 : 0,
+    );
     return () => {
       clearTimeout(timer);
       controller.abort();
     };
   }, [trimmed]);
 
-  const shown = trimmed ? results : [];
+  const icons = list.listFor === trimmed ? list.icons : [];
+  const hasMore = list.listFor === trimmed && icons.length < list.total;
+
+  async function loadMore() {
+    if (loadingMore.current || !hasMore) return;
+    loadingMore.current = true;
+    try {
+      const page = await fetchIconPage(
+        trimmed,
+        icons.length,
+        new AbortController().signal,
+      );
+      setList((current) =>
+        // A search typed meanwhile has its own list.
+        current.listFor === trimmed
+          ? {
+              ...current,
+              total: page.total,
+              icons: [
+                ...current.icons,
+                ...page.icons.filter(
+                  (icon) => !current.icons.some((had) => had.ref === icon.ref),
+                ),
+              ],
+            }
+          : current,
+      );
+    } catch (error) {
+      console.error("icon list", error);
+    } finally {
+      loadingMore.current = false;
+    }
+  }
+
   const pickedFromLibrary = parseLibraryIcon(value) != null;
 
   return (
@@ -139,10 +190,10 @@ function IconPicker({
         />
       </div>
 
-      {pickedFromLibrary ? (
+      {pickedFromLibrary && valueSvg ? (
         <p className="flex min-w-0 items-center gap-2 text-sm">
           <span className={cn(ICON_BUTTON_CLASS, ICON_BUTTON_PICKED_CLASS)}>
-            <LibraryIconImage iconRef={value} className="size-5" />
+            <LibraryIconDrawing svg={valueSvg} className="size-5" />
           </span>
           <span className="min-w-0 break-words">
             Elegido: {libraryIconName(value)}
@@ -150,59 +201,82 @@ function IconPicker({
         </p>
       ) : null}
 
-      {trimmed ? (
+      <div
+        className="flex max-h-60 flex-col gap-3 overflow-y-auto rounded-md border border-border p-2"
+        onScroll={(event) => {
+          const box = event.currentTarget;
+          if (box.scrollTop + box.clientHeight >= box.scrollHeight - 120) {
+            void loadMore();
+          }
+        }}
+      >
+        {trimmed ? null : (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-muted-foreground">Destacados</p>
+            <div className="flex flex-wrap gap-2">
+              {SITE_LINK_ICONS.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  aria-pressed={value === name}
+                  aria-label={SITE_LINK_ICON_LABELS[name]}
+                  title={SITE_LINK_ICON_LABELS[name]}
+                  onClick={() => onChange(name, null)}
+                  className={cn(
+                    ICON_BUTTON_CLASS,
+                    value === name && ICON_BUTTON_PICKED_CLASS,
+                  )}
+                >
+                  <SiteLinkIcon icon={name} className="size-5" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col gap-2">
           <p className="text-xs text-muted-foreground" aria-live="polite">
-            {status === "loading"
-              ? "Buscando…"
-              : status === "error"
-                ? "No se pudo buscar. Inténtalo de nuevo."
-                : shown.length === 0
-                  ? "Sin resultados. Los nombres están en inglés."
-                  : "Resultados"}
+            {status === "error"
+              ? "No se pudieron cargar los íconos. Inténtalo de nuevo."
+              : status === "loading" && icons.length === 0
+                ? "Cargando…"
+                : trimmed
+                  ? icons.length === 0
+                    ? "Sin resultados. Los nombres están en inglés."
+                    : `Resultados (${list.total})`
+                  : "Todos los íconos"}
           </p>
-          {shown.length > 0 ? (
-            <div className="flex max-h-48 flex-wrap gap-2 overflow-y-auto p-0.5">
-              {shown.map((icon) => (
+          {icons.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {icons.map((icon) => (
                 <button
                   key={icon.ref}
                   type="button"
                   aria-pressed={value === icon.ref}
                   aria-label={`${icon.label} (${ICON_LIBRARY_LABELS[icon.set]})`}
                   title={`${icon.label} · ${ICON_LIBRARY_LABELS[icon.set]}`}
-                  onClick={() => onChange(icon.ref)}
+                  onClick={() => onChange(icon.ref, icon.svg)}
                   className={cn(
                     ICON_BUTTON_CLASS,
                     value === icon.ref && ICON_BUTTON_PICKED_CLASS,
                   )}
                 >
-                  <LibraryIconImage iconRef={icon.ref} className="size-5" />
+                  <LibraryIconDrawing svg={icon.svg} className="size-5" />
                 </button>
               ))}
             </div>
           ) : null}
-        </div>
-      ) : null}
-
-      <div className="flex flex-col gap-2">
-        <p className="text-xs text-muted-foreground">Destacados</p>
-        <div className="flex flex-wrap gap-2">
-          {SITE_LINK_ICONS.map((name) => (
-            <button
-              key={name}
+          {hasMore ? (
+            <Button
               type="button"
-              aria-pressed={value === name}
-              aria-label={SITE_LINK_ICON_LABELS[name]}
-              title={SITE_LINK_ICON_LABELS[name]}
-              onClick={() => onChange(name)}
-              className={cn(
-                ICON_BUTTON_CLASS,
-                value === name && ICON_BUTTON_PICKED_CLASS,
-              )}
+              variant="ghost"
+              size="sm"
+              className="self-center"
+              onClick={() => void loadMore()}
             >
-              <SiteLinkIcon icon={name} className="size-5" />
-            </button>
-          ))}
+              Cargar más
+            </Button>
+          ) : null}
         </div>
       </div>
     </div>
@@ -326,6 +400,7 @@ export default function ThumbnailField({
   mode,
   onModeChange,
   icon,
+  iconSvg,
   onIconChange,
   imageUrl,
   onImageChange,
@@ -337,7 +412,9 @@ export default function ThumbnailField({
   onModeChange: (mode: ThumbnailMode) => void;
   /** A featured icon or one of the library's; never `none`. */
   icon: string;
-  onIconChange: (icon: string) => void;
+  /** The drawing of `icon` when it is one of the library's. */
+  iconSvg: string | null;
+  onIconChange: (icon: string, svg: string | null) => void;
   imageUrl: string | null;
   onImageChange: (imageUrl: string | null) => void;
   canUseLinkImage: boolean;
@@ -382,6 +459,7 @@ export default function ThumbnailField({
       {mode === "icon" ? (
         <IconPicker
           value={isFeaturedIcon(icon) || parseLibraryIcon(icon) ? icon : "link"}
+          valueSvg={iconSvg}
           onChange={onIconChange}
         />
       ) : null}

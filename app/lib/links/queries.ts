@@ -32,6 +32,7 @@ export async function fetchVisibleSiteLinks(): Promise<PublicSiteLink[]> {
         icon: siteLinks.icon,
         iconSvg: siteLinks.iconSvg,
         imageUrl: siteLinks.imageUrl,
+        layout: siteLinks.layout,
       })
       .from(siteLinks)
       .where(eq(siteLinks.isVisible, true))

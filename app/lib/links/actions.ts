@@ -22,6 +22,7 @@ import {
   SITE_LINK_ICON_LABELS,
   SITE_LINK_KINDS,
   SITE_LINK_LABEL_MAX,
+  SITE_LINK_LAYOUTS,
   SOCIAL_POSITIONS,
   isFeaturedIcon,
   isSocialNetwork,
@@ -29,6 +30,7 @@ import {
   parseSiteLinkHref,
   parseSocialValue,
   type SiteLinkKind,
+  type SiteLinkLayout,
   type SiteLinkRow,
   type SocialNetwork,
   type SocialPosition,
@@ -74,6 +76,8 @@ export type SiteLinkInput = {
   icon: string;
   /** A thumbnail shown in place of the icon; a file of ours, or none. */
   imageUrl?: string | null;
+  /** `classic` when left out. `featured` needs an image. */
+  layout?: SiteLinkLayout;
 };
 
 type ValidInput = {
@@ -82,6 +86,7 @@ type ValidInput = {
   icon: string;
   iconSvg: string | null;
   imageUrl: string | null;
+  layout: SiteLinkLayout;
 };
 
 async function validateInput(
@@ -111,9 +116,20 @@ async function validateInput(
     return { ok: false, message: "La imagen no es válida." };
   }
 
+  const layout = data.layout ?? "classic";
+  if (!SITE_LINK_LAYOUTS.includes(layout)) {
+    return { ok: false, message: "El diseño no es válido." };
+  }
+  if (layout === "featured" && !imageUrl) {
+    return {
+      ok: false,
+      message: "El diseño destacado necesita una imagen.",
+    };
+  }
+
   const href = parseSiteLinkHref(data.href ?? "");
   if (!href.ok) return href;
-  return { ok: true, label, href: href.href, icon, iconSvg, imageUrl };
+  return { ok: true, label, href: href.href, icon, iconSvg, imageUrl, layout };
 }
 
 /** Pages a person may ask for the image of, per minute. */
@@ -183,6 +199,7 @@ export async function createSiteLink(
     icon: input.icon,
     iconSvg: input.iconSvg,
     imageUrl: input.imageUrl,
+    layout: input.layout,
     sortOrder: await nextSortOrder("link"),
   });
   invalidateLinks();
@@ -289,6 +306,7 @@ export async function updateSiteLink(
       icon: input.icon,
       iconSvg: input.iconSvg,
       imageUrl: input.imageUrl,
+      layout: input.layout,
       updatedAt: new Date(),
     })
     .where(and(eq(siteLinks.id, id), eq(siteLinks.kind, "link")))

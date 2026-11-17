@@ -13,7 +13,7 @@ export type SiteLinkRow = typeof siteLinks.$inferSelect;
 /** What the public page needs of a link, and nothing else. */
 export type PublicSiteLink = Pick<
   SiteLinkRow,
-  "id" | "kind" | "label" | "href" | "icon" | "iconSvg" | "imageUrl"
+  "id" | "kind" | "label" | "href" | "icon" | "iconSvg" | "imageUrl" | "layout"
 >;
 
 /**
@@ -105,9 +105,31 @@ export function isFeaturedIcon(value: string): value is SiteLinkIcon {
   return (SITE_LINK_ICONS as readonly string[]).includes(value);
 }
 
-/** Where the picker's thumbnails of a library icon come from. */
-export function libraryIconUrl(set: IconLibrarySet, name: string) {
-  return `/api/links/icons/${set}/${name}`;
+/**
+ * How a link's card is drawn. `featured` shows the link's image large with
+ * the title under it, for the one thing being pushed; without an image it is
+ * drawn as `classic`.
+ */
+export const SITE_LINK_LAYOUTS = ["classic", "featured"] as const;
+export type SiteLinkLayout = (typeof SITE_LINK_LAYOUTS)[number];
+
+export const SITE_LINK_LAYOUT_LABELS: Record<SiteLinkLayout, string> = {
+  classic: "Clásico",
+  featured: "Destacado",
+};
+
+/** A stored layout, or the classic one for anything else. */
+export function toSiteLinkLayout(value: string | null | undefined) {
+  return value === "featured"
+    ? "featured"
+    : ("classic" satisfies SiteLinkLayout);
+}
+
+/** Whether a link is drawn large: it asks for it and has the image for it. */
+export function isFeaturedCard(
+  link: Pick<SiteLinkRow, "layout" | "imageUrl">,
+): boolean {
+  return link.layout === "featured" && Boolean(link.imageUrl);
 }
 
 /**

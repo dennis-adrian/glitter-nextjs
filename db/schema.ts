@@ -552,6 +552,11 @@ export const siteLinks = pgTable(
     iconSvg: text("icon_svg"),
     /** A thumbnail shown in place of the icon: a file of ours on UploadThing. */
     imageUrl: text("image_url"),
+    /**
+     * How a link's card is drawn: `classic` (thumbnail beside the title) or
+     * `featured` (its image large, the title under it).
+     */
+    layout: text("layout").notNull().default("classic"),
     sortOrder: integer("sort_order").notNull().default(0),
     isVisible: boolean("is_visible").default(true).notNull(),
     /** Taps on the public page, counted by `/api/links/[id]/click`. */

@@ -458,6 +458,57 @@ describeDatabase("site links dashboard actions", () => {
       },
     );
 
+    it("stores the featured design with its image, and classic by default", async () => {
+      await actions.createSiteLink({ ...base, icon: "link" });
+      expect(
+        await actions.createSiteLink({
+          ...base,
+          icon: "link",
+          imageUrl: IMAGE,
+          layout: "featured",
+        }),
+      ).toEqual({ success: true });
+
+      const rows = await rowsOf("link");
+      expect(rows.map((row) => row.layout)).toEqual(["classic", "featured"]);
+      expect((await queries.fetchVisibleSiteLinks())[1].layout).toBe(
+        "featured",
+      );
+
+      // Back to classic, keeping its image as a thumbnail.
+      await actions.updateSiteLink(rows[1].id, {
+        ...base,
+        icon: "link",
+        imageUrl: IMAGE,
+      });
+      expect((await rowsOf("link"))[1]).toMatchObject({
+        layout: "classic",
+        imageUrl: IMAGE,
+      });
+    });
+
+    it("refuses the featured design without an image, and a design it does not know", async () => {
+      expect(
+        await actions.createSiteLink({
+          ...base,
+          icon: "link",
+          layout: "featured",
+        }),
+      ).toEqual({
+        success: false,
+        message: "El diseño destacado necesita una imagen.",
+      });
+      expect(
+        await actions.createSiteLink({
+          ...base,
+          icon: "link",
+          imageUrl: IMAGE,
+          layout: "gigante" as never,
+        }),
+      ).toEqual({ success: false, message: "El diseño no es válido." });
+      expect(await rowsOf("link")).toEqual([]);
+    });
+
     it("deletes the stored image once no link shows it", async () => {
       await actions.createSiteLink({ ...base, icon: "link", imageUrl: IMAGE });
       const [link] = await rowsOf("link");
