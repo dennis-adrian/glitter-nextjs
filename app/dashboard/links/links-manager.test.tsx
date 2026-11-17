@@ -226,6 +226,47 @@ describe("the links manager", () => {
     expect(document.querySelector("[data-bare-page]")).toBeNull();
   });
 
+  describe("the position picker and the saved position", () => {
+    const manager = (position: "top" | "bottom", links = LINKS) => (
+      <LinksManager
+        initialLinks={links}
+        initialSocialPosition={position}
+        publicUrl="https://www.glitter.com.bo/links"
+        now={NOW.getTime()}
+      />
+    );
+    const checked = (label: string) =>
+      (screen.getByLabelText(label) as HTMLInputElement).checked;
+
+    it("follows the saved position when a refresh brings a new one", () => {
+      const { rerender } = render(manager("top"));
+      expect(checked("Arriba")).toBe(true);
+
+      // Someone else moved the icons; the page was refreshed.
+      rerender(manager("bottom"));
+      expect(checked("Abajo")).toBe(true);
+    });
+
+    it("keeps a choice still being saved when a refresh brings the same saved position", async () => {
+      let answer: (value: unknown) => void = () => {};
+      actions.setSocialPosition.mockReturnValue(
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+      );
+      const { rerender } = render(manager("top"));
+      fireEvent.click(screen.getByLabelText("Abajo"));
+      expect(checked("Abajo")).toBe(true);
+
+      // A refresh for something else, with a new list and the old position.
+      rerender(manager("top", [...LINKS]));
+      expect(checked("Abajo")).toBe(true);
+
+      answer({ success: true });
+      await waitFor(() => expect(refresh).toHaveBeenCalled());
+    });
+  });
+
   it("says so when there are no links yet", () => {
     renderManager([]);
     expect(screen.getByText(/Todavía no hay enlaces/)).toBeTruthy();
