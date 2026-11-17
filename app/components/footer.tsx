@@ -7,7 +7,7 @@ import { useUser } from "@clerk/nextjs";
 import { MailIcon } from "lucide-react";
 
 import GlitterLogo from "@/app/components/landing/glitter-logo";
-import SocialIcon from "@/app/components/social-icon";
+import BrandIcon from "@/app/components/brand-icon";
 import { LINKS_PATH } from "@/app/lib/links/definitions";
 import {
   SITE_CONTACT_EMAIL,
@@ -87,7 +87,7 @@ export default function Footer({
                   href={social.href}
                   className="text-muted-foreground hover:text-primary"
                 >
-                  <SocialIcon network={social.network} />
+                  <BrandIcon brand={social.network} className="size-5" />
                   <span className="sr-only">{social.label}</span>
                 </Link>
               ))}

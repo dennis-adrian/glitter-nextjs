@@ -3,9 +3,7 @@ import SocialMediaInput from "@/app/components/form/fields/social-media";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { formatUserSocialsForInsertion } from "@/app/components/user_profile/public_profile/utils";
-import FacebookIcon from "@/app/icons/FacebookIcon";
-import InstagramIcon from "@/app/icons/InstagramIcon";
-import TikTokIcon from "@/app/icons/TikTokIcon";
+import { BRAND_ICONS } from "@/app/components/brand-icon";
 import { upsertUserSocialProfiles } from "@/app/lib/users/actions";
 import { usernameRegex } from "@/app/lib/users/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -74,21 +72,21 @@ export default function UserSocialsForm(props: UserSocialsFormProps) {
             formControl={form.control}
             label="Perfil de Instagram*"
             name="instagram"
-            icon={InstagramIcon}
+            icon={BRAND_ICONS.instagram}
           />
           <SocialMediaInput
             bottomBorderOnly
             formControl={form.control}
             label="Perfil de TikTok"
             name="tiktok"
-            icon={TikTokIcon}
+            icon={BRAND_ICONS.tiktok}
           />
           <SocialMediaInput
             bottomBorderOnly
             formControl={form.control}
             label="Perfil de Facebook"
             name="facebook"
-            icon={FacebookIcon}
+            icon={BRAND_ICONS.facebook}
           />
         </div>
         <div>

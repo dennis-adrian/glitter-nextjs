@@ -9,9 +9,7 @@ import {
   TicketIcon,
 } from "lucide-react";
 
-import SocialIcon from "@/app/components/social-icon";
-import WhatsAppIcon from "@/app/icons/WhatsAppIcon";
-import YouTubeIcon from "@/app/icons/YoutubeIcon";
+import BrandIcon, { isBrand } from "@/app/components/brand-icon";
 import type { SiteLinkIcon as SiteLinkIconName } from "@/app/lib/links/definitions";
 
 const LUCIDE_ICONS = {
@@ -33,12 +31,8 @@ export default function SiteLinkIcon({
   icon: SiteLinkIconName;
   className?: string;
 }) {
-  if (icon === "instagram" || icon === "tiktok" || icon === "facebook") {
-    return <SocialIcon network={icon} className={className} />;
-  }
-  // Filled marks, unlike the stroked ones above.
-  if (icon === "youtube") return <YouTubeIcon className={className} />;
-  if (icon === "whatsapp") return <WhatsAppIcon className={className} />;
+  // A network's own mark (Simple Icons): filled, unlike the stroked ones.
+  if (isBrand(icon)) return <BrandIcon brand={icon} className={className} />;
   const Icon = LUCIDE_ICONS[icon];
   return <Icon className={className} aria-hidden />;
 }
