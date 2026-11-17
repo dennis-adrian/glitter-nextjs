@@ -557,6 +557,13 @@ export const siteLinks = pgTable(
      * `featured` (its image large, the title under it).
      */
     layout: text("layout").notNull().default("classic"),
+    /**
+     * The link's schedule: shown from `visibleFrom` (if set) until
+     * `visibleUntil` (if set), and only while `isVisible`. Both are instants;
+     * the dashboard reads and writes them as Bolivia's time.
+     */
+    visibleFrom: timestamp("visible_from"),
+    visibleUntil: timestamp("visible_until"),
     sortOrder: integer("sort_order").notNull().default(0),
     isVisible: boolean("is_visible").default(true).notNull(),
     /** Taps on the public page, counted by `/api/links/[id]/click`. */
@@ -581,6 +588,14 @@ export const siteLinksSettings = pgTable("site_links_settings", {
   id: integer("id").primaryKey().default(1),
   /** Where the row of social icons goes: `top` (under the description) or `bottom`. */
   socialPosition: text("social_position").notNull().default("top"),
+  /**
+   * The page's header. Null is the stock one (Glitter's logo, name and
+   * line); an empty description is a header with no line under the name.
+   */
+  title: text("title"),
+  description: text("description"),
+  /** A picture in place of the logo: a file of ours on UploadThing. */
+  avatarUrl: text("avatar_url"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 

@@ -2,7 +2,10 @@ import GlitterLogo from "@/app/components/landing/glitter-logo";
 import SiteLinkCard, {
   SiteSocialLink,
 } from "@/app/components/links/site-link-card";
+import Image from "next/image";
+
 import type {
+  LinksHeader,
   PublicSiteLink,
   SocialPosition,
 } from "@/app/lib/links/definitions";
@@ -18,12 +21,15 @@ import { cn } from "@/app/lib/utils";
 export default function LinksPageView({
   links: all,
   socialPosition,
+  header,
   preview = false,
   className,
 }: {
   /** The visible links and social icons, each kind already in order. */
   links: PublicSiteLink[];
   socialPosition: SocialPosition;
+  /** The page's picture, name and line, as the dashboard set them. */
+  header: LinksHeader;
   preview?: boolean;
   className?: string;
 }) {
@@ -55,19 +61,30 @@ export default function LinksPageView({
         className,
       )}
     >
-      <GlitterLogo
-        variant="dark"
-        height={96}
-        width={96}
-        className="rounded-full"
-      />
-      <Title className="mt-4 text-center font-display text-2xl font-bold text-brand-ink">
-        Productora Glitter
+      {header.avatarUrl ? (
+        <Image
+          src={header.avatarUrl}
+          alt=""
+          width={192}
+          height={192}
+          className="size-24 rounded-full object-cover"
+        />
+      ) : (
+        <GlitterLogo
+          variant="dark"
+          height={96}
+          width={96}
+          className="rounded-full"
+        />
+      )}
+      <Title className="mt-4 text-center font-display text-2xl font-bold break-words text-brand-ink">
+        {header.title}
       </Title>
-      <p className="mt-1 text-center text-brand-neutral">
-        Productora de festivales para ilustradores, artistas y emprendimientos
-        creativos
-      </p>
+      {header.description ? (
+        <p className="mt-1 text-center break-words text-brand-neutral">
+          {header.description}
+        </p>
+      ) : null}
       {socialPosition === "top" ? socialRow : null}
       <ul
         className={cn(

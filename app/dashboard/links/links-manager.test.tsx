@@ -21,6 +21,7 @@ const { actions, refresh } = vi.hoisted(() => ({
     deleteSiteLink: vi.fn(),
     setSiteLinkVisible: vi.fn(),
     setSocialPosition: vi.fn(),
+    updateLinksHeader: vi.fn(),
     reorderSiteLinks: vi.fn(),
   },
   refresh: vi.fn(),
@@ -62,6 +63,8 @@ function link(overrides: Partial<SiteLinkRow>): SiteLinkRow {
     iconSvg: null,
     imageUrl: null,
     layout: "classic",
+    visibleFrom: null,
+    visibleUntil: null,
     isVisible: true,
     clickCount: 0,
     updatedAt: new Date("2026-11-09T12:00:00Z"),
@@ -129,11 +132,19 @@ function iconPages() {
   });
 }
 
-function renderManager(links = LINKS) {
+/** When the page is read in these tests: 12 November 2026, noon in Bolivia. */
+const NOW = new Date("2026-11-12T16:00:00Z");
+
+function renderManager(
+  links = LINKS,
+  props: Partial<Parameters<typeof LinksManager>[0]> = {},
+) {
   return render(
     <LinksManager
       initialLinks={links}
       publicUrl="https://www.glitter.com.bo/links"
+      now={NOW.getTime()}
+      {...props}
     />,
   );
 }
@@ -215,6 +226,8 @@ describe("the links manager", () => {
         icon: "ticket",
         imageUrl: null,
         layout: "classic",
+        visibleFrom: "",
+        visibleUntil: "",
       }),
     );
     await waitFor(() => expect(refresh).toHaveBeenCalled());
@@ -258,6 +271,8 @@ describe("the links manager", () => {
         icon: "store",
         imageUrl: null,
         layout: "classic",
+        visibleFrom: "",
+        visibleUntil: "",
       }),
     );
   });
@@ -305,6 +320,8 @@ describe("the links manager", () => {
           icon: "link",
           imageUrl: OG_IMAGE,
           layout: "classic",
+          visibleFrom: "",
+          visibleUntil: "",
         }),
       );
     });
@@ -383,6 +400,8 @@ describe("the links manager", () => {
           icon: "link",
           imageUrl: null,
           layout: "classic",
+          visibleFrom: "",
+          visibleUntil: "",
         }),
       );
     });
@@ -398,6 +417,8 @@ describe("the links manager", () => {
           icon: "none",
           imageUrl: null,
           layout: "classic",
+          visibleFrom: "",
+          visibleUntil: "",
         }),
       );
     });
@@ -427,6 +448,8 @@ describe("the links manager", () => {
           icon: "si:spotify",
           imageUrl: null,
           layout: "classic",
+          visibleFrom: "",
+          visibleUntil: "",
         }),
       );
     });
@@ -519,6 +542,8 @@ describe("the links manager", () => {
           icon: "link",
           imageUrl: IMAGE,
           layout: "featured",
+          visibleFrom: "",
+          visibleUntil: "",
         }),
       );
     });
@@ -647,6 +672,207 @@ describe("the links manager", () => {
 
       fireEvent.click(screen.getByLabelText("Abajo"));
       expect(order()).toEqual(["Tiendita", "Instagram"]);
+    });
+  });
+
+  describe("a link's schedule", () => {
+    /** The preview, which on a phone is behind its floating button. */
+    function previewed() {
+      fireEvent.click(screen.getByRole("button", { name: /Vista previa/ }));
+      const names = within(screen.getByRole("dialog"))
+        .getAllByRole("link")
+        .map((card) => card.getAttribute("aria-label") ?? card.textContent);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Cerrar vista previa" }),
+      );
+      return names;
+    }
+
+    it("saves the dates a link is shown between, as typed", async () => {
+      renderManager();
+      fireEvent.click(screen.getByRole("button", { name: "Nuevo enlace" }));
+      fireEvent.change(screen.getByLabelText("Título"), {
+        target: { value: "Pre-registro" },
+      });
+      fireEvent.change(screen.getByLabelText("Enlace"), {
+        target: { value: "/festivals" },
+      });
+      fireEvent.change(screen.getByLabelText("Mostrar desde"), {
+        target: { value: "2026-11-20T09:00" },
+      });
+      fireEvent.change(screen.getByLabelText("Mostrar hasta"), {
+        target: { value: "2026-11-30T23:59" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+
+      await waitFor(() =>
+        expect(actions.createSiteLink).toHaveBeenCalledWith(
+          expect.objectContaining({
+            visibleFrom: "2026-11-20T09:00",
+            visibleUntil: "2026-11-30T23:59",
+          }),
+        ),
+      );
+    });
+
+    it("refuses an end that is not after the start, and clears both at once", async () => {
+      renderManager();
+      fireEvent.click(screen.getAllByRole("button", { name: /Editar/ })[1]);
+      fireEvent.change(screen.getByLabelText("Mostrar desde"), {
+        target: { value: "2026-11-20T09:00" },
+      });
+      fireEvent.change(screen.getByLabelText("Mostrar hasta"), {
+        target: { value: "2026-11-20T09:00" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+      expect((await screen.findByRole("alert")).textContent).toMatch(
+        /después de empezar/,
+      );
+      expect(actions.updateSiteLink).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Quitar fechas" }));
+      fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+      await waitFor(() =>
+        expect(actions.updateSiteLink).toHaveBeenCalledWith(
+          1,
+          expect.objectContaining({ visibleFrom: "", visibleUntil: "" }),
+        ),
+      );
+    });
+
+    it("opens a link on its dates in Bolivia's time, and says where it is in them", () => {
+      renderManager([
+        link({
+          id: 7,
+          label: "Por venir",
+          // 20 November, 09:00 in Bolivia.
+          visibleFrom: new Date("2026-11-20T13:00:00Z"),
+        }),
+        link({
+          id: 8,
+          label: "Terminado",
+          sortOrder: 1,
+          visibleUntil: new Date("2026-11-10T03:59:00Z"),
+        }),
+        link({
+          id: 9,
+          label: "En curso",
+          sortOrder: 2,
+          visibleFrom: new Date("2026-11-01T04:00:00Z"),
+          visibleUntil: new Date("2026-11-30T04:00:00Z"),
+        }),
+      ]);
+      expect(screen.getByText(/Se mostrará desde el 20 nov/)).toBeTruthy();
+      expect(screen.getByText(/Dejó de mostrarse el 9 nov/)).toBeTruthy();
+      expect(screen.getByText(/Se muestra hasta el 30 nov/)).toBeTruthy();
+      // Only the one its schedule shows now is on the page.
+      expect(previewed()).toEqual(["En curso"]);
+
+      fireEvent.click(screen.getAllByRole("button", { name: /Editar/ })[0]);
+      expect(
+        (screen.getByLabelText("Mostrar desde") as HTMLInputElement).value,
+      ).toBe("2026-11-20T09:00");
+      expect(
+        (screen.getByLabelText("Mostrar hasta") as HTMLInputElement).value,
+      ).toBe("");
+    });
+  });
+
+  describe("the page's header", () => {
+    const header = () =>
+      within(screen.getByRole("region", { name: "Encabezado" }));
+
+    it("starts on the stock header, with nothing to save", () => {
+      renderManager();
+      expect(
+        (header().getByLabelText("Nombre") as HTMLInputElement).value,
+      ).toBe("Productora Glitter");
+      expect(
+        (header().getByLabelText("Descripción") as HTMLTextAreaElement).value,
+      ).toMatch(/^Productora de festivales/);
+      expect(
+        header()
+          .getByRole("button", { name: "Guardar encabezado" })
+          .hasAttribute("disabled"),
+      ).toBe(true);
+      expect(
+        header().queryByRole("button", { name: "Volver al original" }),
+      ).toBeNull();
+    });
+
+    it("shows the header in the preview as it is typed, and saves it", async () => {
+      renderManager();
+      fireEvent.change(header().getByLabelText("Nombre"), {
+        target: { value: "Glitter Bolivia" },
+      });
+      fireEvent.change(header().getByLabelText("Descripción"), {
+        target: { value: "" },
+      });
+      fireEvent.click(header().getByRole("button", { name: "Subir imagen" }));
+
+      fireEvent.click(screen.getByRole("button", { name: /Vista previa/ }));
+      const preview = within(screen.getByRole("dialog"));
+      expect(preview.getByText("Glitter Bolivia")).toBeTruthy();
+      expect(preview.queryByText(/^Productora de festivales/)).toBeNull();
+      expect(actions.updateLinksHeader).not.toHaveBeenCalled();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Cerrar vista previa" }),
+      );
+
+      fireEvent.click(
+        header().getByRole("button", { name: "Guardar encabezado" }),
+      );
+      await waitFor(() =>
+        expect(actions.updateLinksHeader).toHaveBeenCalledWith({
+          title: "Glitter Bolivia",
+          description: "",
+          avatarUrl: "https://app.ufs.sh/f/subida",
+        }),
+      );
+      await waitFor(() => expect(refresh).toHaveBeenCalled());
+    });
+
+    it("undoes what was typed, and goes back to the stock header", () => {
+      const saved = {
+        title: "Glitter Bolivia",
+        description: "Festivales",
+        avatarUrl: "https://app.ufs.sh/f/foto",
+      };
+      renderManager(LINKS, { initialHeader: saved });
+      const name = () => header().getByLabelText("Nombre") as HTMLInputElement;
+
+      fireEvent.change(name(), { target: { value: "Otro nombre" } });
+      fireEvent.click(header().getByRole("button", { name: "Deshacer" }));
+      expect(name().value).toBe("Glitter Bolivia");
+      expect(header().getByAltText("Imagen del encabezado")).toBeTruthy();
+
+      fireEvent.click(
+        header().getByRole("button", { name: "Volver al original" }),
+      );
+      expect(name().value).toBe("Productora Glitter");
+      expect(header().queryByAltText("Imagen del encabezado")).toBeNull();
+    });
+
+    it("keeps the fields and says why when the header is refused", async () => {
+      actions.updateLinksHeader.mockResolvedValue({
+        success: false,
+        message: "El nombre es obligatorio.",
+      });
+      renderManager();
+      fireEvent.change(header().getByLabelText("Nombre"), {
+        target: { value: "Glitter" },
+      });
+      fireEvent.click(
+        header().getByRole("button", { name: "Guardar encabezado" }),
+      );
+
+      expect((await header().findByRole("alert")).textContent).toBe(
+        "El nombre es obligatorio.",
+      );
+      expect(
+        (header().getByLabelText("Nombre") as HTMLInputElement).value,
+      ).toBe("Glitter");
+      expect(refresh).not.toHaveBeenCalled();
     });
   });
 

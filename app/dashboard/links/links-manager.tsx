@@ -18,6 +18,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  CalendarClockIcon,
   ExternalLinkIcon,
   EyeIcon,
   GripVerticalIcon,
@@ -73,6 +74,7 @@ import {
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { Switch } from "@/app/components/ui/switch";
+import { Textarea } from "@/app/components/ui/textarea";
 import {
   createSiteLink,
   createSocialLink,
@@ -81,11 +83,15 @@ import {
   reorderSiteLinks,
   setSiteLinkVisible,
   setSocialPosition,
+  updateLinksHeader,
   updateSiteLink,
   updateSocialLink,
 } from "@/app/lib/links/actions";
 import {
+  DEFAULT_LINKS_HEADER,
+  LINKS_DESCRIPTION_MAX,
   LINKS_PATH,
+  LINKS_TITLE_MAX,
   NO_ICON,
   SITE_LINK_ICON_LABELS,
   SITE_LINK_LAYOUTS,
@@ -96,10 +102,15 @@ import {
   SOCIAL_POSITIONS,
   SOCIAL_POSITION_LABELS,
   isSocialNetwork,
+  isWithinSchedule,
+  parseScheduleInput,
   parseSiteLinkHref,
+  scheduleLabel,
   socialValueFromHref,
   thumbnailMode,
+  toScheduleInput,
   toSiteLinkLayout,
+  type LinksHeader,
   type PublicSiteLink,
   type SiteLinkLayout,
   type ThumbnailMode,
@@ -111,6 +122,9 @@ import {
 import ThumbnailField from "@/app/dashboard/links/thumbnail-field";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { cn } from "@/app/lib/utils";
+import { UploadButton } from "@/app/vendors/uploadthing";
+import GlitterLogo from "@/app/components/landing/glitter-logo";
+import Image from "next/image";
 
 type ActionResult = { success: true } | { success: false; message: string };
 
@@ -142,12 +156,15 @@ function clicksLabel(count: number) {
 
 function SortableRow({
   link,
+  now,
   disabled,
   onEdit,
   onDelete,
   onToggleVisible,
 }: {
   link: SiteLinkRow;
+  /** When the page was read, for where the link is in its schedule. */
+  now: Date;
   disabled: boolean;
   onEdit: () => void;
   onDelete: () => void;
@@ -161,6 +178,8 @@ function SortableRow({
     transition,
     isDragging,
   } = useSortable({ id: link.id });
+  const schedule = scheduleLabel(link, now);
+  const shownNow = isWithinSchedule(link, now);
 
   return (
     <li
@@ -202,6 +221,22 @@ function SortableRow({
           <p className="text-xs text-muted-foreground wrap-anywhere">
             {clicksLabel(link.clickCount)} · {link.href}
           </p>
+          {schedule ? (
+            <p
+              className={cn(
+                "mt-0.5 flex items-start gap-1 text-xs break-words",
+                shownNow
+                  ? "text-muted-foreground"
+                  : "text-amber-700 dark:text-amber-400",
+              )}
+            >
+              <CalendarClockIcon
+                aria-hidden
+                className="mt-0.5 size-3 shrink-0"
+              />
+              {schedule}
+            </p>
+          ) : null}
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -273,7 +308,11 @@ type Editing = null | { kind: SiteLinkKind; target: FormTarget };
  * A link as its open form has it, saved or not: what the preview shows in
  * place of the saved one (or after the last, for a new link).
  */
-type LinkDraft = Omit<PublicSiteLink, "id" | "kind"> & { id: number | null };
+type LinkDraft = Omit<PublicSiteLink, "id" | "kind"> & {
+  id: number | null;
+  visibleFrom: Date | null;
+  visibleUntil: Date | null;
+};
 
 function LinkFormDialog({
   editing,
@@ -308,6 +347,17 @@ function LinkFormDialog({
   const [layout, setLayout] = useState<SiteLinkLayout>(
     toSiteLinkLayout(existing?.layout),
   );
+  // As `datetime-local` values, in Bolivia's time.
+  const [visibleFrom, setVisibleFrom] = useState(
+    toScheduleInput(existing?.visibleFrom),
+  );
+  const [visibleUntil, setVisibleUntil] = useState(
+    toScheduleInput(existing?.visibleUntil),
+  );
+  const from = parseScheduleInput(visibleFrom) ?? null;
+  const until = parseScheduleInput(visibleUntil) ?? null;
+  const fromTime = from?.getTime() ?? null;
+  const untilTime = until?.getTime() ?? null;
   // Until the person chooses a thumbnail themselves, a new link takes the
   // image its own page offers, as Linktree does.
   const thumbnailChosen = useRef(existing != null);
@@ -360,6 +410,8 @@ function LinkFormDialog({
       iconSvg: shown.iconSvg,
       imageUrl: shown.imageUrl,
       layout,
+      visibleFrom: fromTime == null ? null : new Date(fromTime),
+      visibleUntil: untilTime == null ? null : new Date(untilTime),
     });
   }, [
     onDraftChange,
@@ -371,6 +423,8 @@ function LinkFormDialog({
     shown.iconSvg,
     shown.imageUrl,
     layout,
+    fromTime,
+    untilTime,
   ]);
 
   function handleSubmit(event: FormEvent) {
@@ -384,6 +438,10 @@ function LinkFormDialog({
       setError("El diseño destacado necesita una imagen como miniatura.");
       return;
     }
+    if (from && until && until <= from) {
+      setError("El enlace debe dejar de mostrarse después de empezar.");
+      return;
+    }
     startSaving(async () => {
       const input = {
         label,
@@ -391,6 +449,8 @@ function LinkFormDialog({
         icon: shown.icon,
         imageUrl: shown.imageUrl,
         layout,
+        visibleFrom,
+        visibleUntil,
       };
       const res = await attempt(() =>
         existing ? updateSiteLink(existing.id, input) : createSiteLink(input),
@@ -528,6 +588,49 @@ function LinkFormDialog({
               <p className="text-xs text-muted-foreground">
                 Muestra la imagen del enlace en grande, con el título debajo.
               </p>
+            ) : null}
+          </fieldset>
+          <fieldset className="flex min-w-0 flex-col gap-2">
+            <legend className="mb-2 text-sm font-medium">Programación</legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="flex min-w-0 flex-col gap-2">
+                <Label htmlFor="site-link-from">Mostrar desde</Label>
+                <Input
+                  id="site-link-from"
+                  type="datetime-local"
+                  value={visibleFrom}
+                  max={visibleUntil || undefined}
+                  onChange={(event) => setVisibleFrom(event.target.value)}
+                />
+              </div>
+              <div className="flex min-w-0 flex-col gap-2">
+                <Label htmlFor="site-link-until">Mostrar hasta</Label>
+                <Input
+                  id="site-link-until"
+                  type="datetime-local"
+                  value={visibleUntil}
+                  min={visibleFrom || undefined}
+                  onChange={(event) => setVisibleUntil(event.target.value)}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Hora de Bolivia. Deja vacío lo que no necesites: sin fechas, el
+              enlace se muestra siempre.
+            </p>
+            {visibleFrom || visibleUntil ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="self-start"
+                onClick={() => {
+                  setVisibleFrom("");
+                  setVisibleUntil("");
+                }}
+              >
+                Quitar fechas
+              </Button>
             ) : null}
           </fieldset>
           {error ? (
@@ -772,6 +875,7 @@ function SocialPositionPicker({
 /** One kind's rows: ordered, hidden and deleted apart from the other's. */
 function LinksSection({
   kind,
+  now,
   items,
   onItemsChange: setItems,
   canAdd = true,
@@ -782,6 +886,7 @@ function LinksSection({
   /** Shown under the rows: settings that belong to this kind alone. */
   children?: React.ReactNode;
   kind: SiteLinkKind;
+  now: Date;
   /** The rows as shown, ahead of what is saved while a change is sent. */
   items: SiteLinkRow[];
   onItemsChange: React.Dispatch<React.SetStateAction<SiteLinkRow[]>>;
@@ -900,6 +1005,7 @@ function LinksSection({
                 <SortableRow
                   key={link.id}
                   link={link}
+                  now={now}
                   disabled={isPending}
                   onEdit={() => onEdit(link)}
                   onDelete={() => setDeleting(link)}
@@ -936,6 +1042,188 @@ function LinksSection({
         </AlertDialogContent>
       </AlertDialog>
       {children}
+    </section>
+  );
+}
+
+const headerUploadAppearance =
+  "!h-10 !w-auto !rounded-md !border !border-input !bg-background !px-4 !text-sm !font-medium !text-foreground hover:!bg-accent hover:!text-accent-foreground after:!bg-primary/40";
+
+/**
+ * The page's picture, name and line. The fields are the header as shown,
+ * which the preview follows as it is typed; saving is its own button.
+ */
+function HeaderSection({
+  saved,
+  header,
+  onHeaderChange,
+}: {
+  /** What the page has now. */
+  saved: LinksHeader;
+  /** What the fields hold. */
+  header: LinksHeader;
+  onHeaderChange: (header: LinksHeader) => void;
+}) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, startSaving] = useTransition();
+  const changed =
+    header.title !== saved.title ||
+    header.description !== saved.description ||
+    header.avatarUrl !== saved.avatarUrl;
+  const isStock =
+    header.title === DEFAULT_LINKS_HEADER.title &&
+    header.description === DEFAULT_LINKS_HEADER.description &&
+    header.avatarUrl == null;
+
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    startSaving(async () => {
+      const res = await attempt(() => updateLinksHeader(header));
+      if (!res.success) {
+        setError(res.message);
+        return;
+      }
+      toast.success("Encabezado actualizado");
+      router.refresh();
+    });
+  }
+
+  return (
+    <section className="space-y-3" aria-labelledby="links-section-header">
+      <div className="min-w-0">
+        <h2 id="links-section-header" className="text-lg font-semibold">
+          Encabezado
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          La imagen, el nombre y la descripción que abren la página.
+        </p>
+      </div>
+      <form
+        onSubmit={handleSubmit}
+        className="flex min-w-0 flex-col gap-4 rounded-lg border border-border bg-card p-3"
+      >
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          {header.avatarUrl ? (
+            <Image
+              src={header.avatarUrl}
+              alt="Imagen del encabezado"
+              width={128}
+              height={128}
+              className="size-16 shrink-0 rounded-full border border-border object-cover"
+            />
+          ) : (
+            <GlitterLogo
+              variant="dark"
+              height={64}
+              width={64}
+              className="shrink-0 rounded-full"
+            />
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <UploadButton
+              endpoint="siteLinkImage"
+              content={{
+                button({ ready, isUploading, uploadProgress }) {
+                  if (isUploading) return `${uploadProgress}%`;
+                  if (!ready) return "Cargando…";
+                  return header.avatarUrl ? "Cambiar imagen" : "Subir imagen";
+                },
+                allowedContent: () => null,
+              }}
+              appearance={{
+                button: headerUploadAppearance,
+                container: "w-fit",
+                allowedContent: "hidden",
+              }}
+              onClientUploadComplete={(files) => {
+                const avatarUrl = files?.[0]?.serverData?.imageUrl;
+                if (!avatarUrl) {
+                  toast.error("Error al subir la imagen");
+                  return;
+                }
+                onHeaderChange({ ...header, avatarUrl });
+              }}
+              onUploadError={() => {
+                toast.error("Error al subir la imagen");
+              }}
+            />
+            {header.avatarUrl ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-muted-foreground"
+                onClick={() => onHeaderChange({ ...header, avatarUrl: null })}
+              >
+                Usar el logo
+              </Button>
+            ) : null}
+          </div>
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="links-header-title">Nombre</Label>
+          <Input
+            id="links-header-title"
+            value={header.title}
+            maxLength={LINKS_TITLE_MAX}
+            onChange={(event) =>
+              onHeaderChange({ ...header, title: event.target.value })
+            }
+            required
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="links-header-description">Descripción</Label>
+          <Textarea
+            id="links-header-description"
+            value={header.description}
+            maxLength={LINKS_DESCRIPTION_MAX}
+            rows={2}
+            onChange={(event) =>
+              onHeaderChange({ ...header, description: event.target.value })
+            }
+          />
+          <p className="text-xs text-muted-foreground">
+            {header.description.length}/{LINKS_DESCRIPTION_MAX}. Déjala vacía
+            para no mostrar ninguna.
+          </p>
+        </div>
+        {error ? (
+          <p role="alert" className="text-sm break-words text-destructive">
+            {error}
+          </p>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" disabled={!changed || isSaving}>
+            {isSaving ? "Guardando…" : "Guardar encabezado"}
+          </Button>
+          {changed ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSaving}
+              onClick={() => {
+                setError(null);
+                onHeaderChange(saved);
+              }}
+            >
+              Deshacer
+            </Button>
+          ) : null}
+          {isStock ? null : (
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-muted-foreground"
+              disabled={isSaving}
+              onClick={() => onHeaderChange(DEFAULT_LINKS_HEADER)}
+            >
+              Volver al original
+            </Button>
+          )}
+        </div>
+      </form>
     </section>
   );
 }
@@ -979,10 +1267,18 @@ function useShown<T>(saved: T) {
 export default function LinksManager({
   initialLinks,
   initialSocialPosition = "top",
+  initialHeader = DEFAULT_LINKS_HEADER,
+  now: readAt,
   publicUrl,
 }: {
   initialLinks: SiteLinkRow[];
   initialSocialPosition?: SocialPosition;
+  initialHeader?: LinksHeader;
+  /**
+   * When the page was read, in milliseconds: the instant every schedule on
+   * it is judged at, the same on the server and in the browser.
+   */
+  now: number;
   publicUrl: string;
 }) {
   const router = useRouter();
@@ -1004,26 +1300,35 @@ export default function LinksManager({
   const [links, setLinks] = useShown(savedLinks);
   const [socialPosition, setShownPosition] = useShown(initialSocialPosition);
   const [draft, setDraft] = useState<LinkDraft | null>(null);
+  const [header, setHeader] = useShown(initialHeader);
+  const now = useMemo(() => new Date(readAt), [readAt]);
 
   // What a visitor would get with everything on screen saved: the visible
   // rows in their order, and the open form's link as the form has it.
   const previewLinks = useMemo(() => {
-    const shown: PublicSiteLink[] = [...socials, ...links].filter(
-      (link) => link.isVisible,
-    );
-    if (!draft) return shown;
-    if (draft.id == null) {
-      return [...shown, { ...draft, id: -1, kind: "link" }];
-    }
-    return shown.map((link) =>
-      link.id === draft.id ? { ...link, ...draft, id: link.id } : link,
-    );
-  }, [socials, links, draft]);
+    // The open form's link as the form has it, in place of the saved one or
+    // after the last.
+    const rows = [...socials, ...links];
+    const all =
+      draft == null
+        ? rows
+        : draft.id == null
+          ? [...rows, { ...draft, id: -1, kind: "link", isVisible: true }]
+          : rows.map((link) =>
+              link.id === draft.id ? { ...link, ...draft, id: link.id } : link,
+            );
+    return all.filter((link) => link.isVisible && isWithinSchedule(link, now));
+  }, [socials, links, draft, now]);
   const preview = (
     <LinksPageView
       preview
       links={previewLinks}
       socialPosition={socialPosition}
+      header={{
+        ...header,
+        // A name being retyped is never a page with none.
+        title: header.title.trim() || DEFAULT_LINKS_HEADER.title,
+      }}
     />
   );
 
@@ -1075,8 +1380,14 @@ export default function LinksManager({
           </p>
         </div>
 
+        <HeaderSection
+          saved={initialHeader}
+          header={header}
+          onHeaderChange={setHeader}
+        />
         <LinksSection
           kind="social"
+          now={now}
           items={socials}
           onItemsChange={setSocials}
           canAdd={availableNetworks.length > 0}
@@ -1090,6 +1401,7 @@ export default function LinksManager({
         </LinksSection>
         <LinksSection
           kind="link"
+          now={now}
           items={links}
           onItemsChange={setLinks}
           onAdd={() => setEditing({ kind: "link", target: "new" })}

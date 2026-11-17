@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import LinksManager from "@/app/dashboard/links/links-manager";
 import { listSiteLinksForAdmin } from "@/app/lib/links/actions";
 import { LINKS_PATH } from "@/app/lib/links/definitions";
-import { fetchSocialPosition } from "@/app/lib/links/queries";
+import { fetchLinksSettings } from "@/app/lib/links/queries";
 import { publicBaseUrl } from "@/app/lib/urls";
 
 export const metadata: Metadata = { title: "Enlaces" };
@@ -31,7 +31,7 @@ async function requestOrigin() {
 export default async function SiteLinksDashboardPage() {
   // The list first: it is what turns away anyone who may not be here.
   const links = await listSiteLinksForAdmin();
-  const socialPosition = await fetchSocialPosition();
+  const { socialPosition, header, readAt } = await fetchLinksSettings();
   const publicUrl = `${await requestOrigin()}${LINKS_PATH}`;
 
   return (
@@ -46,6 +46,8 @@ export default async function SiteLinksDashboardPage() {
       <LinksManager
         initialLinks={links}
         initialSocialPosition={socialPosition}
+        initialHeader={header}
+        now={readAt}
         publicUrl={publicUrl}
       />
     </div>

@@ -3,15 +3,20 @@ import { connection } from "next/server";
 
 import LinksPageView from "@/app/components/links/links-page-view";
 import {
-  fetchSocialPosition,
+  fetchLinksSettings,
   fetchVisibleSiteLinks,
 } from "@/app/lib/links/queries";
 
-export const metadata: Metadata = {
-  title: "Enlaces",
-  description:
-    "Todos los enlaces de la Productora Glitter: tiendita, sitio web, redes sociales y contacto.",
-};
+/** The header the dashboard set names the page, here and when it is shared. */
+export async function generateMetadata(): Promise<Metadata> {
+  const { header } = await fetchLinksSettings();
+  return {
+    title: header.title,
+    description:
+      header.description ||
+      "Todos los enlaces de la Productora Glitter: tiendita, sitio web, redes sociales y contacto.",
+  };
+}
 
 /**
  * Glitter's link-in-bio page: the one address its social profiles show, in
@@ -24,15 +29,16 @@ export const metadata: Metadata = {
 export default async function LinksPage() {
   // Read per request: a link added in the dashboard is live at once.
   await connection();
-  const [links, socialPosition] = await Promise.all([
+  const [links, { socialPosition, header }] = await Promise.all([
     fetchVisibleSiteLinks(),
-    fetchSocialPosition(),
+    fetchLinksSettings(),
   ]);
   return (
     <div data-bare-page="">
       <LinksPageView
         links={links}
         socialPosition={socialPosition}
+        header={header}
         className="min-h-dvh"
       />
     </div>

@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DEFAULT_LINKS_HEADER,
+  isWithinSchedule,
   mailtoAddress,
+  parseScheduleInput,
+  scheduleLabel,
+  scheduleState,
+  toLinksHeader,
+  toScheduleInput,
   parseSiteLinkHref,
   parseSocialValue,
   socialValueFromHref,
@@ -131,5 +138,112 @@ describe("socialValueFromHref", () => {
       expect(socialValueFromHref(network, href)).toBe(value);
       expect(parseSocialValue(network, value)).toEqual({ ok: true, href });
     }
+  });
+});
+
+describe("a link's schedule", () => {
+  // Noon in Bolivia, 12 November 2026.
+  const now = new Date("2026-11-12T16:00:00Z");
+  const before = new Date("2026-11-01T04:00:00Z");
+  const after = new Date("2026-11-20T13:00:00Z");
+
+  it("reads a typed date as Bolivia's time, and writes it back the same", () => {
+    const date = parseScheduleInput("2026-11-20T09:00");
+    expect(date?.toISOString()).toBe("2026-11-20T13:00:00.000Z");
+    expect(toScheduleInput(date)).toBe("2026-11-20T09:00");
+    // Late at night in Bolivia is already the next day in UTC.
+    expect(parseScheduleInput("2026-12-31T23:30")?.toISOString()).toBe(
+      "2027-01-01T03:30:00.000Z",
+    );
+    expect(toScheduleInput(new Date("2027-01-01T03:30:00Z"))).toBe(
+      "2026-12-31T23:30",
+    );
+  });
+
+  it("takes an empty date for none, and refuses what is not a date", () => {
+    expect(parseScheduleInput("")).toBeNull();
+    expect(parseScheduleInput("   ")).toBeNull();
+    expect(parseScheduleInput(null)).toBeNull();
+    expect(parseScheduleInput(undefined)).toBeNull();
+    expect(toScheduleInput(null)).toBe("");
+    for (const value of [
+      "mañana",
+      "2026-11-20",
+      "2026-11-20T09:00:00Z",
+      "2026-13-40T09:00",
+      "2026-11-20T09:00'; drop table site_links; --",
+    ]) {
+      expect(parseScheduleInput(value)).toBeUndefined();
+    }
+  });
+
+  it("knows where a link is in its schedule", () => {
+    const state = (visibleFrom: Date | null, visibleUntil: Date | null) =>
+      scheduleState({ visibleFrom, visibleUntil }, now);
+    expect(state(null, null)).toBe("always");
+    expect(state(after, null)).toBe("upcoming");
+    expect(state(before, null)).toBe("running");
+    expect(state(null, after)).toBe("running");
+    expect(state(before, after)).toBe("running");
+    expect(state(null, before)).toBe("ended");
+    // It starts at its first instant and is over at its last.
+    expect(state(now, null)).toBe("running");
+    expect(state(null, now)).toBe("ended");
+  });
+
+  it("shows a link only while its schedule runs, or when it has none", () => {
+    const shown = (visibleFrom: Date | null, visibleUntil: Date | null) =>
+      isWithinSchedule({ visibleFrom, visibleUntil }, now);
+    expect(shown(null, null)).toBe(true);
+    expect(shown(before, after)).toBe(true);
+    expect(shown(after, null)).toBe(false);
+    expect(shown(null, before)).toBe(false);
+  });
+
+  it("says it in a line for the dashboard, in Bolivia's time", () => {
+    const label = (visibleFrom: Date | null, visibleUntil: Date | null) =>
+      scheduleLabel({ visibleFrom, visibleUntil }, now);
+    expect(label(null, null)).toBeNull();
+    expect(label(after, null)).toMatch(/^Se mostrará desde el 20 nov.*09:00$/);
+    expect(label(before, null)).toMatch(/^Se muestra desde el 1 nov.*00:00$/);
+    expect(label(null, after)).toMatch(/^Se muestra hasta el 20 nov.*09:00$/);
+    expect(label(null, before)).toMatch(/^Dejó de mostrarse el 1 nov/);
+    expect(label(after, new Date("2026-11-30T13:00:00Z"))).toMatch(
+      /^Se mostrará del 20 nov.* al 30 nov/,
+    );
+    // A date in another year says which.
+    expect(label(new Date("2030-01-01T14:00:00Z"), null)).toMatch(
+      /^Se mostrará desde el 1 ene.*2030.*10:00$/,
+    );
+    expect(label(after, null)).not.toMatch(/2026/);
+  });
+});
+
+describe("toLinksHeader", () => {
+  it("is the stock header when nothing is stored", () => {
+    expect(toLinksHeader(null)).toEqual(DEFAULT_LINKS_HEADER);
+    expect(
+      toLinksHeader({ title: null, description: null, avatarUrl: null }),
+    ).toEqual(DEFAULT_LINKS_HEADER);
+  });
+
+  it("takes what is stored, an empty line included", () => {
+    expect(
+      toLinksHeader({
+        title: "Glitter Bolivia",
+        description: "",
+        avatarUrl: "https://app.ufs.sh/f/foto",
+      }),
+    ).toEqual({
+      title: "Glitter Bolivia",
+      description: "",
+      avatarUrl: "https://app.ufs.sh/f/foto",
+    });
+  });
+
+  it("never shows a page with no name", () => {
+    expect(
+      toLinksHeader({ title: "   ", description: null, avatarUrl: null }).title,
+    ).toBe("Productora Glitter");
   });
 });

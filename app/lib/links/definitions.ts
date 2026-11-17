@@ -368,3 +368,180 @@ export const SOCIAL_POSITION_LABELS: Record<SocialPosition, string> = {
 export function toSocialPosition(value: string | null | undefined) {
   return value === "bottom" ? "bottom" : ("top" satisfies SocialPosition);
 }
+
+/*
+ * A link's schedule. A link may be shown only from one instant, only until
+ * another, or between the two; with neither it is always shown. The switch
+ * (`isVisible`) still decides first: a hidden link is hidden whatever its
+ * schedule says.
+ */
+
+/** The dashboard reads and writes a schedule in Bolivia's time. */
+export const LINKS_TIME_ZONE = "America/La_Paz";
+/**
+ * Bolivia's distance from UTC, which is all that zone is: it has no summer
+ * time, and has not moved since 1932. Lets a schedule be read here and on the
+ * server alike without a time zone library in the browser.
+ */
+const LINKS_UTC_OFFSET = "-04:00";
+
+const SCHEDULE_INPUT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+
+/**
+ * The instant a `datetime-local` value (`2026-11-20T18:30`) names in
+ * Bolivia, or null for an empty one. `undefined` for anything else.
+ */
+export function parseScheduleInput(
+  value: string | null | undefined,
+): Date | null | undefined {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return null;
+  if (!SCHEDULE_INPUT_RE.test(trimmed)) return undefined;
+  const date = new Date(`${trimmed}:00${LINKS_UTC_OFFSET}`);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+const scheduleInputFormat = new Intl.DateTimeFormat("sv-SE", {
+  timeZone: LINKS_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/** An instant as the `datetime-local` value that names it in Bolivia. */
+export function toScheduleInput(date: Date | null | undefined): string {
+  if (!date) return "";
+  // sv-SE writes "2026-11-20 18:30".
+  return scheduleInputFormat.format(date).replace(" ", "T");
+}
+
+const scheduleLabelParts = {
+  timeZone: LINKS_TIME_ZONE,
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+} as const;
+const scheduleLabelFormat = new Intl.DateTimeFormat(
+  "es-BO",
+  scheduleLabelParts,
+);
+const scheduleLabelWithYearFormat = new Intl.DateTimeFormat("es-BO", {
+  ...scheduleLabelParts,
+  year: "numeric",
+});
+const scheduleYearFormat = new Intl.DateTimeFormat("en", {
+  timeZone: LINKS_TIME_ZONE,
+  year: "numeric",
+});
+
+/** A date for a schedule's line, with its year when that is not this one. */
+function formatScheduleDate(date: Date, now: Date) {
+  const sameYear =
+    scheduleYearFormat.format(date) === scheduleYearFormat.format(now);
+  return (sameYear ? scheduleLabelFormat : scheduleLabelWithYearFormat).format(
+    date,
+  );
+}
+
+export type LinkSchedule = {
+  visibleFrom: Date | null;
+  visibleUntil: Date | null;
+};
+
+/** Where a link is in its schedule at `now`. */
+export type ScheduleState = "always" | "upcoming" | "running" | "ended";
+
+export function scheduleState(
+  { visibleFrom, visibleUntil }: LinkSchedule,
+  now: Date,
+): ScheduleState {
+  if (!visibleFrom && !visibleUntil) return "always";
+  if (visibleUntil && visibleUntil.getTime() <= now.getTime()) return "ended";
+  if (visibleFrom && visibleFrom.getTime() > now.getTime()) return "upcoming";
+  return "running";
+}
+
+/** Whether a link's schedule lets it be shown at `now`. */
+export function isWithinSchedule(schedule: LinkSchedule, now: Date): boolean {
+  const state = scheduleState(schedule, now);
+  return state === "always" || state === "running";
+}
+
+/**
+ * A line for the dashboard about a link's schedule, or null when it has
+ * none: "Se muestra desde el 20 nov, 18:30", "Dejó de mostrarse el …".
+ */
+export function scheduleLabel(
+  schedule: LinkSchedule,
+  now: Date,
+): string | null {
+  const from = schedule.visibleFrom
+    ? formatScheduleDate(schedule.visibleFrom, now)
+    : null;
+  const until = schedule.visibleUntil
+    ? formatScheduleDate(schedule.visibleUntil, now)
+    : null;
+  switch (scheduleState(schedule, now)) {
+    case "always":
+      return null;
+    case "ended":
+      return `Dejó de mostrarse el ${until}`;
+    case "upcoming":
+      return until
+        ? `Se mostrará del ${from} al ${until}`
+        : `Se mostrará desde el ${from}`;
+    case "running":
+      return until
+        ? `Se muestra hasta el ${until}`
+        : `Se muestra desde el ${from}`;
+  }
+}
+
+/*
+ * The page's header: its picture, its name and the line under it. Stored in
+ * the settings row; what is not stored is the stock header below.
+ */
+
+export const DEFAULT_LINKS_TITLE = "Productora Glitter";
+export const DEFAULT_LINKS_DESCRIPTION =
+  "Productora de festivales para ilustradores, artistas y emprendimientos creativos";
+
+export const LINKS_TITLE_MAX = 60;
+export const LINKS_DESCRIPTION_MAX = 160;
+
+export type LinksHeader = {
+  title: string;
+  /** Empty for a header with no line under the name. */
+  description: string;
+  /** Null for Glitter's logo. */
+  avatarUrl: string | null;
+};
+
+export const DEFAULT_LINKS_HEADER: LinksHeader = {
+  title: DEFAULT_LINKS_TITLE,
+  description: DEFAULT_LINKS_DESCRIPTION,
+  avatarUrl: null,
+};
+
+/** The header to show from what the settings row holds, if there is one. */
+export function toLinksHeader(
+  row:
+    | {
+        title: string | null;
+        description: string | null;
+        avatarUrl: string | null;
+      }
+    | null
+    | undefined,
+): LinksHeader {
+  return {
+    title: row?.title?.trim() || DEFAULT_LINKS_TITLE,
+    description: row?.description ?? DEFAULT_LINKS_DESCRIPTION,
+    avatarUrl: row?.avatarUrl || null,
+  };
+}

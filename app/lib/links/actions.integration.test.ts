@@ -184,6 +184,7 @@ describeDatabase("site links dashboard actions", () => {
           actions.reorderSiteLinks("link", [link.id]),
           actions.setSocialPosition("bottom"),
           actions.fetchSiteLinkImage("https://example.com/"),
+          actions.updateLinksHeader({ title: "Otro", description: "" }),
         ]);
 
         for (const result of results) expect(result).toEqual(denied);
@@ -594,6 +595,200 @@ describeDatabase("site links dashboard actions", () => {
       const result = await actions.fetchSiteLinkImage(href);
       expect(result.success).toBe(false);
       expect(importLinkImageMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("a link's schedule", () => {
+    const base = { label: "Pre-registro", href: "/festivals", icon: "ticket" };
+    /** A `datetime-local` value in Bolivia, `minutes` from now. */
+    const fromNow = (minutes: number) =>
+      new Date(Date.now() + minutes * 60_000 - 4 * 3_600_000)
+        .toISOString()
+        .slice(0, 16);
+
+    it("stores the dates as the instants they name in Bolivia", async () => {
+      await actions.createSiteLink({
+        ...base,
+        visibleFrom: "2026-11-20T09:00",
+        visibleUntil: "2026-11-30T23:59",
+      });
+      const [link] = await rowsOf("link");
+      expect(link.visibleFrom?.toISOString()).toBe("2026-11-20T13:00:00.000Z");
+      expect(link.visibleUntil?.toISOString()).toBe("2026-12-01T03:59:00.000Z");
+
+      // Saved again without them: always shown.
+      await actions.updateSiteLink(link.id, base);
+      expect((await rowsOf("link"))[0]).toMatchObject({
+        visibleFrom: null,
+        visibleUntil: null,
+      });
+    });
+
+    it("shows a link on the page only while its schedule runs", async () => {
+      await actions.createSiteLink({ ...base, label: "Siempre" });
+      await actions.createSiteLink({
+        ...base,
+        label: "En curso",
+        visibleFrom: fromNow(-60),
+        visibleUntil: fromNow(60),
+      });
+      await actions.createSiteLink({
+        ...base,
+        label: "Por venir",
+        visibleFrom: fromNow(60),
+      });
+      await actions.createSiteLink({
+        ...base,
+        label: "Terminado",
+        visibleUntil: fromNow(-60),
+      });
+
+      const visible = await queries.fetchVisibleSiteLinks();
+      expect(visible.map((row) => row.label)).toEqual(["Siempre", "En curso"]);
+      // The dashboard still has all four.
+      expect(await rowsOf("link")).toHaveLength(4);
+    });
+
+    it("keeps a hidden link hidden whatever its schedule says", async () => {
+      await actions.createSiteLink({
+        ...base,
+        visibleFrom: fromNow(-60),
+        visibleUntil: fromNow(60),
+      });
+      const [link] = await rowsOf("link");
+      await actions.setSiteLinkVisible(link.id, false);
+      expect(await queries.fetchVisibleSiteLinks()).toEqual([]);
+    });
+
+    it("does not count a tap on a link outside its schedule", async () => {
+      await actions.createSiteLink({ ...base, visibleFrom: fromNow(60) });
+      await actions.createSiteLink({ ...base, visibleUntil: fromNow(60) });
+      const [upcoming, running] = await rowsOf("link");
+
+      await queries.recordSiteLinkClick(upcoming.id);
+      await queries.recordSiteLinkClick(running.id);
+      expect((await rowsOf("link")).map((row) => row.clickCount)).toEqual([
+        0, 1,
+      ]);
+    });
+
+    it.each([
+      ["an end before the start", "2026-11-20T09:00", "2026-11-19T09:00"],
+      ["an end at the start", "2026-11-20T09:00", "2026-11-20T09:00"],
+      ["a date that is not one", "mañana", ""],
+      ["a date with a zone of its own", "", "2026-11-20T09:00:00Z"],
+    ])("refuses %s", async (_what, visibleFrom, visibleUntil) => {
+      const result = await actions.createSiteLink({
+        ...base,
+        visibleFrom,
+        visibleUntil,
+      });
+      expect(result.success).toBe(false);
+      expect(await rowsOf("link")).toEqual([]);
+    });
+  });
+
+  describe("the page's header", () => {
+    const AVATAR = "https://abc123.ufs.sh/f/foto-1";
+    const settings = () => integrationDb!.select().from(siteLinksSettings);
+
+    it("is the stock header until someone changes it", async () => {
+      expect((await queries.fetchLinksSettings()).header).toEqual({
+        title: "Productora Glitter",
+        description:
+          "Productora de festivales para ilustradores, artistas y emprendimientos creativos",
+        avatarUrl: null,
+      });
+    });
+
+    it("saves the name, the line and the picture, and keeps the position", async () => {
+      await actions.setSocialPosition("bottom");
+      expect(
+        await actions.updateLinksHeader({
+          title: "  Glitter Bolivia  ",
+          description: " Festivales y más ",
+          avatarUrl: AVATAR,
+        }),
+      ).toEqual({ success: true });
+
+      expect(await queries.fetchLinksSettings()).toMatchObject({
+        socialPosition: "bottom",
+        header: {
+          title: "Glitter Bolivia",
+          description: "Festivales y más",
+          avatarUrl: AVATAR,
+        },
+      });
+      expect(await settings()).toHaveLength(1);
+      expect(revalidatePathMock).toHaveBeenCalledWith("/links", "page");
+
+      // And the position, saved after, keeps the header.
+      await actions.setSocialPosition("top");
+      expect((await queries.fetchLinksSettings()).header.title).toBe(
+        "Glitter Bolivia",
+      );
+    });
+
+    it("stores nothing for what matches the stock header, and an empty line as one", async () => {
+      await actions.updateLinksHeader({
+        title: "Productora Glitter",
+        description: "",
+      });
+      expect((await settings())[0]).toMatchObject({
+        title: null,
+        description: "",
+        avatarUrl: null,
+      });
+      expect((await queries.fetchLinksSettings()).header.description).toBe("");
+
+      await actions.updateLinksHeader({
+        title: "Productora Glitter",
+        description:
+          "Productora de festivales para ilustradores, artistas y emprendimientos creativos",
+      });
+      expect((await settings())[0]).toMatchObject({
+        title: null,
+        description: null,
+      });
+    });
+
+    it("deletes the picture it had once it shows another, or the logo", async () => {
+      await actions.updateLinksHeader({
+        title: "Glitter",
+        description: "",
+        avatarUrl: AVATAR,
+      });
+      await actions.updateLinksHeader({
+        title: "Glitter Bolivia",
+        description: "",
+        avatarUrl: AVATAR,
+      });
+      expect(removeLinkImageMock).not.toHaveBeenCalled();
+
+      await actions.updateLinksHeader({ title: "Glitter", description: "" });
+      expect(removeLinkImageMock).toHaveBeenCalledWith(AVATAR);
+      expect((await queries.fetchLinksSettings()).header.avatarUrl).toBeNull();
+    });
+
+    it.each([
+      ["no name", { title: "   ", description: "" }],
+      ["a name that is too long", { title: "x".repeat(61), description: "" }],
+      [
+        "a line that is too long",
+        { title: "Glitter", description: "x".repeat(161) },
+      ],
+      [
+        "a picture that is not a file of ours",
+        {
+          title: "Glitter",
+          description: "",
+          avatarUrl: "https://evil.example.com/tracker.png",
+        },
+      ],
+    ])("refuses %s", async (_what, input) => {
+      expect((await actions.updateLinksHeader(input)).success).toBe(false);
+      expect(await settings()).toEqual([]);
+      expect(removeLinkImageMock).not.toHaveBeenCalled();
     });
   });
 

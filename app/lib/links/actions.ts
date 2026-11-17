@@ -17,7 +17,11 @@ import { siteLinks, siteLinksSettings } from "@/db/schema";
 
 import {
   LINKS_ADMIN_PATH,
+  DEFAULT_LINKS_DESCRIPTION,
+  DEFAULT_LINKS_TITLE,
+  LINKS_DESCRIPTION_MAX,
   LINKS_PATH,
+  LINKS_TITLE_MAX,
   NO_ICON,
   SITE_LINK_ICON_LABELS,
   SITE_LINK_KINDS,
@@ -27,6 +31,7 @@ import {
   isFeaturedIcon,
   isSocialNetwork,
   parseLibraryIcon,
+  parseScheduleInput,
   parseSiteLinkHref,
   parseSocialValue,
   type SiteLinkKind,
@@ -78,6 +83,12 @@ export type SiteLinkInput = {
   imageUrl?: string | null;
   /** `classic` when left out. `featured` needs an image. */
   layout?: SiteLinkLayout;
+  /**
+   * The link's schedule, each end as a `datetime-local` value in Bolivia's
+   * time (`2026-11-20T18:30`), or empty for an open end.
+   */
+  visibleFrom?: string | null;
+  visibleUntil?: string | null;
 };
 
 type ValidInput = {
@@ -87,6 +98,8 @@ type ValidInput = {
   iconSvg: string | null;
   imageUrl: string | null;
   layout: SiteLinkLayout;
+  visibleFrom: Date | null;
+  visibleUntil: Date | null;
 };
 
 async function validateInput(
@@ -127,9 +140,31 @@ async function validateInput(
     };
   }
 
+  const visibleFrom = parseScheduleInput(data.visibleFrom);
+  const visibleUntil = parseScheduleInput(data.visibleUntil);
+  if (visibleFrom === undefined || visibleUntil === undefined) {
+    return { ok: false, message: "La fecha no es válida." };
+  }
+  if (visibleFrom && visibleUntil && visibleUntil <= visibleFrom) {
+    return {
+      ok: false,
+      message: "El enlace debe dejar de mostrarse después de empezar.",
+    };
+  }
+
   const href = parseSiteLinkHref(data.href ?? "");
   if (!href.ok) return href;
-  return { ok: true, label, href: href.href, icon, iconSvg, imageUrl, layout };
+  return {
+    ok: true,
+    label,
+    href: href.href,
+    icon,
+    iconSvg,
+    imageUrl,
+    layout,
+    visibleFrom,
+    visibleUntil,
+  };
 }
 
 /** Pages a person may ask for the image of, per minute. */
@@ -200,6 +235,8 @@ export async function createSiteLink(
     iconSvg: input.iconSvg,
     imageUrl: input.imageUrl,
     layout: input.layout,
+    visibleFrom: input.visibleFrom,
+    visibleUntil: input.visibleUntil,
     sortOrder: await nextSortOrder("link"),
   });
   invalidateLinks();
@@ -307,6 +344,8 @@ export async function updateSiteLink(
       iconSvg: input.iconSvg,
       imageUrl: input.imageUrl,
       layout: input.layout,
+      visibleFrom: input.visibleFrom,
+      visibleUntil: input.visibleUntil,
       updatedAt: new Date(),
     })
     .where(and(eq(siteLinks.id, id), eq(siteLinks.kind, "link")))
@@ -428,6 +467,72 @@ export async function setSocialPosition(
       target: siteLinksSettings.id,
       set: { socialPosition: position, updatedAt: new Date() },
     });
+  invalidateLinks();
+  return { success: true };
+}
+
+export type LinksHeaderInput = {
+  title: string;
+  /** Empty for no line under the name. */
+  description: string;
+  /** A picture of ours in place of the logo, or none for the logo. */
+  avatarUrl?: string | null;
+};
+
+/**
+ * Saves the page's header: its name, the line under it and its picture.
+ * What matches the stock header is stored as nothing, so the stock one can
+ * still change with the app.
+ */
+export async function updateLinksHeader(
+  data: LinksHeaderInput,
+): Promise<ActionResult> {
+  const profile = await getCurrentUserProfile();
+  if (!canManageLinks(profile?.role)) {
+    return { success: false, message: "No tienes permisos." };
+  }
+  const title = typeof data.title === "string" ? data.title.trim() : "";
+  if (!title) return { success: false, message: "El nombre es obligatorio." };
+  if (title.length > LINKS_TITLE_MAX) {
+    return {
+      success: false,
+      message: `El nombre no puede pasar de ${LINKS_TITLE_MAX} caracteres.`,
+    };
+  }
+  const description =
+    typeof data.description === "string" ? data.description.trim() : "";
+  if (description.length > LINKS_DESCRIPTION_MAX) {
+    return {
+      success: false,
+      message: `La descripción no puede pasar de ${LINKS_DESCRIPTION_MAX} caracteres.`,
+    };
+  }
+  const avatarUrl = data.avatarUrl?.trim() || null;
+  if (avatarUrl && !isStoredImageUrl(avatarUrl)) {
+    return { success: false, message: "La imagen no es válida." };
+  }
+
+  const header = {
+    title: title === DEFAULT_LINKS_TITLE ? null : title,
+    description: description === DEFAULT_LINKS_DESCRIPTION ? null : description,
+    avatarUrl,
+  };
+  const [previous] = await db
+    .select({ avatarUrl: siteLinksSettings.avatarUrl })
+    .from(siteLinksSettings)
+    .limit(1);
+  // The settings are one row, written the first time something changes.
+  await db
+    .insert(siteLinksSettings)
+    .values({ id: 1, ...header })
+    .onConflictDoUpdate({
+      target: siteLinksSettings.id,
+      set: { ...header, updatedAt: new Date() },
+    });
+  // The picture it had is no longer shown anywhere.
+  if (previous?.avatarUrl && previous.avatarUrl !== avatarUrl) {
+    await removeLinkImage(previous.avatarUrl);
+  }
   invalidateLinks();
   return { success: true };
 }
