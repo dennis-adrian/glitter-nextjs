@@ -171,3 +171,34 @@ describe("comunicadoImage upload route", () => {
     ).toEqual({ imageUrl: "https://abc123.ufs.sh/f/KEY" });
   });
 });
+
+describe("siteLinkImage upload route", () => {
+  const siteLinkImage = ourFileRouter.siteLinkImage as unknown as Route;
+  const thumbnail = { name: "miniatura.webp", type: "image/webp" };
+
+  it("takes one image of up to 4 MB", () => {
+    expect(siteLinkImage.routerConfig).toEqual({
+      image: { maxFileSize: "4MB", maxFileCount: 1 },
+    });
+  });
+
+  it("takes it from the staff who manage the links page", async () => {
+    requireStaffMock.mockResolvedValue({ id: 5 } as never);
+    await expect(
+      siteLinkImage.middleware({ files: [thumbnail] }),
+    ).resolves.toEqual({ userId: 5 });
+    expect(
+      siteLinkImage.onUploadComplete({
+        file: { url: "", ufsUrl: "https://app.ufs.sh/f/llave" },
+        metadata: { userId: 5 },
+      }),
+    ).toEqual({ imageUrl: "https://app.ufs.sh/f/llave" });
+  });
+
+  it("refuses anyone else", async () => {
+    requireStaffMock.mockResolvedValue(null);
+    await expect(
+      siteLinkImage.middleware({ files: [thumbnail] }),
+    ).rejects.toThrow("No autorizado");
+  });
+});

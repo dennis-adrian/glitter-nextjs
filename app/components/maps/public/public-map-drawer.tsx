@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import BrandIcon from "@/app/components/brand-icon";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { getStandMapParticipants } from "@/app/components/maps/map-participants";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
-import { socialsUrls, socialsIcons } from "@/app/lib/users/utils";
+import { socialsUrls } from "@/app/lib/users/utils";
 import { formatStandsLabel, getStandsProducts } from "@/app/lib/stands/groups";
 
 type PublicMapStandCardProps = {
@@ -177,10 +177,7 @@ export default function PublicMapStandCard({
 													social.type === "instagram" ? "#E8356A" : undefined,
 											}}
 										>
-											<FontAwesomeIcon
-												className="w-4 h-4"
-												icon={socialsIcons[social.type]}
-											/>
+											<BrandIcon className="w-4 h-4" brand={social.type} />
 											@{social.username}
 										</a>
 									))}

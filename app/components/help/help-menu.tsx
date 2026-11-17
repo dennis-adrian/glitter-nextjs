@@ -5,7 +5,7 @@ import { useState } from "react";
 
 import { CircleHelpIcon, DownloadIcon, MailIcon } from "lucide-react";
 
-import SocialIcon from "@/app/components/social-icon";
+import BrandIcon from "@/app/components/brand-icon";
 import { INSTALL_GUIDE_PATH } from "@/app/lib/install-guide/definitions";
 import { SITE_CONTACT_EMAIL, SOCIAL_LINKS } from "@/app/lib/site-contact";
 import { cn } from "@/app/lib/utils";
@@ -95,7 +95,7 @@ export function HelpSocialLinks({
               onClick={onNavigate}
               className="inline-flex size-11 items-center justify-center rounded-full border border-brand-border bg-brand-card text-brand-ink transition-colors hover:bg-brand-lavender hover:text-brand-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
             >
-              <SocialIcon network={social.network} className="size-5" />
+              <BrandIcon brand={social.network} className="size-5" />
             </a>
           </li>
         ))}
