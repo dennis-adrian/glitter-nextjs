@@ -214,6 +214,18 @@ describe("the links manager", () => {
     expect(preview.queryByText("Correo")).toBeNull();
   });
 
+  it("never marks the dashboard as the bare page, with its preview in it", () => {
+    // `[data-bare-page]` takes the site header off whatever page holds it
+    // (app/globals.css). Only /links may carry it, not the preview of /links.
+    renderManager();
+    expect(document.querySelector("[data-bare-page]")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Vista previa/ }));
+    expect(
+      within(screen.getByRole("dialog")).getByText("Productora Glitter"),
+    ).toBeTruthy();
+    expect(document.querySelector("[data-bare-page]")).toBeNull();
+  });
+
   it("says so when there are no links yet", () => {
     renderManager([]);
     expect(screen.getByText(/Todavía no hay enlaces/)).toBeTruthy();
