@@ -292,6 +292,14 @@ describe("messages from the worker", () => {
     expect(() => render(<ServiceWorkerMessages />)).not.toThrow();
   });
 
+  it("does nothing where the browser names them and has none", () => {
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: undefined,
+    });
+    expect(() => render(<ServiceWorkerMessages />)).not.toThrow();
+  });
+
   it("makes no cache on a browser where the worker kept nothing", async () => {
     render(<ServiceWorkerMessages />);
     await settle();
