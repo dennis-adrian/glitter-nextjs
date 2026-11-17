@@ -24,6 +24,7 @@ import {
   PencilIcon,
   PlusIcon,
   Trash2Icon,
+  XIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -47,16 +48,17 @@ import {
   AlertDialogTitle,
 } from "@/app/components/ui/alert-dialog";
 import { Button } from "@/app/components/ui/button";
+import { DialogFooter } from "@/app/components/ui/dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/app/components/ui/dialog";
+  DrawerDialog,
+  DrawerDialogContent,
+  DrawerDialogDescription,
+  DrawerDialogHeader,
+  DrawerDialogTitle,
+} from "@/app/components/ui/drawer-dialog";
 import {
   Drawer,
+  DrawerClose,
   DrawerContent,
   DrawerDescription,
   DrawerHeader,
@@ -94,6 +96,7 @@ import {
   type SocialNetwork,
   type SocialPosition,
 } from "@/app/lib/links/definitions";
+import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { cn } from "@/app/lib/utils";
 
 const clicksFormat = new Intl.NumberFormat("es-BO");
@@ -194,6 +197,32 @@ function SortableRow({
 /** `"new"` adds one; a row edits it. */
 type FormTarget = "new" | SiteLinkRow;
 
+/** From here up a form is a dialog; below it, a drawer from the bottom. */
+const DESKTOP_QUERY = "(min-width: 768px)";
+
+/** In the drawer the form pads itself and scrolls under the keyboard. */
+function formClass(isDesktop: boolean) {
+  return cn(
+    "flex min-w-0 flex-col gap-4",
+    isDesktop ? null : "min-h-0 overflow-y-auto px-4 pb-4",
+  );
+}
+
+/** Cancel and save: in a row in the dialog, stacked in the drawer. */
+function FormButtons({
+  isDesktop,
+  children,
+}: {
+  isDesktop: boolean;
+  children: React.ReactNode;
+}) {
+  return isDesktop ? (
+    <DialogFooter>{children}</DialogFooter>
+  ) : (
+    <div className="flex flex-col-reverse gap-2">{children}</div>
+  );
+}
+
 /** The form that is open, if any, and for which kind. */
 type Editing = null | { kind: SiteLinkKind; target: FormTarget };
 
@@ -206,6 +235,7 @@ function LinkFormDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const isDesktop = useMediaQuery(DESKTOP_QUERY);
   const existing = editing === "new" ? null : editing;
   const [label, setLabel] = useState(existing?.label ?? "");
   const [href, setHref] = useState(existing?.href ?? "");
@@ -233,17 +263,21 @@ function LinkFormDialog({
   }
 
   return (
-    <Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
-      <DialogContent>
-        <form onSubmit={handleSubmit} className="flex min-w-0 flex-col gap-4">
-          <DialogHeader>
-            <DialogTitle>
+    <DrawerDialog
+      isDesktop={isDesktop}
+      open
+      onOpenChange={(open) => (open ? undefined : onClose())}
+    >
+      <DrawerDialogContent isDesktop={isDesktop}>
+        <form onSubmit={handleSubmit} className={formClass(isDesktop)}>
+          <DrawerDialogHeader isDesktop={isDesktop}>
+            <DrawerDialogTitle isDesktop={isDesktop}>
               {existing ? "Editar enlace" : "Nuevo enlace"}
-            </DialogTitle>
-            <DialogDescription>
+            </DrawerDialogTitle>
+            <DrawerDialogDescription isDesktop={isDesktop}>
               Se muestra en la página de enlaces con este título e ícono.
-            </DialogDescription>
-          </DialogHeader>
+            </DrawerDialogDescription>
+          </DrawerDialogHeader>
           <div className="flex flex-col gap-2">
             <Label htmlFor="site-link-label">Título</Label>
             <Input
@@ -300,17 +334,17 @@ function LinkFormDialog({
               {error}
             </p>
           ) : null}
-          <DialogFooter>
+          <FormButtons isDesktop={isDesktop}>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancelar
             </Button>
             <Button type="submit" disabled={isSaving}>
               {isSaving ? "Guardando…" : "Guardar"}
             </Button>
-          </DialogFooter>
+          </FormButtons>
         </form>
-      </DialogContent>
-    </Dialog>
+      </DrawerDialogContent>
+    </DrawerDialog>
   );
 }
 
@@ -330,6 +364,7 @@ function SocialFormDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const isDesktop = useMediaQuery(DESKTOP_QUERY);
   const existing = editing === "new" ? null : editing;
   const existingNetwork =
     existing && isSocialNetwork(existing.icon) ? existing.icon : null;
@@ -363,19 +398,23 @@ function SocialFormDialog({
   }
 
   return (
-    <Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
-      <DialogContent>
-        <form onSubmit={handleSubmit} className="flex min-w-0 flex-col gap-4">
-          <DialogHeader>
-            <DialogTitle>
+    <DrawerDialog
+      isDesktop={isDesktop}
+      open
+      onOpenChange={(open) => (open ? undefined : onClose())}
+    >
+      <DrawerDialogContent isDesktop={isDesktop}>
+        <form onSubmit={handleSubmit} className={formClass(isDesktop)}>
+          <DrawerDialogHeader isDesktop={isDesktop}>
+            <DrawerDialogTitle isDesktop={isDesktop}>
               {existingNetwork
                 ? `Editar ícono de ${SITE_LINK_ICON_LABELS[existingNetwork]}`
                 : "Nuevo ícono social"}
-            </DialogTitle>
-            <DialogDescription>
+            </DrawerDialogTitle>
+            <DrawerDialogDescription isDesktop={isDesktop}>
               Se muestra como un ícono bajo la descripción, sin título.
-            </DialogDescription>
-          </DialogHeader>
+            </DrawerDialogDescription>
+          </DrawerDialogHeader>
           {existing ? null : (
             <fieldset className="flex flex-col gap-2">
               <legend className="mb-2 text-sm font-medium">Red</legend>
@@ -424,17 +463,17 @@ function SocialFormDialog({
               {error}
             </p>
           ) : null}
-          <DialogFooter>
+          <FormButtons isDesktop={isDesktop}>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancelar
             </Button>
             <Button type="submit" disabled={isSaving || !network}>
               {isSaving ? "Guardando…" : "Guardar"}
             </Button>
-          </DialogFooter>
+          </FormButtons>
         </form>
-      </DialogContent>
-    </Dialog>
+      </DrawerDialogContent>
+    </DrawerDialog>
   );
 }
 
@@ -752,28 +791,54 @@ export default function LinksManager({
     <div className="xl:grid xl:grid-cols-[minmax(0,48rem)_20rem] xl:items-start xl:gap-10">
       <div className="space-y-8">
         <div className="space-y-3">
-          <div className="flex flex-wrap gap-2">
+          {/* Side by side across the screen on a phone, their own width from
+              `sm` up, where the same split would leave them oversized. */}
+          <div
+            className={cn(
+              "gap-2",
+              isWide ? "flex" : "grid grid-cols-2 sm:flex sm:flex-wrap",
+            )}
+          >
             {isWide ? null : (
               <Drawer>
                 <DrawerTrigger asChild>
-                  <Button type="button">
-                    <EyeIcon className="mr-2 size-4" />
+                  <Button type="button" size="lg" className="px-3 sm:px-6">
+                    <EyeIcon className="mr-2 size-4 shrink-0" />
                     Vista previa
                   </Button>
                 </DrawerTrigger>
-                <DrawerContent>
-                  <DrawerHeader>
+                {/* The whole screen: the page is a screen tall itself. */}
+                <DrawerContent className="data-[vaul-drawer-direction=bottom]:mt-0 data-[vaul-drawer-direction=bottom]:h-dvh data-[vaul-drawer-direction=bottom]:max-h-dvh pt-[env(safe-area-inset-top)]">
+                  <DrawerHeader className="relative px-12">
                     <DrawerTitle>Vista previa</DrawerTitle>
                     <DrawerDescription>{PREVIEW_HINT}</DrawerDescription>
+                    <DrawerClose asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-2 right-2"
+                        aria-label="Cerrar vista previa"
+                      >
+                        <XIcon className="size-5" />
+                      </Button>
+                    </DrawerClose>
                   </DrawerHeader>
-                  <div className="min-h-0 overflow-y-auto">{preview}</div>
+                  <div className="min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+                    {preview}
+                  </div>
                 </DrawerContent>
               </Drawer>
             )}
             {/* A path, not an address: it opens on whatever domain this is. */}
-            <Button variant="outline" asChild>
+            <Button
+              variant="outline"
+              size="lg"
+              className="px-3 sm:px-6"
+              asChild
+            >
               <a href={LINKS_PATH} target="_blank" rel="noopener noreferrer">
-                <ExternalLinkIcon className="mr-2 size-4" />
+                <ExternalLinkIcon className="mr-2 size-4 shrink-0" />
                 Ver página
               </a>
             </Button>
