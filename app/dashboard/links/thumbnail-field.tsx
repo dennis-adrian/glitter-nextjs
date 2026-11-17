@@ -181,7 +181,7 @@ function IconPicker({
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Buscar: camera, music, spotify…"
+          placeholder="Buscar: cámara, música, spotify…"
           aria-label="Buscar íconos"
           autoCapitalize="none"
           autoCorrect="off"
@@ -242,7 +242,7 @@ function IconPicker({
                 ? "Cargando…"
                 : trimmed
                   ? icons.length === 0
-                    ? "Sin resultados. Los nombres están en inglés."
+                    ? "Sin resultados. Prueba con otra palabra, o en inglés."
                     : `Resultados (${list.total})`
                   : "Todos los íconos"}
           </p>

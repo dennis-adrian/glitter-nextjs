@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
   describe,
@@ -591,21 +592,72 @@ describeDatabase("site links dashboard actions", () => {
       logged.mockRestore();
     });
 
-    it("reads a page of this site at the site's own address, whatever host the request names", async () => {
-      const configured = process.env.NEXT_PUBLIC_BASE_URL;
-      process.env.NEXT_PUBLIC_BASE_URL = "https://www.glitter.com.bo/";
-      importLinkImageMock.mockResolvedValue(IMAGE);
-      try {
+    describe("for a page of this site", () => {
+      const saved = {
+        base: process.env.NEXT_PUBLIC_BASE_URL,
+        production: process.env.VERCEL_PROJECT_PRODUCTION_URL,
+      };
+      const restore = (name: string, value: string | undefined) => {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      };
+      afterEach(() => {
+        restore("NEXT_PUBLIC_BASE_URL", saved.base);
+        restore("VERCEL_PROJECT_PRODUCTION_URL", saved.production);
+      });
+
+      it("reads it at the site's own address, whatever host the request names", async () => {
+        process.env.NEXT_PUBLIC_BASE_URL = "https://www.glitter.com.bo/";
+        delete process.env.VERCEL_PROJECT_PRODUCTION_URL;
+        importLinkImageMock.mockResolvedValue(IMAGE);
+
         expect(
           await actions.fetchSiteLinkImage("/blog/festicker-2026"),
         ).toEqual({ success: true, imageUrl: IMAGE });
-        expect(importLinkImageMock).toHaveBeenCalledWith(
-          "https://www.glitter.com.bo/blog/festicker-2026",
+        expect(importLinkImageMock.mock.calls).toEqual([
+          ["https://www.glitter.com.bo/blog/festicker-2026"],
+        ]);
+      });
+
+      it("reads it on the production site when this deployment's own cannot be read", async () => {
+        // A preview deployment: its own address is behind Vercel's login.
+        process.env.NEXT_PUBLIC_BASE_URL =
+          "https://glitter-git-feature.vercel.app";
+        process.env.VERCEL_PROJECT_PRODUCTION_URL = "www.glitter.com.bo";
+        importLinkImageMock
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(IMAGE);
+
+        expect(await actions.fetchSiteLinkImage("/store")).toEqual({
+          success: true,
+          imageUrl: IMAGE,
+        });
+        expect(importLinkImageMock.mock.calls).toEqual([
+          ["https://glitter-git-feature.vercel.app/store"],
+          ["https://www.glitter.com.bo/store"],
+        ]);
+      });
+
+      it("asks once when both addresses are the same, and says so when neither has an image", async () => {
+        process.env.NEXT_PUBLIC_BASE_URL = "https://www.glitter.com.bo";
+        process.env.VERCEL_PROJECT_PRODUCTION_URL = "www.glitter.com.bo";
+        importLinkImageMock.mockResolvedValue(null);
+
+        expect((await actions.fetchSiteLinkImage("/store")).success).toBe(
+          false,
         );
-      } finally {
-        if (configured === undefined) delete process.env.NEXT_PUBLIC_BASE_URL;
-        else process.env.NEXT_PUBLIC_BASE_URL = configured;
-      }
+        expect(importLinkImageMock).toHaveBeenCalledTimes(1);
+      });
+
+      it("does not go to the production site for an address that is not ours", async () => {
+        process.env.VERCEL_PROJECT_PRODUCTION_URL = "www.glitter.com.bo";
+        importLinkImageMock.mockResolvedValue(null);
+
+        await actions.fetchSiteLinkImage("https://example.com/pagina");
+        expect(importLinkImageMock.mock.calls).toEqual([
+          ["https://example.com/pagina"],
+        ]);
+      });
     });
 
     it.each([

@@ -42,6 +42,62 @@ describe("the icon library", () => {
     expect(searchLibraryIcons("cámera")[0].ref).toBe("lucide:camera");
   });
 
+  describe("in Spanish", () => {
+    const first = (query: string) => searchLibraryIcons(query)[0]?.ref;
+    const refs = (query: string) =>
+      searchLibraryIcons(query, 200).map((icon) => icon.ref);
+
+    it.each([
+      ["cámara", "lucide:camera"],
+      ["corazón", "lucide:heart"],
+      ["música", "lucide:music"],
+      ["regalo", "lucide:gift"],
+      ["estrella", "lucide:star"],
+      ["calendario", "lucide:calendar"],
+      ["carrito", "lucide:shopping-cart"],
+      ["tienda", "lucide:store"],
+      ["correo", "lucide:mail"],
+    ])("finds %s", (query, ref) => {
+      expect(first(query)).toBe(ref);
+    });
+
+    it("finds an icon by any of the words for it, with or without accents", () => {
+      expect(refs("entrada")).toContain("lucide:ticket");
+      expect(refs("boleto")).toContain("lucide:ticket");
+      expect(refs("camara")).toContain("lucide:camera");
+      expect(refs("CORAZON")).toContain("lucide:heart");
+      expect(refs("pipocas")).toEqual(["lucide:popcorn"]);
+    });
+
+    it("finds an icon whose name is several words by each of them", () => {
+      expect(refs("carrito de compras")).toEqual(["lucide:shopping-cart"]);
+      expect(refs("calendario corazón")).toEqual(["lucide:calendar-heart"]);
+      expect(refs("base de datos")).toContain("lucide:database");
+    });
+
+    it("still finds the same icons in English, and brands by their name", () => {
+      expect(first("camera")).toBe("lucide:camera");
+      expect(first("shopping cart")).toBe("lucide:shopping-cart");
+      expect(refs("spotify")).toContain("si:spotify");
+      // A brand has no Spanish name to be found by.
+      expect(refs("corazón").every((ref) => ref.startsWith("lucide:"))).toBe(
+        true,
+      );
+    });
+
+    it("has Spanish only for words Lucide's names really use", async () => {
+      const { ICON_TERMS_ES } = await import("@/app/lib/links/icon-terms-es");
+      const words = new Set(
+        listLibraryIcons("", 0, ICON_LIBRARY_SIZE)
+          .icons.filter((icon) => icon.set === "lucide")
+          .flatMap((icon) => icon.name.split("-")),
+      );
+      expect(
+        Object.keys(ICON_TERMS_ES).filter((word) => !words.has(word)),
+      ).toEqual([]);
+    });
+  });
+
   it("keeps a search to its page and says how many there are in all", () => {
     const page = listLibraryIcons("a", 0, 10);
     expect(page.icons).toHaveLength(10);

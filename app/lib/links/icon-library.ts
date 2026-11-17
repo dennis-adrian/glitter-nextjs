@@ -4,6 +4,10 @@ import dynamicIconImports from "lucide-react/dynamicIconImports";
 import * as simpleIcons from "simple-icons";
 
 import {
+  ICON_SEARCH_STOPWORDS_ES,
+  ICON_TERMS_ES,
+} from "@/app/lib/links/icon-terms-es";
+import {
   parseLibraryIcon,
   type IconLibrarySet,
 } from "@/app/lib/links/definitions";
@@ -58,15 +62,30 @@ function searchKey(value: string) {
     .replace(/[^a-z0-9]/g, "");
 }
 
-const INDEX: (LibraryIcon & { key: string })[] = [
+type IndexedIcon = LibraryIcon & {
+  /** Its name, as one run of letters: "shoppingcart", "tiktok". */
+  key: string;
+  /**
+   * Every word it can be found by, each as a run of letters: the words of
+   * its name, and for a Lucide icon the Spanish for them.
+   */
+  terms: string[];
+};
+
+const INDEX: IndexedIcon[] = [
   ...Object.keys(lucideImports).map((name) => {
     const label = lucideLabel(name);
+    const words = name.split("-");
     return {
       ref: `lucide:${name}`,
       set: "lucide" as const,
       name,
       label,
       key: searchKey(label),
+      terms: [
+        ...words,
+        ...words.flatMap((word) => ICON_TERMS_ES[word] ?? []),
+      ].map(searchKey),
     };
   }),
   ...[...simpleIconsBySlug.values()].map((icon) => ({
@@ -75,8 +94,34 @@ const INDEX: (LibraryIcon & { key: string })[] = [
     name: icon.slug,
     label: icon.title,
     key: searchKey(`${icon.title} ${icon.slug}`),
+    terms: icon.title.split(/\s+/).map(searchKey).filter(Boolean),
   })),
 ];
+
+/**
+ * How well an icon answers a search, lower being better, or null when it
+ * does not. `key` is the whole search as one run of letters and `words` its
+ * words, without the ones that say nothing ("de", "la").
+ *
+ * 0: its name starts with the search, or one of its words in either language
+ * is the search. 1: one of its words starts with it. 2: the search is
+ * somewhere in its name or in one of its words. 3: each word of the search is
+ * in one of its words, so "carrito de compras" finds the shopping cart and
+ * "calendario corazón" the calendar with a heart.
+ */
+function searchRank(icon: IndexedIcon, key: string, words: string[]) {
+  if (icon.key.startsWith(key) || icon.terms.includes(key)) return 0;
+  if (icon.terms.some((term) => term.startsWith(key))) return 1;
+  if (icon.key.includes(key)) return 2;
+  if (icon.terms.some((term) => term.includes(key))) return 2;
+  if (
+    words.length > 1 &&
+    words.every((word) => icon.terms.some((term) => term.includes(word)))
+  ) {
+    return 3;
+  }
+  return null;
+}
 
 export const ICON_LIBRARY_SIZE = INDEX.length;
 
@@ -86,7 +131,8 @@ export const ICON_PAGE_SIZE = 120;
 /**
  * One page of the library for the picker. With nothing typed it is every
  * icon, Lucide's first and then the brands, each in its own order. With a
- * query it is the icons whose name has it, the closest names first.
+ * query it is the icons found by it, in English or in Spanish, the closest
+ * first.
  */
 export function listLibraryIcons(
   query: string,
@@ -108,13 +154,23 @@ export function listLibraryIcons(
       total: INDEX.length,
     };
   }
+  const words = query
+    .slice(0, 64)
+    .split(/\s+/)
+    .map(searchKey)
+    .filter((word) => word && !ICON_SEARCH_STOPWORDS_ES.has(word));
   const found: { icon: LibraryIcon; rank: number; length: number }[] = [];
-  for (const { key: iconKey, ...icon } of INDEX) {
-    const at = iconKey.indexOf(key);
-    if (at < 0) continue;
-    // The name itself, then names that start with it, then the rest; the
-    // shorter name first, so "camera" comes before "camera off".
-    found.push({ icon, rank: at === 0 ? 0 : 1, length: iconKey.length });
+  for (const indexed of INDEX) {
+    const rank = searchRank(indexed, key, words);
+    if (rank == null) continue;
+    const { ref, set, name, label } = indexed;
+    // The closest first, and of those the shorter name, so "camera" comes
+    // before "camera off".
+    found.push({
+      icon: { ref, set, name, label },
+      rank,
+      length: indexed.key.length,
+    });
   }
   return {
     icons: found

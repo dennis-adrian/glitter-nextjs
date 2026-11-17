@@ -161,6 +161,27 @@ async function validateInput(
   };
 }
 
+/**
+ * Where a page of this site (`/store`) can be read from, best first. The
+ * addresses come from the deployment's settings, never from the request,
+ * whose host a caller could set to somewhere else.
+ *
+ * This deployment's own address is tried first. A preview deployment's is
+ * behind Vercel's login, where the page cannot be read, so the production
+ * site is tried after it: the page is the same one there, unless it is new.
+ */
+function ownPageAddresses(path: string): string[] {
+  const production = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim().replace(
+    /\/+$/,
+    "",
+  );
+  const origins = [
+    publicBaseUrl(),
+    ...(production ? [`https://${production}`] : []),
+  ];
+  return [...new Set(origins)].map((origin) => `${origin}${path}`);
+}
+
 /** Pages a person may ask for the image of, per minute. */
 const LINK_IMAGES_PER_MINUTE = 10;
 
@@ -180,13 +201,10 @@ export async function fetchSiteLinkImage(
   }
   const parsed = parseSiteLinkHref(typeof href === "string" ? href : "");
   if (!parsed.ok) return { success: false, message: parsed.message };
-  // A page of this site is read at the site's own address. That address
-  // comes from the deployment's settings (`publicBaseUrl`), never from the
-  // request, whose host a caller could set to somewhere else.
-  const pageUrl = parsed.href.startsWith("/")
-    ? `${publicBaseUrl()}${parsed.href}`
-    : parsed.href;
-  if (!/^https?:\/\//i.test(pageUrl)) {
+  const pageUrls = parsed.href.startsWith("/")
+    ? ownPageAddresses(parsed.href)
+    : [parsed.href];
+  if (!pageUrls.every((url) => /^https?:\/\//i.test(url))) {
     return {
       success: false,
       message: "Un correo no tiene una imagen propia.",
@@ -204,11 +222,13 @@ export async function fetchSiteLinkImage(
     };
   }
 
-  try {
-    const imageUrl = await importLinkImage(pageUrl);
-    if (imageUrl) return { success: true, imageUrl };
-  } catch (error) {
-    console.error("fetchSiteLinkImage", error);
+  for (const pageUrl of pageUrls) {
+    try {
+      const imageUrl = await importLinkImage(pageUrl);
+      if (imageUrl) return { success: true, imageUrl };
+    } catch (error) {
+      console.error("fetchSiteLinkImage", error);
+    }
   }
   return {
     success: false,
