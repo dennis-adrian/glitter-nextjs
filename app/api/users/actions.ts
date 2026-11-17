@@ -194,7 +194,7 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
     });
 
     if (!preparation.ok) {
-      if ("blocker" in preparation) {
+      if (preparation.blocker) {
         return {
           success: false,
           message: PROFILE_DELETION_BLOCK_MESSAGES[preparation.blocker],
