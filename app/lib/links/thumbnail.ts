@@ -3,6 +3,7 @@ import "server-only";
 import { UTFile } from "uploadthing/server";
 
 import { isAllowedRemoteImageHost } from "@/app/lib/images/remote-hosts";
+import { recordLinkImage } from "@/app/lib/links/images";
 import {
   fetchPublicImage,
   findLinkImage,
@@ -18,7 +19,10 @@ import { utapi } from "@/app/server/uploadthing";
  * could change it, take it down or count our visitors.
  */
 
-/** Whether `url` is a file on UploadThing, the only images a link may show. */
+/**
+ * Whether `url` is a file on UploadThing. A link may only show one the links
+ * page made, which `site_link_images` (`./images`) decides when it is saved.
+ */
 export function isStoredImageUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
@@ -72,10 +76,14 @@ export async function importLinkImage(href: string): Promise<string | null> {
   }
   const url = uploaded.data.ufsUrl ?? uploaded.data.url;
   if (!url || !isStoredImageUrl(url)) return null;
+  await recordLinkImage(url);
   return url;
 }
 
-/** Deletes a thumbnail no link shows any more. Never throws. */
+/**
+ * Deletes a stored thumbnail. Never throws. Only for a file `releaseLinkImage`
+ * (`./images`) just let go of.
+ */
 export async function removeLinkImage(url: string | null | undefined) {
   if (!url || !isStoredImageUrl(url)) return;
   const result = await deleteStoredFile(url);

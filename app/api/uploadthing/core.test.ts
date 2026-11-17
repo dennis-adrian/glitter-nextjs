@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/env", () => ({ serverEnv: { RESEND_API_KEY: "re_test" } }));
 vi.mock("@/db", () => ({ db: {} }));
+vi.mock("@/app/lib/links/images", () => ({ recordLinkImage: vi.fn() }));
 vi.mock("@/app/lib/impersonation/viewer", () => ({
   getViewerClerkId: vi.fn(),
 }));
@@ -19,6 +20,7 @@ import { ourFileRouter } from "@/app/api/uploadthing/core";
 import { COMUNICADO_IMAGE_TYPES } from "@/app/lib/comunicados/definitions";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { getViewerClerkId } from "@/app/lib/impersonation/viewer";
+import { recordLinkImage } from "@/app/lib/links/images";
 import { FESTIVAL_ARTWORK_TYPES } from "@/app/lib/festivals/artwork";
 import {
   requireAdmin,
@@ -187,12 +189,16 @@ describe("siteLinkImage upload route", () => {
     await expect(
       siteLinkImage.middleware({ files: [thumbnail] }),
     ).resolves.toEqual({ userId: 5 });
-    expect(
+    await expect(
       siteLinkImage.onUploadComplete({
         file: { url: "", ufsUrl: "https://app.ufs.sh/f/llave" },
         metadata: { userId: 5 },
       }),
-    ).toEqual({ imageUrl: "https://app.ufs.sh/f/llave" });
+    ).resolves.toEqual({ imageUrl: "https://app.ufs.sh/f/llave" });
+    // Recorded as the links page's, so a link may show it.
+    expect(vi.mocked(recordLinkImage)).toHaveBeenCalledWith(
+      "https://app.ufs.sh/f/llave",
+    );
   });
 
   it("refuses anyone else", async () => {

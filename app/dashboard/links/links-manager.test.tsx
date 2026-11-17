@@ -79,6 +79,7 @@ function link(overrides: Partial<SiteLinkRow>): SiteLinkRow {
     visibleUntil: null,
     isVisible: true,
     clickCount: 0,
+    revision: 0,
     updatedAt: new Date("2026-11-09T12:00:00Z"),
     createdAt: new Date("2026-11-09T12:00:00Z"),
     ...overrides,
@@ -344,15 +345,72 @@ describe("the links manager", () => {
     fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
 
     await waitFor(() =>
-      expect(actions.updateSiteLink).toHaveBeenCalledWith(1, {
-        label: "Tienda",
-        href: "/store",
-        icon: "store",
-        imageUrl: null,
-        layout: "classic",
-        visibleFrom: "",
-        visibleUntil: "",
-      }),
+      expect(actions.updateSiteLink).toHaveBeenCalledWith(
+        1,
+        {
+          label: "Tienda",
+          href: "/store",
+          icon: "store",
+          imageUrl: null,
+          layout: "classic",
+          visibleFrom: "",
+          visibleUntil: "",
+        },
+        0,
+      ),
+    );
+  });
+
+  it("sends the revision it opened the link at, and says when that is stale", async () => {
+    const stale =
+      "Alguien más guardó este enlace mientras lo editabas. Recarga la página para ver sus cambios.";
+    actions.updateSiteLink.mockResolvedValue({
+      success: false,
+      message: stale,
+    });
+    renderManager([link({ id: 1, label: "Tiendita", revision: 4 })]);
+    const row = screen.getByText("Tiendita").closest("li")!;
+    fireEvent.click(within(row).getByRole("button", { name: /Editar/ }));
+    fireEvent.change(screen.getByLabelText("Título"), {
+      target: { value: "Tienda" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe(stale);
+    expect(actions.updateSiteLink).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ label: "Tienda" }),
+      4,
+    );
+    // The editor stays open with the edit in it.
+    expect((screen.getByLabelText("Título") as HTMLInputElement).value).toBe(
+      "Tienda",
+    );
+  });
+
+  it("reopens a link it just saved at the revision the save answered", async () => {
+    actions.updateSiteLink.mockResolvedValue({ success: true, revision: 1 });
+    renderManager();
+    const edit = () =>
+      fireEvent.click(
+        within(screen.getByText("Tiendita").closest("li")!).getByRole(
+          "button",
+          { name: /Editar/ },
+        ),
+      );
+    edit();
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+
+    // Before the refresh brings the saved list.
+    edit();
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() =>
+      expect(actions.updateSiteLink).toHaveBeenLastCalledWith(
+        1,
+        expect.anything(),
+        1,
+      ),
     );
   });
 
@@ -703,6 +761,7 @@ describe("the links manager", () => {
             imageUrl: null,
             layout: "featured",
           }),
+          0,
         ),
       );
       expect(screen.queryByRole("alert")).toBeNull();
@@ -1085,6 +1144,7 @@ describe("the links manager", () => {
         expect(actions.updateSiteLink).toHaveBeenCalledWith(
           1,
           expect.objectContaining({ visibleFrom: "", visibleUntil: "" }),
+          0,
         ),
       );
     });
@@ -1182,9 +1242,41 @@ describe("the links manager", () => {
           title: "Glitter Bolivia",
           description: "",
           avatarUrl: "https://app.ufs.sh/f/subida",
+          revision: 0,
         }),
       );
       await waitFor(() => expect(refresh).toHaveBeenCalled());
+    });
+
+    it("sends the header's revision, and the one its save answered after", async () => {
+      actions.updateLinksHeader.mockResolvedValue({
+        success: true,
+        revision: 3,
+      });
+      renderManager(LINKS, { initialHeaderRevision: 2 });
+      const name = header().getByLabelText("Nombre");
+      const save = () =>
+        fireEvent.click(
+          header().getByRole("button", { name: "Guardar encabezado" }),
+        );
+
+      fireEvent.change(name, { target: { value: "Glitter" } });
+      save();
+      await waitFor(() =>
+        expect(actions.updateLinksHeader).toHaveBeenLastCalledWith(
+          expect.objectContaining({ title: "Glitter", revision: 2 }),
+        ),
+      );
+      await waitFor(() => expect(refresh).toHaveBeenCalled());
+
+      // A second save before the refresh lands is not taken for someone else's.
+      fireEvent.change(name, { target: { value: "Glitter BO" } });
+      save();
+      await waitFor(() =>
+        expect(actions.updateLinksHeader).toHaveBeenLastCalledWith(
+          expect.objectContaining({ title: "Glitter BO", revision: 3 }),
+        ),
+      );
     });
 
     it("waits for an upload on its way before saving", () => {

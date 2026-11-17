@@ -524,6 +524,18 @@ export const marketingBanners = pgTable(
   ],
 );
 
+/**
+ * The images the `/links` page made: uploaded through the `siteLinkImage`
+ * route, or copied from a link's page by `importLinkImage`. A link's
+ * thumbnail and the header's picture must be one of these, so the page can
+ * neither show nor delete a file another feature owns. Deleting a row is
+ * refused while a link or the header still shows its image.
+ */
+export const siteLinkImages = pgTable("site_link_images", {
+  url: text("url").primaryKey(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 /** The links on `/links`, the page Glitter's social profiles point to. */
 export const siteLinks = pgTable(
   "site_links",
@@ -550,8 +562,10 @@ export const siteLinks = pgTable(
      * featured icons, which the app draws itself.
      */
     iconSvg: text("icon_svg"),
-    /** A thumbnail shown in place of the icon: a file of ours on UploadThing. */
-    imageUrl: text("image_url"),
+    /** A thumbnail shown in place of the icon: one of `siteLinkImages`. */
+    imageUrl: text("image_url").references(() => siteLinkImages.url, {
+      onDelete: "restrict",
+    }),
     /**
      * How a link's card is drawn: `classic` (thumbnail beside the title) or
      * `featured` (its image large, the title under it).
@@ -568,6 +582,11 @@ export const siteLinks = pgTable(
     isVisible: boolean("is_visible").default(true).notNull(),
     /** Taps on the public page, counted by `/api/links/[id]/click`. */
     clickCount: integer("click_count").notNull().default(0),
+    /**
+     * Raised by every save of the link's editor, which sends the one it read:
+     * a save from an editor opened before someone else's is refused.
+     */
+    revision: integer("revision").notNull().default(0),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -594,8 +613,12 @@ export const siteLinksSettings = pgTable("site_links_settings", {
    */
   title: text("title"),
   description: text("description"),
-  /** A picture in place of the logo: a file of ours on UploadThing. */
-  avatarUrl: text("avatar_url"),
+  /** A picture in place of the logo: one of `siteLinkImages`. */
+  avatarUrl: text("avatar_url").references(() => siteLinkImages.url, {
+    onDelete: "restrict",
+  }),
+  /** Raised by every save of the header, as `siteLinks.revision` is. */
+  revision: integer("revision").notNull().default(0),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
@@ -7282,10 +7305,10 @@ export const notificationCampaignTypeEnum = pgEnum(
   ["credit_gift", "comunicado", "reservations_open", "stands_available"],
 );
 /** Who a "stands still available" reminder was for. */
-export const standsAvailableAudienceEnum = pgEnum(
-  "stands_available_audience",
-  ["terms_accepted", "all_eligible"],
-);
+export const standsAvailableAudienceEnum = pgEnum("stands_available_audience", [
+  "terms_accepted",
+  "all_eligible",
+]);
 /** What sent a "reservations are open" notice: the cron, or an admin's resend. */
 export const reservationsOpenNoticeTriggerEnum = pgEnum(
   "reservations_open_notice_trigger",

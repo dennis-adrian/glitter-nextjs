@@ -126,9 +126,9 @@ type ActionResult = { success: true } | { success: false; message: string };
  * change and says why on a refusal, so a failed call takes that same path
  * instead of escaping the transition to the error page.
  */
-async function attempt(
-  run: () => Promise<ActionResult>,
-): Promise<ActionResult> {
+async function attempt<T extends ActionResult>(
+  run: () => Promise<T>,
+): Promise<T | { success: false; message: string }> {
   try {
     return await run();
   } catch (error) {
@@ -391,7 +391,8 @@ function LinkFormDialog({
 }: {
   editing: FormTarget;
   onClose: () => void;
-  onSaved: () => void;
+  /** Called with the link's new revision when it was an edit. */
+  onSaved: (revision?: number) => void;
   /** Called with what the form holds each time it changes. */
   onDraftChange: (draft: LinkDraft) => void;
 }) {
@@ -548,15 +549,19 @@ function LinkFormDialog({
       return;
     }
     startSaving(async () => {
+      // The revision read with the link: a save over someone else's since is
+      // refused, and the bar says so.
       const res = await attempt(() =>
-        existing ? updateSiteLink(existing.id, input) : createSiteLink(input),
+        existing
+          ? updateSiteLink(existing.id, input, existing.revision)
+          : createSiteLink(input),
       );
       if (!res.success) {
         setError(res.message);
         return;
       }
       toast.success(existing ? "Enlace actualizado" : "Enlace agregado");
-      onSaved();
+      onSaved("revision" in res ? (res.revision as number) : undefined);
     });
   }
 
@@ -1117,11 +1122,16 @@ const headerUploadAppearance =
  */
 function HeaderSection({
   saved,
+  revision,
+  onRevisionChange,
   header,
   onHeaderChange,
 }: {
   /** What the page has now. */
   saved: LinksHeader;
+  /** The saved header's revision, sent with a save so a stale one is refused. */
+  revision: number;
+  onRevisionChange: (revision: number) => void;
   /** What the fields hold. */
   header: LinksHeader;
   onHeaderChange: (header: LinksHeader) => void;
@@ -1146,11 +1156,16 @@ function HeaderSection({
     if (isUploading) return;
     setError(null);
     startSaving(async () => {
-      const res = await attempt(() => updateLinksHeader(header));
+      const res = await attempt(() =>
+        updateLinksHeader({ ...header, revision }),
+      );
       if (!res.success) {
         setError(res.message);
         return;
       }
+      // Ahead of the refresh, so a second save before it lands is not
+      // taken for someone else's.
+      onRevisionChange(res.revision);
       toast.success("Encabezado actualizado");
       router.refresh();
     });
@@ -1344,12 +1359,14 @@ export default function LinksManager({
   initialLinks,
   initialSocialPosition = "top",
   initialHeader = DEFAULT_LINKS_HEADER,
+  initialHeaderRevision = 0,
   now: readAt,
   publicUrl,
 }: {
   initialLinks: SiteLinkRow[];
   initialSocialPosition?: SocialPosition;
   initialHeader?: LinksHeader;
+  initialHeaderRevision?: number;
   /**
    * When the page was read, in milliseconds: the instant every schedule on
    * it is judged at, the same on the server and in the browser.
@@ -1386,6 +1403,7 @@ export default function LinksManager({
     [title, description, avatarUrl],
   );
   const [header, setHeader] = useShown(savedHeader);
+  const [headerRevision, setHeaderRevision] = useShown(initialHeaderRevision);
   const now = useMemo(() => new Date(readAt), [readAt]);
 
   // What a visitor would get with everything on screen saved: the visible
@@ -1451,8 +1469,18 @@ export default function LinksManager({
    * that save came from: an answer that arrives late must not close, or take
    * the draft of, an editor opened since.
    */
-  const savedForm = (saved: NonNullable<Editing>) => {
+  const savedForm = (saved: NonNullable<Editing>, revision?: number) => {
     setEditing((current) => (current === saved ? null : current));
+    // Ahead of the refresh, so reopening the link before it lands does not
+    // send the revision this save replaced.
+    const target = saved.target;
+    if (revision != null && target !== "new") {
+      setLinks((prev) =>
+        prev.map((link) =>
+          link.id === target.id ? { ...link, revision } : link,
+        ),
+      );
+    }
     // The draft stays until the refresh brings the saved link, so the
     // preview does not show the old one in between.
     router.refresh();
@@ -1496,6 +1524,8 @@ export default function LinksManager({
 
           <HeaderSection
             saved={savedHeader}
+            revision={headerRevision}
+            onRevisionChange={setHeaderRevision}
             header={header}
             onHeaderChange={setHeader}
           />
@@ -1528,7 +1558,7 @@ export default function LinksManager({
             key={formKey}
             editing={editing.target}
             onClose={closeForm}
-            onSaved={() => savedForm(editing)}
+            onSaved={(revision) => savedForm(editing, revision)}
             onDraftChange={setDraft}
           />
         ) : null}

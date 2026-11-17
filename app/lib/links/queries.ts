@@ -79,6 +79,8 @@ export async function fetchSocialPosition(): Promise<SocialPosition> {
 export async function fetchLinksSettings(): Promise<{
   socialPosition: SocialPosition;
   header: LinksHeader;
+  /** The header's revision, which a save of it must send back. */
+  headerRevision: number;
   /**
    * When this was read, in milliseconds. The dashboard judges every link's
    * schedule at this one instant, on the server and in the browser alike.
@@ -91,11 +93,17 @@ export async function fetchLinksSettings(): Promise<{
     return {
       socialPosition: toSocialPosition(row?.socialPosition),
       header: toLinksHeader(row),
+      headerRevision: row?.revision ?? 0,
       readAt,
     };
   } catch (error) {
     console.error("fetchLinksSettings", error);
-    return { socialPosition: "top", header: DEFAULT_LINKS_HEADER, readAt };
+    return {
+      socialPosition: "top",
+      header: DEFAULT_LINKS_HEADER,
+      headerRevision: 0,
+      readAt,
+    };
   }
 }
 

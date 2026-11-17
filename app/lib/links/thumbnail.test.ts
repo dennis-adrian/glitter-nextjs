@@ -2,13 +2,19 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { findLinkImage, fetchPublicImage, uploadFiles, deleteStoredFile } =
-  vi.hoisted(() => ({
-    findLinkImage: vi.fn(),
-    fetchPublicImage: vi.fn(),
-    uploadFiles: vi.fn(),
-    deleteStoredFile: vi.fn(),
-  }));
+const {
+  findLinkImage,
+  fetchPublicImage,
+  uploadFiles,
+  deleteStoredFile,
+  recordLinkImage,
+} = vi.hoisted(() => ({
+  findLinkImage: vi.fn(),
+  fetchPublicImage: vi.fn(),
+  uploadFiles: vi.fn(),
+  deleteStoredFile: vi.fn(),
+  recordLinkImage: vi.fn(),
+}));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/app/lib/links/link-image", () => ({
@@ -19,6 +25,7 @@ vi.mock("@/app/lib/links/link-image", () => ({
 // address itself, unchecked, so nothing here may call it.
 vi.mock("@/app/server/uploadthing", () => ({ utapi: { uploadFiles } }));
 vi.mock("@/app/lib/uploadthing/storage", () => ({ deleteStoredFile }));
+vi.mock("@/app/lib/links/images", () => ({ recordLinkImage }));
 
 import {
   importLinkImage,
@@ -70,6 +77,8 @@ describe("importLinkImage", () => {
     });
 
     expect(await importLinkImage("https://example.com/")).toBe(STORED);
+    // Recorded as the links page's, so a link may show it.
+    expect(recordLinkImage).toHaveBeenCalledWith(STORED);
     expect(fetchPublicImage).toHaveBeenCalledWith(
       "https://cdn.example.com/share.png",
     );
