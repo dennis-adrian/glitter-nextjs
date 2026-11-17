@@ -318,8 +318,12 @@ export default function ServiceWorkerMessages() {
   const stateRef = useRef<PageState | null>(null);
 
   useEffect(() => {
+    // Asked with `in`, not by reading the value: the production build drops
+    // an `if (!navigator.serviceWorker) return`, and an in-app browser
+    // (Instagram's, on an iPhone) has no service workers at all, so every
+    // page crashed there on the first line that used it.
+    if (!("serviceWorker" in navigator)) return;
     const container = navigator.serviceWorker;
-    if (!container) return;
     // Kept across StrictMode's second run of this effect, which must not
     // open a tap again.
     const page = (stateRef.current ??= {
