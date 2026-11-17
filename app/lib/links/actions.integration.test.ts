@@ -14,6 +14,7 @@ import {
   vi,
 } from "vitest";
 
+import { disposableDatabaseProblem } from "@/app/lib/links/disposable-test-database";
 import * as schema from "@/db/schema";
 import { siteLinks, siteLinksSettings } from "@/db/schema";
 
@@ -52,20 +53,15 @@ vi.mock("@/app/lib/links/thumbnail", async (importOriginal) => ({
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
-function isSafeTestDatabase(url: string): boolean {
-  try {
-    const databaseName = decodeURIComponent(new URL(url).pathname.slice(1));
-    return /(^|[_-])(test|ci)([_-]|$)/i.test(databaseName);
-  } catch {
-    return false;
-  }
-}
-
-if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
-  throw new Error(
-    "TEST_DATABASE_URL must target a database whose name contains 'test' or 'ci'.",
-  );
-}
+// Before either connection exists: this suite empties two tables, so it runs
+// only on a database approved as disposable, not on any whose name says test.
+const databaseProblem = testDatabaseUrl
+  ? disposableDatabaseProblem(
+      testDatabaseUrl,
+      process.env.GLITTER_DISPOSABLE_TEST_DB_HOSTS,
+    )
+  : null;
+if (databaseProblem) throw new Error(databaseProblem);
 
 const pool = testDatabaseUrl
   ? new Pool({ connectionString: testDatabaseUrl, max: 2 })
