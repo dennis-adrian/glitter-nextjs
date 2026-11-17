@@ -1,10 +1,5 @@
 import { ArrowRightIcon, ArrowUpRightIcon, MapPinIcon } from "lucide-react";
-import {
-  faFacebook,
-  faInstagram,
-  faTiktok,
-} from "@fortawesome/free-brands-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import BrandIcon, { isBrand } from "@/app/components/brand-icon";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -793,14 +788,6 @@ function FooterList({
 const PRIMARY_LOGO_URL = "/img/logo/glitter-logo-full-primary-1696x739.png";
 
 function Footer({ value }: { value: LandingPageContentV1["footer"] }) {
-  const icon = (network: string) =>
-    network === "facebook"
-      ? faFacebook
-      : network === "instagram"
-        ? faInstagram
-        : network === "tiktok"
-          ? faTiktok
-          : null;
   return (
     <footer className="bg-brand-elevated px-5 pb-10 pt-14 sm:px-8 lg:px-20 lg:pt-20">
       <div className="mx-auto max-w-[1280px]">
@@ -850,7 +837,9 @@ function Footer({ value }: { value: LandingPageContentV1["footer"] }) {
           </p>
           <div className="flex items-center gap-4">
             {value.socialLinks.map((social) => {
-              const socialIcon = icon(social.network);
+              const socialIcon = isBrand(social.network)
+                ? social.network
+                : null;
 
               return (
                 <a
@@ -861,11 +850,7 @@ function Footer({ value }: { value: LandingPageContentV1["footer"] }) {
                   aria-label={social.label}
                 >
                   {socialIcon ? (
-                    <FontAwesomeIcon
-                      icon={socialIcon}
-                      aria-hidden="true"
-                      className="size-5"
-                    />
+                    <BrandIcon brand={socialIcon} className="size-5" />
                   ) : (
                     social.label
                   )}

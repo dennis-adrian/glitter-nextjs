@@ -100,6 +100,7 @@ describe("GET /api/festivals/[festivalId]/stands", () => {
         status: "confirmed",
         standCategory: "illustration",
         revealAt: null,
+        fullTable: null,
         participants: [
           {
             participantId: 100,
@@ -119,9 +120,84 @@ describe("GET /api/festivals/[festivalId]/stands", () => {
         status: "disabled",
         standCategory: "gastronomy",
         revealAt: null,
+        fullTable: null,
         participants: [],
       },
     ]);
+  });
+
+  describe("fullTable", () => {
+    const member = (reservationId: number, position: number) => ({
+      reservationId,
+      position,
+      releasedAt: null,
+    });
+    // The parent's stand_id names only the first half, so the companion's own
+    // `reservations` is empty and it is occupied through membership alone.
+    const fullTablePair = (revealAt: Date | null) => [
+      stand(1, {
+        reservations: [
+          { id: 10, revealAt, participants: [participant(100, 7)] },
+        ],
+        reservationMembers: [member(10, 0)],
+      }),
+      stand(2, { reservationMembers: [member(10, 1)] }),
+    ];
+
+    it("points both halves of a full table at each other", async () => {
+      mocks.findStands.mockResolvedValue([
+        ...fullTablePair(null),
+        stand(3, {
+          reservations: [
+            { id: 11, revealAt: null, participants: [participant(101, 8)] },
+          ],
+          reservationMembers: [member(11, 0)],
+        }),
+        stand(4),
+      ]);
+
+      const body = await (await get("3")).json();
+
+      expect(
+        body.stands.map((s: { fullTable: unknown }) => s.fullTable),
+      ).toEqual([
+        { partnerStandId: 2, partnerStandLabel: "A2" },
+        { partnerStandId: 1, partnerStandLabel: "A1" },
+        null,
+        null,
+      ]);
+      expect(body.stands[1].participants).toEqual(body.stands[0].participants);
+    });
+
+    it("stays null on both halves while the reservation is hidden", async () => {
+      mocks.findStands.mockResolvedValue(fullTablePair(FUTURE));
+
+      const body = await (await get("3")).json();
+
+      for (const s of body.stands) {
+        expect(s.fullTable).toBeNull();
+        expect(s.participants).toEqual([]);
+      }
+    });
+
+    it("ignores a released half", async () => {
+      const [first, second] = fullTablePair(null);
+      mocks.findStands.mockResolvedValue([
+        first,
+        {
+          ...second,
+          reservationMembers: [
+            { ...member(10, 1), releasedAt: new Date("2026-11-01T00:00:00Z") },
+          ],
+        },
+      ]);
+
+      const body = await (await get("3")).json();
+
+      expect(body.stands[0].fullTable).toBeNull();
+      expect(body.stands[1].fullTable).toBeNull();
+      expect(body.stands[1].participants).toEqual([]);
+    });
   });
 
   it("withholds a hidden reservation's participants, and does not look up their subcategories", async () => {

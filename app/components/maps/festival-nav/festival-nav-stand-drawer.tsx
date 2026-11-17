@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import BrandIcon from "@/app/components/brand-icon";
 import { BookOpen } from "lucide-react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
@@ -13,7 +13,7 @@ import {
   DrawerContent,
   DrawerHeader,
 } from "@/app/components/ui/drawer";
-import { socialsUrls, socialsIcons } from "@/app/lib/users/utils";
+import { socialsUrls } from "@/app/lib/users/utils";
 import { formatStandsLabel, getStandsProducts } from "@/app/lib/stands/groups";
 import { getActivityMarker } from "@/app/lib/festivals/activity-markers";
 import { getCategoryBadgeVariant } from "@/app/lib/maps/helpers";
@@ -279,9 +279,9 @@ export default function FestivalNavStandDrawer({
                                   : undefined,
                             }}
                           >
-                            <FontAwesomeIcon
+                            <BrandIcon
                               className="w-4 h-4"
-                              icon={socialsIcons[social.type]}
+                              brand={social.type}
                             />
                             @{social.username}
                           </a>

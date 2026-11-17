@@ -1,7 +1,7 @@
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import BrandIcon from "@/app/components/brand-icon";
 
 import { UserSocial } from "@/api/users/definitions";
-import { socialsIcons, socialsUrls } from "@/app/lib/users/utils";
+import { socialsUrls } from "@/app/lib/users/utils";
 
 export default function SocialsCell({ socials }: { socials: UserSocial[] }) {
   const filteredSocials = socials.filter((social) => social.username);
@@ -11,7 +11,6 @@ export default function SocialsCell({ socials }: { socials: UserSocial[] }) {
     <div className="flex flex-col justify-center gap-1">
       {filteredSocials.map((social) => {
         const url = socialsUrls[social.type];
-        const icon = socialsIcons[social.type];
         return (
           <a
             className="hover:underline"
@@ -21,7 +20,7 @@ export default function SocialsCell({ socials }: { socials: UserSocial[] }) {
             rel="noreferrer"
           >
             <span className="flex items-center">
-              <FontAwesomeIcon className="mr-1 h-4 w-4" icon={icon} />
+              <BrandIcon className="mr-1 h-4 w-4" brand={social.type} />
               <span className="text-blue-500 dark:text-blue-400">
                 {social.username}
               </span>

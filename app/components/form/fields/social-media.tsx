@@ -8,12 +8,6 @@ import {
   FormMessage,
 } from "@/app/components/ui/form";
 import { Input } from "@/app/components/ui/input";
-import {
-  faInstagram,
-  faTiktok,
-  IconDefinition,
-} from "@fortawesome/free-brands-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { InputHTMLAttributes } from "react";
 import { UseFormReturn } from "react-hook-form";
 

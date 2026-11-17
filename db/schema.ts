@@ -524,6 +524,81 @@ export const marketingBanners = pgTable(
   ],
 );
 
+/** The links on `/links`, the page Glitter's social profiles point to. */
+export const siteLinks = pgTable(
+  "site_links",
+  {
+    id: serial("id").primaryKey(),
+    /**
+     * `link` is a card in the list; `social` is an icon in the row of social
+     * profiles, one per network. Each kind is ordered on its own.
+     */
+    kind: text("kind").notNull().default("link"),
+    label: text("label").notNull(),
+    /** A path on this site, or an `https:` or `mailto:` address. */
+    href: text("href").notNull(),
+    /**
+     * A featured icon (`SITE_LINK_ICONS`, app/lib/links/definitions.ts), one of
+     * the library's (`lucide:camera`, `si:spotify`) or `none`. For a social
+     * icon it is the network itself.
+     */
+    icon: text("icon").notNull().default("link"),
+    /**
+     * The drawing of an icon picked from the whole library (`lucide:…`,
+     * `si:…`), kept as it was when picked so the page neither loads the
+     * library nor loses the icon when the library drops it. Null for the
+     * featured icons, which the app draws itself.
+     */
+    iconSvg: text("icon_svg"),
+    /** A thumbnail shown in place of the icon: a file of ours on UploadThing. */
+    imageUrl: text("image_url"),
+    /**
+     * How a link's card is drawn: `classic` (thumbnail beside the title) or
+     * `featured` (its image large, the title under it).
+     */
+    layout: text("layout").notNull().default("classic"),
+    /**
+     * The link's schedule: shown from `visibleFrom` (if set) until
+     * `visibleUntil` (if set), and only while `isVisible`. Both are instants;
+     * the dashboard reads and writes them as Bolivia's time.
+     */
+    visibleFrom: timestamp("visible_from"),
+    visibleUntil: timestamp("visible_until"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isVisible: boolean("is_visible").default(true).notNull(),
+    /** Taps on the public page, counted by `/api/links/[id]/click`. */
+    clickCount: integer("click_count").notNull().default(0),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("site_links_kind_sort_order_idx").on(t.kind, t.sortOrder),
+    // Two admins adding the same network at once still leave one icon.
+    uniqueIndex("site_links_one_social_per_network")
+      .on(t.icon)
+      .where(sql`${t.kind} = 'social'`),
+  ],
+);
+
+/**
+ * Settings of the `/links` page as a whole. One row at most (`id` 1); none
+ * means the defaults.
+ */
+export const siteLinksSettings = pgTable("site_links_settings", {
+  id: integer("id").primaryKey().default(1),
+  /** Where the row of social icons goes: `top` (under the description) or `bottom`. */
+  socialPosition: text("social_position").notNull().default("top"),
+  /**
+   * The page's header. Null is the stock one (Glitter's logo, name and
+   * line); an empty description is a header with no line under the name.
+   */
+  title: text("title"),
+  description: text("description"),
+  /** A picture in place of the logo: a file of ours on UploadThing. */
+  avatarUrl: text("avatar_url"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 /** Mutable working copy for the public home page. */
 export const landingPageDrafts = pgTable("landing_page_drafts", {
   pageKey: text("page_key").primaryKey(),

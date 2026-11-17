@@ -562,6 +562,7 @@ export const SCREENS: Record<string, ScreenDef> = {
     title: "Editar banner",
     parent: "/dashboard/banners",
   },
+  "/dashboard/links": { title: "Enlaces", ...SHARED_SETTINGS_PARENT },
   "/dashboard/landing": {
     title: "Contenido de inicio",
     ...SHARED_SETTINGS_PARENT,

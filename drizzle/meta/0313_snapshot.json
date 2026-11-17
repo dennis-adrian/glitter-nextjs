@@ -1,5 +1,5 @@
 {
-  "id": "5e77e862-49cd-4aef-bbb7-6fd2210f24f8",
+  "id": "cd559169-7e0d-4065-bb1e-18be408b79e8",
   "prevId": "d6e80790-6106-45cf-b383-544108e2e0b3",
   "version": "7",
   "dialect": "postgresql",
@@ -16726,7 +16726,7 @@
       "checkConstraints": {
         "reservation_request_registry_operation_check": {
           "name": "reservation_request_registry_operation_check",
-          "value": "\"reservation_request_registry\".\"operation\" IN (\n        'createOrReplaceStandHold',\n        'confirmStandHold',\n        'submitPaymentProof',\n        'applyInvoiceCredits',\n        'createInvoiceCreditTopUp',\n        'submitZeroValueInvoice',\n        'createAdminReservation',\n        'adminConfirmReservation',\n        'extendReservationPaymentDeadline',\n        'createExternalParticipantReservation',\n        'correctSettlementProof',\n        'activateFullTableAccess',\n        'deactivateFullTableAccess',\n        'downgradeFullTableReservation',\n        'createFeatureCreditTopUp',\n        'createDebtCreditTopUp',\n        'releaseReservation',\n        'addLatePartner',\n        'changeReservationStand',\n        'settleInvoiceShortfall',\n        'upgradeFullTableReservation',\n        'transferReservationParticipation'\n      )"
+          "value": "\"reservation_request_registry\".\"operation\" IN (\n        'createOrReplaceStandHold',\n        'confirmStandHold',\n        'submitPaymentProof',\n        'applyInvoiceCredits',\n        'createInvoiceCreditTopUp',\n        'submitZeroValueInvoice',\n        'createAdminReservation',\n        'adminConfirmReservation',\n        'extendReservationPaymentDeadline',\n        'createExternalParticipantReservation',\n        'correctSettlementProof',\n        'activateFullTableAccess',\n        'deactivateFullTableAccess',\n        'downgradeFullTableReservation',\n        'createFeatureCreditTopUp',\n        'createDebtCreditTopUp',\n        'releaseReservation',\n        'addLatePartner',\n        'changeReservationStand',\n        'settleInvoiceShortfall',\n        'upgradeFullTableReservation'\n      )"
         }
       },
       "isRLSEnabled": false
@@ -19459,6 +19459,207 @@
           "value": "(\"session_waitlist_invitations\".\"status\" <> 'converted' OR \"session_waitlist_invitations\".\"converted_at\" IS NOT NULL)\n        AND (\"session_waitlist_invitations\".\"status\" <> 'revoked' OR \"session_waitlist_invitations\".\"revoked_at\" IS NOT NULL)"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.site_links": {
+      "name": "site_links",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'link'"
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "href": {
+          "name": "href",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "icon": {
+          "name": "icon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'link'"
+        },
+        "icon_svg": {
+          "name": "icon_svg",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_url": {
+          "name": "image_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "layout": {
+          "name": "layout",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'classic'"
+        },
+        "visible_from": {
+          "name": "visible_from",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "visible_until": {
+          "name": "visible_until",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "is_visible": {
+          "name": "is_visible",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "click_count": {
+          "name": "click_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "site_links_kind_sort_order_idx": {
+          "name": "site_links_kind_sort_order_idx",
+          "columns": [
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sort_order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "site_links_one_social_per_network": {
+          "name": "site_links_one_social_per_network",
+          "columns": [
+            {
+              "expression": "icon",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"site_links\".\"kind\" = 'social'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.site_links_settings": {
+      "name": "site_links_settings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "default": 1
+        },
+        "social_position": {
+          "name": "social_position",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'top'"
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "avatar_url": {
+          "name": "avatar_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.speakers": {

@@ -1,9 +1,9 @@
 import { UserSocial } from "@/app/api/users/definitions";
 import DeleteSocialMediaForm from "@/app/components/delete-social-media-form";
+import BrandIcon from "@/app/components/brand-icon";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
-import { socialsIcons, socialsUrls } from "@/app/lib/users/utils";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { socialsUrls } from "@/app/lib/users/utils";
 import { Trash2Icon } from "lucide-react";
 import Link from "next/link";
 
@@ -28,10 +28,7 @@ export default function SocialMediaBadge(props: SocialMediaBadgeProps) {
         target="_blank"
         rel="noreferrer"
       >
-        <FontAwesomeIcon
-          className="w-4 h-4 mr-1"
-          icon={socialsIcons[props.socialMediaType]}
-        />
+        <BrandIcon className="w-4 h-4 mr-1" brand={props.socialMediaType} />
         {formattedValue}
       </Link>
       {props.canBeDeleted && props.socialId && (
