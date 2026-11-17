@@ -77,6 +77,9 @@ export default function ParticipantTransferDialog({
   const searchRun = useRef(0);
 
   function reset() {
+    // Nothing still in flight may publish into a dialog that starts over.
+    searchRun.current += 1;
+    search.cancel();
     setTerm("");
     setCandidates([]);
     setSearching(false);
@@ -86,8 +89,11 @@ export default function ParticipantTransferDialog({
     setIdempotencyKey(crypto.randomUUID());
   }
 
-  const search = useDebouncedCallback(async (query: string) => {
-    const run = ++searchRun.current;
+  // `run` is the generation taken when the input changed, not when the
+  // debounce fired: an older request answering in between must not publish
+  // its results or end the loading state of the current input.
+  const search = useDebouncedCallback(async (query: string, run: number) => {
+    if (run !== searchRun.current) return;
     if (query.trim().length < MIN_SEARCH_LENGTH) {
       setCandidates([]);
       setSearching(false);
@@ -262,7 +268,7 @@ export default function ParticipantTransferDialog({
                     const value = event.target.value;
                     setTerm(value);
                     setSearching(value.trim().length >= MIN_SEARCH_LENGTH);
-                    search(value);
+                    search(value, ++searchRun.current);
                   }}
                 />
               </div>
