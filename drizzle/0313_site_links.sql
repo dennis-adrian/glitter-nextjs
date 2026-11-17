@@ -1,12 +1,18 @@
--- The links on /links, the page Glitter's social profiles point to in place
--- of a Linktree. Managed from /dashboard/links. `kind` is `link` (a card in
--- the list) or `social` (an icon in the row of profiles). Idempotent
--- (IF NOT EXISTS), as 0304, 0307, 0309 and 0310 are.
+-- The /links page, the one address Glitter's social profiles point to in place
+-- of a Linktree, managed from /dashboard/links: its links and social icons
+-- (`site_links`) and the page's own settings (`site_links_settings`).
 --
--- The table is seeded with the Linktree's links and social icons at the time
--- of the move, so the page does not start empty. The seed goes in with the
--- statement that creates the table and only then: a rerun finds the table and
--- restores nothing, even after someone has removed every link.
+-- One file for the whole feature, and safe to run on a database in any state:
+-- one that has none of it, one that has part of it (this was four migrations
+-- while it was built, and a database may have run some), or one that has all
+-- of it. Every statement only adds what is missing.
+--
+-- `site_links`. `kind` is `link` (a card in the list) or `social` (an icon in
+-- the row of profiles). The table is seeded with the Linktree's links and
+-- social icons at the time of the move, so the page does not start empty. The
+-- seed goes in with the statement that creates the table and only then: a
+-- rerun finds the table and restores nothing, even after someone has removed
+-- every link.
 DO $$
 BEGIN
 	IF to_regclass('site_links') IS NULL THEN
@@ -36,15 +42,29 @@ BEGIN
 	END IF;
 END $$;
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "site_links_kind_sort_order_idx" ON "site_links" USING btree ("kind","sort_order");
---> statement-breakpoint
+-- A link's thumbnail. `icon_svg` is the drawing of an icon picked from the
+-- whole Lucide and Simple Icons libraries, kept as picked. `image_url` is an
+-- image shown in place of the icon: a file of ours on UploadThing.
+ALTER TABLE "site_links" ADD COLUMN IF NOT EXISTS "icon_svg" text;--> statement-breakpoint
+ALTER TABLE "site_links" ADD COLUMN IF NOT EXISTS "image_url" text;--> statement-breakpoint
+-- How a link's card is drawn: `classic` (thumbnail beside the title) or
+-- `featured` (its thumbnail large, the title under it).
+ALTER TABLE "site_links" ADD COLUMN IF NOT EXISTS "layout" text DEFAULT 'classic' NOT NULL;--> statement-breakpoint
+-- A link's schedule: shown from one instant until another, either left open.
+ALTER TABLE "site_links" ADD COLUMN IF NOT EXISTS "visible_from" timestamp;--> statement-breakpoint
+ALTER TABLE "site_links" ADD COLUMN IF NOT EXISTS "visible_until" timestamp;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "site_links_kind_sort_order_idx" ON "site_links" USING btree ("kind","sort_order");--> statement-breakpoint
 -- One social icon per network, whatever two admins do at once.
-CREATE UNIQUE INDEX IF NOT EXISTS "site_links_one_social_per_network" ON "site_links" USING btree ("icon") WHERE "site_links"."kind" = 'social';
---> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "site_links_one_social_per_network" ON "site_links" USING btree ("icon") WHERE "site_links"."kind" = 'social';--> statement-breakpoint
 -- Settings of the page as a whole: one row at most (id 1), none means the
--- defaults. For now, where the row of social icons goes.
+-- defaults. Where the row of social icons goes, and the page's header (name,
+-- line and picture), where null is the stock header.
 CREATE TABLE IF NOT EXISTS "site_links_settings" (
 	"id" integer PRIMARY KEY DEFAULT 1 NOT NULL,
 	"social_position" text DEFAULT 'top' NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
+--> statement-breakpoint
+ALTER TABLE "site_links_settings" ADD COLUMN IF NOT EXISTS "title" text;--> statement-breakpoint
+ALTER TABLE "site_links_settings" ADD COLUMN IF NOT EXISTS "description" text;--> statement-breakpoint
+ALTER TABLE "site_links_settings" ADD COLUMN IF NOT EXISTS "avatar_url" text;

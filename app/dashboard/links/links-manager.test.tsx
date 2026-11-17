@@ -660,6 +660,7 @@ describe("the links manager", () => {
       fireEvent.click(screen.getByLabelText("Cerrar vista previa"));
 
       fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+      fireEvent.click(screen.getByRole("button", { name: "Descartar" }));
       const preview = openPreview();
       expect(preview.getByRole("link", { name: "Tiendita" })).toBeTruthy();
       expect(preview.queryByText("Tienda nueva")).toBeNull();
@@ -735,6 +736,74 @@ describe("the links manager", () => {
 
       answer({ success: true });
       await waitFor(() => expect(refresh).toHaveBeenCalled());
+    });
+  });
+
+  describe("leaving the editor", () => {
+    const back = () =>
+      fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    it("leaves at once when nothing was changed", () => {
+      renderManager();
+      fireEvent.click(screen.getAllByRole("button", { name: /Editar/ })[1]);
+      back();
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+      expect(screen.queryByRole("form")).toBeNull();
+    });
+
+    it("asks before losing a change, and stays when told to", () => {
+      renderManager();
+      fireEvent.click(screen.getAllByRole("button", { name: /Editar/ })[1]);
+      fireEvent.change(screen.getByLabelText("Título"), {
+        target: { value: "Tienda nueva" },
+      });
+      back();
+
+      const question = within(screen.getByRole("alertdialog"));
+      expect(question.getByText("¿Descartar los cambios?")).toBeTruthy();
+      fireEvent.click(
+        question.getByRole("button", { name: "Seguir editando" }),
+      );
+      expect((screen.getByLabelText("Título") as HTMLInputElement).value).toBe(
+        "Tienda nueva",
+      );
+    });
+
+    it("leaves without saving once the change is discarded", () => {
+      renderManager();
+      fireEvent.click(screen.getAllByRole("button", { name: /Editar/ })[1]);
+      fireEvent.click(screen.getByRole("radio", { name: "Destacado" }));
+      back();
+      fireEvent.click(
+        within(screen.getByRole("alertdialog")).getByRole("button", {
+          name: "Descartar",
+        }),
+      );
+
+      expect(screen.queryByRole("form")).toBeNull();
+      expect(actions.updateSiteLink).not.toHaveBeenCalled();
+      expect(screen.getByRole("region", { name: "Enlaces" })).toBeTruthy();
+    });
+
+    it("does not ask about a change that was undone by hand", () => {
+      renderManager();
+      fireEvent.click(screen.getAllByRole("button", { name: /Editar/ })[1]);
+      const title = screen.getByLabelText("Título");
+      fireEvent.change(title, { target: { value: "Otra cosa" } });
+      fireEvent.change(title, { target: { value: "Tiendita" } });
+      back();
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+      expect(screen.queryByRole("form")).toBeNull();
+    });
+
+    it("asks for a social icon being added too", () => {
+      renderManager();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Nuevo ícono social" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "TikTok" }));
+      back();
+      expect(screen.getByRole("alertdialog")).toBeTruthy();
     });
   });
 

@@ -2189,29 +2189,8 @@
     {
       "idx": 313,
       "version": "7",
-      "when": 1794315347544,
-      "tag": "0313_site_links",
-      "breakpoints": true
-    },
-    {
-      "idx": 314,
-      "version": "7",
-      "when": 1794882538801,
-      "tag": "0314_site_link_thumbnails",
-      "breakpoints": true
-    },
-    {
-      "idx": 315,
-      "version": "7",
-      "when": 1794918069327,
-      "tag": "0315_site_link_layout",
-      "breakpoints": true
-    },
-    {
-      "idx": 316,
-      "version": "7",
       "when": 1794919672706,
-      "tag": "0316_site_links_schedule_header",
+      "tag": "0313_site_links",
       "breakpoints": true
     }
   ]

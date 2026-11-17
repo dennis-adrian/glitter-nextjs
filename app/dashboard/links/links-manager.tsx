@@ -279,6 +279,7 @@ function EditorScreen({
   error,
   isSaving,
   canSave = true,
+  hasChanges,
   onClose,
   onSubmit,
   children,
@@ -289,10 +290,15 @@ function EditorScreen({
   isSaving: boolean;
   /** False while there is nothing that could be saved yet. */
   canSave?: boolean;
+  /** Whether leaving now would lose something typed or picked. */
+  hasChanges: boolean;
   onClose: () => void;
   onSubmit: (event: FormEvent) => void;
   children: React.ReactNode;
 }) {
+  // Asked only when there is something to lose; otherwise the arrow leaves.
+  const [leaving, setLeaving] = useState(false);
+
   return (
     <form
       onSubmit={onSubmit}
@@ -308,7 +314,7 @@ function EditorScreen({
             className="shrink-0"
             aria-label="Cancelar"
             title="Volver sin guardar"
-            onClick={onClose}
+            onClick={() => (hasChanges ? setLeaving(true) : onClose())}
           >
             <ArrowLeftIcon className="size-5" />
           </Button>
@@ -332,6 +338,25 @@ function EditorScreen({
       </div>
       <p className="text-sm text-muted-foreground">{description}</p>
       {children}
+      <AlertDialog open={leaving} onOpenChange={setLeaving}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Descartar los cambios?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Lo que cambiaste en “{title}” no se ha guardado y se perderá.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Seguir editando</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={onClose}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Descartar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </form>
   );
 }
@@ -471,6 +496,19 @@ function LinkFormDialog({
     untilTime,
   ]);
 
+  // What saving would send, and so what leaving without saving would lose.
+  const input = {
+    label,
+    href,
+    icon: shown.icon,
+    imageUrl: shown.imageUrl,
+    layout,
+    visibleFrom: scheduled ? visibleFrom : "",
+    visibleUntil: scheduled ? visibleUntil : "",
+  };
+  const current = JSON.stringify(input);
+  const [opened] = useState(current);
+
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
@@ -483,15 +521,6 @@ function LinkFormDialog({
       return;
     }
     startSaving(async () => {
-      const input = {
-        label,
-        href,
-        icon: shown.icon,
-        imageUrl: shown.imageUrl,
-        layout,
-        visibleFrom: scheduled ? visibleFrom : "",
-        visibleUntil: scheduled ? visibleUntil : "",
-      };
       const res = await attempt(() =>
         existing ? updateSiteLink(existing.id, input) : createSiteLink(input),
       );
@@ -510,6 +539,7 @@ function LinkFormDialog({
       description="Un botón de la página de enlaces. La vista previa lo muestra mientras lo editas."
       error={error}
       isSaving={isSaving}
+      hasChanges={current !== opened}
       onClose={onClose}
       onSubmit={handleSubmit}
     >
@@ -695,6 +725,9 @@ function SocialFormDialog({
   const [error, setError] = useState<string | null>(null);
   const [isSaving, startSaving] = useTransition();
   const field = network ? SOCIAL_NETWORK_FIELDS[network] : null;
+  // What leaving without saving would lose.
+  const current = JSON.stringify({ network, value });
+  const [opened] = useState(current);
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -726,6 +759,7 @@ function SocialFormDialog({
       error={error}
       isSaving={isSaving}
       canSave={network != null}
+      hasChanges={current !== opened}
       onClose={onClose}
       onSubmit={handleSubmit}
     >
