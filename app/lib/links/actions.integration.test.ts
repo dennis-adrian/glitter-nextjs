@@ -80,6 +80,12 @@ let queries: Queries;
 
 let savedLinks: (typeof siteLinks.$inferSelect)[] = [];
 let savedSettings: (typeof siteLinksSettings.$inferSelect)[] = [];
+/**
+ * Whether both tables were read before anything was emptied. `afterAll` runs
+ * even when `beforeAll` fails, and without this it would empty the tables
+ * and put back a copy that was never taken.
+ */
+let backedUp = false;
 
 function signInAs(role: string | null) {
   currentProfileMock.mockResolvedValue(role ? { id: 1, role } : null);
@@ -119,6 +125,7 @@ describeDatabase("site links dashboard actions", () => {
 
     savedLinks = await integrationDb!.select().from(siteLinks);
     savedSettings = await integrationDb!.select().from(siteLinksSettings);
+    backedUp = true;
 
     actions = await import("@/app/lib/links/actions");
     queries = await import("@/app/lib/links/queries");
@@ -135,25 +142,32 @@ describeDatabase("site links dashboard actions", () => {
   });
 
   afterAll(async () => {
-    if (integrationDb) {
-      await integrationDb.delete(siteLinks);
-      await integrationDb.delete(siteLinksSettings);
-      if (savedLinks.length > 0) {
-        await integrationDb.insert(siteLinks).values(savedLinks);
+    try {
+      if (integrationDb && backedUp) {
+        await integrationDb.delete(siteLinks);
+        await integrationDb.delete(siteLinksSettings);
+        if (savedLinks.length > 0) {
+          await integrationDb.insert(siteLinks).values(savedLinks);
+        }
+        if (savedSettings.length > 0) {
+          await integrationDb.insert(siteLinksSettings).values(savedSettings);
+        }
+        // Rows went back with their ids; later inserts must not reuse them.
+        await pool!.query(
+          `select setval(pg_get_serial_sequence('site_links', 'id'),
+             greatest((select coalesce(max(id), 0) from site_links),
+                      (select last_value from site_links_id_seq)))`,
+        );
       }
-      if (savedSettings.length > 0) {
-        await integrationDb.insert(siteLinksSettings).values(savedSettings);
+    } finally {
+      // Closed whatever happened above, or the run hangs on open connections.
+      await pool?.end();
+      // The app's own pool exists only once the actions were imported.
+      if (actions) {
+        const appDb = await import("@/db");
+        await appDb.pool.end();
       }
-      // Rows went back with their ids; later inserts must not reuse them.
-      await pool!.query(
-        `select setval(pg_get_serial_sequence('site_links', 'id'),
-           greatest((select coalesce(max(id), 0) from site_links),
-                    (select last_value from site_links_id_seq)))`,
-      );
     }
-    await pool?.end();
-    const appDb = await import("@/db");
-    await appDb.pool.end();
   });
 
   describe("permissions", () => {
