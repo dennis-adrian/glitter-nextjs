@@ -112,9 +112,14 @@ function IconPicker({
   });
   const [status, setStatus] = useState<"loading" | "idle" | "error">("loading");
   const loadingMore = useRef(false);
+  // Counts the searches started. A page asked for under one search is not
+  // added to the list of a later one, even a later one for the same words.
+  const generation = useRef(0);
 
   useEffect(() => {
     const controller = new AbortController();
+    generation.current += 1;
+    loadingMore.current = false;
     // At once when the picker opens; after a pause while typing.
     const timer = setTimeout(
       async () => {
@@ -143,14 +148,16 @@ function IconPicker({
   async function loadMore() {
     if (loadingMore.current || !hasMore) return;
     loadingMore.current = true;
+    const asked = generation.current;
     try {
       const page = await fetchIconPage(
         trimmed,
         icons.length,
         new AbortController().signal,
       );
+      // A search started meanwhile has its own list.
+      if (generation.current !== asked) return;
       setList((current) =>
-        // A search typed meanwhile has its own list.
         current.listFor === trimmed
           ? {
               ...current,
@@ -167,7 +174,7 @@ function IconPicker({
     } catch (error) {
       console.error("icon list", error);
     } finally {
-      loadingMore.current = false;
+      if (generation.current === asked) loadingMore.current = false;
     }
   }
 

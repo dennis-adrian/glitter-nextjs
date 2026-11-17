@@ -251,7 +251,9 @@ function requestOnce(
         const type = String(response.headers["content-type"] ?? "");
         const location = response.headers.location;
         if (status >= 300 && status < 400) {
-          response.resume();
+          // Its body is of no use, and is not waited for: left to drain, a
+          // long one would hold the connection after the deadline is gone.
+          response.destroy();
           return settle(() =>
             resolve({ status, location, body: Buffer.alloc(0), type }),
           );
@@ -268,8 +270,10 @@ function requestOnce(
             return;
           }
           chunks.push(chunk);
-          if (size >= limits.maxBytes) {
-            // Enough was read; the rest is not waited for.
+          if (size >= limits.maxBytes && limits.overflow === "truncate") {
+            // Enough was read; the rest is not waited for. A body that is
+            // refused when too long is read to its end instead: stopped at
+            // the limit, a longer one would pass for one of exactly that.
             done();
             request.destroy();
           }
@@ -394,8 +398,9 @@ export async function fetchPublicImage(
     overflow: "refuse",
   });
   const type = response.type.split(";")[0].trim().toLowerCase();
+  // Only a kind listed above: `constructor` is a name every object has.
+  if (!Object.hasOwn(IMAGE_EXTENSIONS, type)) throw new Error("not an image");
   const extension = IMAGE_EXTENSIONS[type];
-  if (!extension) throw new Error("not an image");
   if (response.body.length === 0) throw new Error("empty image");
   return { body: response.body, type, extension };
 }

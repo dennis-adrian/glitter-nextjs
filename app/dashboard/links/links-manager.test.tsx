@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -565,6 +566,41 @@ describe("the links manager", () => {
       // Both pages are in: nothing more to ask for.
       expect(screen.queryByRole("button", { name: "Cargar más" })).toBeNull();
       expect(screen.getByText("Elegido: cat")).toBeTruthy();
+    });
+
+    it("leaves out a page asked for before the search was started again", async () => {
+      // The second page of the whole list is answered only when the test says.
+      let answerSecondPage = () => {};
+      const pages = iconPages();
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((url: string) =>
+          url.endsWith("q=&offset=1")
+            ? new Promise((resolve) => {
+                answerSecondPage = () =>
+                  resolve({
+                    ok: true,
+                    json: async () => ({ icons: [CAT], total: 2 }),
+                  });
+              })
+            : pages(url),
+        ),
+      );
+      openNewLink("/store");
+      await screen.findByRole("button", { name: "Camera (Lucide)" });
+      fireEvent.click(screen.getByRole("button", { name: "Cargar más" }));
+
+      // Away to a search and back: the same words, another list.
+      const search = screen.getByLabelText("Buscar íconos");
+      fireEvent.change(search, { target: { value: "spoti" } });
+      await screen.findByRole("button", { name: "Spotify (Marcas)" });
+      fireEvent.change(search, { target: { value: "" } });
+      await screen.findByRole("button", { name: "Camera (Lucide)" });
+
+      await act(async () => answerSecondPage());
+      expect(screen.queryByRole("button", { name: "Cat (Lucide)" })).toBeNull();
+      // And the new list still asks for its own pages.
+      expect(screen.getByRole("button", { name: "Cargar más" })).toBeTruthy();
     });
 
     it("opens a link on the thumbnail it has", () => {

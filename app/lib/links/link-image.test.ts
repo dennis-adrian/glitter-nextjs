@@ -23,7 +23,7 @@ type FakeRequest = EventEmitter & {
   respond: (
     status: number,
     headers?: Record<string, string>,
-  ) => EventEmitter & { resume: () => void };
+  ) => EventEmitter & { destroyed: boolean; destroy: () => void };
 };
 
 function fakeGet(
@@ -42,7 +42,10 @@ function fakeGet(
     const response = Object.assign(new EventEmitter(), {
       statusCode: status,
       headers,
-      resume: () => {},
+      destroyed: false,
+      destroy() {
+        this.destroyed = true;
+      },
     });
     onResponse(response);
     return response;
@@ -333,6 +336,60 @@ describe("what is fetched, and for how long", () => {
       }),
     ).rejects.toThrow(/too large/);
     expect(network.requests[0].destroyed).toBe(true);
+  });
+
+  it("takes an image of exactly the size an upload may be", async () => {
+    network.replies.push((request) => {
+      const response = request.respond(200, { "content-type": "image/jpeg" });
+      response.emit("data", Buffer.alloc(4 * 1024 * 1024));
+      response.emit("end");
+    });
+    const image = await fetchPublicImage("https://cdn.example.com/max.jpg", {
+      lookup: publicLookup,
+    });
+    expect(image.body.length).toBe(4 * 1024 * 1024);
+  });
+
+  it("refuses an image one byte too large, however its bytes arrive", async () => {
+    network.replies.push((request) => {
+      const response = request.respond(200, { "content-type": "image/jpeg" });
+      // The first piece ends exactly at the limit; the image does not.
+      response.emit("data", Buffer.alloc(4 * 1024 * 1024));
+      response.emit("data", Buffer.alloc(1));
+    });
+    await expect(
+      fetchPublicImage("https://cdn.example.com/over.jpg", {
+        lookup: publicLookup,
+      }),
+    ).rejects.toThrow(/too large/);
+  });
+
+  it("takes no kind of image by a name every object has", async () => {
+    for (const type of ["constructor", "toString", "__proto__"]) {
+      reply(200, { "content-type": type }, "x");
+      await expect(
+        fetchPublicImage("https://cdn.example.com/x", { lookup: publicLookup }),
+      ).rejects.toThrow(/not an image/);
+    }
+  });
+
+  it("drops a redirect's body instead of reading it", async () => {
+    let redirect: { destroyed: boolean } | undefined;
+    network.replies.push((request) => {
+      redirect = request.respond(302, {
+        location: "https://cdn.example.com/b.png",
+      });
+    });
+    reply(200, { "content-type": "image/png" }, "PNGDATA");
+    const image = await fetchPublicImage("https://cdn.example.com/a.png", {
+      lookup: publicLookup,
+    });
+    expect(redirect?.destroyed).toBe(true);
+    expect(image.extension).toBe("png");
+    expect(network.requests.map((request) => request.url)).toEqual([
+      "https://cdn.example.com/a.png",
+      "https://cdn.example.com/b.png",
+    ]);
   });
 
   it.each([
