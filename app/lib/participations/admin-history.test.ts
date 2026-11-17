@@ -59,11 +59,15 @@ function row(input: {
             ]
           : [],
       },
-      participants: (input.participantIds ?? [userId]).map((id) => ({
+      participants: (input.participantIds ?? [userId]).map((id, index) => ({
+        id: index + 1,
         userId: id,
         user: person(id),
       })),
-      invoices: (input.invoiceUserIds ?? []).map((id) => ({ userId: id })),
+      invoices: (input.invoiceUserIds ?? []).map((id) => ({
+        userId: id,
+        status: "pending",
+      })),
     },
   };
 }
@@ -173,26 +177,26 @@ describe("buildAdminParticipationHistory", () => {
 });
 
 describe("reservationHolderId", () => {
-  it("prefers the owner, then the payer, then the first participant", () => {
+  it("prefers the owner, then the live payer, then the participation made first", () => {
     expect(
       reservationHolderId({
         ownerUserId: 5,
-        invoices: [{ userId: 6 }],
-        participants: [{ userId: 7 }],
+        invoices: [{ userId: 6, status: "pending" }],
+        participants: [{ id: 1, userId: 7 }],
       }),
     ).toBe(5);
     expect(
       reservationHolderId({
         ownerUserId: null,
-        invoices: [{ userId: 6 }],
-        participants: [{ userId: 7 }],
+        invoices: [{ userId: 6, status: "paid" }],
+        participants: [{ id: 1, userId: 7 }],
       }),
     ).toBe(6);
     expect(
       reservationHolderId({
         ownerUserId: null,
         invoices: [],
-        participants: [{ userId: 9 }, { userId: 7 }],
+        participants: [{ id: 1, userId: 7 }],
       }),
     ).toBe(7);
     expect(
@@ -202,6 +206,45 @@ describe("reservationHolderId", () => {
         participants: [],
       }),
     ).toBeNull();
+  });
+
+  it("skips a cancelled cobro, like the repricing reminders do", () => {
+    expect(
+      reservationHolderId({
+        ownerUserId: null,
+        invoices: [
+          { userId: 3, status: "cancelled" },
+          { userId: 4, status: "pending" },
+        ],
+        participants: [
+          { id: 1, userId: 3 },
+          { id: 2, userId: 4 },
+        ],
+      }),
+    ).toBe(4);
+  });
+
+  it("orders participations by row, so a lower user id taking a row over changes nothing", () => {
+    // Row 10 (user 5) was made first. User 9 on row 11 hands it to user 3: the
+    // row keeps its id, so user 5 still holds it although 3 is the lower id.
+    const before = reservationHolderId({
+      ownerUserId: null,
+      invoices: [],
+      participants: [
+        { id: 11, userId: 9 },
+        { id: 10, userId: 5 },
+      ],
+    });
+    const after = reservationHolderId({
+      ownerUserId: null,
+      invoices: [],
+      participants: [
+        { id: 11, userId: 3 },
+        { id: 10, userId: 5 },
+      ],
+    });
+    expect(before).toBe(5);
+    expect(after).toBe(5);
   });
 });
 

@@ -128,7 +128,11 @@ async function readTransferState(tx: DbTx, input: TransferInput) {
       .from(reservationParticipants)
       .where(eq(reservationParticipants.reservationId, reservation.id)),
     tx
-      .select({ id: invoices.id, userId: invoices.userId })
+      .select({
+        id: invoices.id,
+        userId: invoices.userId,
+        status: invoices.status,
+      })
       .from(invoices)
       .where(eq(invoices.reservationId, reservation.id))
       .orderBy(asc(invoices.id)),
@@ -538,9 +542,9 @@ export async function transferReservationParticipation(
       .where(eq(participantProducts.participationId, participationId));
 
     // Written whenever the holding moves, not only when the old account was
-    // the recorded owner: a legacy row with no owner and no cobro derives its
-    // holder from the lowest participant id, which could otherwise hand the
-    // reservation to the companion.
+    // the recorded owner, so an ownerless legacy row names its holder outright
+    // instead of leaving every reader to derive it again. The derivation
+    // agrees anyway (`reservationHolderId`): the moved row keeps its id.
     if (plan.movesHolding) {
       await tx
         .update(standReservations)

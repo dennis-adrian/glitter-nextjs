@@ -56,11 +56,11 @@ export async function fetchAdminParticipationHistory(
             },
           },
           participants: {
-            columns: { userId: true },
+            columns: { id: true, userId: true },
             with: { user: { columns: PERSON_COLUMNS } },
           },
           invoices: {
-            columns: { userId: true },
+            columns: { userId: true, status: true },
             orderBy: asc(invoices.id),
           },
         },

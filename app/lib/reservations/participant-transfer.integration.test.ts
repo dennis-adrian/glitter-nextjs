@@ -753,4 +753,60 @@ describeDatabase("admin participation transfer", () => {
       status: "pending",
     });
   });
+
+  it("leaves an ownerless reservation's holder in place when a companion's participation moves", async () => {
+    const db = integrationDb!;
+    // Created in order, so the target has the lowest user id of the three.
+    const { festival, accounts, standRows } = await seed({ accounts: 3 });
+    const [target, holder, companion] = accounts;
+    const [reservation] = await db
+      .insert(standReservations)
+      .values({
+        festivalId: festival.id,
+        standId: standRows[0].id,
+        status: "accepted",
+        source: "legacy_unknown",
+        ownerUserId: null,
+        bookedParticipantCount: 2,
+      })
+      .returning();
+    await db.insert(standReservationStands).values({
+      reservationId: reservation.id,
+      standId: standRows[0].id,
+      position: 0,
+    });
+    // The holder's participation was made first.
+    await db
+      .insert(reservationParticipants)
+      .values({ userId: holder.id, reservationId: reservation.id });
+    await db
+      .insert(reservationParticipants)
+      .values({ userId: companion.id, reservationId: reservation.id });
+
+    const result = await service.transferReservationParticipation({
+      reservationId: reservation.id,
+      fromUserId: companion.id,
+      toUserId: target.id,
+      idempotencyKey: randomUUID(),
+    });
+    expect(result.success).toBe(true);
+
+    const [after] = await db
+      .select()
+      .from(standReservations)
+      .where(eq(standReservations.id, reservation.id));
+    expect(after.ownerUserId).toBeNull();
+    const participants = await db
+      .select({
+        id: reservationParticipants.id,
+        userId: reservationParticipants.userId,
+      })
+      .from(reservationParticipants)
+      .where(eq(reservationParticipants.reservationId, reservation.id));
+    const { reservationHolderId } =
+      await import("@/app/lib/participations/admin-history");
+    expect(
+      reservationHolderId({ ownerUserId: null, invoices: [], participants }),
+    ).toBe(holder.id);
+  });
 });

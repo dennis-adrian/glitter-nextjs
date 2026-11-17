@@ -33,8 +33,9 @@ export type AdminParticipationSource = {
       status: string;
       festivalDates: { startDate: Date; endDate: Date }[];
     };
-    participants: { userId: number; user: PersonParts }[];
-    invoices: { userId: number }[];
+    participants: { id: number; userId: number; user: PersonParts }[];
+    /** In id order. */
+    invoices: { userId: number; status: string }[];
   };
 };
 
@@ -74,21 +75,28 @@ export function personName(person: PersonParts): string {
 
 /**
  * Who holds a reservation: its owner, or for a legacy row with no owner the
- * account its cobro is billed to, or failing both its first participant. The
- * same chain the partner edit resolves before it touches a reservation, so the
- * history and the edit page never name different holders.
+ * account its first live cobro is billed to, or failing both the participation
+ * made first. The rule the repricing reminders already use for an ownerless
+ * reservation (`taskHolderForOwnerlessReservation`), so the history, the
+ * transfer and the reminders name the same person.
+ *
+ * Ordered by participation row, not by user id: a transfer moves a row rather
+ * than recreating it, so the holder of an ownerless reservation cannot shift
+ * to a companion or to the target just because of whose id is lower.
+ *
+ * `invoices` must be in id order.
  */
 export function reservationHolderId(reservation: {
   ownerUserId: number | null;
-  invoices: readonly { userId: number }[];
-  participants: readonly { userId: number }[];
+  invoices: readonly { userId: number; status: string }[];
+  participants: readonly { id: number; userId: number }[];
 }): number | null {
   if (reservation.ownerUserId != null) return reservation.ownerUserId;
-  const invoiceUserId = reservation.invoices[0]?.userId;
-  if (invoiceUserId != null) return invoiceUserId;
-  const first = [...reservation.participants].sort(
-    (a, b) => a.userId - b.userId,
-  )[0];
+  const payer = reservation.invoices.find(
+    (invoice) => invoice.status !== "cancelled",
+  );
+  if (payer) return payer.userId;
+  const first = [...reservation.participants].sort((a, b) => a.id - b.id)[0];
   return first?.userId ?? null;
 }
 
