@@ -54,6 +54,32 @@ ALTER TABLE "site_links" ADD COLUMN IF NOT EXISTS "layout" text DEFAULT 'classic
 ALTER TABLE "site_links" ADD COLUMN IF NOT EXISTS "visible_from" timestamp;--> statement-breakpoint
 ALTER TABLE "site_links" ADD COLUMN IF NOT EXISTS "visible_until" timestamp;--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "site_links_kind_sort_order_idx" ON "site_links" USING btree ("kind","sort_order");--> statement-breakpoint
+-- One social icon per network. The first version of this migration had no
+-- index for it, and a database that ran that one could hold two icons of the
+-- same network (two admins adding it at once), which the index below would
+-- refuse to be built over. So before it: of each network's icons the first
+-- stays an icon, and any other becomes a hidden link card, at the end of the
+-- links, with its address and its clicks. Nothing is deleted; whoever manages
+-- the page can show it or remove it. Changes nothing where there are no such
+-- rows, which is every database once the index exists.
+WITH "copies" AS (
+	SELECT "id", ROW_NUMBER() OVER (PARTITION BY "icon" ORDER BY "id") AS "copy"
+	FROM "site_links"
+	WHERE "kind" = 'social'
+), "extras" AS (
+	SELECT "id", ROW_NUMBER() OVER (ORDER BY "id") AS "place"
+	FROM "copies"
+	WHERE "copy" > 1
+)
+UPDATE "site_links"
+SET "kind" = 'link',
+	"is_visible" = false,
+	"sort_order" = (
+		SELECT COALESCE(MAX("sort_order"), -1) FROM "site_links" WHERE "kind" = 'link'
+	) + "extras"."place",
+	"updated_at" = now()
+FROM "extras"
+WHERE "site_links"."id" = "extras"."id";--> statement-breakpoint
 -- One social icon per network, whatever two admins do at once.
 CREATE UNIQUE INDEX IF NOT EXISTS "site_links_one_social_per_network" ON "site_links" USING btree ("icon") WHERE "site_links"."kind" = 'social';--> statement-breakpoint
 -- Settings of the page as a whole: one row at most (id 1), none means the
