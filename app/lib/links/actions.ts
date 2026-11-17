@@ -1,10 +1,14 @@
 "use server";
 
-import { and, asc, eq, max } from "drizzle-orm";
+import { and, asc, eq, max, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { libraryIconSvg } from "@/app/lib/links/icon-library";
+import {
+  isUnknownLinkImageError,
+  releaseLinkImage,
+} from "@/app/lib/links/images";
 import {
   importLinkImage,
   isStoredImageUrl,
@@ -44,6 +48,13 @@ import {
 
 type ActionResult = { success: true } | { success: false; message: string };
 
+/** A save of an editor, with the revision the editor now has. */
+type RevisionResult =
+  | { success: true; revision: number }
+  | { success: false; message: string };
+
+const UNKNOWN_IMAGE_MESSAGE = "La imagen ya no está disponible. Elige otra.";
+
 /** The same staff who manage the home carousel and the landing content. */
 function canManageLinks(role: string | null | undefined) {
   return role === "admin" || role === "festival_admin";
@@ -56,24 +67,14 @@ function invalidateLinks() {
 
 /**
  * Deletes an image a write just let go of, unless a link or the header still
- * shows it: the actions accept any stored file, so two rows can hold the
- * same one. Runs after the write, so the row that dropped it is not counted.
+ * shows it: two rows can hold the same one. Runs after the write, so the row
+ * that dropped it is not counted. Only an image the links page made is ever
+ * deleted, and a save adding it at the same moment either keeps it or is
+ * refused (`releaseLinkImage`).
  */
 async function removeUnusedLinkImage(url: string | null | undefined) {
   if (!url) return;
-  const [link] = await db
-    .select({ id: siteLinks.id })
-    .from(siteLinks)
-    .where(eq(siteLinks.imageUrl, url))
-    .limit(1);
-  if (link) return;
-  const [header] = await db
-    .select({ id: siteLinksSettings.id })
-    .from(siteLinksSettings)
-    .where(eq(siteLinksSettings.avatarUrl, url))
-    .limit(1);
-  if (header) return;
-  await removeLinkImage(url);
+  if (await releaseLinkImage(url)) await removeLinkImage(url);
 }
 
 /** Where a new row of `kind` goes: after the last one of its kind. */
@@ -102,7 +103,10 @@ export type SiteLinkInput = {
   href: string;
   /** A featured icon, `lucide:…` or `si:…` from the library, or `none`. */
   icon: string;
-  /** A thumbnail shown in place of the icon; a file of ours, or none. */
+  /**
+   * A thumbnail shown in place of the icon, or none: an image the links page
+   * made (`site_link_images`), uploaded or copied from the link's page.
+   */
   imageUrl?: string | null;
   /** `classic` when left out. */
   layout?: SiteLinkLayout;
@@ -269,18 +273,25 @@ export async function createSiteLink(
   const input = await validateInput(data);
   if (!input.ok) return { success: false, message: input.message };
 
-  await db.insert(siteLinks).values({
-    kind: "link",
-    label: input.label,
-    href: input.href,
-    icon: input.icon,
-    iconSvg: input.iconSvg,
-    imageUrl: input.imageUrl,
-    layout: input.layout,
-    visibleFrom: input.visibleFrom,
-    visibleUntil: input.visibleUntil,
-    sortOrder: await nextSortOrder("link"),
-  });
+  try {
+    await db.insert(siteLinks).values({
+      kind: "link",
+      label: input.label,
+      href: input.href,
+      icon: input.icon,
+      iconSvg: input.iconSvg,
+      imageUrl: input.imageUrl,
+      layout: input.layout,
+      visibleFrom: input.visibleFrom,
+      visibleUntil: input.visibleUntil,
+      sortOrder: await nextSortOrder("link"),
+    });
+  } catch (error) {
+    if (isUnknownLinkImageError(error)) {
+      return { success: false, message: UNKNOWN_IMAGE_MESSAGE };
+    }
+    throw error;
+  }
   invalidateLinks();
   return { success: true };
 }
@@ -361,45 +372,85 @@ export async function updateSocialLink(
   return { success: true };
 }
 
+/**
+ * Saves a link's editor. `revision` is the link's as the editor read it: a
+ * save from an editor opened before someone else saved the link is refused,
+ * so it cannot put back what they changed, an image they let go of included.
+ */
 export async function updateSiteLink(
   id: number,
   data: SiteLinkInput,
-): Promise<ActionResult> {
+  revision: number,
+): Promise<RevisionResult> {
   const profile = await getCurrentUserProfile();
   if (!canManageLinks(profile?.role)) {
     return { success: false, message: "No tienes permisos." };
   }
+  if (!Number.isInteger(revision)) {
+    return { success: false, message: "Enlace no encontrado." };
+  }
   const input = await validateInput(data);
   if (!input.ok) return { success: false, message: input.message };
 
-  const [previous] = await db
-    .select({ imageUrl: siteLinks.imageUrl })
-    .from(siteLinks)
-    .where(and(eq(siteLinks.id, id), eq(siteLinks.kind, "link")))
-    .limit(1);
-  const [updated] = await db
-    .update(siteLinks)
-    .set({
-      label: input.label,
-      href: input.href,
-      icon: input.icon,
-      iconSvg: input.iconSvg,
-      imageUrl: input.imageUrl,
-      layout: input.layout,
-      visibleFrom: input.visibleFrom,
-      visibleUntil: input.visibleUntil,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(siteLinks.id, id), eq(siteLinks.kind, "link")))
-    .returning({ id: siteLinks.id });
-  if (!updated) return { success: false, message: "Enlace no encontrado." };
+  let saved:
+    | { status: "missing" }
+    | { status: "stale" }
+    | { status: "saved"; previousImageUrl: string | null; revision: number };
+  try {
+    saved = await db.transaction(async (tx) => {
+      const isLink = and(eq(siteLinks.id, id), eq(siteLinks.kind, "link"));
+      const [previous] = await tx
+        .select({ imageUrl: siteLinks.imageUrl })
+        .from(siteLinks)
+        .where(isLink)
+        .for("update");
+      if (!previous) return { status: "missing" as const };
+      const [updated] = await tx
+        .update(siteLinks)
+        .set({
+          label: input.label,
+          href: input.href,
+          icon: input.icon,
+          iconSvg: input.iconSvg,
+          imageUrl: input.imageUrl,
+          layout: input.layout,
+          visibleFrom: input.visibleFrom,
+          visibleUntil: input.visibleUntil,
+          revision: sql`${siteLinks.revision} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(and(isLink, eq(siteLinks.revision, revision)))
+        .returning({ revision: siteLinks.revision });
+      if (!updated) return { status: "stale" as const };
+      return {
+        status: "saved" as const,
+        previousImageUrl: previous.imageUrl,
+        revision: updated.revision,
+      };
+    });
+  } catch (error) {
+    if (isUnknownLinkImageError(error)) {
+      return { success: false, message: UNKNOWN_IMAGE_MESSAGE };
+    }
+    throw error;
+  }
+  if (saved.status === "missing") {
+    return { success: false, message: "Enlace no encontrado." };
+  }
+  if (saved.status === "stale") {
+    return {
+      success: false,
+      message:
+        "Alguien más guardó este enlace mientras lo editabas. Recarga la página para ver sus cambios.",
+    };
+  }
   // The thumbnail it had is no longer shown anywhere.
-  if (previous?.imageUrl && previous.imageUrl !== input.imageUrl) {
-    await removeUnusedLinkImage(previous.imageUrl);
+  if (saved.previousImageUrl && saved.previousImageUrl !== input.imageUrl) {
+    await removeUnusedLinkImage(saved.previousImageUrl);
   }
 
   invalidateLinks();
-  return { success: true };
+  return { success: true, revision: saved.revision };
 }
 
 export async function setSiteLinkVisible(
@@ -519,6 +570,11 @@ export type LinksHeaderInput = {
   description: string;
   /** A picture of ours in place of the logo, or none for the logo. */
   avatarUrl?: string | null;
+  /**
+   * The header's revision as the editor read it (0 before the first save):
+   * a save from before someone else's is refused.
+   */
+  revision: number;
 };
 
 /**
@@ -528,7 +584,7 @@ export type LinksHeaderInput = {
  */
 export async function updateLinksHeader(
   data: LinksHeaderInput,
-): Promise<ActionResult> {
+): Promise<RevisionResult> {
   const profile = await getCurrentUserProfile();
   if (!canManageLinks(profile?.role)) {
     return { success: false, message: "No tienes permisos." };
@@ -553,28 +609,65 @@ export async function updateLinksHeader(
   if (avatarUrl && !isStoredImageUrl(avatarUrl)) {
     return { success: false, message: "La imagen no es válida." };
   }
+  const revision = data.revision;
+  if (!Number.isInteger(revision)) {
+    return { success: false, message: "No se pudo guardar el encabezado." };
+  }
 
   const header = {
     title: title === DEFAULT_LINKS_TITLE ? null : title,
     description: description === DEFAULT_LINKS_DESCRIPTION ? null : description,
     avatarUrl,
   };
-  const [previous] = await db
-    .select({ avatarUrl: siteLinksSettings.avatarUrl })
-    .from(siteLinksSettings)
-    .limit(1);
-  // The settings are one row, written the first time something changes.
-  await db
-    .insert(siteLinksSettings)
-    .values({ id: 1, ...header })
-    .onConflictDoUpdate({
-      target: siteLinksSettings.id,
-      set: { ...header, updatedAt: new Date() },
+  let saved: { previousAvatarUrl: string | null; revision: number } | null;
+  try {
+    saved = await db.transaction(async (tx) => {
+      const [previous] = await tx
+        .select({ avatarUrl: siteLinksSettings.avatarUrl })
+        .from(siteLinksSettings)
+        .where(eq(siteLinksSettings.id, 1))
+        .for("update");
+      // No header was ever saved: the editor can only have read revision 0.
+      if (!previous && revision !== 0) return null;
+      // The settings are one row, written the first time something changes;
+      // a header never saved is at revision 0. Two first saves at once both
+      // insert, and the second meets the first's row at revision 1.
+      const [written] = await tx
+        .insert(siteLinksSettings)
+        .values({ id: 1, ...header, revision: 1 })
+        .onConflictDoUpdate({
+          target: siteLinksSettings.id,
+          set: {
+            ...header,
+            revision: sql`${siteLinksSettings.revision} + 1`,
+            updatedAt: new Date(),
+          },
+          setWhere: eq(siteLinksSettings.revision, revision),
+        })
+        .returning({ revision: siteLinksSettings.revision });
+      if (!written) return null;
+      return {
+        previousAvatarUrl: previous?.avatarUrl ?? null,
+        revision: written.revision,
+      };
     });
+  } catch (error) {
+    if (isUnknownLinkImageError(error)) {
+      return { success: false, message: UNKNOWN_IMAGE_MESSAGE };
+    }
+    throw error;
+  }
+  if (!saved) {
+    return {
+      success: false,
+      message:
+        "Alguien más guardó el encabezado mientras lo editabas. Recarga la página para ver sus cambios.",
+    };
+  }
   // The picture it had is no longer shown anywhere.
-  if (previous?.avatarUrl && previous.avatarUrl !== avatarUrl) {
-    await removeUnusedLinkImage(previous.avatarUrl);
+  if (saved.previousAvatarUrl && saved.previousAvatarUrl !== avatarUrl) {
+    await removeUnusedLinkImage(saved.previousAvatarUrl);
   }
   invalidateLinks();
-  return { success: true };
+  return { success: true, revision: saved.revision };
 }

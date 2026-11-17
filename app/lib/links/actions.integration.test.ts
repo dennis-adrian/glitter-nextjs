@@ -16,7 +16,7 @@ import {
 
 import { disposableDatabaseProblem } from "@/app/lib/links/disposable-test-database";
 import * as schema from "@/db/schema";
-import { siteLinks, siteLinksSettings } from "@/db/schema";
+import { siteLinkImages, siteLinks, siteLinksSettings } from "@/db/schema";
 
 /**
  * The `/dashboard/links` actions against a real database: who may call them,
@@ -76,6 +76,7 @@ let queries: Queries;
 
 let savedLinks: (typeof siteLinks.$inferSelect)[] = [];
 let savedSettings: (typeof siteLinksSettings.$inferSelect)[] = [];
+let savedImages: (typeof siteLinkImages.$inferSelect)[] = [];
 /**
  * Whether both tables were read before anything was emptied. `afterAll` runs
  * even when `beforeAll` fails, and without this it would empty the tables
@@ -94,6 +95,49 @@ function rowsOf(kind: "link" | "social") {
     .from(siteLinks)
     .where(eq(siteLinks.kind, kind))
     .orderBy(asc(siteLinks.sortOrder), asc(siteLinks.id));
+}
+
+/** Records `urls` as images the links page made, as an upload would. */
+async function recordImages(...urls: string[]) {
+  await integrationDb!
+    .insert(siteLinkImages)
+    .values(urls.map((url) => ({ url })))
+    .onConflictDoNothing();
+}
+
+/** The link's current revision: what an editor opened now would send. */
+async function revisionOf(id: number) {
+  const [row] = await integrationDb!
+    .select({ revision: siteLinks.revision })
+    .from(siteLinks)
+    .where(eq(siteLinks.id, id));
+  return row?.revision ?? 0;
+}
+
+/** Saves a link's editor as one opened just now would. */
+async function saveLink(
+  id: number,
+  data: Parameters<Actions["updateSiteLink"]>[1],
+) {
+  return actions.updateSiteLink(id, data, await revisionOf(id));
+}
+
+/** The header's current revision: what an editor opened now would send. */
+async function headerRevision() {
+  const [row] = await integrationDb!
+    .select({ revision: siteLinksSettings.revision })
+    .from(siteLinksSettings);
+  return row?.revision ?? 0;
+}
+
+/** Saves the header as an editor opened just now would. */
+async function saveHeader(
+  data: Omit<Parameters<Actions["updateLinksHeader"]>[0], "revision">,
+) {
+  return actions.updateLinksHeader({
+    ...data,
+    revision: await headerRevision(),
+  });
 }
 
 async function addLink(label: string, href = "/store") {
@@ -121,6 +165,7 @@ describeDatabase("site links dashboard actions", () => {
 
     savedLinks = await integrationDb!.select().from(siteLinks);
     savedSettings = await integrationDb!.select().from(siteLinksSettings);
+    savedImages = await integrationDb!.select().from(siteLinkImages);
     backedUp = true;
 
     actions = await import("@/app/lib/links/actions");
@@ -130,6 +175,7 @@ describeDatabase("site links dashboard actions", () => {
   beforeEach(async () => {
     await integrationDb!.delete(siteLinks);
     await integrationDb!.delete(siteLinksSettings);
+    await integrationDb!.delete(siteLinkImages);
     currentProfileMock.mockReset();
     revalidatePathMock.mockReset();
     importLinkImageMock.mockReset();
@@ -142,6 +188,11 @@ describeDatabase("site links dashboard actions", () => {
       if (integrationDb && backedUp) {
         await integrationDb.delete(siteLinks);
         await integrationDb.delete(siteLinksSettings);
+        await integrationDb.delete(siteLinkImages);
+        // First: the links and the header may only show these.
+        if (savedImages.length > 0) {
+          await integrationDb.insert(siteLinkImages).values(savedImages);
+        }
         if (savedLinks.length > 0) {
           await integrationDb.insert(siteLinks).values(savedLinks);
         }
@@ -183,11 +234,11 @@ describeDatabase("site links dashboard actions", () => {
         const denied = { success: false, message: "No tienes permisos." };
         const results = await Promise.all([
           actions.createSiteLink({ label: "X", href: "/x", icon: "link" }),
-          actions.updateSiteLink(link.id, {
-            label: "X",
-            href: "/x",
-            icon: "link",
-          }),
+          actions.updateSiteLink(
+            link.id,
+            { label: "X", href: "/x", icon: "link" },
+            link.revision,
+          ),
           actions.createSocialLink({ network: "tiktok", value: "@x" }),
           actions.updateSocialLink(social.id, "@otro"),
           actions.setSiteLinkVisible(link.id, false),
@@ -195,7 +246,11 @@ describeDatabase("site links dashboard actions", () => {
           actions.reorderSiteLinks("link", [link.id]),
           actions.setSocialPosition("bottom"),
           actions.fetchSiteLinkImage("https://example.com/"),
-          actions.updateLinksHeader({ title: "Otro", description: "" }),
+          actions.updateLinksHeader({
+            title: "Otro",
+            description: "",
+            revision: 0,
+          }),
         ]);
 
         for (const result of results) expect(result).toEqual(denied);
@@ -268,7 +323,7 @@ describeDatabase("site links dashboard actions", () => {
       expect(await rowsOf("link")).toEqual([]);
 
       const link = await addLink("Tiendita");
-      const updated = await actions.updateSiteLink(link.id, {
+      const updated = await saveLink(link.id, {
         label: "Malo",
         href,
         icon: "link",
@@ -294,13 +349,13 @@ describeDatabase("site links dashboard actions", () => {
       const link = await addLink("Segundo");
       await queries.recordSiteLinkClick(link.id);
 
-      const result = await actions.updateSiteLink(link.id, {
+      const result = await saveLink(link.id, {
         label: "Sitio web",
         href: "/",
         icon: "website",
       });
 
-      expect(result).toEqual({ success: true });
+      expect(result).toEqual({ success: true, revision: 1 });
       const [, updated] = await rowsOf("link");
       expect(updated).toMatchObject({
         id: link.id,
@@ -317,11 +372,11 @@ describeDatabase("site links dashboard actions", () => {
       const [social] = await rowsOf("social");
       const data = { label: "X", href: "/x", icon: "link" as const };
 
-      expect(await actions.updateSiteLink(social.id, data)).toEqual({
+      expect(await saveLink(social.id, data)).toEqual({
         success: false,
         message: "Enlace no encontrado.",
       });
-      expect(await actions.updateSiteLink(social.id + 1000, data)).toEqual({
+      expect(await saveLink(social.id + 1000, data)).toEqual({
         success: false,
         message: "Enlace no encontrado.",
       });
@@ -369,6 +424,8 @@ describeDatabase("site links dashboard actions", () => {
   describe("a link's thumbnail", () => {
     const IMAGE = "https://abc123.ufs.sh/f/miniatura-1";
     const OTHER_IMAGE = "https://abc123.ufs.sh/f/miniatura-2";
+    // Uploaded through the links page, as every image a link shows is.
+    beforeEach(() => recordImages(IMAGE, OTHER_IMAGE));
     const base = { label: "Quiz", href: "/quiz" };
 
     it("stores a library icon with its drawing, taken from the library", async () => {
@@ -396,13 +453,13 @@ describeDatabase("site links dashboard actions", () => {
       await actions.createSiteLink({ ...base, icon: "si:spotify" });
       const [link] = await rowsOf("link");
 
-      await actions.updateSiteLink(link.id, { ...base, icon: "heart" });
+      await saveLink(link.id, { ...base, icon: "heart" });
       expect((await rowsOf("link"))[0]).toMatchObject({
         icon: "heart",
         iconSvg: null,
       });
 
-      await actions.updateSiteLink(link.id, { ...base, icon: "none" });
+      await saveLink(link.id, { ...base, icon: "none" });
       expect((await rowsOf("link"))[0]).toMatchObject({
         icon: "none",
         iconSvg: null,
@@ -488,7 +545,7 @@ describeDatabase("site links dashboard actions", () => {
       );
 
       // Back to classic, keeping its image as a thumbnail.
-      await actions.updateSiteLink(rows[1].id, {
+      await saveLink(rows[1].id, {
         ...base,
         icon: "link",
         imageUrl: IMAGE,
@@ -531,7 +588,7 @@ describeDatabase("site links dashboard actions", () => {
       const [link] = await rowsOf("link");
 
       // Saved again with the same image: it is still shown.
-      await actions.updateSiteLink(link.id, {
+      await saveLink(link.id, {
         ...base,
         label: "Otro título",
         icon: "link",
@@ -539,14 +596,14 @@ describeDatabase("site links dashboard actions", () => {
       });
       expect(removeLinkImageMock).not.toHaveBeenCalled();
 
-      await actions.updateSiteLink(link.id, {
+      await saveLink(link.id, {
         ...base,
         icon: "link",
         imageUrl: OTHER_IMAGE,
       });
       expect(removeLinkImageMock).toHaveBeenLastCalledWith(IMAGE);
 
-      await actions.updateSiteLink(link.id, { ...base, icon: "link" });
+      await saveLink(link.id, { ...base, icon: "link" });
       expect(removeLinkImageMock).toHaveBeenLastCalledWith(OTHER_IMAGE);
       expect((await rowsOf("link"))[0].imageUrl).toBeNull();
     });
@@ -569,10 +626,10 @@ describeDatabase("site links dashboard actions", () => {
       });
       const [first, second] = await rowsOf("link");
 
-      await actions.updateSiteLink(first.id, { ...base, icon: "link" });
+      await saveLink(first.id, { ...base, icon: "link" });
       expect(removeLinkImageMock).not.toHaveBeenCalled();
 
-      await actions.updateLinksHeader({
+      await saveHeader({
         title: "Glitter",
         description: "",
         avatarUrl: IMAGE,
@@ -580,7 +637,7 @@ describeDatabase("site links dashboard actions", () => {
       await actions.deleteSiteLink(second.id);
       expect(removeLinkImageMock).not.toHaveBeenCalled();
 
-      await actions.updateLinksHeader({
+      await saveHeader({
         title: "Glitter",
         description: "",
         avatarUrl: null,
@@ -592,13 +649,142 @@ describeDatabase("site links dashboard actions", () => {
       await actions.createSiteLink({ ...base, icon: "link", imageUrl: IMAGE });
       const [link] = await rowsOf("link");
 
-      await actions.updateSiteLink(link.id, {
+      await saveLink(link.id, {
         ...base,
         href: "javascript:alert(1)",
         icon: "link",
       });
       expect(removeLinkImageMock).not.toHaveBeenCalled();
       expect((await rowsOf("link"))[0].imageUrl).toBe(IMAGE);
+    });
+
+    it("lets go of the image's record with its last link, and only then", async () => {
+      await actions.createSiteLink({ ...base, icon: "link", imageUrl: IMAGE });
+      const [link] = await rowsOf("link");
+
+      await saveLink(link.id, { ...base, icon: "link", imageUrl: OTHER_IMAGE });
+      const recorded = await integrationDb!.select().from(siteLinkImages);
+      expect(recorded.map((row) => row.url)).toEqual([OTHER_IMAGE]);
+    });
+
+    it("refuses a stored file the links page did not make", async () => {
+      // Another feature's upload: on UploadThing, but not one of ours.
+      const FOREIGN = "https://abc123.ufs.sh/f/foto-de-perfil";
+      const unknown = {
+        success: false,
+        message: "La imagen ya no está disponible. Elige otra.",
+      };
+      expect(
+        await actions.createSiteLink({
+          ...base,
+          icon: "link",
+          imageUrl: FOREIGN,
+        }),
+      ).toEqual(unknown);
+      expect(await rowsOf("link")).toEqual([]);
+
+      const link = await addLink("Tiendita");
+      expect(
+        await saveLink(link.id, { ...base, icon: "link", imageUrl: FOREIGN }),
+      ).toEqual(unknown);
+      expect(
+        await saveHeader({
+          title: "Glitter",
+          description: "",
+          avatarUrl: FOREIGN,
+        }),
+      ).toEqual(unknown);
+      expect(await rowsOf("link")).toEqual([link]);
+      expect(await integrationDb!.select().from(siteLinksSettings)).toEqual([]);
+      // So it can never be the image a later save lets go of and deletes.
+      expect(removeLinkImageMock).not.toHaveBeenCalled();
+    });
+
+    it("refuses a save from an editor opened before someone else's", async () => {
+      await actions.createSiteLink({ ...base, icon: "link", imageUrl: IMAGE });
+      const [opened] = await rowsOf("link");
+
+      // Someone else changes the image, and the old one is deleted.
+      const theirs = await actions.updateSiteLink(
+        opened.id,
+        { ...base, icon: "link", imageUrl: OTHER_IMAGE },
+        opened.revision,
+      );
+      expect(theirs).toEqual({ success: true, revision: opened.revision + 1 });
+      expect(removeLinkImageMock).toHaveBeenCalledWith(IMAGE);
+
+      // The first editor, still showing the old image, saves a new title.
+      expect(
+        await actions.updateSiteLink(
+          opened.id,
+          { ...base, label: "Otro título", icon: "link", imageUrl: IMAGE },
+          opened.revision,
+        ),
+      ).toEqual({
+        success: false,
+        message:
+          "Alguien más guardó este enlace mientras lo editabas. Recarga la página para ver sus cambios.",
+      });
+      const [row] = await rowsOf("link");
+      expect(row).toMatchObject({
+        label: base.label,
+        imageUrl: OTHER_IMAGE,
+        revision: opened.revision + 1,
+      });
+    });
+
+    it("keeps an image a save adds while it is being let go of", async () => {
+      await actions.createSiteLink({ ...base, icon: "link", imageUrl: IMAGE });
+      const other = await addLink("Segundo");
+      const [link] = await rowsOf("link");
+
+      // Another save, mid-way, puts the image on the second link.
+      const client = await pool!.connect();
+      try {
+        await client.query("begin");
+        await client.query(
+          "update site_links set image_url = $1 where id = $2",
+          [IMAGE, other.id],
+        );
+        // The first link lets go of it; deleting waits for that save.
+        const dropping = saveLink(link.id, { ...base, icon: "link" });
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        await client.query("commit");
+        expect(await dropping).toMatchObject({ success: true });
+      } finally {
+        client.release();
+      }
+
+      expect(removeLinkImageMock).not.toHaveBeenCalled();
+      const recorded = await integrationDb!.select().from(siteLinkImages);
+      expect(recorded.map((row) => row.url)).toContain(IMAGE);
+    });
+
+    it("refuses a save adding an image while it is being deleted", async () => {
+      const link = await addLink("Tiendita");
+
+      // The image's last link let go of it, and its record is being deleted.
+      const client = await pool!.connect();
+      try {
+        await client.query("begin");
+        await client.query("delete from site_link_images where url = $1", [
+          IMAGE,
+        ]);
+        const adding = saveLink(link.id, {
+          ...base,
+          icon: "link",
+          imageUrl: IMAGE,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        await client.query("commit");
+        expect(await adding).toEqual({
+          success: false,
+          message: "La imagen ya no está disponible. Elige otra.",
+        });
+      } finally {
+        client.release();
+      }
+      expect((await rowsOf("link"))[0].imageUrl).toBeNull();
     });
 
     it("finds a web link's own image, and saves nothing by itself", async () => {
@@ -730,7 +916,7 @@ describeDatabase("site links dashboard actions", () => {
       expect(link.visibleUntil?.toISOString()).toBe("2026-12-01T03:59:00.000Z");
 
       // Saved again without them: always shown.
-      await actions.updateSiteLink(link.id, base);
+      await saveLink(link.id, base);
       expect((await rowsOf("link"))[0]).toMatchObject({
         visibleFrom: null,
         visibleUntil: null,
@@ -803,6 +989,7 @@ describeDatabase("site links dashboard actions", () => {
 
   describe("the page's header", () => {
     const AVATAR = "https://abc123.ufs.sh/f/foto-1";
+    beforeEach(() => recordImages(AVATAR));
     const settings = () => integrationDb!.select().from(siteLinksSettings);
 
     it("is the stock header until someone changes it", async () => {
@@ -814,18 +1001,66 @@ describeDatabase("site links dashboard actions", () => {
       });
     });
 
-    it("saves the name, the line and the picture, and keeps the position", async () => {
+    it("refuses a save from before someone else's, the first one included", async () => {
+      const stale = {
+        success: false,
+        message:
+          "Alguien más guardó el encabezado mientras lo editabas. Recarga la página para ver sus cambios.",
+      };
+      // Two editors open the page before the header was ever saved.
+      const first = { title: "Primero", description: "", revision: 0 };
+      expect(await actions.updateLinksHeader(first)).toEqual({
+        success: true,
+        revision: 1,
+      });
+      expect(
+        await actions.updateLinksHeader({ ...first, title: "Segundo" }),
+      ).toEqual(stale);
+
+      // The first one saves again with what its save answered.
+      expect(
+        await actions.updateLinksHeader({
+          title: "Primero",
+          description: "",
+          avatarUrl: AVATAR,
+          revision: 1,
+        }),
+      ).toEqual({ success: true, revision: 2 });
+      // The second, still at 1, would put the logo back over the picture.
+      expect(
+        await actions.updateLinksHeader({ ...first, revision: 1 }),
+      ).toEqual(stale);
+      expect((await queries.fetchLinksSettings()).header).toMatchObject({
+        title: "Primero",
+        avatarUrl: AVATAR,
+      });
+      expect(removeLinkImageMock).not.toHaveBeenCalled();
+    });
+
+    it("keeps the header's revision when the social icons move", async () => {
       await actions.setSocialPosition("bottom");
       expect(
         await actions.updateLinksHeader({
+          title: "Glitter",
+          description: "",
+          revision: 0,
+        }),
+      ).toEqual({ success: true, revision: 1 });
+    });
+
+    it("saves the name, the line and the picture, and keeps the position", async () => {
+      await actions.setSocialPosition("bottom");
+      expect(
+        await saveHeader({
           title: "  Glitter Bolivia  ",
           description: " Festivales y más ",
           avatarUrl: AVATAR,
         }),
-      ).toEqual({ success: true });
+      ).toEqual({ success: true, revision: 1 });
 
       expect(await queries.fetchLinksSettings()).toMatchObject({
         socialPosition: "bottom",
+        headerRevision: 1,
         header: {
           title: "Glitter Bolivia",
           description: "Festivales y más",
@@ -843,7 +1078,7 @@ describeDatabase("site links dashboard actions", () => {
     });
 
     it("stores nothing for what matches the stock header, and an empty line as one", async () => {
-      await actions.updateLinksHeader({
+      await saveHeader({
         title: "Productora Glitter",
         description: "",
       });
@@ -854,7 +1089,7 @@ describeDatabase("site links dashboard actions", () => {
       });
       expect((await queries.fetchLinksSettings()).header.description).toBe("");
 
-      await actions.updateLinksHeader({
+      await saveHeader({
         title: "Productora Glitter",
         description:
           "Productora de festivales para ilustradores, artistas y emprendimientos creativos",
@@ -866,19 +1101,19 @@ describeDatabase("site links dashboard actions", () => {
     });
 
     it("deletes the picture it had once it shows another, or the logo", async () => {
-      await actions.updateLinksHeader({
+      await saveHeader({
         title: "Glitter",
         description: "",
         avatarUrl: AVATAR,
       });
-      await actions.updateLinksHeader({
+      await saveHeader({
         title: "Glitter Bolivia",
         description: "",
         avatarUrl: AVATAR,
       });
       expect(removeLinkImageMock).not.toHaveBeenCalled();
 
-      await actions.updateLinksHeader({ title: "Glitter", description: "" });
+      await saveHeader({ title: "Glitter", description: "" });
       expect(removeLinkImageMock).toHaveBeenCalledWith(AVATAR);
       expect((await queries.fetchLinksSettings()).header.avatarUrl).toBeNull();
     });
@@ -899,7 +1134,7 @@ describeDatabase("site links dashboard actions", () => {
         },
       ],
     ])("refuses %s", async (_what, input) => {
-      expect((await actions.updateLinksHeader(input)).success).toBe(false);
+      expect((await saveHeader(input)).success).toBe(false);
       expect(await settings()).toEqual([]);
       expect(removeLinkImageMock).not.toHaveBeenCalled();
     });

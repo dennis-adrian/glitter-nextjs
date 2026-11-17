@@ -31,7 +31,8 @@ async function requestOrigin() {
 export default async function SiteLinksDashboardPage() {
   // The list first: it is what turns away anyone who may not be here.
   const links = await listSiteLinksForAdmin();
-  const { socialPosition, header, readAt } = await fetchLinksSettings();
+  const { socialPosition, header, headerRevision, readAt } =
+    await fetchLinksSettings();
   const publicUrl = `${await requestOrigin()}${LINKS_PATH}`;
 
   return (
@@ -47,6 +48,7 @@ export default async function SiteLinksDashboardPage() {
         initialLinks={links}
         initialSocialPosition={socialPosition}
         initialHeader={header}
+        initialHeaderRevision={headerRevision}
         now={readAt}
         publicUrl={publicUrl}
       />

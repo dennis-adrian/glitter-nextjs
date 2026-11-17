@@ -1,0 +1,2 @@
+ALTER TABLE "site_links" ADD CONSTRAINT "site_links_image_url_site_link_images_url_fk" FOREIGN KEY ("image_url") REFERENCES "public"."site_link_images"("url") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_links_settings" ADD CONSTRAINT "site_links_settings_avatar_url_site_link_images_url_fk" FOREIGN KEY ("avatar_url") REFERENCES "public"."site_link_images"("url") ON DELETE restrict ON UPDATE no action;

@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { ComunicadoImageType } from "@/app/lib/comunicados/definitions";
 import type { FestivalArtworkType } from "@/app/lib/festivals/artwork";
 import { getViewerClerkId } from "@/app/lib/impersonation/viewer";
+import { recordLinkImage } from "@/app/lib/links/images";
 import { fetchUserProfile } from "@/app/lib/users/queries";
 import {
   getCreditTopUpUploadTarget,
@@ -113,7 +114,11 @@ export const ourFileRouter = {
       if (!profile) throw new UploadThingError("No autorizado");
       return { userId: profile.id };
     })
-    .onUploadComplete(({ file }) => ({ imageUrl: file.ufsUrl })),
+    .onUploadComplete(async ({ file }) => {
+      // A link or the header may only show an image recorded here.
+      await recordLinkImage(file.ufsUrl);
+      return { imageUrl: file.ufsUrl };
+    }),
   // Define as many FileRoutes as you like, each with a unique routeSlug
   profilePicture: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
     .middleware(async ({ req }) => {
