@@ -46,6 +46,18 @@ export function disposableDatabaseProblem(
     return "TEST_DATABASE_URL must target a database whose name contains 'test' or 'ci'.";
   }
 
+  // The host that is checked below has to be the host that is connected to.
+  // `pg` reads a `host` in the query string over the one in the address
+  // (a name, or a Unix socket's directory), so
+  // `postgres://…@127.0.0.1/x_test?host=db.example.com` would pass as local
+  // and connect elsewhere. `hostaddr` is libpq's way to say the same thing.
+  for (const name of parsed.searchParams.keys()) {
+    const parameter = name.toLowerCase();
+    if (parameter === "host" || parameter === "hostaddr") {
+      return `TEST_DATABASE_URL sets "${parameter}" in its query string, which can send the connection somewhere other than the host in the address. Put the host in the address itself.`;
+    }
+  }
+
   // `[::1]` in a URL; `::1` everywhere else.
   const host = parsed.hostname.replace(/^\[|\]$/g, "").toLowerCase();
   const approved = (approvedHosts ?? "")

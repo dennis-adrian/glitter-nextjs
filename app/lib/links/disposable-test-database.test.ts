@@ -59,6 +59,53 @@ describe("which database a test may empty", () => {
     ).toMatch(/'test' or 'ci'/);
   });
 
+  it.each([
+    ["a host", "?host=db.example.com"],
+    ["a host, after other parameters", "?sslmode=require&host=db.example.com"],
+    ["a Unix socket", "?host=/var/run/postgresql"],
+    ["a host address", "?hostaddr=10.9.8.7"],
+    ["a host, in capitals", "?HOST=db.example.com"],
+    ["an approved host, even", "?host=postgres"],
+  ])("refuses a local address whose query string names %s", (_what, query) => {
+    const problem = disposableDatabaseProblem(
+      `postgres://glitter:glitter@127.0.0.1:55432/glitter_test${query}`,
+      "postgres",
+    );
+    expect(problem).toMatch(/in its query string/);
+  });
+
+  it("still takes a local address with parameters that do not move it", () => {
+    expect(
+      disposableDatabaseProblem(
+        "postgres://glitter:glitter@127.0.0.1:55432/glitter_test?sslmode=disable&application_name=tests",
+        undefined,
+      ),
+    ).toBeNull();
+  });
+
+  it("is checked against where pg would really connect", async () => {
+    // The reason for the rule above, held to the installed driver: if `pg`
+    // stops reading `host` from the query string, this says so.
+    const { Client } = await import("pg");
+    const moved = new Client({
+      connectionString:
+        "postgres://glitter:glitter@127.0.0.1:55432/glitter_test?host=db.example.com",
+    });
+    expect(moved.host).toBe("db.example.com");
+
+    const plain = new Client({
+      connectionString:
+        "postgres://glitter:glitter@127.0.0.1:55432/glitter_test?sslmode=disable",
+    });
+    expect(plain.host).toBe("127.0.0.1");
+    // The database is the one in the address whatever the query string says.
+    const renamed = new Client({
+      connectionString:
+        "postgres://glitter:glitter@127.0.0.1:55432/glitter_test?database=production&dbname=production",
+    });
+    expect(renamed.database).toBe("glitter_test");
+  });
+
   it("refuses what is not a Postgres URL at all", () => {
     expect(disposableDatabaseProblem("glitter_test", undefined)).toMatch(
       /not a URL/,
