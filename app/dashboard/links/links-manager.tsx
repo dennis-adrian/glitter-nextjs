@@ -404,7 +404,11 @@ function LinkFormDialog({
   const [isFetchingImage, setIsFetchingImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, startSaving] = useTransition();
-  const isWebLink = /^(https?:\/\/)?[^\s/@]+\.[^\s@]+$/i.test(href.trim());
+  // A web address or a page of this site: what has a page to take an image
+  // from. An email has none.
+  const isWebLink =
+    /^(https?:\/\/)?[^\s/@]+\.[^\s@]+$/i.test(href.trim()) ||
+    /^\/(?!\/)\S*$/.test(href.trim());
 
   async function takeLinkImage({ quiet }: { quiet: boolean }) {
     if (isFetchingImage || !isWebLink) return;

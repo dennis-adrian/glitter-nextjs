@@ -11,6 +11,7 @@ import {
   removeLinkImage,
 } from "@/app/lib/links/thumbnail";
 import { consumeActionRateLimit } from "@/app/lib/rate-limit";
+import { publicBaseUrl } from "@/app/lib/urls";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { siteLinks, siteLinksSettings } from "@/db/schema";
@@ -165,7 +166,7 @@ const LINK_IMAGES_PER_MINUTE = 10;
 
 /**
  * Finds the image the page at `href` offers for itself and keeps a copy for
- * a link's thumbnail. Nothing is saved to a link here: the form shows the
+ * a link's thumbnail. `href` is a web address or a path of this site. Nothing is saved to a link here: the form shows the
  * image, and saving the form is what puts it on the page.
  */
 export async function fetchSiteLinkImage(
@@ -179,10 +180,16 @@ export async function fetchSiteLinkImage(
   }
   const parsed = parseSiteLinkHref(typeof href === "string" ? href : "");
   if (!parsed.ok) return { success: false, message: parsed.message };
-  if (!/^https?:\/\//i.test(parsed.href)) {
+  // A page of this site is read at the site's own address. That address
+  // comes from the deployment's settings (`publicBaseUrl`), never from the
+  // request, whose host a caller could set to somewhere else.
+  const pageUrl = parsed.href.startsWith("/")
+    ? `${publicBaseUrl()}${parsed.href}`
+    : parsed.href;
+  if (!/^https?:\/\//i.test(pageUrl)) {
     return {
       success: false,
-      message: "Solo los enlaces web tienen una imagen propia.",
+      message: "Un correo no tiene una imagen propia.",
     };
   }
   const allowed = await consumeActionRateLimit({
@@ -198,7 +205,7 @@ export async function fetchSiteLinkImage(
   }
 
   try {
-    const imageUrl = await importLinkImage(parsed.href);
+    const imageUrl = await importLinkImage(pageUrl);
     if (imageUrl) return { success: true, imageUrl };
   } catch (error) {
     console.error("fetchSiteLinkImage", error);

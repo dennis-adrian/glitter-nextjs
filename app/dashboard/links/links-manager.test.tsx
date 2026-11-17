@@ -358,10 +358,35 @@ describe("the links manager", () => {
       expect(toast.error).not.toHaveBeenCalled();
     });
 
-    it("does not look for an image for a path of this site or once a thumbnail was chosen", () => {
-      openNewLink("/store");
+    it("takes the image of a page of this site too", async () => {
+      actions.fetchSiteLinkImage.mockResolvedValue({
+        success: true,
+        imageUrl: OG_IMAGE,
+      });
+      openNewLink("/blog/festicker-2026");
+      fireEvent.blur(screen.getByLabelText("Enlace"));
+
+      await waitFor(() =>
+        expect(actions.fetchSiteLinkImage).toHaveBeenCalledWith(
+          "/blog/festicker-2026",
+        ),
+      );
+      await waitFor(() =>
+        expect(screen.getByAltText("Miniatura del enlace")).toBeTruthy(),
+      );
+    });
+
+    it("does not look for an image for an email, or once a thumbnail was chosen", () => {
+      openNewLink("info@productoraglitter.com");
       fireEvent.blur(screen.getByLabelText("Enlace"));
       expect(actions.fetchSiteLinkImage).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("radio", { name: "Imagen" }));
+      expect(
+        screen
+          .getByRole("button", { name: /Usar la del enlace/ })
+          .hasAttribute("disabled"),
+      ).toBe(true);
+      fireEvent.click(screen.getByRole("radio", { name: "Ícono" }));
 
       fireEvent.change(screen.getByLabelText("Enlace"), {
         target: { value: "https://quiz.productoraglitter.com" },

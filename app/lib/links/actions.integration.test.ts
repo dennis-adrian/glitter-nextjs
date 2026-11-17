@@ -591,10 +591,27 @@ describeDatabase("site links dashboard actions", () => {
       logged.mockRestore();
     });
 
+    it("reads a page of this site at the site's own address, whatever host the request names", async () => {
+      const configured = process.env.NEXT_PUBLIC_BASE_URL;
+      process.env.NEXT_PUBLIC_BASE_URL = "https://www.glitter.com.bo/";
+      importLinkImageMock.mockResolvedValue(IMAGE);
+      try {
+        expect(
+          await actions.fetchSiteLinkImage("/blog/festicker-2026"),
+        ).toEqual({ success: true, imageUrl: IMAGE });
+        expect(importLinkImageMock).toHaveBeenCalledWith(
+          "https://www.glitter.com.bo/blog/festicker-2026",
+        );
+      } finally {
+        if (configured === undefined) delete process.env.NEXT_PUBLIC_BASE_URL;
+        else process.env.NEXT_PUBLIC_BASE_URL = configured;
+      }
+    });
+
     it.each([
-      ["/store"],
       ["info@productoraglitter.com"],
       ["javascript:alert(1)"],
+      ["//evil.example.com/pagina"],
       [""],
     ])("does not go looking for the image of %j", async (href) => {
       const result = await actions.fetchSiteLinkImage(href);
