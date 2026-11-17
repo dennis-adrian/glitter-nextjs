@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
+  useMemo,
   useState,
   useSyncExternalStore,
   useTransition,
@@ -771,8 +772,17 @@ export default function LinksManager({
     />
   );
 
-  const socials = initialLinks.filter((link) => link.kind === "social");
-  const links = initialLinks.filter((link) => link.kind !== "social");
+  // The same arrays until the server sends a new list: a section takes a new
+  // one for a refresh and drops its optimistic order, so opening a form (a
+  // render of this component alone) must not hand it one.
+  const socials = useMemo(
+    () => initialLinks.filter((link) => link.kind === "social"),
+    [initialLinks],
+  );
+  const links = useMemo(
+    () => initialLinks.filter((link) => link.kind !== "social"),
+    [initialLinks],
+  );
   const availableNetworks = SOCIAL_NETWORKS.filter(
     (network) => !socials.some((link) => link.icon === network),
   );

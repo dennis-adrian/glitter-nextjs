@@ -208,6 +208,20 @@ describe("the links manager", () => {
     );
   });
 
+  it("keeps a switch it just flipped while a form opens over it", async () => {
+    renderManager();
+    const [toggle] = screen.getAllByRole("switch", { checked: true });
+    fireEvent.click(toggle);
+    await waitFor(() =>
+      expect(toggle.getAttribute("aria-checked")).toBe("false"),
+    );
+
+    // The refresh has not brought the new list yet: the same props, rendered
+    // again because a form opened, must not put the switch back.
+    fireEvent.click(screen.getByRole("button", { name: "Nuevo enlace" }));
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+  });
+
   it("deletes only after confirming", async () => {
     renderManager();
     fireEvent.click(screen.getByRole("button", { name: "Eliminar Tiendita" }));
