@@ -341,7 +341,12 @@ export function socialValueFromHref(
   network: SocialNetwork,
   href: string,
 ): string {
-  if (network === "email") return mailtoAddress(href) ?? href;
+  // All of it after `mailto:`, a subject or a body included: saving the field
+  // unchanged must give back the same link. (`mailtoAddress` is the address
+  // alone, for showing.)
+  if (network === "email") {
+    return href.startsWith("mailto:") ? href.slice("mailto:".length) : href;
+  }
   const path = href.replace(/^https?:\/\/[^/]+\//, "").replace(/\/+$/, "");
   const simple = !path.includes("/") && !path.includes("?");
   if (network === "instagram" && simple && USERNAME_RE.test(path)) {

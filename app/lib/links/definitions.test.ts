@@ -113,6 +113,33 @@ describe("an address that parses to one place and reads as another", () => {
   });
 });
 
+describe("a social email with a subject", () => {
+  const WITH_SUBJECT =
+    "mailto:info@productoraglitter.com?subject=Hola&body=Buenas";
+
+  it("opens for editing with its parameters, so saving it unchanged keeps them", () => {
+    const stored = parseSocialValue("email", WITH_SUBJECT);
+    expect(stored).toEqual({ ok: true, href: WITH_SUBJECT });
+
+    const field = socialValueFromHref("email", WITH_SUBJECT);
+    expect(field).toBe("info@productoraglitter.com?subject=Hola&body=Buenas");
+    expect(parseSocialValue("email", field)).toEqual({
+      ok: true,
+      href: WITH_SUBJECT,
+    });
+  });
+
+  it("still opens a plain address as the address", () => {
+    expect(
+      socialValueFromHref("email", "mailto:info@productoraglitter.com"),
+    ).toBe("info@productoraglitter.com");
+  });
+
+  it("still shows the address alone under a link's title", () => {
+    expect(mailtoAddress(WITH_SUBJECT)).toBe("info@productoraglitter.com");
+  });
+});
+
 describe("toSiteLinkIcon", () => {
   it("falls back to the plain link icon for an unknown name", () => {
     expect(toSiteLinkIcon("tiktok")).toBe("tiktok");
