@@ -156,6 +156,18 @@ afterEach(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // The editor starts at its top and goes back to its row; jsdom has no page
+  // to scroll.
+  vi.stubGlobal("scrollTo", vi.fn());
+  // A switch inside a form measures itself.
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
   // The icon picker asks for its first page as it opens.
   vi.stubGlobal("fetch", iconPages());
   // A phone: no room for the preview beside the editor. The drawer reads it.
@@ -673,8 +685,15 @@ describe("the links manager", () => {
       expect(preview.getByRole("link", { name: "Tiendita" })).toBeTruthy();
     });
 
-    it("moves the social icons in the preview as the position is picked", () => {
-      actions.setSocialPosition.mockReturnValue(new Promise(() => {}));
+    it("moves the social icons in the preview as the position is picked", async () => {
+      // Unanswered for as long as the test looks. Answered at its end: React
+      // holds every later save behind one that never finishes.
+      let answer: (value: unknown) => void = () => {};
+      actions.setSocialPosition.mockReturnValue(
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+      );
       renderManager();
       const order = () => {
         const preview = openPreview();
@@ -688,6 +707,67 @@ describe("the links manager", () => {
 
       fireEvent.click(screen.getByLabelText("Abajo"));
       expect(order()).toEqual(["Tiendita", "Instagram"]);
+
+      answer({ success: true });
+      await waitFor(() => expect(refresh).toHaveBeenCalled());
+    });
+  });
+
+  describe("the editor, in place of the lists", () => {
+    it("takes the lists' place while a link is edited, and gives it back", () => {
+      renderManager();
+      fireEvent.click(screen.getAllByRole("button", { name: /Editar/ })[1]);
+
+      const editor = screen.getByRole("form", { name: "Editar enlace" });
+      expect(within(editor).getByLabelText("Título")).toBeTruthy();
+      // Not an overlay: no dialog, and the lists are out of the way.
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(screen.queryByRole("region", { name: "Enlaces" })).toBeNull();
+      expect(screen.queryByRole("region", { name: "Encabezado" })).toBeNull();
+      expect(scrollTo).toHaveBeenCalledWith(0, 0);
+
+      fireEvent.click(within(editor).getByRole("button", { name: "Cancelar" }));
+      expect(screen.queryByRole("form")).toBeNull();
+      expect(screen.getByRole("region", { name: "Enlaces" })).toBeTruthy();
+    });
+
+    it("keeps the preview in reach on a phone while editing", () => {
+      renderManager();
+      fireEvent.click(screen.getByRole("button", { name: "Nuevo enlace" }));
+      fireEvent.change(screen.getByLabelText("Título"), {
+        target: { value: "Entradas" },
+      });
+      fireEvent.change(screen.getByLabelText("Enlace"), {
+        target: { value: "/entradas" },
+      });
+
+      // The button is live, not behind an overlay.
+      fireEvent.click(screen.getByRole("button", { name: "Vista previa" }));
+      expect(
+        within(screen.getByRole("dialog")).getByRole("link", {
+          name: "Entradas",
+        }),
+      ).toBeTruthy();
+    });
+
+    it("says why a link was refused next to the save button", async () => {
+      actions.updateSiteLink.mockResolvedValue({
+        success: false,
+        message: "El enlace no es válido.",
+      });
+      renderManager();
+      fireEvent.click(screen.getAllByRole("button", { name: /Editar/ })[1]);
+      fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toBe("El enlace no es válido.");
+      // In the bar that stays in view, with the button.
+      const saveButton = await screen.findByRole(
+        "button",
+        { name: "Guardar" },
+        { timeout: 5000 },
+      );
+      expect(alert.parentElement?.contains(saveButton)).toBe(true);
     });
   });
 
@@ -713,6 +793,9 @@ describe("the links manager", () => {
       fireEvent.change(screen.getByLabelText("Enlace"), {
         target: { value: "/festivals" },
       });
+      // Out of the way until it is asked for.
+      expect(screen.queryByLabelText("Mostrar desde")).toBeNull();
+      fireEvent.click(screen.getByRole("switch", { name: /Programar/ }));
       fireEvent.change(screen.getByLabelText("Mostrar desde"), {
         target: { value: "2026-11-20T09:00" },
       });
@@ -731,9 +814,10 @@ describe("the links manager", () => {
       );
     });
 
-    it("refuses an end that is not after the start, and clears both at once", async () => {
+    it("refuses an end that is not after the start, and saves no dates once switched off", async () => {
       renderManager();
       fireEvent.click(screen.getAllByRole("button", { name: /Editar/ })[1]);
+      fireEvent.click(screen.getByRole("switch", { name: /Programar/ }));
       fireEvent.change(screen.getByLabelText("Mostrar desde"), {
         target: { value: "2026-11-20T09:00" },
       });
@@ -746,7 +830,8 @@ describe("the links manager", () => {
       );
       expect(actions.updateSiteLink).not.toHaveBeenCalled();
 
-      fireEvent.click(screen.getByRole("button", { name: "Quitar fechas" }));
+      fireEvent.click(screen.getByRole("switch", { name: /Programar/ }));
+      expect(screen.queryByLabelText("Mostrar desde")).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
       await waitFor(() =>
         expect(actions.updateSiteLink).toHaveBeenCalledWith(
@@ -785,6 +870,12 @@ describe("the links manager", () => {
       expect(previewed()).toEqual(["En curso"]);
 
       fireEvent.click(screen.getAllByRole("button", { name: /Editar/ })[0]);
+      // A link with dates opens with them in view.
+      expect(
+        screen
+          .getByRole("switch", { name: /Programar/ })
+          .getAttribute("aria-checked"),
+      ).toBe("true");
       expect(
         (screen.getByLabelText("Mostrar desde") as HTMLInputElement).value,
       ).toBe("2026-11-20T09:00");

@@ -18,6 +18,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  ArrowLeftIcon,
   CalendarClockIcon,
   ExternalLinkIcon,
   EyeIcon,
@@ -54,14 +55,6 @@ import {
   AlertDialogTitle,
 } from "@/app/components/ui/alert-dialog";
 import { Button } from "@/app/components/ui/button";
-import { DialogFooter } from "@/app/components/ui/dialog";
-import {
-  DrawerDialog,
-  DrawerDialogContent,
-  DrawerDialogDescription,
-  DrawerDialogHeader,
-  DrawerDialogTitle,
-} from "@/app/components/ui/drawer-dialog";
 import {
   Drawer,
   DrawerClose,
@@ -120,7 +113,6 @@ import {
   type SocialPosition,
 } from "@/app/lib/links/definitions";
 import ThumbnailField from "@/app/dashboard/links/thumbnail-field";
-import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { cn } from "@/app/lib/utils";
 import { UploadButton } from "@/app/vendors/uploadthing";
 import GlitterLogo from "@/app/components/landing/glitter-logo";
@@ -275,29 +267,72 @@ function SortableRow({
 /** `"new"` adds one; a row edits it. */
 type FormTarget = "new" | SiteLinkRow;
 
-/** From here up a form is a dialog; below it, a drawer from the bottom. */
-const DESKTOP_QUERY = "(min-width: 768px)";
-
-/** In the drawer the form pads itself and scrolls under the keyboard. */
-function formClass(isDesktop: boolean) {
-  return cn(
-    "flex min-w-0 flex-col gap-4",
-    isDesktop ? null : "min-h-0 overflow-y-auto px-4 pb-4",
-  );
-}
-
-/** Cancel and save: in a row in the dialog, stacked in the drawer. */
-function FormButtons({
-  isDesktop,
+/**
+ * A form as the editor's own screen, in place of the lists: a bar that stays
+ * in view with the way back, what is being edited and the save button, and
+ * the fields under it. Not an overlay, so the preview beside it (or behind
+ * its button, on a phone) stays in reach while editing.
+ */
+function EditorScreen({
+  title,
+  description,
+  error,
+  isSaving,
+  canSave = true,
+  onClose,
+  onSubmit,
   children,
 }: {
-  isDesktop: boolean;
+  title: string;
+  description: string;
+  error: string | null;
+  isSaving: boolean;
+  /** False while there is nothing that could be saved yet. */
+  canSave?: boolean;
+  onClose: () => void;
+  onSubmit: (event: FormEvent) => void;
   children: React.ReactNode;
 }) {
-  return isDesktop ? (
-    <DialogFooter>{children}</DialogFooter>
-  ) : (
-    <div className="flex flex-col-reverse gap-2">{children}</div>
+  return (
+    <form
+      onSubmit={onSubmit}
+      aria-label={title}
+      className="flex min-w-0 flex-col gap-5"
+    >
+      <div className="sticky top-[var(--app-header-height,0px)] z-20 -mx-4 flex flex-col gap-2 border-b border-border bg-background px-4 py-3 md:-mx-6 md:px-6 xl:mx-0 xl:px-0">
+        <div className="flex min-w-0 items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="shrink-0"
+            aria-label="Cancelar"
+            title="Volver sin guardar"
+            onClick={onClose}
+          >
+            <ArrowLeftIcon className="size-5" />
+          </Button>
+          <h2 className="min-w-0 flex-1 text-lg font-semibold break-words">
+            {title}
+          </h2>
+          <Button
+            type="submit"
+            className="shrink-0"
+            disabled={isSaving || !canSave}
+          >
+            {isSaving ? "Guardando…" : "Guardar"}
+          </Button>
+        </div>
+        {/* Here, where it is in view whatever field was being filled in. */}
+        {error ? (
+          <p role="alert" className="text-sm break-words text-destructive">
+            {error}
+          </p>
+        ) : null}
+      </div>
+      <p className="text-sm text-muted-foreground">{description}</p>
+      {children}
+    </form>
   );
 }
 
@@ -326,7 +361,6 @@ function LinkFormDialog({
   /** Called with what the form holds each time it changes. */
   onDraftChange: (draft: LinkDraft) => void;
 }) {
-  const isDesktop = useMediaQuery(DESKTOP_QUERY);
   const existing = editing === "new" ? null : editing;
   const [label, setLabel] = useState(existing?.label ?? "");
   const [href, setHref] = useState(existing?.href ?? "");
@@ -354,8 +388,14 @@ function LinkFormDialog({
   const [visibleUntil, setVisibleUntil] = useState(
     toScheduleInput(existing?.visibleUntil),
   );
-  const from = parseScheduleInput(visibleFrom) ?? null;
-  const until = parseScheduleInput(visibleUntil) ?? null;
+  // Off for most links, which are simply shown: the dates stay out of the
+  // way until someone wants them. Off also means saved without dates, though
+  // the fields keep theirs in case it is turned back on.
+  const [scheduled, setScheduled] = useState(
+    Boolean(existing?.visibleFrom || existing?.visibleUntil),
+  );
+  const from = scheduled ? (parseScheduleInput(visibleFrom) ?? null) : null;
+  const until = scheduled ? (parseScheduleInput(visibleUntil) ?? null) : null;
   const fromTime = from?.getTime() ?? null;
   const untilTime = until?.getTime() ?? null;
   // Until the person chooses a thumbnail themselves, a new link takes the
@@ -445,8 +485,8 @@ function LinkFormDialog({
         icon: shown.icon,
         imageUrl: shown.imageUrl,
         layout,
-        visibleFrom,
-        visibleUntil,
+        visibleFrom: scheduled ? visibleFrom : "",
+        visibleUntil: scheduled ? visibleUntil : "",
       };
       const res = await attempt(() =>
         existing ? updateSiteLink(existing.id, input) : createSiteLink(input),
@@ -461,130 +501,134 @@ function LinkFormDialog({
   }
 
   return (
-    <DrawerDialog
-      isDesktop={isDesktop}
-      open
-      onOpenChange={(open) => (open ? undefined : onClose())}
+    <EditorScreen
+      title={existing ? "Editar enlace" : "Nuevo enlace"}
+      description="Un botón de la página de enlaces. La vista previa lo muestra mientras lo editas."
+      error={error}
+      isSaving={isSaving}
+      onClose={onClose}
+      onSubmit={handleSubmit}
     >
-      <DrawerDialogContent isDesktop={isDesktop}>
-        <form onSubmit={handleSubmit} className={formClass(isDesktop)}>
-          <DrawerDialogHeader isDesktop={isDesktop}>
-            <DrawerDialogTitle isDesktop={isDesktop}>
-              {existing ? "Editar enlace" : "Nuevo enlace"}
-            </DrawerDialogTitle>
-            <DrawerDialogDescription isDesktop={isDesktop}>
-              Se muestra en la página de enlaces con este título e ícono.
-            </DrawerDialogDescription>
-          </DrawerDialogHeader>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="site-link-label">Título</Label>
-            <Input
-              id="site-link-label"
-              value={label}
-              maxLength={SITE_LINK_LABEL_MAX}
-              onChange={(event) => setLabel(event.target.value)}
-              placeholder="Pre-registro Festicker"
-              required
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="site-link-href">Enlace</Label>
-            <Input
-              id="site-link-href"
-              value={href}
-              onChange={(event) => setHref(event.target.value)}
-              onBlur={() => {
-                if (!thumbnailChosen.current && !imageUrl) {
-                  void takeLinkImage({ quiet: true });
-                }
-              }}
-              placeholder="https://… , /store o un correo"
-              inputMode="url"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              required
-            />
-            <p className="text-xs text-muted-foreground">
-              Una dirección web, una ruta de este sitio (empieza con /) o un
-              correo.
-            </p>
-          </div>
-          <ThumbnailField
-            mode={mode}
-            onModeChange={(next) => {
-              thumbnailChosen.current = true;
-              setMode(next);
-            }}
-            icon={icon}
-            iconSvg={iconSvg}
-            onIconChange={(next, nextSvg) => {
-              thumbnailChosen.current = true;
-              setIcon(next);
-              setIconSvg(nextSvg);
-            }}
-            imageUrl={imageUrl}
-            onImageChange={(next) => {
-              thumbnailChosen.current = true;
-              setImageUrl(next);
-            }}
-            canUseLinkImage={isWebLink}
-            isFetchingLinkImage={isFetchingImage}
-            onUseLinkImage={() => {
-              thumbnailChosen.current = true;
-              void takeLinkImage({ quiet: false });
-            }}
-          />
-          <fieldset className="flex min-w-0 flex-col gap-2">
-            <legend className="mb-2 text-sm font-medium">
-              Diseño del botón
-            </legend>
-            <div
-              role="radiogroup"
-              aria-label="Diseño del botón"
-              className="grid grid-cols-2 gap-2"
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="site-link-label">Título</Label>
+        <Input
+          id="site-link-label"
+          value={label}
+          maxLength={SITE_LINK_LABEL_MAX}
+          onChange={(event) => setLabel(event.target.value)}
+          placeholder="Pre-registro Festicker"
+          required
+        />
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="site-link-href">Enlace</Label>
+        <Input
+          id="site-link-href"
+          value={href}
+          onChange={(event) => setHref(event.target.value)}
+          onBlur={() => {
+            if (!thumbnailChosen.current && !imageUrl) {
+              void takeLinkImage({ quiet: true });
+            }
+          }}
+          placeholder="https://… , /store o un correo"
+          inputMode="url"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          required
+        />
+        <p className="text-xs text-muted-foreground">
+          Una dirección web, una ruta de este sitio (empieza con /) o un correo.
+        </p>
+      </div>
+      <ThumbnailField
+        mode={mode}
+        onModeChange={(next) => {
+          thumbnailChosen.current = true;
+          setMode(next);
+        }}
+        icon={icon}
+        iconSvg={iconSvg}
+        onIconChange={(next, nextSvg) => {
+          thumbnailChosen.current = true;
+          setIcon(next);
+          setIconSvg(nextSvg);
+        }}
+        imageUrl={imageUrl}
+        onImageChange={(next) => {
+          thumbnailChosen.current = true;
+          setImageUrl(next);
+        }}
+        canUseLinkImage={isWebLink}
+        isFetchingLinkImage={isFetchingImage}
+        onUseLinkImage={() => {
+          thumbnailChosen.current = true;
+          void takeLinkImage({ quiet: false });
+        }}
+      />
+      <fieldset className="flex min-w-0 flex-col gap-2">
+        <legend className="mb-2 text-sm font-medium">Diseño del botón</legend>
+        <div
+          role="radiogroup"
+          aria-label="Diseño del botón"
+          className="grid grid-cols-2 gap-2"
+        >
+          {SITE_LINK_LAYOUTS.map((value) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={layout === value}
+              onClick={() => setLayout(value)}
+              className={cn(
+                "flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-lg border border-border p-2 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                layout === value &&
+                  "border-primary bg-primary/10 font-medium text-primary hover:text-primary",
+              )}
             >
-              {SITE_LINK_LAYOUTS.map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={layout === value}
-                  onClick={() => setLayout(value)}
-                  className={cn(
-                    "flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-lg border border-border p-2 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-                    layout === value &&
-                      "border-primary bg-primary/10 font-medium text-primary hover:text-primary",
-                  )}
-                >
-                  {/* A sketch of each card: a row, or an image over a line. */}
-                  {value === "featured" ? (
-                    <span aria-hidden className="flex w-12 flex-col gap-1">
-                      <span className="h-5 rounded-sm bg-current opacity-40" />
-                      <span className="mx-auto h-1 w-6 rounded-full bg-current opacity-40" />
-                    </span>
-                  ) : (
-                    <span aria-hidden className="flex w-12 items-center gap-1">
-                      <span className="size-3 rounded-sm bg-current opacity-40" />
-                      <span className="h-1 flex-1 rounded-full bg-current opacity-40" />
-                    </span>
-                  )}
-                  {SITE_LINK_LAYOUT_LABELS[value]}
-                </button>
-              ))}
-            </div>
-            {layout === "featured" ? (
-              <p className="text-xs text-muted-foreground">
-                {mode === "none"
-                  ? "Sin miniatura no hay nada que destacar: el enlace se muestra con el diseño clásico."
-                  : mode === "image"
-                    ? "Muestra la imagen del enlace en grande, con el título debajo."
-                    : "Muestra el ícono en grande, con el título debajo. Con una imagen se luce más."}
-              </p>
-            ) : null}
-          </fieldset>
-          <fieldset className="flex min-w-0 flex-col gap-2">
-            <legend className="mb-2 text-sm font-medium">Programación</legend>
+              {/* A sketch of each card: a row, or an image over a line. */}
+              {value === "featured" ? (
+                <span aria-hidden className="flex w-12 flex-col gap-1">
+                  <span className="h-5 rounded-sm bg-current opacity-40" />
+                  <span className="mx-auto h-1 w-6 rounded-full bg-current opacity-40" />
+                </span>
+              ) : (
+                <span aria-hidden className="flex w-12 items-center gap-1">
+                  <span className="size-3 rounded-sm bg-current opacity-40" />
+                  <span className="h-1 flex-1 rounded-full bg-current opacity-40" />
+                </span>
+              )}
+              {SITE_LINK_LAYOUT_LABELS[value]}
+            </button>
+          ))}
+        </div>
+        {layout === "featured" ? (
+          <p className="text-xs text-muted-foreground">
+            {mode === "none"
+              ? "Sin miniatura no hay nada que destacar: el enlace se muestra con el diseño clásico."
+              : mode === "image"
+                ? "Muestra la imagen del enlace en grande, con el título debajo."
+                : "Muestra el ícono en grande, con el título debajo. Con una imagen se luce más."}
+          </p>
+        ) : null}
+      </fieldset>
+      <div className="flex min-w-0 flex-col gap-3">
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <Label htmlFor="site-link-scheduled" className="min-w-0">
+            <span className="block text-sm font-medium">Programar</span>
+            <span className="block text-xs font-normal text-muted-foreground">
+              Mostrarlo solo desde una fecha, hasta otra, o entre las dos.
+            </span>
+          </Label>
+          <Switch
+            id="site-link-scheduled"
+            checked={scheduled}
+            onCheckedChange={setScheduled}
+          />
+        </div>
+        {scheduled ? (
+          <>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="flex min-w-0 flex-col gap-2">
                 <Label htmlFor="site-link-from">Mostrar desde</Label>
@@ -608,40 +652,12 @@ function LinkFormDialog({
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Hora de Bolivia. Deja vacío lo que no necesites: sin fechas, el
-              enlace se muestra siempre.
+              Hora de Bolivia. Deja vacía la fecha que no necesites.
             </p>
-            {visibleFrom || visibleUntil ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="self-start"
-                onClick={() => {
-                  setVisibleFrom("");
-                  setVisibleUntil("");
-                }}
-              >
-                Quitar fechas
-              </Button>
-            ) : null}
-          </fieldset>
-          {error ? (
-            <p role="alert" className="text-sm break-words text-destructive">
-              {error}
-            </p>
-          ) : null}
-          <FormButtons isDesktop={isDesktop}>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isSaving}>
-              {isSaving ? "Guardando…" : "Guardar"}
-            </Button>
-          </FormButtons>
-        </form>
-      </DrawerDialogContent>
-    </DrawerDialog>
+          </>
+        ) : null}
+      </div>
+    </EditorScreen>
   );
 }
 
@@ -661,7 +677,6 @@ function SocialFormDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const isDesktop = useMediaQuery(DESKTOP_QUERY);
   const existing = editing === "new" ? null : editing;
   const existingNetwork =
     existing && isSocialNetwork(existing.icon) ? existing.icon : null;
@@ -697,82 +712,63 @@ function SocialFormDialog({
   }
 
   return (
-    <DrawerDialog
-      isDesktop={isDesktop}
-      open
-      onOpenChange={(open) => (open ? undefined : onClose())}
+    <EditorScreen
+      title={
+        existingNetwork
+          ? `Editar ícono de ${SITE_LINK_ICON_LABELS[existingNetwork]}`
+          : "Nuevo ícono social"
+      }
+      description="Se muestra como un ícono bajo la descripción, sin título."
+      error={error}
+      isSaving={isSaving}
+      canSave={network != null}
+      onClose={onClose}
+      onSubmit={handleSubmit}
     >
-      <DrawerDialogContent isDesktop={isDesktop}>
-        <form onSubmit={handleSubmit} className={formClass(isDesktop)}>
-          <DrawerDialogHeader isDesktop={isDesktop}>
-            <DrawerDialogTitle isDesktop={isDesktop}>
-              {existingNetwork
-                ? `Editar ícono de ${SITE_LINK_ICON_LABELS[existingNetwork]}`
-                : "Nuevo ícono social"}
-            </DrawerDialogTitle>
-            <DrawerDialogDescription isDesktop={isDesktop}>
-              Se muestra como un ícono bajo la descripción, sin título.
-            </DrawerDialogDescription>
-          </DrawerDialogHeader>
-          {existing ? null : (
-            <fieldset className="flex flex-col gap-2">
-              <legend className="mb-2 text-sm font-medium">Red</legend>
-              <div className="flex flex-wrap gap-2">
-                {available.map((name) => (
-                  <button
-                    key={name}
-                    type="button"
-                    aria-pressed={network === name}
-                    onClick={() => {
-                      setNetwork(name);
-                      setError(null);
-                    }}
-                    className={cn(
-                      "flex min-h-10 items-center gap-2 rounded-md border border-border px-3 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-                      network === name &&
-                        "border-primary bg-primary/10 text-primary hover:text-primary",
-                    )}
-                  >
-                    <SiteLinkIcon icon={name} className="size-5" />
-                    {SITE_LINK_ICON_LABELS[name]}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-          )}
-          {field ? (
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="social-link-value">{field.prompt}</Label>
-              <Input
-                id="social-link-value"
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                required
-              />
-              <p className="text-xs text-muted-foreground wrap-anywhere">
-                Ejemplo: {field.example}
-              </p>
-            </div>
-          ) : null}
-          {error ? (
-            <p role="alert" className="text-sm break-words text-destructive">
-              {error}
-            </p>
-          ) : null}
-          <FormButtons isDesktop={isDesktop}>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isSaving || !network}>
-              {isSaving ? "Guardando…" : "Guardar"}
-            </Button>
-          </FormButtons>
-        </form>
-      </DrawerDialogContent>
-    </DrawerDialog>
+      {existing ? null : (
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-2 text-sm font-medium">Red</legend>
+          <div className="flex flex-wrap gap-2">
+            {available.map((name) => (
+              <button
+                key={name}
+                type="button"
+                aria-pressed={network === name}
+                onClick={() => {
+                  setNetwork(name);
+                  setError(null);
+                }}
+                className={cn(
+                  "flex min-h-10 items-center gap-2 rounded-md border border-border px-3 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                  network === name &&
+                    "border-primary bg-primary/10 text-primary hover:text-primary",
+                )}
+              >
+                <SiteLinkIcon icon={name} className="size-5" />
+                {SITE_LINK_ICON_LABELS[name]}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      {field ? (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="social-link-value">{field.prompt}</Label>
+          <Input
+            id="social-link-value"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            required
+          />
+          <p className="text-xs text-muted-foreground wrap-anywhere">
+            Ejemplo: {field.example}
+          </p>
+        </div>
+      ) : null}
+    </EditorScreen>
   );
 }
 
@@ -1329,6 +1325,27 @@ export default function LinksManager({
     (network) => !socials.some((link) => link.icon === network),
   );
 
+  // The editor takes the lists' place, so it opens at the top of the page
+  // from wherever its row was, and closing it goes back to that row.
+  const listScroll = useRef<number | null>(null);
+  const openEditor = (next: NonNullable<Editing>) => {
+    listScroll.current = window.scrollY;
+    setEditing(next);
+  };
+  const isEditing = editing != null;
+  useEffect(() => {
+    if (isEditing) {
+      window.scrollTo(0, 0);
+      return;
+    }
+    const back = listScroll.current;
+    if (back == null) return;
+    listScroll.current = null;
+    // Once the lists are back in the page, which is what makes it tall
+    // enough to scroll that far.
+    requestAnimationFrame(() => window.scrollTo(0, back));
+  }, [isEditing]);
+
   const closeForm = () => {
     setEditing(null);
     setDraft(null);
@@ -1353,53 +1370,57 @@ export default function LinksManager({
   return (
     // Room at the end of the list for the floating preview button.
     <div className="pb-20 xl:grid xl:grid-cols-[minmax(0,48rem)_20rem] xl:items-start xl:gap-10 xl:pb-0">
-      <div className="space-y-8">
-        <div className="space-y-3">
-          {/* A path, not an address: it opens on whatever domain this is. */}
-          <Button
-            variant="outline"
-            size="lg"
-            className="w-full sm:w-auto"
-            asChild
-          >
-            <a href={LINKS_PATH} target="_blank" rel="noopener noreferrer">
-              <ExternalLinkIcon className="mr-2 size-4 shrink-0" />
-              Ver página
-            </a>
-          </Button>
-          <p className="text-sm text-muted-foreground wrap-anywhere">
-            Dirección para la bio:{" "}
-            <span className="font-medium">{publicUrl}</span>
-          </p>
-        </div>
+      <div className="min-w-0">
+        {/* Kept in the page under the editor, out of sight: what each list
+            shows ahead of a save, and where it was scrolled to, stay. */}
+        <div className="space-y-8" hidden={editing != null}>
+          <div className="space-y-3">
+            {/* A path, not an address: it opens on whatever domain this is. */}
+            <Button
+              variant="outline"
+              size="lg"
+              className="w-full sm:w-auto"
+              asChild
+            >
+              <a href={LINKS_PATH} target="_blank" rel="noopener noreferrer">
+                <ExternalLinkIcon className="mr-2 size-4 shrink-0" />
+                Ver página
+              </a>
+            </Button>
+            <p className="text-sm text-muted-foreground wrap-anywhere">
+              Dirección para la bio:{" "}
+              <span className="font-medium">{publicUrl}</span>
+            </p>
+          </div>
 
-        <HeaderSection
-          saved={initialHeader}
-          header={header}
-          onHeaderChange={setHeader}
-        />
-        <LinksSection
-          kind="social"
-          now={now}
-          items={socials}
-          onItemsChange={setSocials}
-          canAdd={availableNetworks.length > 0}
-          onAdd={() => setEditing({ kind: "social", target: "new" })}
-          onEdit={(link) => setEditing({ kind: "social", target: link })}
-        >
-          <SocialPositionPicker
-            position={socialPosition}
-            onPositionChange={setShownPosition}
+          <HeaderSection
+            saved={initialHeader}
+            header={header}
+            onHeaderChange={setHeader}
           />
-        </LinksSection>
-        <LinksSection
-          kind="link"
-          now={now}
-          items={links}
-          onItemsChange={setLinks}
-          onAdd={() => setEditing({ kind: "link", target: "new" })}
-          onEdit={(link) => setEditing({ kind: "link", target: link })}
-        />
+          <LinksSection
+            kind="social"
+            now={now}
+            items={socials}
+            onItemsChange={setSocials}
+            canAdd={availableNetworks.length > 0}
+            onAdd={() => openEditor({ kind: "social", target: "new" })}
+            onEdit={(link) => openEditor({ kind: "social", target: link })}
+          >
+            <SocialPositionPicker
+              position={socialPosition}
+              onPositionChange={setShownPosition}
+            />
+          </LinksSection>
+          <LinksSection
+            kind="link"
+            now={now}
+            items={links}
+            onItemsChange={setLinks}
+            onAdd={() => openEditor({ kind: "link", target: "new" })}
+            onEdit={(link) => openEditor({ kind: "link", target: link })}
+          />
+        </div>
 
         {editing?.kind === "link" ? (
           <LinkFormDialog
