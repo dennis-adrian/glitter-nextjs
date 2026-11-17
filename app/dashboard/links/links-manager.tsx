@@ -314,6 +314,9 @@ function EditorScreen({
             className="shrink-0"
             aria-label="Cancelar"
             title="Volver sin guardar"
+            // Not while a save is on its way: leaving now and opening
+            // another row would let that save's answer close the new one.
+            disabled={isSaving}
             onClick={() => (hasChanges ? setLeaving(true) : onClose())}
           >
             <ArrowLeftIcon className="size-5" />
@@ -1388,8 +1391,13 @@ export default function LinksManager({
     setEditing(null);
     setDraft(null);
   };
-  const savedForm = () => {
-    setEditing(null);
+  /**
+   * A save of `saved` finished. Closes the editor only if it is still the one
+   * that save came from: an answer that arrives late must not close, or take
+   * the draft of, an editor opened since.
+   */
+  const savedForm = (saved: NonNullable<Editing>) => {
+    setEditing((current) => (current === saved ? null : current));
     // The draft stays until the refresh brings the saved link, so the
     // preview does not show the old one in between.
     router.refresh();
@@ -1465,7 +1473,7 @@ export default function LinksManager({
             key={formKey}
             editing={editing.target}
             onClose={closeForm}
-            onSaved={savedForm}
+            onSaved={() => savedForm(editing)}
             onDraftChange={setDraft}
           />
         ) : null}
@@ -1475,7 +1483,7 @@ export default function LinksManager({
             editing={editing.target}
             available={availableNetworks}
             onClose={closeForm}
-            onSaved={savedForm}
+            onSaved={() => savedForm(editing)}
           />
         ) : null}
       </div>

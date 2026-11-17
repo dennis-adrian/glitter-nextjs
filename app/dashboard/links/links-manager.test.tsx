@@ -792,6 +792,58 @@ describe("the links manager", () => {
     });
   });
 
+  describe("a save that is still on its way", () => {
+    it.each([
+      ["a link", 1, "updateSiteLink"],
+      ["a social icon", 0, "updateSocialLink"],
+    ] as const)(
+      "keeps the editor of %s until it is answered, so its answer cannot close another",
+      async (_what, row, action) => {
+        let answer: (value: unknown) => void = () => {};
+        actions[action].mockReturnValue(
+          new Promise((resolve) => {
+            answer = resolve;
+          }),
+        );
+        renderManager();
+        fireEvent.click(screen.getAllByRole("button", { name: /Editar/ })[row]);
+        fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+
+        // No way out to the lists, and so to another row, while it is sent.
+        const back = await screen.findByRole("button", { name: "Cancelar" });
+        await waitFor(() => expect(back.hasAttribute("disabled")).toBe(true));
+        fireEvent.click(back);
+        expect(screen.getByRole("form")).toBeTruthy();
+        expect(screen.queryByRole("alertdialog")).toBeNull();
+
+        answer({ success: true });
+        await waitFor(() => expect(screen.queryByRole("form")).toBeNull());
+        expect(refresh).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it("gives the way back again when the save is refused", async () => {
+      actions.updateSiteLink.mockResolvedValue({
+        success: false,
+        message: "El enlace no es válido.",
+      });
+      renderManager();
+      fireEvent.click(screen.getAllByRole("button", { name: /Editar/ })[1]);
+      fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+
+      await screen.findByRole("alert", {}, { timeout: 5000 });
+      await waitFor(
+        () =>
+          expect(
+            screen
+              .getByRole("button", { name: "Cancelar" })
+              .hasAttribute("disabled"),
+          ).toBe(false),
+        { timeout: 5000 },
+      );
+    });
+  });
+
   describe("leaving the editor", () => {
     const back = () =>
       fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
