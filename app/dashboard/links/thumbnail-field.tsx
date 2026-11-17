@@ -302,6 +302,7 @@ function ImagePicker({
   canUseLinkImage,
   isFetchingLinkImage,
   onUseLinkImage,
+  onUploadingChange,
 }: {
   value: string | null;
   onChange: (imageUrl: string | null) => void;
@@ -309,7 +310,11 @@ function ImagePicker({
   canUseLinkImage: boolean;
   isFetchingLinkImage: boolean;
   onUseLinkImage: () => void;
+  onUploadingChange: (isUploading: boolean) => void;
 }) {
+  // Leaving the image choice mid-upload drops its answer: not uploading.
+  useEffect(() => () => onUploadingChange(false), [onUploadingChange]);
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex min-w-0 items-center gap-3">
@@ -374,7 +379,9 @@ function ImagePicker({
             container: "w-fit",
             allowedContent: "hidden",
           }}
+          onUploadBegin={() => onUploadingChange(true)}
           onClientUploadComplete={(files) => {
+            onUploadingChange(false);
             const imageUrl = files?.[0]?.serverData?.imageUrl;
             if (!imageUrl) {
               toast.error("Error al subir la imagen");
@@ -383,6 +390,7 @@ function ImagePicker({
             onChange(imageUrl);
           }}
           onUploadError={() => {
+            onUploadingChange(false);
             toast.error("Error al subir la imagen");
           }}
         />
@@ -417,6 +425,7 @@ export default function ThumbnailField({
   canUseLinkImage,
   isFetchingLinkImage,
   onUseLinkImage,
+  onUploadingChange,
 }: {
   mode: ThumbnailMode;
   onModeChange: (mode: ThumbnailMode) => void;
@@ -430,6 +439,8 @@ export default function ThumbnailField({
   canUseLinkImage: boolean;
   isFetchingLinkImage: boolean;
   onUseLinkImage: () => void;
+  /** Told when an upload starts and ends, so a save can wait for it. */
+  onUploadingChange: (isUploading: boolean) => void;
 }) {
   return (
     <fieldset className="flex min-w-0 flex-col gap-3">
@@ -464,6 +475,7 @@ export default function ThumbnailField({
           canUseLinkImage={canUseLinkImage}
           isFetchingLinkImage={isFetchingLinkImage}
           onUseLinkImage={onUseLinkImage}
+          onUploadingChange={onUploadingChange}
         />
       ) : null}
       {mode === "icon" ? (

@@ -445,6 +445,8 @@ function LinkFormDialog({
     choiceRevision.current += 1;
   }
   const [isFetchingImage, setIsFetchingImage] = useState(false);
+  // An upload still on its way would land after the save, and be lost.
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, startSaving] = useTransition();
   // A web address or a page of this site: what has a page to take an image
@@ -535,6 +537,7 @@ function LinkFormDialog({
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (isUploadingImage) return;
     setError(null);
     if (mode === "image" && !imageUrl) {
       setError("Agrega una imagen, o elige un ícono o ninguna miniatura.");
@@ -563,6 +566,7 @@ function LinkFormDialog({
       description="Un botón de la página de enlaces. La vista previa lo muestra mientras lo editas."
       error={error}
       isSaving={isSaving}
+      canSave={!isUploadingImage}
       hasChanges={current !== opened}
       onClose={onClose}
       onSubmit={handleSubmit}
@@ -627,6 +631,7 @@ function LinkFormDialog({
           chooseThumbnail();
           void takeLinkImage({ quiet: false });
         }}
+        onUploadingChange={setIsUploadingImage}
       />
       <fieldset className="flex min-w-0 flex-col gap-2">
         <legend className="mb-2 text-sm font-medium">Diseño del botón</legend>
@@ -1124,6 +1129,9 @@ function HeaderSection({
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isSaving, startSaving] = useTransition();
+  // A save now would refresh the saved header over the picture still on its
+  // way: it waits for the upload.
+  const [isUploading, setIsUploading] = useState(false);
   const changed =
     header.title !== saved.title ||
     header.description !== saved.description ||
@@ -1135,6 +1143,7 @@ function HeaderSection({
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (isUploading) return;
     setError(null);
     startSaving(async () => {
       const res = await attempt(() => updateLinksHeader(header));
@@ -1197,7 +1206,9 @@ function HeaderSection({
                   container: "w-fit",
                   allowedContent: "hidden",
                 }}
+                onUploadBegin={() => setIsUploading(true)}
                 onClientUploadComplete={(files) => {
+                  setIsUploading(false);
                   const avatarUrl = files?.[0]?.serverData?.imageUrl;
                   if (!avatarUrl) {
                     toast.error("Error al subir la imagen");
@@ -1206,6 +1217,7 @@ function HeaderSection({
                   onHeaderChange({ ...header, avatarUrl });
                 }}
                 onUploadError={() => {
+                  setIsUploading(false);
                   toast.error("Error al subir la imagen");
                 }}
               />
@@ -1255,7 +1267,10 @@ function HeaderSection({
             </p>
           ) : null}
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={!changed || isSaving}>
+            <Button
+              type="submit"
+              disabled={!changed || isSaving || isUploading}
+            >
               {isSaving ? "Guardando…" : "Guardar encabezado"}
             </Button>
             {changed ? (

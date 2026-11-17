@@ -12,6 +12,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import LinksManager from "@/app/dashboard/links/links-manager";
 import type { SiteLinkRow } from "@/app/lib/links/definitions";
 
+// Set `hold` to keep the next upload on its way until `finish` is called.
+const upload = vi.hoisted(() => ({
+  hold: false,
+  finish: null as null | (() => void),
+}));
 const { actions, refresh } = vi.hoisted(() => ({
   actions: {
     createSiteLink: vi.fn(),
@@ -33,19 +38,25 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 // The real button talks to UploadThing; this one hands back a finished upload.
 vi.mock("@/app/vendors/uploadthing", () => ({
   UploadButton: ({
+    onUploadBegin,
     onClientUploadComplete,
   }: {
+    onUploadBegin?: (fileName: string) => void;
     onClientUploadComplete: (
       files: { serverData: { imageUrl: string } }[],
     ) => void;
   }) => (
     <button
       type="button"
-      onClick={() =>
-        onClientUploadComplete([
-          { serverData: { imageUrl: "https://app.ufs.sh/f/subida" } },
-        ])
-      }
+      onClick={() => {
+        onUploadBegin?.("subida.png");
+        const complete = () =>
+          onClientUploadComplete([
+            { serverData: { imageUrl: "https://app.ufs.sh/f/subida" } },
+          ]);
+        if (upload.hold) upload.finish = complete;
+        else complete();
+      }}
     >
       Subir imagen
     </button>
@@ -157,6 +168,8 @@ afterEach(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  upload.hold = false;
+  upload.finish = null;
   // The editor starts at its top and goes back to its row; jsdom has no page
   // to scroll.
   vi.stubGlobal("scrollTo", vi.fn());
@@ -1172,6 +1185,24 @@ describe("the links manager", () => {
         }),
       );
       await waitFor(() => expect(refresh).toHaveBeenCalled());
+    });
+
+    it("waits for an upload on its way before saving", () => {
+      upload.hold = true;
+      renderManager();
+      const save = () =>
+        header().getByRole("button", { name: "Guardar encabezado" });
+      fireEvent.change(header().getByLabelText("Nombre"), {
+        target: { value: "Glitter Bolivia" },
+      });
+      fireEvent.click(header().getByRole("button", { name: "Subir imagen" }));
+      expect(save().hasAttribute("disabled")).toBe(true);
+      fireEvent.submit(save().closest("form")!);
+      expect(actions.updateLinksHeader).not.toHaveBeenCalled();
+
+      act(() => upload.finish!());
+      expect(save().hasAttribute("disabled")).toBe(false);
+      expect(header().getByAltText("Imagen del encabezado")).toBeTruthy();
     });
 
     it("undoes what was typed, and goes back to the stock header", () => {
