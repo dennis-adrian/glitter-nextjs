@@ -7,8 +7,8 @@ import {
   CardContent,
   CardFooter,
 } from "@/app/components/ui/card";
-import { socialsIcons, socialsUrls } from "@/app/lib/users/utils";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { socialsUrls } from "@/app/lib/users/utils";
+import BrandIcon from "@/app/components/brand-icon";
 import Image from "next/image";
 
 export function ParticipantCard({
@@ -40,7 +40,6 @@ export function ParticipantCard({
         <div className="flex items-center justify-center gap-2">
           {socials.map((social) => {
             const url = socialsUrls[social.type];
-            const icon = socialsIcons[social.type];
             return (
               <a
                 key={social.id}
@@ -48,7 +47,7 @@ export function ParticipantCard({
                 target="_blank"
                 rel="noreferrer"
               >
-                <FontAwesomeIcon className="h-6 w-6" icon={icon} />
+                <BrandIcon className="h-6 w-6" brand={social.type} />
               </a>
             );
           })}

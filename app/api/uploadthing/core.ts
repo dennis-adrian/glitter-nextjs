@@ -106,6 +106,14 @@ export const ourFileRouter = {
       imageUrl: (file as { url: string }).url,
       uploadedBy: metadata.userId,
     })),
+  // A link's thumbnail on /links, from the staff who manage that page.
+  siteLinkImage: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
+    .middleware(async () => {
+      const profile = await requireAdminOrFestivalAdmin();
+      if (!profile) throw new UploadThingError("No autorizado");
+      return { userId: profile.id };
+    })
+    .onUploadComplete(({ file }) => ({ imageUrl: file.ufsUrl })),
   // Define as many FileRoutes as you like, each with a unique routeSlug
   profilePicture: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
     .middleware(async ({ req }) => {

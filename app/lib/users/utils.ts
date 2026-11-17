@@ -1,17 +1,5 @@
 import { BaseProfile, UserSocial } from "@/app/api/users/definitions";
-import FacebookIcon from "@/app/icons/FacebookIcon";
-import InstagramIcon from "@/app/icons/InstagramIcon";
-import TikTokIcon from "@/app/icons/TikTokIcon";
-import TwitterIcon from "@/app/icons/TwitterIcon";
-import YouTubeIcon from "@/app/icons/YoutubeIcon";
-import {
-  faFacebook,
-  faInstagram,
-  faTiktok,
-  faTwitter,
-  faWhatsapp,
-  faYoutube,
-} from "@fortawesome/free-brands-svg-icons";
+import { BRAND_ICONS } from "@/app/components/brand-icon";
 
 // This methods are meant to be used in both ui and sever
 export function getUserName(
@@ -52,25 +40,10 @@ export const socialsUrls = {
   whatsapp: "https://wa.me/",
 };
 
-export const socialsIcons = {
-  instagram: faInstagram,
-  tiktok: faTiktok,
-  facebook: faFacebook,
-  twitter: faTwitter,
-  youtube: faYoutube,
-  whatsapp: faWhatsapp,
-};
-
 export const socialMediaIcons: Record<
   UserSocial["type"],
-  (props: { className?: string; fill?: string }) => React.ReactNode
-> = {
-  instagram: InstagramIcon,
-  tiktok: TikTokIcon,
-  facebook: FacebookIcon,
-  twitter: TwitterIcon,
-  youtube: YouTubeIcon,
-};
+  (props: { className?: string }) => React.ReactNode
+> = BRAND_ICONS;
 
 export const socialMediaOptions: {
   label: string;
