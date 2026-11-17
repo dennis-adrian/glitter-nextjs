@@ -28,11 +28,25 @@ import { siteLinks, siteLinksSettings } from "@/db/schema";
 
 const currentProfileMock = vi.hoisted(() => vi.fn());
 const revalidatePathMock = vi.hoisted(() => vi.fn());
+// What reaches UploadThing and other people's sites stays out of this suite;
+// which addresses are ours is the real rule.
+const importLinkImageMock = vi.hoisted(() => vi.fn());
+const removeLinkImageMock = vi.hoisted(() => vi.fn());
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: currentProfileMock,
+}));
+vi.mock("@/app/lib/rate-limit", () => ({
+  consumeActionRateLimit: vi.fn().mockResolvedValue(true),
+}));
+vi.mock("@/app/lib/uploadthing/storage", () => ({ deleteStoredFile: vi.fn() }));
+vi.mock("@/app/server/uploadthing", () => ({ utapi: {} }));
+vi.mock("@/app/lib/links/thumbnail", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/app/lib/links/thumbnail")>()),
+  importLinkImage: importLinkImageMock,
+  removeLinkImage: removeLinkImageMock,
 }));
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
@@ -114,6 +128,8 @@ describeDatabase("site links dashboard actions", () => {
     await integrationDb!.delete(siteLinksSettings);
     currentProfileMock.mockReset();
     revalidatePathMock.mockReset();
+    importLinkImageMock.mockReset();
+    removeLinkImageMock.mockReset();
     signInAs("admin");
   });
 
@@ -167,9 +183,11 @@ describeDatabase("site links dashboard actions", () => {
           actions.deleteSiteLink(link.id),
           actions.reorderSiteLinks("link", [link.id]),
           actions.setSocialPosition("bottom"),
+          actions.fetchSiteLinkImage("https://example.com/"),
         ]);
 
         for (const result of results) expect(result).toEqual(denied);
+        expect(importLinkImageMock).not.toHaveBeenCalled();
         expect(await rowsOf("link")).toEqual([link]);
         expect(await rowsOf("social")).toEqual([social]);
         expect(await integrationDb!.select().from(siteLinksSettings)).toEqual(
@@ -333,6 +351,198 @@ describeDatabase("site links dashboard actions", () => {
         success: false,
         message: "Enlace no encontrado.",
       });
+    });
+  });
+
+  describe("a link's thumbnail", () => {
+    const IMAGE = "https://abc123.ufs.sh/f/miniatura-1";
+    const OTHER_IMAGE = "https://abc123.ufs.sh/f/miniatura-2";
+    const base = { label: "Quiz", href: "/quiz" };
+
+    it("stores a library icon with its drawing, taken from the library", async () => {
+      expect(
+        await actions.createSiteLink({ ...base, icon: "si:spotify" }),
+      ).toEqual({ success: true });
+      expect(
+        await actions.createSiteLink({ ...base, icon: "lucide:camera" }),
+      ).toEqual({ success: true });
+
+      const [spotify, camera] = await rowsOf("link");
+      expect(spotify.icon).toBe("si:spotify");
+      expect(spotify.iconSvg).toMatch(/^<svg [^>]*fill="currentColor"><path /);
+      expect(camera.icon).toBe("lucide:camera");
+      expect(camera.iconSvg).toContain('stroke="currentColor"');
+
+      const visible = await queries.fetchVisibleSiteLinks();
+      expect(visible.map((row) => row.iconSvg)).toEqual([
+        spotify.iconSvg,
+        camera.iconSvg,
+      ]);
+    });
+
+    it("drops the drawing when the link goes back to a featured icon or to none", async () => {
+      await actions.createSiteLink({ ...base, icon: "si:spotify" });
+      const [link] = await rowsOf("link");
+
+      await actions.updateSiteLink(link.id, { ...base, icon: "heart" });
+      expect((await rowsOf("link"))[0]).toMatchObject({
+        icon: "heart",
+        iconSvg: null,
+      });
+
+      await actions.updateSiteLink(link.id, { ...base, icon: "none" });
+      expect((await rowsOf("link"))[0]).toMatchObject({
+        icon: "none",
+        iconSvg: null,
+        imageUrl: null,
+      });
+    });
+
+    it.each([
+      ["lucide:no-such-icon"],
+      ["si:no-such-brand"],
+      ["tabler:camera"],
+      ["lucide:../../secreto"],
+      ["<svg onload=alert(1)>"],
+      [""],
+    ])("refuses the icon %j", async (icon) => {
+      const result = await actions.createSiteLink({ ...base, icon });
+      expect(result).toEqual({
+        success: false,
+        message: "El ícono no es válido.",
+      });
+      expect(await rowsOf("link")).toEqual([]);
+    });
+
+    it("never stores a drawing the caller sends", async () => {
+      await actions.createSiteLink({
+        ...base,
+        icon: "heart",
+        iconSvg: "<svg><script>alert(1)</script></svg>",
+      } as never);
+      expect((await rowsOf("link"))[0].iconSvg).toBeNull();
+    });
+
+    it("stores an image of ours and shows it on the page", async () => {
+      expect(
+        await actions.createSiteLink({
+          ...base,
+          icon: "link",
+          imageUrl: IMAGE,
+        }),
+      ).toEqual({ success: true });
+
+      expect((await rowsOf("link"))[0].imageUrl).toBe(IMAGE);
+      expect((await queries.fetchVisibleSiteLinks())[0].imageUrl).toBe(IMAGE);
+    });
+
+    it.each([
+      ["https://evil.example.com/tracker.png"],
+      ["http://abc123.ufs.sh/f/miniatura-1"],
+      ["https://abc123.ufs.sh.evil.example.com/f/x"],
+      ["javascript:alert(1)"],
+      ["/img/local.png"],
+    ])(
+      "refuses the image %j, which is not a file of ours",
+      async (imageUrl) => {
+        const result = await actions.createSiteLink({
+          ...base,
+          icon: "link",
+          imageUrl,
+        });
+        expect(result).toEqual({
+          success: false,
+          message: "La imagen no es válida.",
+        });
+        expect(await rowsOf("link")).toEqual([]);
+      },
+    );
+
+    it("deletes the stored image once no link shows it", async () => {
+      await actions.createSiteLink({ ...base, icon: "link", imageUrl: IMAGE });
+      const [link] = await rowsOf("link");
+
+      // Saved again with the same image: it is still shown.
+      await actions.updateSiteLink(link.id, {
+        ...base,
+        label: "Otro título",
+        icon: "link",
+        imageUrl: IMAGE,
+      });
+      expect(removeLinkImageMock).not.toHaveBeenCalled();
+
+      await actions.updateSiteLink(link.id, {
+        ...base,
+        icon: "link",
+        imageUrl: OTHER_IMAGE,
+      });
+      expect(removeLinkImageMock).toHaveBeenLastCalledWith(IMAGE);
+
+      await actions.updateSiteLink(link.id, { ...base, icon: "link" });
+      expect(removeLinkImageMock).toHaveBeenLastCalledWith(OTHER_IMAGE);
+      expect((await rowsOf("link"))[0].imageUrl).toBeNull();
+    });
+
+    it("deletes the stored image with its link", async () => {
+      await actions.createSiteLink({ ...base, icon: "link", imageUrl: IMAGE });
+      const [link] = await rowsOf("link");
+
+      await actions.deleteSiteLink(link.id);
+      expect(removeLinkImageMock).toHaveBeenCalledWith(IMAGE);
+    });
+
+    it("keeps a refused update from deleting the image the link has", async () => {
+      await actions.createSiteLink({ ...base, icon: "link", imageUrl: IMAGE });
+      const [link] = await rowsOf("link");
+
+      await actions.updateSiteLink(link.id, {
+        ...base,
+        href: "javascript:alert(1)",
+        icon: "link",
+      });
+      expect(removeLinkImageMock).not.toHaveBeenCalled();
+      expect((await rowsOf("link"))[0].imageUrl).toBe(IMAGE);
+    });
+
+    it("finds a web link's own image, and saves nothing by itself", async () => {
+      importLinkImageMock.mockResolvedValue(IMAGE);
+
+      expect(
+        await actions.fetchSiteLinkImage("quiz.productoraglitter.com/glitter"),
+      ).toEqual({ success: true, imageUrl: IMAGE });
+      expect(importLinkImageMock).toHaveBeenCalledWith(
+        "https://quiz.productoraglitter.com/glitter",
+      );
+      expect(await rowsOf("link")).toEqual([]);
+    });
+
+    it("says so when the link has no image, or reading it fails", async () => {
+      const none = {
+        success: false,
+        message: "No encontramos una imagen en ese enlace. Puedes subir una.",
+      };
+      importLinkImageMock.mockResolvedValue(null);
+      expect(await actions.fetchSiteLinkImage("https://example.com/")).toEqual(
+        none,
+      );
+
+      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+      importLinkImageMock.mockRejectedValue(new Error("UploadThing is down"));
+      expect(await actions.fetchSiteLinkImage("https://example.com/")).toEqual(
+        none,
+      );
+      logged.mockRestore();
+    });
+
+    it.each([
+      ["/store"],
+      ["info@productoraglitter.com"],
+      ["javascript:alert(1)"],
+      [""],
+    ])("does not go looking for the image of %j", async (href) => {
+      const result = await actions.fetchSiteLinkImage(href);
+      expect(result.success).toBe(false);
+      expect(importLinkImageMock).not.toHaveBeenCalled();
     });
   });
 

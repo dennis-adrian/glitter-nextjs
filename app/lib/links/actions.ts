@@ -4,6 +4,13 @@ import { and, asc, eq, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { libraryIconSvg } from "@/app/lib/links/icon-library";
+import {
+  importLinkImage,
+  isStoredImageUrl,
+  removeLinkImage,
+} from "@/app/lib/links/thumbnail";
+import { consumeActionRateLimit } from "@/app/lib/rate-limit";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { siteLinks, siteLinksSettings } from "@/db/schema";
@@ -11,15 +18,16 @@ import { siteLinks, siteLinksSettings } from "@/db/schema";
 import {
   LINKS_ADMIN_PATH,
   LINKS_PATH,
-  SITE_LINK_ICONS,
+  NO_ICON,
   SITE_LINK_ICON_LABELS,
   SITE_LINK_KINDS,
   SITE_LINK_LABEL_MAX,
   SOCIAL_POSITIONS,
+  isFeaturedIcon,
   isSocialNetwork,
+  parseLibraryIcon,
   parseSiteLinkHref,
   parseSocialValue,
-  type SiteLinkIcon,
   type SiteLinkKind,
   type SiteLinkRow,
   type SocialNetwork,
@@ -62,14 +70,23 @@ export async function listSiteLinksForAdmin(): Promise<SiteLinkRow[]> {
 export type SiteLinkInput = {
   label: string;
   href: string;
-  icon: SiteLinkIcon;
+  /** A featured icon, `lucide:…` or `si:…` from the library, or `none`. */
+  icon: string;
+  /** A thumbnail shown in place of the icon; a file of ours, or none. */
+  imageUrl?: string | null;
 };
 
-function validateInput(
+type ValidInput = {
+  label: string;
+  href: string;
+  icon: string;
+  iconSvg: string | null;
+  imageUrl: string | null;
+};
+
+async function validateInput(
   data: SiteLinkInput,
-):
-  | { ok: true; label: string; href: string; icon: SiteLinkIcon }
-  | { ok: false; message: string } {
+): Promise<({ ok: true } & ValidInput) | { ok: false; message: string }> {
   const label = data.label?.trim() ?? "";
   if (!label) return { ok: false, message: "El título es obligatorio." };
   if (label.length > SITE_LINK_LABEL_MAX) {
@@ -78,12 +95,74 @@ function validateInput(
       message: `El título no puede pasar de ${SITE_LINK_LABEL_MAX} caracteres.`,
     };
   }
-  if (!SITE_LINK_ICONS.includes(data.icon)) {
+
+  const icon = typeof data.icon === "string" ? data.icon : "";
+  // The drawing is taken from the library here, never from the caller.
+  let iconSvg: string | null = null;
+  if (parseLibraryIcon(icon)) {
+    iconSvg = await libraryIconSvg(icon);
+    if (!iconSvg) return { ok: false, message: "El ícono no es válido." };
+  } else if (icon !== NO_ICON && !isFeaturedIcon(icon)) {
     return { ok: false, message: "El ícono no es válido." };
   }
+
+  const imageUrl = data.imageUrl?.trim() || null;
+  if (imageUrl && !isStoredImageUrl(imageUrl)) {
+    return { ok: false, message: "La imagen no es válida." };
+  }
+
   const href = parseSiteLinkHref(data.href ?? "");
   if (!href.ok) return href;
-  return { ok: true, label, href: href.href, icon: data.icon };
+  return { ok: true, label, href: href.href, icon, iconSvg, imageUrl };
+}
+
+/** Pages a person may ask for the image of, per minute. */
+const LINK_IMAGES_PER_MINUTE = 10;
+
+/**
+ * Finds the image the page at `href` offers for itself and keeps a copy for
+ * a link's thumbnail. Nothing is saved to a link here: the form shows the
+ * image, and saving the form is what puts it on the page.
+ */
+export async function fetchSiteLinkImage(
+  href: string,
+): Promise<
+  { success: true; imageUrl: string } | { success: false; message: string }
+> {
+  const profile = await getCurrentUserProfile();
+  if (!profile || !canManageLinks(profile.role)) {
+    return { success: false, message: "No tienes permisos." };
+  }
+  const parsed = parseSiteLinkHref(typeof href === "string" ? href : "");
+  if (!parsed.ok) return { success: false, message: parsed.message };
+  if (!/^https?:\/\//i.test(parsed.href)) {
+    return {
+      success: false,
+      message: "Solo los enlaces web tienen una imagen propia.",
+    };
+  }
+  const allowed = await consumeActionRateLimit({
+    key: `site-link-image:${profile.id}`,
+    limit: LINK_IMAGES_PER_MINUTE,
+    windowMs: 60_000,
+  });
+  if (!allowed) {
+    return {
+      success: false,
+      message: "Demasiados intentos. Espera un momento.",
+    };
+  }
+
+  try {
+    const imageUrl = await importLinkImage(parsed.href);
+    if (imageUrl) return { success: true, imageUrl };
+  } catch (error) {
+    console.error("fetchSiteLinkImage", error);
+  }
+  return {
+    success: false,
+    message: "No encontramos una imagen en ese enlace. Puedes subir una.",
+  };
 }
 
 /** A new link goes last, and is visible at once. */
@@ -94,7 +173,7 @@ export async function createSiteLink(
   if (!canManageLinks(profile?.role)) {
     return { success: false, message: "No tienes permisos." };
   }
-  const input = validateInput(data);
+  const input = await validateInput(data);
   if (!input.ok) return { success: false, message: input.message };
 
   await db.insert(siteLinks).values({
@@ -102,6 +181,8 @@ export async function createSiteLink(
     label: input.label,
     href: input.href,
     icon: input.icon,
+    iconSvg: input.iconSvg,
+    imageUrl: input.imageUrl,
     sortOrder: await nextSortOrder("link"),
   });
   invalidateLinks();
@@ -192,20 +273,31 @@ export async function updateSiteLink(
   if (!canManageLinks(profile?.role)) {
     return { success: false, message: "No tienes permisos." };
   }
-  const input = validateInput(data);
+  const input = await validateInput(data);
   if (!input.ok) return { success: false, message: input.message };
 
+  const [previous] = await db
+    .select({ imageUrl: siteLinks.imageUrl })
+    .from(siteLinks)
+    .where(and(eq(siteLinks.id, id), eq(siteLinks.kind, "link")))
+    .limit(1);
   const [updated] = await db
     .update(siteLinks)
     .set({
       label: input.label,
       href: input.href,
       icon: input.icon,
+      iconSvg: input.iconSvg,
+      imageUrl: input.imageUrl,
       updatedAt: new Date(),
     })
     .where(and(eq(siteLinks.id, id), eq(siteLinks.kind, "link")))
     .returning({ id: siteLinks.id });
   if (!updated) return { success: false, message: "Enlace no encontrado." };
+  // The thumbnail it had is no longer shown anywhere.
+  if (previous?.imageUrl && previous.imageUrl !== input.imageUrl) {
+    await removeLinkImage(previous.imageUrl);
+  }
 
   invalidateLinks();
   return { success: true };
@@ -239,10 +331,11 @@ export async function deleteSiteLink(id: number): Promise<ActionResult> {
   const deleted = await db
     .delete(siteLinks)
     .where(eq(siteLinks.id, id))
-    .returning({ id: siteLinks.id });
+    .returning({ id: siteLinks.id, imageUrl: siteLinks.imageUrl });
   if (deleted.length === 0) {
     return { success: false, message: "Enlace no encontrado." };
   }
+  await removeLinkImage(deleted[0].imageUrl);
   invalidateLinks();
   return { success: true };
 }

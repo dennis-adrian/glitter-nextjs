@@ -2,15 +2,19 @@
 
 import Link from "next/link";
 
-import SiteLinkIcon from "@/app/components/links/site-link-icon";
+import SiteLinkIcon, {
+  SiteLinkThumb,
+} from "@/app/components/links/site-link-icon";
 import {
   isExternalLink,
   mailtoAddress,
+  thumbnailMode,
   toSiteLinkIcon,
   type PublicSiteLink,
 } from "@/app/lib/links/definitions";
 import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
+import { cn } from "@/app/lib/utils";
 
 const CARD_CLASS =
   "flex min-h-16 w-full items-center gap-3 rounded-xl border border-brand-border bg-brand-card px-4 py-3 text-brand-ink shadow-xs transition hover:border-brand-primary hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary";
@@ -73,15 +77,23 @@ export default function SiteLinkCard({
   preview?: boolean;
 }) {
   const email = mailtoAddress(link.href);
+  const thumbnail = thumbnailMode(link);
   const content = (
     <>
-      <SiteLinkIcon
-        icon={toSiteLinkIcon(link.icon)}
+      <SiteLinkThumb
+        link={link}
         className="h-6 w-6 shrink-0"
+        imageClassName="size-10"
       />
-      {/* Centred on the card, not on the space the icon leaves: the right
-          padding matches the icon and its gap. */}
-      <span className="min-w-0 flex-1 pr-9 text-center">
+      {/* Centred on the card, not on the space the thumbnail leaves: the
+          right padding matches the thumbnail and its gap. */}
+      <span
+        className={cn(
+          "min-w-0 flex-1 text-center",
+          thumbnail === "image" && "pr-[3.25rem]",
+          thumbnail === "icon" && "pr-9",
+        )}
+      >
         <span className="block font-semibold break-words">{link.label}</span>
         {email ? (
           <span className="block text-sm text-brand-neutral wrap-anywhere">

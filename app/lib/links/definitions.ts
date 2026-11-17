@@ -13,7 +13,7 @@ export type SiteLinkRow = typeof siteLinks.$inferSelect;
 /** What the public page needs of a link, and nothing else. */
 export type PublicSiteLink = Pick<
   SiteLinkRow,
-  "id" | "kind" | "label" | "href" | "icon"
+  "id" | "kind" | "label" | "href" | "icon" | "iconSvg" | "imageUrl"
 >;
 
 /**
@@ -23,6 +23,11 @@ export type PublicSiteLink = Pick<
 export const SITE_LINK_KINDS = ["link", "social"] as const;
 export type SiteLinkKind = (typeof SITE_LINK_KINDS)[number];
 
+/**
+ * The featured icons: the ones the picker offers first, drawn by the app
+ * itself. Any other icon of the Lucide and Simple Icons libraries can be
+ * searched for; see `SiteLinkIconRef`.
+ */
 export const SITE_LINK_ICONS = [
   "link",
   "sparkles",
@@ -62,6 +67,68 @@ export function toSiteLinkIcon(value: string): SiteLinkIcon {
   return (SITE_LINK_ICONS as readonly string[]).includes(value)
     ? (value as SiteLinkIcon)
     : "link";
+}
+
+/** The libraries the picker searches beyond the featured icons. */
+export const ICON_LIBRARY_SETS = ["lucide", "si"] as const;
+export type IconLibrarySet = (typeof ICON_LIBRARY_SETS)[number];
+
+/** Shown over a library's results in the picker. */
+export const ICON_LIBRARY_LABELS: Record<IconLibrarySet, string> = {
+  lucide: "Lucide",
+  si: "Marcas",
+};
+
+const LIBRARY_ICON_RE = /^(lucide|si):([a-z0-9][a-z0-9_-]{0,63})$/;
+
+/** `none` is a link shown with its title alone. */
+export const NO_ICON = "none";
+
+/**
+ * What a link's `icon` column holds: a featured icon, an icon of a library
+ * (`lucide:camera`, `si:spotify`) or `none`.
+ */
+export type SiteLinkIconRef =
+  | SiteLinkIcon
+  | `${IconLibrarySet}:${string}`
+  | typeof NO_ICON;
+
+/** The library and name of a `lucide:…` or `si:…` icon, or null. */
+export function parseLibraryIcon(
+  value: string,
+): { set: IconLibrarySet; name: string } | null {
+  const match = LIBRARY_ICON_RE.exec(value);
+  return match ? { set: match[1] as IconLibrarySet, name: match[2] } : null;
+}
+
+export function isFeaturedIcon(value: string): value is SiteLinkIcon {
+  return (SITE_LINK_ICONS as readonly string[]).includes(value);
+}
+
+/** Where the picker's thumbnails of a library icon come from. */
+export function libraryIconUrl(set: IconLibrarySet, name: string) {
+  return `/api/links/icons/${set}/${name}`;
+}
+
+/**
+ * How a link's thumbnail is chosen in the dashboard: an image, an icon, or
+ * nothing beside its title.
+ */
+export const THUMBNAIL_MODES = ["image", "icon", "none"] as const;
+export type ThumbnailMode = (typeof THUMBNAIL_MODES)[number];
+
+export const THUMBNAIL_MODE_LABELS: Record<ThumbnailMode, string> = {
+  image: "Imagen",
+  icon: "Ícono",
+  none: "Ninguna",
+};
+
+/** What a link shows beside its title, from what is stored for it. */
+export function thumbnailMode(
+  link: Pick<SiteLinkRow, "icon" | "imageUrl">,
+): ThumbnailMode {
+  if (link.imageUrl) return "image";
+  return link.icon === NO_ICON ? "none" : "icon";
 }
 
 export const SITE_LINK_LABEL_MAX = 80;

@@ -538,10 +538,20 @@ export const siteLinks = pgTable(
     /** A path on this site, or an `https:` or `mailto:` address. */
     href: text("href").notNull(),
     /**
-     * One of `SITE_LINK_ICONS` (app/lib/links/definitions.ts). For a social
+     * A featured icon (`SITE_LINK_ICONS`, app/lib/links/definitions.ts), one of
+     * the library's (`lucide:camera`, `si:spotify`) or `none`. For a social
      * icon it is the network itself.
      */
     icon: text("icon").notNull().default("link"),
+    /**
+     * The drawing of an icon picked from the whole library (`lucide:…`,
+     * `si:…`), kept as it was when picked so the page neither loads the
+     * library nor loses the icon when the library drops it. Null for the
+     * featured icons, which the app draws itself.
+     */
+    iconSvg: text("icon_svg"),
+    /** A thumbnail shown in place of the icon: a file of ours on UploadThing. */
+    imageUrl: text("image_url"),
     sortOrder: integer("sort_order").notNull().default(0),
     isVisible: boolean("is_visible").default(true).notNull(),
     /** Taps on the public page, counted by `/api/links/[id]/click`. */

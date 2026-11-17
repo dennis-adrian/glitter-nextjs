@@ -29,6 +29,7 @@ import {
 import { useRouter } from "next/navigation";
 import {
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   useTransition,
@@ -37,7 +38,9 @@ import {
 import { toast } from "sonner";
 
 import LinksPageView from "@/app/components/links/links-page-view";
-import SiteLinkIcon from "@/app/components/links/site-link-icon";
+import SiteLinkIcon, {
+  SiteLinkThumb,
+} from "@/app/components/links/site-link-icon";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -73,6 +76,7 @@ import {
   createSiteLink,
   createSocialLink,
   deleteSiteLink,
+  fetchSiteLinkImage,
   reorderSiteLinks,
   setSiteLinkVisible,
   setSocialPosition,
@@ -81,7 +85,7 @@ import {
 } from "@/app/lib/links/actions";
 import {
   LINKS_PATH,
-  SITE_LINK_ICONS,
+  NO_ICON,
   SITE_LINK_ICON_LABELS,
   SITE_LINK_LABEL_MAX,
   SOCIAL_NETWORKS,
@@ -90,13 +94,14 @@ import {
   SOCIAL_POSITION_LABELS,
   isSocialNetwork,
   socialValueFromHref,
-  toSiteLinkIcon,
-  type SiteLinkIcon as SiteLinkIconName,
+  thumbnailMode,
+  type ThumbnailMode,
   type SiteLinkKind,
   type SiteLinkRow,
   type SocialNetwork,
   type SocialPosition,
 } from "@/app/lib/links/definitions";
+import ThumbnailField from "@/app/dashboard/links/thumbnail-field";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { cn } from "@/app/lib/utils";
 
@@ -175,7 +180,15 @@ function SortableRow({
             !link.isVisible && "opacity-50",
           )}
         >
-          <SiteLinkIcon icon={toSiteLinkIcon(link.icon)} className="size-5" />
+          {link.icon === NO_ICON && !link.imageUrl ? (
+            <span className="text-xs text-muted-foreground">Aa</span>
+          ) : (
+            <SiteLinkThumb
+              link={link}
+              className="size-5"
+              imageClassName="size-10"
+            />
+          )}
         </span>
         <div className={cn("min-w-0 flex-1", !link.isVisible && "opacity-60")}>
           <p className="text-sm font-medium break-words">{link.label}</p>
@@ -262,17 +275,61 @@ function LinkFormDialog({
   const existing = editing === "new" ? null : editing;
   const [label, setLabel] = useState(existing?.label ?? "");
   const [href, setHref] = useState(existing?.href ?? "");
-  const [icon, setIcon] = useState<SiteLinkIconName>(
-    existing ? toSiteLinkIcon(existing.icon) : "link",
+  // The icon and the image are kept apart from the mode, so switching between
+  // the three and back loses neither.
+  const [mode, setMode] = useState<ThumbnailMode>(
+    existing ? thumbnailMode(existing) : "icon",
   );
+  const [icon, setIcon] = useState(
+    existing && existing.icon !== NO_ICON ? existing.icon : "link",
+  );
+  const [imageUrl, setImageUrl] = useState<string | null>(
+    existing?.imageUrl ?? null,
+  );
+  // Until the person chooses a thumbnail themselves, a new link takes the
+  // image its own page offers, as Linktree does.
+  const thumbnailChosen = useRef(existing != null);
+  const [isFetchingImage, setIsFetchingImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, startSaving] = useTransition();
+  const isWebLink = /^(https?:\/\/)?[^\s/@]+\.[^\s@]+$/i.test(href.trim());
+
+  async function takeLinkImage({ quiet }: { quiet: boolean }) {
+    if (isFetchingImage || !isWebLink) return;
+    setIsFetchingImage(true);
+    try {
+      const res = await fetchSiteLinkImage(href);
+      if (res.success) {
+        // Found on its own, it must not undo a choice made while it loaded.
+        if (!quiet || !thumbnailChosen.current) {
+          setImageUrl(res.imageUrl);
+          setMode("image");
+        }
+      } else if (!quiet) {
+        toast.error(res.message);
+      }
+    } catch (fetchError) {
+      console.error("link image", fetchError);
+      if (!quiet) toast.error("No se pudo buscar la imagen del enlace.");
+    } finally {
+      setIsFetchingImage(false);
+    }
+  }
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
+    if (mode === "image" && !imageUrl) {
+      setError("Agrega una imagen, o elige un ícono o ninguna miniatura.");
+      return;
+    }
     startSaving(async () => {
-      const input = { label, href, icon };
+      const input = {
+        label,
+        href,
+        icon: mode === "none" ? NO_ICON : icon,
+        imageUrl: mode === "image" ? imageUrl : null,
+      };
       const res = await attempt(() =>
         existing ? updateSiteLink(existing.id, input) : createSiteLink(input),
       );
@@ -318,6 +375,11 @@ function LinkFormDialog({
               id="site-link-href"
               value={href}
               onChange={(event) => setHref(event.target.value)}
+              onBlur={() => {
+                if (!thumbnailChosen.current && !imageUrl) {
+                  void takeLinkImage({ quiet: true });
+                }
+              }}
               placeholder="https://… , /store o un correo"
               inputMode="url"
               autoCapitalize="none"
@@ -330,28 +392,29 @@ function LinkFormDialog({
               correo.
             </p>
           </div>
-          <fieldset className="flex flex-col gap-2">
-            <legend className="mb-2 text-sm font-medium">Ícono</legend>
-            <div className="flex flex-wrap gap-2">
-              {SITE_LINK_ICONS.map((name) => (
-                <button
-                  key={name}
-                  type="button"
-                  aria-pressed={icon === name}
-                  aria-label={SITE_LINK_ICON_LABELS[name]}
-                  title={SITE_LINK_ICON_LABELS[name]}
-                  onClick={() => setIcon(name)}
-                  className={cn(
-                    "flex size-10 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-                    icon === name &&
-                      "border-primary bg-primary/10 text-primary hover:text-primary",
-                  )}
-                >
-                  <SiteLinkIcon icon={name} className="size-5" />
-                </button>
-              ))}
-            </div>
-          </fieldset>
+          <ThumbnailField
+            mode={mode}
+            onModeChange={(next) => {
+              thumbnailChosen.current = true;
+              setMode(next);
+            }}
+            icon={icon}
+            onIconChange={(next) => {
+              thumbnailChosen.current = true;
+              setIcon(next);
+            }}
+            imageUrl={imageUrl}
+            onImageChange={(next) => {
+              thumbnailChosen.current = true;
+              setImageUrl(next);
+            }}
+            canUseLinkImage={isWebLink}
+            isFetchingLinkImage={isFetchingImage}
+            onUseLinkImage={() => {
+              thumbnailChosen.current = true;
+              void takeLinkImage({ quiet: false });
+            }}
+          />
           {error ? (
             <p role="alert" className="text-sm break-words text-destructive">
               {error}
