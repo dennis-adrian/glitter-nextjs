@@ -17,9 +17,13 @@ import { notificationDeliveries } from "@/db/schema";
  * Webhooks repeat, arrive out of order and name emails we have no row for:
  *
  * - an unknown id updates nothing, and is not an error;
- * - the stronger outcome wins whatever order they arrive in: a delay, then
- *   delivered, then bounced, failed or suppressed (all final), then a spam
- *   complaint, which can follow a delivery and outranks everything;
+ * - the stronger outcome wins whatever order they arrive in: a delay, then a
+ *   soft bounce, then delivered, then a hard bounce, failed or suppressed
+ *   (all final), then a spam complaint, which can follow a delivery and
+ *   outranks everything. A soft bounce (`Transient`/`Temporary`, or
+ *   `Undetermined`) ranks below delivered: Resend's guide says it may be an
+ *   autoresponder, so it never undoes a reported delivery, while a hard
+ *   bounce after one (an asynchronous rejection) does;
  * - between two outcomes of the same rank, the newer event (Resend's
  *   `created_at`, which retries keep) wins, so a repeat changes nothing.
  *
@@ -28,14 +32,14 @@ import { notificationDeliveries } from "@/db/schema";
 
 const DETAIL_MAX_LENGTH = 500;
 
-function rank(outcome: SQL) {
-  return sql`(CASE ${outcome}
-    WHEN 'delivery_delayed' THEN 1
-    WHEN 'delivered' THEN 2
-    WHEN 'bounced' THEN 3
-    WHEN 'failed' THEN 3
-    WHEN 'suppressed' THEN 3
-    WHEN 'complained' THEN 4
+function rank(outcome: SQL, bounceType: SQL) {
+  return sql`(CASE
+    WHEN ${outcome} = 'delivery_delayed' THEN 1
+    WHEN ${outcome} = 'bounced'
+      AND lower(coalesce(${bounceType}, '')) <> 'permanent' THEN 2
+    WHEN ${outcome} = 'delivered' THEN 3
+    WHEN ${outcome} IN ('bounced', 'failed', 'suppressed') THEN 4
+    WHEN ${outcome} = 'complained' THEN 5
     ELSE 0
   END)`;
 }
@@ -70,6 +74,8 @@ export async function recordDeliveryEvent(event: DeliveryEvent) {
   }
 
   const incoming = sql`${event.outcome}::email_delivery_outcome`;
+  const incomingRank = rank(incoming, sql`${event.bounceType}::text`);
+  const currentRank = rank(sql`${d.deliveryOutcome}`, sql`${d.bounceType}`);
   const at = sql`(${eventAt.toISOString()}::timestamptz AT TIME ZONE 'UTC')`;
   const updated = await db
     .update(d)
@@ -85,9 +91,9 @@ export async function recordDeliveryEvent(event: DeliveryEvent) {
         byEmail,
         sql`(
           ${d.deliveryOutcome} IS NULL
-          OR ${rank(incoming)} > ${rank(sql`${d.deliveryOutcome}`)}
+          OR ${incomingRank} > ${currentRank}
           OR (
-            ${rank(incoming)} = ${rank(sql`${d.deliveryOutcome}`)}
+            ${incomingRank} = ${currentRank}
             AND ${at} > coalesce(${d.deliveryOutcomeAt}, '-infinity'::timestamp)
           )
         )`,

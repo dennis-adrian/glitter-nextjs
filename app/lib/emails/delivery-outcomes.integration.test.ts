@@ -255,6 +255,52 @@ describeDatabase("Resend delivery outcomes", () => {
     });
   });
 
+  it("never lets a soft bounce undo a delivery, but lets a hard one", async () => {
+    const soft = emailId("soft_then_delivered");
+    const late = emailId("delivered_then_soft");
+    const hard = emailId("delivered_then_hard");
+    await Promise.all([insertRow(soft), insertRow(late), insertRow(hard)]);
+
+    // The webhook page's spelling of a soft bounce, then the delivery.
+    await post(
+      event("email.bounced", soft, 1, {
+        bounce: { type: "Temporary", subType: "MailboxFull", message: "" },
+      }),
+    );
+    await post(event("email.delivered", soft, 2));
+    expect(await rowFor(soft)).toMatchObject({
+      deliveryOutcome: "delivered",
+      bounceType: null,
+    });
+
+    // An autoresponder's "bounce" after the delivery changes nothing.
+    await post(event("email.delivered", late, 1));
+    await post(
+      event("email.bounced", late, 2, {
+        bounce: { type: "Transient", subType: "General", message: "" },
+      }),
+    );
+    expect((await rowFor(late)).deliveryOutcome).toBe("delivered");
+
+    // A hard bounce after the delivery (an asynchronous rejection) wins.
+    await post(event("email.delivered", hard, 1));
+    await post(
+      event("email.bounced", hard, 2, {
+        bounce: {
+          type: "Permanent",
+          subType: "General",
+          message: "Rejected",
+          diagnosticCode: ["smtp; 550 5.1.1 user unknown"],
+        },
+      }),
+    );
+    expect(await rowFor(hard)).toMatchObject({
+      deliveryOutcome: "bounced",
+      bounceType: "Permanent",
+      deliveryDetail: "General: Rejected: smtp; 550 5.1.1 user unknown",
+    });
+  });
+
   it("matches each row of a batch by its own id", async () => {
     const a = emailId("batch_a");
     const b = emailId("batch_b");
@@ -334,7 +380,11 @@ describeDatabase("Resend delivery outcomes", () => {
       outcome: ["bounced"],
     });
     expect(bounced!.rows.map((row) => row.recipient.email).sort()).toEqual(
-      [emailId("suppress"), emailId("transient")]
+      [
+        emailId("delivered_then_hard"),
+        emailId("suppress"),
+        emailId("transient"),
+      ]
         .map((id) => `${id}@example.test`)
         .sort(),
     );

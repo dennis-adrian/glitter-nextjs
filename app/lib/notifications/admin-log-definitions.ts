@@ -88,7 +88,7 @@ export type NotificationLogDelivery = {
   outcome: NotificationLogOutcome;
   /** When Resend recorded it. */
   at: Date | null;
-  /** A bounce's type as Resend says it: `Permanent`, `Transient`… */
+  /** A bounce's type as Resend says it: `Permanent`, `Transient`/`Temporary`, `Undetermined`. */
   bounceType: string | null;
   /** Why it bounced, failed or was suppressed. */
   detail: string | null;
@@ -100,7 +100,10 @@ export function notificationLogOutcomeLabel(delivery: NotificationLogDelivery) {
   if (delivery.outcome !== "bounced" || !delivery.bounceType) return label;
   const type = delivery.bounceType.toLowerCase();
   if (type === "permanent") return `${label} (permanente)`;
-  if (type === "transient") return `${label} (temporal)`;
+  // Resend's guide says `Transient`; its webhook page shows `Temporary`.
+  if (type === "transient" || type === "temporary")
+    return `${label} (temporal)`;
+  if (type === "undetermined") return `${label} (sin causa clara)`;
   return `${label} (${delivery.bounceType})`;
 }
 

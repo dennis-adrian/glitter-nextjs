@@ -178,6 +178,12 @@ export function suppressionChanges(event: unknown): SuppressionChange[] {
   }
 }
 
+function envelopeTime(event: Data) {
+  if (typeof event.created_at !== "string") return null;
+  const time = new Date(event.created_at);
+  return Number.isNaN(time.getTime()) ? null : time;
+}
+
 export type DeliveryOutcome =
   | "delivery_delayed"
   | "delivered"
@@ -192,7 +198,10 @@ export type DeliveryEvent =
       kind: "outcome";
       emailId: string;
       outcome: DeliveryOutcome;
-      /** A bounce's type: `Permanent`, `Transient` or `Undetermined`. */
+      /**
+       * A bounce's type: `Permanent`, `Transient` or `Undetermined` (Resend's
+       * bounce guide); its webhook page shows `Temporary` for a soft one.
+       */
       bounceType: string | null;
       detail: string | null;
       eventAt: Date | null;
@@ -230,7 +239,9 @@ export function deliveryEvent(event: unknown): DeliveryEvent | null {
   const payload = data as Data;
   const emailId = text(payload.email_id);
   if (!emailId) return null;
-  const eventAt = eventTime(event as Data, payload);
+  // The envelope's time only: `data.created_at` is when the email was
+  // created, the same for every event of it, and would order nothing.
+  const eventAt = envelopeTime(event as Data);
 
   if (type === "email.opened" || type === "email.clicked") {
     return {
@@ -248,12 +259,17 @@ export function deliveryEvent(event: unknown): DeliveryEvent | null {
   if (outcome === "bounced") {
     const bounce = (payload.bounce ?? {}) as Data;
     bounceType = text(bounce.type);
-    detail = joined(bounce.subType, bounce.message);
+    // The receiving server's SMTP reply is the most specific reason.
+    const diagnostic = Array.isArray(bounce.diagnosticCode)
+      ? bounce.diagnosticCode.map(text).find(Boolean)
+      : null;
+    detail = joined(bounce.subType, bounce.message, diagnostic);
   } else if (outcome === "failed") {
     detail = joined((payload.failed as Data | undefined)?.reason);
   } else if (outcome === "suppressed") {
     const suppressed = (payload.suppressed ?? {}) as Data;
-    // The SDK types say `type`; the suppression rules above read `reason`.
+    // Resend's docs send `type` (`OnAccountSuppressionList`) and `message`;
+    // `reason` is read too only because the suppression rules above read it.
     detail = joined(suppressed.type ?? suppressed.reason, suppressed.message);
   }
   return { kind: "outcome", emailId, outcome, bounceType, detail, eventAt };

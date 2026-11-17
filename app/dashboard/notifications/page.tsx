@@ -67,7 +67,8 @@ export default async function NotificationLogPage(props: {
             push solo dicen que el servicio push los tomó.
           </p>
           <p>
-            Las direcciones que rebotaron o nos reportaron quedan en{" "}
+            Las direcciones que rebotaron de forma permanente o nos reportaron
+            como spam quedan en{" "}
             <Link
               href="/dashboard/emails"
               className="text-primary underline-offset-2 hover:underline"

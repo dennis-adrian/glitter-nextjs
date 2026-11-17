@@ -100,6 +100,20 @@ describe("notificationLogStatusLabel", () => {
       ),
     ).toBe("Rebotó (temporal)");
     expect(
+      notificationLogStatusLabel(
+        "email",
+        "sent",
+        delivery("bounced", "Temporary"),
+      ),
+    ).toBe("Rebotó (temporal)");
+    expect(
+      notificationLogStatusLabel(
+        "email",
+        "sent",
+        delivery("bounced", "Undetermined"),
+      ),
+    ).toBe("Rebotó (sin causa clara)");
+    expect(
       notificationLogStatusLabel("email", "sent", delivery("complained")),
     ).toBe("Reportado como spam");
     expect(

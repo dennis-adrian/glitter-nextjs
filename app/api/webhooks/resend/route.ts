@@ -22,9 +22,12 @@ const MAX_PAYLOAD_BYTES = 256 * 1024;
  * delivery row. An event for an email we have no row for changes nothing
  * and is still acknowledged.
  *
- * Any 2xx acknowledges an event; anything else makes Resend retry it for
- * about a day, so a database error answers 500. Deliveries can repeat and
- * arrive out of order, which `recordSuppression` tolerates.
+ * A 200 acknowledges an event (Resend's docs promise no more); anything else
+ * makes Resend retry it on its schedule (about 27 hours in all), so a
+ * database error answers 500. An endpoint that keeps failing (a missing or
+ * rotated secret) is disabled by Resend, which emails the team: re-enable it
+ * and replay the failed messages from Resend's Webhooks page. Deliveries can
+ * repeat and arrive out of order, which both recorders tolerate.
  */
 export async function POST(request: Request) {
   const secret = serverEnv.RESEND_WEBHOOK_SECRET;

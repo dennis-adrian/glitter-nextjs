@@ -129,7 +129,8 @@ export function StatusCell({
     notes.push(`Resend: ${formatDateWithTime(row.delivery.at)}`);
   }
   if (row.clickedAt) notes.push("Con clic");
-  else if (row.openedAt) notes.push("Abierto");
+  // Resend's own reading: privacy proxies and link scanners open mail too.
+  else if (row.openedAt) notes.push("Abierto según Resend");
   const variant = row.delivery
     ? OUTCOME_VARIANTS[row.delivery.outcome]
     : STATUS_VARIANTS[row.status];

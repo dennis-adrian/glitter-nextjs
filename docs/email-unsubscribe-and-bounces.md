@@ -87,8 +87,15 @@ of a batch keeps its own). `status` stays our send state; the outcome lives in
   answers 200.
 - The reservation and disciplinary outboxes store no Resend id, so their
   emails never get an outcome.
+- Bounce types follow Resend's bounce guide (`Permanent`, `Transient`,
+  `Undetermined`); its webhook page shows `Temporary` for a soft bounce, so
+  both spellings are read as soft. Only `Permanent` suppresses. A soft bounce
+  ranks below delivered (it may be an autoresponder); a hard bounce after a
+  delivery replaces it. The detail keeps the sub-type, Resend's message and
+  the server's first SMTP diagnostic line.
 - Opens and clicks only arrive with open/click tracking on in Resend, which
-  we leave off: it rewrites links and adds a pixel.
+  we leave off: it rewrites links and adds a pixel, and privacy proxies and
+  link scanners trigger "opens" nobody made.
 
 Setup, once per environment that should receive events:
 
@@ -102,7 +109,11 @@ Setup, once per environment that should receive events:
    and `email.failed` (plus `email.opened` / `email.clicked` only if tracking
    is ever turned on).
 3. Copy the signing secret (`whsec_…`) into the environment as
-   `RESEND_WEBHOOK_SECRET`, then redeploy.
+   `RESEND_WEBHOOK_SECRET`, then redeploy promptly: until then every event
+   is refused. Resend retries each one for about 27 hours (5 s, 5 min,
+   30 min, 2 h, 5 h, 10 h, 10 h) and then gives up; an endpoint that keeps
+   failing is disabled, and Resend emails the team. Re-enable it on Resend's
+   Webhooks page and replay the failed messages there.
 
 Resend already refuses to deliver to addresses on its own suppression list and
 reports each refused send as `email.suppressed`, so the old undeliverable

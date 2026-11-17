@@ -296,6 +296,44 @@ describe("deliveryEvent", () => {
     });
   });
 
+  it("reads the webhook page's `Temporary` and the SMTP diagnostic line", () => {
+    expect(
+      deliveryEvent({
+        ...base,
+        type: "email.bounced",
+        data: {
+          ...base.data,
+          bounce: {
+            type: "Permanent",
+            subType: "General",
+            message: "Mailbox unavailable",
+            diagnosticCode: ["smtp; 550 5.5.0 mailbox unavailable"],
+          },
+        },
+      }),
+    ).toMatchObject({
+      bounceType: "Permanent",
+      detail:
+        "General: Mailbox unavailable: smtp; 550 5.5.0 mailbox unavailable",
+    });
+    expect(
+      deliveryEvent({
+        ...base,
+        type: "email.bounced",
+        data: {
+          ...base.data,
+          bounce: { type: "Temporary", subType: "General" },
+        },
+      }),
+    ).toMatchObject({ bounceType: "Temporary", detail: "General" });
+  });
+
+  it("orders by the event's time only, never the email's creation time", () => {
+    expect(
+      deliveryEvent({ type: "email.delivered", data: base.data }),
+    ).toMatchObject({ eventAt: null });
+  });
+
   it("reads why Resend failed or suppressed it", () => {
     expect(
       deliveryEvent({
