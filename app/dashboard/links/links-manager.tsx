@@ -100,6 +100,28 @@ import {
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { cn } from "@/app/lib/utils";
 
+type ActionResult = { success: true } | { success: false; message: string };
+
+/**
+ * An action's answer, or a refusal in its place when the call itself fails
+ * (no connection, a server error). Every caller already undoes its optimistic
+ * change and says why on a refusal, so a failed call takes that same path
+ * instead of escaping the transition to the error page.
+ */
+async function attempt(
+  run: () => Promise<ActionResult>,
+): Promise<ActionResult> {
+  try {
+    return await run();
+  } catch (error) {
+    console.error("links manager action failed", error);
+    return {
+      success: false,
+      message: "No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.",
+    };
+  }
+}
+
 const clicksFormat = new Intl.NumberFormat("es-BO");
 
 function clicksLabel(count: number) {
@@ -251,9 +273,9 @@ function LinkFormDialog({
     setError(null);
     startSaving(async () => {
       const input = { label, href, icon };
-      const res = existing
-        ? await updateSiteLink(existing.id, input)
-        : await createSiteLink(input);
+      const res = await attempt(() =>
+        existing ? updateSiteLink(existing.id, input) : createSiteLink(input),
+      );
       if (!res.success) {
         setError(res.message);
         return;
@@ -386,9 +408,11 @@ function SocialFormDialog({
     if (!network) return;
     setError(null);
     startSaving(async () => {
-      const res = existing
-        ? await updateSocialLink(existing.id, value)
-        : await createSocialLink({ network, value });
+      const res = await attempt(() =>
+        existing
+          ? updateSocialLink(existing.id, value)
+          : createSocialLink({ network, value }),
+      );
       if (!res.success) {
         setError(res.message);
         return;
@@ -520,7 +544,7 @@ function SocialPositionPicker({ initial }: { initial: SocialPosition }) {
     const previous = position;
     setPosition(next);
     startTransition(async () => {
-      const res = await setSocialPosition(next);
+      const res = await attempt(() => setSocialPosition(next));
       if (!res.success) {
         toast.error(res.message);
         setPosition(previous);
@@ -608,9 +632,11 @@ function LinksSection({
     const next = arrayMove(items, oldIndex, newIndex);
     setItems(next);
     startTransition(async () => {
-      const res = await reorderSiteLinks(
-        kind,
-        next.map((item) => item.id),
+      const res = await attempt(() =>
+        reorderSiteLinks(
+          kind,
+          next.map((item) => item.id),
+        ),
       );
       if (!res.success) {
         toast.error(res.message);
@@ -623,7 +649,7 @@ function LinksSection({
 
   function toggleVisible(link: SiteLinkRow, isVisible: boolean) {
     startTransition(async () => {
-      const res = await setSiteLinkVisible(link.id, isVisible);
+      const res = await attempt(() => setSiteLinkVisible(link.id, isVisible));
       if (!res.success) {
         toast.error(res.message);
         return;
@@ -641,7 +667,7 @@ function LinksSection({
     if (!deleting) return;
     const { id } = deleting;
     startTransition(async () => {
-      const res = await deleteSiteLink(id);
+      const res = await attempt(() => deleteSiteLink(id));
       setDeleting(null);
       if (!res.success) {
         toast.error(res.message);

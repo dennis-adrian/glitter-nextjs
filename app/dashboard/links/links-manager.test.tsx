@@ -222,6 +222,52 @@ describe("the links manager", () => {
     expect(toggle.getAttribute("aria-checked")).toBe("false");
   });
 
+  it("reports a call that fails outright and undoes what it showed", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { toast } = await import("sonner");
+    const offline = new Error("Failed to fetch");
+    renderManager();
+
+    // The switch: stays as it was.
+    actions.setSiteLinkVisible.mockRejectedValue(offline);
+    const [toggle] = screen.getAllByRole("switch", { checked: true });
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+
+    // The position: goes back to the one saved.
+    actions.setSocialPosition.mockRejectedValue(offline);
+    fireEvent.click(screen.getByLabelText("Abajo"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(2));
+    expect((screen.getByLabelText("Arriba") as HTMLInputElement).checked).toBe(
+      true,
+    );
+
+    // Deleting: the row is still there.
+    actions.deleteSiteLink.mockRejectedValue(offline);
+    fireEvent.click(screen.getByRole("button", { name: "Eliminar Tiendita" }));
+    fireEvent.click(screen.getByRole("button", { name: "Eliminar" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(3));
+    expect(screen.getByText("Tiendita")).toBeTruthy();
+
+    // A form: stays open and says so.
+    actions.createSiteLink.mockRejectedValue(offline);
+    fireEvent.click(screen.getByRole("button", { name: "Nuevo enlace" }));
+    fireEvent.change(screen.getByLabelText("Título"), {
+      target: { value: "Entradas" },
+    });
+    fireEvent.change(screen.getByLabelText("Enlace"), {
+      target: { value: "/entradas" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    expect((await screen.findByRole("alert")).textContent).toMatch(
+      /No se pudo guardar/,
+    );
+
+    expect(refresh).not.toHaveBeenCalled();
+    logged.mockRestore();
+  });
+
   it("deletes only after confirming", async () => {
     renderManager();
     fireEvent.click(screen.getByRole("button", { name: "Eliminar Tiendita" }));
