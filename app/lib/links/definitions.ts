@@ -431,7 +431,11 @@ export function parseScheduleInput(
   if (!trimmed) return null;
   if (!SCHEDULE_INPUT_RE.test(trimmed)) return undefined;
   const date = new Date(`${trimmed}:00${LINKS_UTC_OFFSET}`);
-  return Number.isNaN(date.getTime()) ? undefined : date;
+  if (Number.isNaN(date.getTime())) return undefined;
+  // The engine rolls an out-of-range day or hour over (`02-30` is March
+  // 2nd, `24:00` the next day): a value that does not read back as itself
+  // named no real moment.
+  return toScheduleInput(date) === trimmed ? date : undefined;
 }
 
 const scheduleInputFormat = new Intl.DateTimeFormat("sv-SE", {

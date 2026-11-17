@@ -559,6 +559,35 @@ describeDatabase("site links dashboard actions", () => {
       expect(removeLinkImageMock).toHaveBeenCalledWith(IMAGE);
     });
 
+    it("keeps an image another link or the header still shows", async () => {
+      await actions.createSiteLink({ ...base, icon: "link", imageUrl: IMAGE });
+      await actions.createSiteLink({
+        ...base,
+        label: "Segundo",
+        icon: "link",
+        imageUrl: IMAGE,
+      });
+      const [first, second] = await rowsOf("link");
+
+      await actions.updateSiteLink(first.id, { ...base, icon: "link" });
+      expect(removeLinkImageMock).not.toHaveBeenCalled();
+
+      await actions.updateLinksHeader({
+        title: "Glitter",
+        description: "",
+        avatarUrl: IMAGE,
+      });
+      await actions.deleteSiteLink(second.id);
+      expect(removeLinkImageMock).not.toHaveBeenCalled();
+
+      await actions.updateLinksHeader({
+        title: "Glitter",
+        description: "",
+        avatarUrl: null,
+      });
+      expect(removeLinkImageMock).toHaveBeenCalledWith(IMAGE);
+    });
+
     it("keeps a refused update from deleting the image the link has", async () => {
       await actions.createSiteLink({ ...base, icon: "link", imageUrl: IMAGE });
       const [link] = await rowsOf("link");

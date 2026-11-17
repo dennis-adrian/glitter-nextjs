@@ -247,6 +247,9 @@ describe("a link's schedule", () => {
       "2026-11-20",
       "2026-11-20T09:00:00Z",
       "2026-13-40T09:00",
+      // Rolled over by the engine into another day.
+      "2026-02-30T09:00",
+      "2026-11-20T24:00",
       "2026-11-20T09:00'; drop table site_links; --",
     ]) {
       expect(parseScheduleInput(value)).toBeUndefined();

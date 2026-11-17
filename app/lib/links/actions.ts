@@ -54,6 +54,28 @@ function invalidateLinks() {
   revalidatePath(LINKS_ADMIN_PATH, "page");
 }
 
+/**
+ * Deletes an image a write just let go of, unless a link or the header still
+ * shows it: the actions accept any stored file, so two rows can hold the
+ * same one. Runs after the write, so the row that dropped it is not counted.
+ */
+async function removeUnusedLinkImage(url: string | null | undefined) {
+  if (!url) return;
+  const [link] = await db
+    .select({ id: siteLinks.id })
+    .from(siteLinks)
+    .where(eq(siteLinks.imageUrl, url))
+    .limit(1);
+  if (link) return;
+  const [header] = await db
+    .select({ id: siteLinksSettings.id })
+    .from(siteLinksSettings)
+    .where(eq(siteLinksSettings.avatarUrl, url))
+    .limit(1);
+  if (header) return;
+  await removeLinkImage(url);
+}
+
 /** Where a new row of `kind` goes: after the last one of its kind. */
 async function nextSortOrder(kind: SiteLinkKind) {
   const [{ maxOrder }] = await db
@@ -373,7 +395,7 @@ export async function updateSiteLink(
   if (!updated) return { success: false, message: "Enlace no encontrado." };
   // The thumbnail it had is no longer shown anywhere.
   if (previous?.imageUrl && previous.imageUrl !== input.imageUrl) {
-    await removeLinkImage(previous.imageUrl);
+    await removeUnusedLinkImage(previous.imageUrl);
   }
 
   invalidateLinks();
@@ -412,7 +434,7 @@ export async function deleteSiteLink(id: number): Promise<ActionResult> {
   if (deleted.length === 0) {
     return { success: false, message: "Enlace no encontrado." };
   }
-  await removeLinkImage(deleted[0].imageUrl);
+  await removeUnusedLinkImage(deleted[0].imageUrl);
   invalidateLinks();
   return { success: true };
 }
@@ -551,7 +573,7 @@ export async function updateLinksHeader(
     });
   // The picture it had is no longer shown anywhere.
   if (previous?.avatarUrl && previous.avatarUrl !== avatarUrl) {
-    await removeLinkImage(previous.avatarUrl);
+    await removeUnusedLinkImage(previous.avatarUrl);
   }
   invalidateLinks();
   return { success: true };

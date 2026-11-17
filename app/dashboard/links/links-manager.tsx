@@ -169,7 +169,8 @@ function SortableRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: link.id });
+    // Held while a change is on its way, so each reorder's undo is its own.
+  } = useSortable({ id: link.id, disabled });
   const schedule = scheduleLabel(link, now);
   const shownNow = isWithinSchedule(link, now);
 
@@ -185,9 +186,10 @@ function SortableRow({
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <button
           type="button"
-          className="shrink-0 cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
+          className="shrink-0 cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-50"
           {...attributes}
           {...listeners}
+          disabled={disabled}
           aria-label={`Arrastrar para reordenar ${link.label}`}
         >
           <GripVerticalIcon className="size-5" />
@@ -340,7 +342,11 @@ function EditorScreen({
         ) : null}
       </div>
       <p className="text-sm text-muted-foreground">{description}</p>
-      {children}
+      {/* Held still while a save is on its way: an edit made now would not
+          be in it, and its answer closes the editor. */}
+      <fieldset disabled={isSaving} className="flex min-w-0 flex-col gap-5">
+        {children}
+      </fieldset>
       <AlertDialog open={leaving} onOpenChange={setLeaving}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -429,6 +435,15 @@ function LinkFormDialog({
   // Until the person chooses a thumbnail themselves, a new link takes the
   // image its own page offers, as Linktree does.
   const thumbnailChosen = useRef(existing != null);
+  // Bumped by every edit of the address and every thumbnail choice, so an
+  // image that arrives after either is dropped: it is for another address,
+  // or a choice made since replaced it.
+  const hrefRevision = useRef(0);
+  const choiceRevision = useRef(0);
+  function chooseThumbnail() {
+    thumbnailChosen.current = true;
+    choiceRevision.current += 1;
+  }
   const [isFetchingImage, setIsFetchingImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, startSaving] = useTransition();
@@ -441,15 +456,21 @@ function LinkFormDialog({
   async function takeLinkImage({ quiet }: { quiet: boolean }) {
     if (isFetchingImage || !isWebLink) return;
     setIsFetchingImage(true);
+    const startedHref = hrefRevision.current;
+    const startedChoice = choiceRevision.current;
     try {
       const res = await fetchSiteLinkImage(href);
+      const superseded =
+        hrefRevision.current !== startedHref ||
+        choiceRevision.current !== startedChoice;
       if (res.success) {
-        // Found on its own, it must not undo a choice made while it loaded.
-        if (!quiet || !thumbnailChosen.current) {
+        // Found on its own, it must not undo a choice made while it loaded;
+        // asked for, it still yields to an address or choice made since.
+        if (!superseded && (!quiet || !thumbnailChosen.current)) {
           setImageUrl(res.imageUrl);
           setMode("image");
         }
-      } else if (!quiet) {
+      } else if (!quiet && !superseded) {
         toast.error(res.message);
       }
     } catch (fetchError) {
@@ -562,7 +583,10 @@ function LinkFormDialog({
         <Input
           id="site-link-href"
           value={href}
-          onChange={(event) => setHref(event.target.value)}
+          onChange={(event) => {
+            hrefRevision.current += 1;
+            setHref(event.target.value);
+          }}
           onBlur={() => {
             if (!thumbnailChosen.current && !imageUrl) {
               void takeLinkImage({ quiet: true });
@@ -582,25 +606,25 @@ function LinkFormDialog({
       <ThumbnailField
         mode={mode}
         onModeChange={(next) => {
-          thumbnailChosen.current = true;
+          chooseThumbnail();
           setMode(next);
         }}
         icon={icon}
         iconSvg={iconSvg}
         onIconChange={(next, nextSvg) => {
-          thumbnailChosen.current = true;
+          chooseThumbnail();
           setIcon(next);
           setIconSvg(nextSvg);
         }}
         imageUrl={imageUrl}
         onImageChange={(next) => {
-          thumbnailChosen.current = true;
+          chooseThumbnail();
           setImageUrl(next);
         }}
         canUseLinkImage={isWebLink}
         isFetchingLinkImage={isFetchingImage}
         onUseLinkImage={() => {
-          thumbnailChosen.current = true;
+          chooseThumbnail();
           void takeLinkImage({ quiet: false });
         }}
       />
@@ -939,6 +963,9 @@ function LinksSection({
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
+    // One change at a time: a second reorder's undo would restore the
+    // first's unsaved order.
+    if (isPending) return;
     if (!over || active.id === over.id) return;
     const oldIndex = items.findIndex((item) => item.id === active.id);
     const newIndex = items.findIndex((item) => item.id === over.id);
@@ -1130,129 +1157,133 @@ function HeaderSection({
           La imagen, el nombre y la descripción que abren la página.
         </p>
       </div>
-      <form
-        onSubmit={handleSubmit}
-        className="flex min-w-0 flex-col gap-4 rounded-lg border border-border bg-card p-3"
-      >
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
-          {header.avatarUrl ? (
-            <Image
-              src={header.avatarUrl}
-              alt="Imagen del encabezado"
-              width={128}
-              height={128}
-              className="size-16 shrink-0 rounded-full border border-border object-cover"
-            />
-          ) : (
-            <GlitterLogo
-              variant="dark"
-              height={64}
-              width={64}
-              className="shrink-0 rounded-full"
-            />
-          )}
-          <div className="flex flex-wrap items-center gap-2">
-            <UploadButton
-              endpoint="siteLinkImage"
-              content={{
-                button({ ready, isUploading, uploadProgress }) {
-                  if (isUploading) return `${uploadProgress}%`;
-                  if (!ready) return "Cargando…";
-                  return header.avatarUrl ? "Cambiar imagen" : "Subir imagen";
-                },
-                allowedContent: () => null,
-              }}
-              appearance={{
-                button: headerUploadAppearance,
-                container: "w-fit",
-                allowedContent: "hidden",
-              }}
-              onClientUploadComplete={(files) => {
-                const avatarUrl = files?.[0]?.serverData?.imageUrl;
-                if (!avatarUrl) {
-                  toast.error("Error al subir la imagen");
-                  return;
-                }
-                onHeaderChange({ ...header, avatarUrl });
-              }}
-              onUploadError={() => {
-                toast.error("Error al subir la imagen");
-              }}
-            />
+      <form onSubmit={handleSubmit} className="min-w-0">
+        {/* Held still while a save is on its way: its refresh would put the
+            saved header back over an edit made meanwhile. */}
+        <fieldset
+          disabled={isSaving}
+          className="flex min-w-0 flex-col gap-4 rounded-lg border border-border bg-card p-3"
+        >
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
             {header.avatarUrl ? (
+              <Image
+                src={header.avatarUrl}
+                alt="Imagen del encabezado"
+                width={128}
+                height={128}
+                className="size-16 shrink-0 rounded-full border border-border object-cover"
+              />
+            ) : (
+              <GlitterLogo
+                variant="dark"
+                height={64}
+                width={64}
+                className="shrink-0 rounded-full"
+              />
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <UploadButton
+                endpoint="siteLinkImage"
+                content={{
+                  button({ ready, isUploading, uploadProgress }) {
+                    if (isUploading) return `${uploadProgress}%`;
+                    if (!ready) return "Cargando…";
+                    return header.avatarUrl ? "Cambiar imagen" : "Subir imagen";
+                  },
+                  allowedContent: () => null,
+                }}
+                appearance={{
+                  button: headerUploadAppearance,
+                  container: "w-fit",
+                  allowedContent: "hidden",
+                }}
+                onClientUploadComplete={(files) => {
+                  const avatarUrl = files?.[0]?.serverData?.imageUrl;
+                  if (!avatarUrl) {
+                    toast.error("Error al subir la imagen");
+                    return;
+                  }
+                  onHeaderChange({ ...header, avatarUrl });
+                }}
+                onUploadError={() => {
+                  toast.error("Error al subir la imagen");
+                }}
+              />
+              {header.avatarUrl ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-muted-foreground"
+                  onClick={() => onHeaderChange({ ...header, avatarUrl: null })}
+                >
+                  Usar el logo
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="links-header-title">Nombre</Label>
+            <Input
+              id="links-header-title"
+              value={header.title}
+              maxLength={LINKS_TITLE_MAX}
+              onChange={(event) =>
+                onHeaderChange({ ...header, title: event.target.value })
+              }
+              required
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="links-header-description">Descripción</Label>
+            <Textarea
+              id="links-header-description"
+              value={header.description}
+              maxLength={LINKS_DESCRIPTION_MAX}
+              rows={2}
+              onChange={(event) =>
+                onHeaderChange({ ...header, description: event.target.value })
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              {header.description.length}/{LINKS_DESCRIPTION_MAX}. Déjala vacía
+              para no mostrar ninguna.
+            </p>
+          </div>
+          {error ? (
+            <p role="alert" className="text-sm break-words text-destructive">
+              {error}
+            </p>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" disabled={!changed || isSaving}>
+              {isSaving ? "Guardando…" : "Guardar encabezado"}
+            </Button>
+            {changed ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isSaving}
+                onClick={() => {
+                  setError(null);
+                  onHeaderChange(saved);
+                }}
+              >
+                Deshacer
+              </Button>
+            ) : null}
+            {isStock ? null : (
               <Button
                 type="button"
                 variant="ghost"
                 className="text-muted-foreground"
-                onClick={() => onHeaderChange({ ...header, avatarUrl: null })}
+                disabled={isSaving}
+                onClick={() => onHeaderChange(DEFAULT_LINKS_HEADER)}
               >
-                Usar el logo
+                Volver al original
               </Button>
-            ) : null}
+            )}
           </div>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="links-header-title">Nombre</Label>
-          <Input
-            id="links-header-title"
-            value={header.title}
-            maxLength={LINKS_TITLE_MAX}
-            onChange={(event) =>
-              onHeaderChange({ ...header, title: event.target.value })
-            }
-            required
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="links-header-description">Descripción</Label>
-          <Textarea
-            id="links-header-description"
-            value={header.description}
-            maxLength={LINKS_DESCRIPTION_MAX}
-            rows={2}
-            onChange={(event) =>
-              onHeaderChange({ ...header, description: event.target.value })
-            }
-          />
-          <p className="text-xs text-muted-foreground">
-            {header.description.length}/{LINKS_DESCRIPTION_MAX}. Déjala vacía
-            para no mostrar ninguna.
-          </p>
-        </div>
-        {error ? (
-          <p role="alert" className="text-sm break-words text-destructive">
-            {error}
-          </p>
-        ) : null}
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit" disabled={!changed || isSaving}>
-            {isSaving ? "Guardando…" : "Guardar encabezado"}
-          </Button>
-          {changed ? (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isSaving}
-              onClick={() => {
-                setError(null);
-                onHeaderChange(saved);
-              }}
-            >
-              Deshacer
-            </Button>
-          ) : null}
-          {isStock ? null : (
-            <Button
-              type="button"
-              variant="ghost"
-              className="text-muted-foreground"
-              disabled={isSaving}
-              onClick={() => onHeaderChange(DEFAULT_LINKS_HEADER)}
-            >
-              Volver al original
-            </Button>
-          )}
-        </div>
+        </fieldset>
       </form>
     </section>
   );
