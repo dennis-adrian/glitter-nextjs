@@ -306,6 +306,21 @@ async function offerArrivalsSince(page: PageState, since: number) {
 }
 
 /**
+ * The browser's service workers, or null where it has none: an in-app
+ * browser (Instagram's, on an iPhone) leaves `navigator.serviceWorker` out
+ * or undefined. Read from the argument on purpose. The production build
+ * takes `navigator.serviceWorker`, written out, to always be there, and
+ * drops an `if (!navigator.serviceWorker) return`; every page then crashed
+ * in those browsers on the first line that used it.
+ */
+function workerContainer(browser: {
+  serviceWorker?: ServiceWorkerContainer;
+}): ServiceWorkerContainer | null {
+  if (!("serviceWorker" in browser)) return null;
+  return browser.serviceWorker ?? null;
+}
+
+/**
  * The page's side of Glitter's service worker (public/sw.js). A notification
  * that arrives while the page is open refreshes the inbox and the bell (and
  * the iPhone app on screen offers it, as iOS may show nothing then); a tap
@@ -318,12 +333,8 @@ export default function ServiceWorkerMessages() {
   const stateRef = useRef<PageState | null>(null);
 
   useEffect(() => {
-    // Asked with `in`, not by reading the value: the production build drops
-    // an `if (!navigator.serviceWorker) return`, and an in-app browser
-    // (Instagram's, on an iPhone) has no service workers at all, so every
-    // page crashed there on the first line that used it.
-    if (!("serviceWorker" in navigator)) return;
-    const container = navigator.serviceWorker;
+    const container = workerContainer(navigator);
+    if (!container) return;
     // Kept across StrictMode's second run of this effect, which must not
     // open a tap again.
     const page = (stateRef.current ??= {
