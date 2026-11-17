@@ -11,25 +11,13 @@ import {
 } from "@/app/lib/reservations/request-registry";
 import * as schema from "@/db/schema";
 import { reservationRequestRegistry, users } from "@/db/schema";
+import { assertDisposableTestDatabase } from "@/app/lib/testing/disposable-test-database";
 
 vi.mock("server-only", () => ({}));
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
-function isSafeTestDatabase(url: string): boolean {
-  try {
-    const databaseName = decodeURIComponent(new URL(url).pathname.slice(1));
-    return /(^|[_-])(test|ci)([_-]|$)/i.test(databaseName);
-  } catch {
-    return false;
-  }
-}
-
-if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
-  throw new Error(
-    "TEST_DATABASE_URL must target a database whose name contains 'test' or 'ci'.",
-  );
-}
+assertDisposableTestDatabase(testDatabaseUrl);
 
 const poolA = testDatabaseUrl
   ? new Pool({ connectionString: testDatabaseUrl, max: 1 })

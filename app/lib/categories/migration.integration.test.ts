@@ -8,19 +8,11 @@ import {
   CANONICAL_LABEL_SQL,
   normalizeCategoryLabel,
 } from "@/app/lib/categories/label";
+import { assertDisposableTestDatabase } from "@/app/lib/testing/disposable-test-database";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
-if (testDatabaseUrl) {
-  const databaseName = decodeURIComponent(
-    new URL(testDatabaseUrl).pathname.slice(1),
-  );
-  if (!/(^|[_-])(test|ci)([_-]|$)/i.test(databaseName)) {
-    throw new Error(
-      "TEST_DATABASE_URL must target a database whose name contains 'test' or 'ci'.",
-    );
-  }
-}
+assertDisposableTestDatabase(testDatabaseUrl);
 
 const migration = readFileSync(
   join(process.cwd(), "drizzle/0236_manageable_categories.sql"),

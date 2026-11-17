@@ -25,6 +25,7 @@ import {
   stands,
   users,
 } from "@/db/schema";
+import { assertDisposableTestDatabase } from "@/app/lib/testing/disposable-test-database";
 
 const { after, sendEmail } = vi.hoisted(() => ({
   after: vi.fn(),
@@ -43,20 +44,7 @@ vi.mock("@/app/vendors/resend", async (importOriginal) => ({
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
-function isSafeTestDatabase(url: string): boolean {
-  try {
-    const databaseName = decodeURIComponent(new URL(url).pathname.slice(1));
-    return /(^|[_-])(test|ci)([_-]|$)/i.test(databaseName);
-  } catch {
-    return false;
-  }
-}
-
-if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
-  throw new Error(
-    "TEST_DATABASE_URL must target a database whose name contains 'test' or 'ci'.",
-  );
-}
+assertDisposableTestDatabase(testDatabaseUrl);
 
 const pool = testDatabaseUrl
   ? new Pool({ connectionString: testDatabaseUrl })

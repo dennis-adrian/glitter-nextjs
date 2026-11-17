@@ -16,8 +16,31 @@ export GLITTER_TEST_DB_PORT=55432
 pnpm db:test:up
 ```
 
-The database name deliberately contains `test`; integration tests reject other
-database names as a safety check.
+The database name deliberately contains `test`, and the container is on this
+machine. Every integration and migration suite checks both before it connects,
+and refuses anything else (`app/lib/testing/disposable-test-database.ts`):
+
+- the URL must be a Postgres URL whose database name contains `test` or `ci`
+  (`glitter_test`, `glitter-ci`, `test_glitter`);
+- its host must be this machine — `localhost`, `127.0.0.1` or `::1` — or be
+  listed in `GLITTER_DISPOSABLE_TEST_DB_HOSTS`.
+
+The name is not enough on its own: a deployment database, Railway's included,
+can be called `glitter_test`. A suite that is refused throws before creating any
+connection; with no test database URL set at all, the database tests skip.
+
+`GLITTER_DISPOSABLE_TEST_DB_HOSTS` approves other hosts, comma-separated and
+case-insensitive, for a database that is disposable but not on loopback — a CI
+service container reached as `postgres`, or `host.docker.internal` from inside a
+container:
+
+```bash
+GLITTER_DISPOSABLE_TEST_DB_HOSTS=postgres TEST_DATABASE_URL="postgres://glitter:glitter@postgres:5432/glitter_test" pnpm exec vitest run app/lib/orders/actions.integration.test.ts
+```
+
+Whoever sets that variable is vouching that the host only holds throwaway data.
+Never list a Railway or other deployment host in it. The refusal message names
+the host only, never the credentials in the URL.
 
 ## Migrate and test
 

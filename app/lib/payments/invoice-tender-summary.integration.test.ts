@@ -23,6 +23,7 @@ import {
   stands,
   users,
 } from "@/db/schema";
+import { assertDisposableTestDatabase } from "@/app/lib/testing/disposable-test-database";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({
@@ -61,21 +62,7 @@ vi.mock("@/db", () => ({
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
-function isSafeTestDatabase(url: string): boolean {
-  try {
-    return /(^|[_-])(test|ci)([_-]|$)/i.test(
-      decodeURIComponent(new URL(url).pathname.slice(1)),
-    );
-  } catch {
-    return false;
-  }
-}
-
-if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
-  throw new Error(
-    "TEST_DATABASE_URL must target a database whose name contains 'test' or 'ci'.",
-  );
-}
+assertDisposableTestDatabase(testDatabaseUrl);
 
 const pool = testDatabaseUrl
   ? new Pool({ connectionString: testDatabaseUrl, max: 10 })

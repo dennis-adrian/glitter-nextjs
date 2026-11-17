@@ -32,24 +32,11 @@ vi.mock("@/app/lib/impersonation/viewer", () => ({
 }));
 
 import { allowImpersonationWrites, installWriteGuard } from "@/db/write-guard";
+import { assertDisposableTestDatabase } from "@/app/lib/testing/disposable-test-database";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
-function isSafeTestDatabase(url: string): boolean {
-  try {
-    return /(^|[_-])(test|ci)([_-]|$)/i.test(
-      decodeURIComponent(new URL(url).pathname.slice(1)),
-    );
-  } catch {
-    return false;
-  }
-}
-
-if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
-  throw new Error(
-    "TEST_DATABASE_URL must target a database whose name contains 'test' or 'ci'.",
-  );
-}
+assertDisposableTestDatabase(testDatabaseUrl);
 
 const pool = testDatabaseUrl
   ? installWriteGuard(new Pool({ connectionString: testDatabaseUrl, max: 2 }))

@@ -39,7 +39,8 @@ pnpm db:test:up && pnpm migrate:test && pnpm test:integration
 
 - Set `GLITTER_TEST_DB_PORT` (default `55432`) when running concurrent worktrees, so each gets its own container and port. It has to be set for every one of the three commands.
 - Override `POSTGRES_URL` in the shell before running `pnpm dev` against a scratch database — `process.env` wins over `.env.local`.
-- The suites still refuse any database whose name lacks `test`/`ci`, as a backstop.
+- Every integration and migration suite refuses a database that has not been approved as disposable, before it connects (`app/lib/testing/disposable-test-database.ts`). The URL (`TEST_DATABASE_URL`, or `MERCH_TEST_DATABASE_URL` for the merch collections suite) must be Postgres, name a database containing `test`/`ci`, and sit on this machine (`localhost`, `127.0.0.1`, `::1`). A name alone proves nothing: a Railway database can be called `glitter_test`.
+- Another host (a CI service container, `host.docker.internal`) has to be approved by name in `GLITTER_DISPOSABLE_TEST_DB_HOSTS`, comma-separated, by whoever set that run up. Never list a Railway or other deployment host there. New suites call `assertDisposableTestDatabase(url)` at module level, before creating any `Pool`/`Client`; an unset URL lets them skip.
 - `pnpm db:test:down` stops the container and keeps the volume; `pnpm db:test:logs` tails it.
 
 ## Cursor Cloud specific instructions

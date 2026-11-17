@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { VercelEnvironment } from "@/app/lib/comunicados/contracts";
 import * as schema from "@/db/schema";
 import { notifications } from "@/db/schema";
+import { assertDisposableTestDatabase } from "@/app/lib/testing/disposable-test-database";
 
 /**
  * Which campaigns a lane-wide run may take (docs/IMPLEMENTATION-comunicados.md
@@ -21,21 +22,7 @@ vi.mock("server-only", () => ({}));
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
-function isSafeTestDatabase(url: string): boolean {
-  try {
-    return /(^|[_-])(test|ci)([_-]|$)/i.test(
-      decodeURIComponent(new URL(url).pathname.slice(1)),
-    );
-  } catch {
-    return false;
-  }
-}
-
-if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
-  throw new Error(
-    "TEST_DATABASE_URL must target a database whose name contains 'test' or 'ci'.",
-  );
-}
+assertDisposableTestDatabase(testDatabaseUrl);
 
 const pool = testDatabaseUrl
   ? new Pool({ connectionString: testDatabaseUrl, max: 2 })

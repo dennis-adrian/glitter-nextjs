@@ -17,6 +17,7 @@ import {
 import type { ComunicadoAudience } from "@/app/lib/comunicados/definitions";
 import type { BulkTiming } from "@/app/lib/notifications/bulk-email";
 import * as schema from "@/db/schema";
+import { assertDisposableTestDatabase } from "@/app/lib/testing/disposable-test-database";
 
 /**
  * "Enviar a más personas" against a real database
@@ -84,21 +85,7 @@ vi.mock("@/env", async (importOriginal) => {
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
-function isSafeTestDatabase(url: string): boolean {
-  try {
-    return /(^|[_-])(test|ci)([_-]|$)/i.test(
-      decodeURIComponent(new URL(url).pathname.slice(1)),
-    );
-  } catch {
-    return false;
-  }
-}
-
-if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
-  throw new Error(
-    "TEST_DATABASE_URL must target a database whose name contains 'test' or 'ci'.",
-  );
-}
+assertDisposableTestDatabase(testDatabaseUrl);
 
 const pool = testDatabaseUrl
   ? new Pool({ connectionString: testDatabaseUrl, max: 6 })

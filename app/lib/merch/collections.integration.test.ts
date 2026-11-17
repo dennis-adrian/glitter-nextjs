@@ -12,6 +12,7 @@ import { readFile } from "node:fs/promises";
 import { Client } from "pg";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "@/db/schema";
+import { assertDisposableTestDatabase } from "@/app/lib/testing/disposable-test-database";
 
 const state = vi.hoisted(() => ({
   db: undefined as unknown as NodePgDatabase<typeof schema>,
@@ -40,6 +41,7 @@ import { saveMerchCollection } from "./actions";
 
 // Explicit opt-in, with a loopback + test-database guard. Never reads .env.local.
 const connectionString = process.env.MERCH_TEST_DATABASE_URL;
+assertDisposableTestDatabase(connectionString, "MERCH_TEST_DATABASE_URL");
 if (connectionString) {
   const url = new URL(connectionString);
   if (

@@ -2,13 +2,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { assertDisposableTestDatabase } from "@/app/lib/testing/disposable-test-database";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
-const testDatabaseName = testDatabaseUrl
-  ? decodeURIComponent(new URL(testDatabaseUrl).pathname.slice(1))
-  : "";
-const canUseTestDatabase =
-  !!testDatabaseUrl && /(^|[_-])(test|ci)([_-]|$)/i.test(testDatabaseName);
+assertDisposableTestDatabase(testDatabaseUrl);
+const canUseTestDatabase = !!testDatabaseUrl;
 
 const migration = readFileSync(
   join(process.cwd(), "drizzle/0240_calm_expediter.sql"),
