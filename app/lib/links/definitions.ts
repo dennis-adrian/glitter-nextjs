@@ -204,7 +204,10 @@ export function parseSiteLinkHref(
   if (!url.hostname.includes(".")) {
     return { ok: false, message: "El enlace no es válido." };
   }
-  return { ok: true, href: candidate };
+  // The address as it was parsed, not as it was typed. `https:instagram.com/x`
+  // parses to Instagram here, but a page served over https reads the same
+  // text as a path of its own site: what is stored must be what was checked.
+  return { ok: true, href: url.href };
 }
 
 /** Whether a link leaves this site, and so opens outside the app's router. */

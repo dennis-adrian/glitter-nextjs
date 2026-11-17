@@ -66,6 +66,53 @@ describe("mailtoAddress", () => {
   });
 });
 
+describe("an address that parses to one place and reads as another", () => {
+  // Where a browser goes for a link's `href` on the page it is shown on.
+  const destination = (href: string, page: string) => new URL(href, page).host;
+  const PAGES = [
+    "https://www.glitter.com.bo/links",
+    "http://localhost:3000/links",
+  ];
+
+  it.each([
+    "https:instagram.com/glitter.bo",
+    "https:/instagram.com/glitter.bo",
+    "HTTPS:instagram.com/glitter.bo",
+    "http:instagram.com/glitter.bo",
+  ])("stores %s as the address it was checked as", (typed) => {
+    const parsed = parseSiteLinkHref(typed);
+    if (!parsed.ok) throw new Error(parsed.message);
+    expect(parsed.href).toMatch(/^https?:\/\/instagram\.com\/glitter\.bo$/);
+    for (const page of PAGES) {
+      expect(destination(parsed.href, page)).toBe("instagram.com");
+    }
+  });
+
+  it("does the same for a social icon, whose network was checked on that host", () => {
+    const parsed = parseSocialValue(
+      "instagram",
+      "https:instagram.com/glitter.bo",
+    );
+    expect(parsed).toEqual({
+      ok: true,
+      href: "https://instagram.com/glitter.bo",
+    });
+  });
+
+  it("leaves an ordinary address as it was typed, a bare domain with its slash", () => {
+    expect(
+      parseSiteLinkHref("https://www.tiktok.com/@glitter.bo?lang=es"),
+    ).toEqual({ ok: true, href: "https://www.tiktok.com/@glitter.bo?lang=es" });
+    expect(parseSiteLinkHref("glitter.com.bo")).toEqual({
+      ok: true,
+      href: "https://glitter.com.bo/",
+    });
+    expect(
+      parseSiteLinkHref("https://Quiz.ProductoraGlitter.com/Glitter"),
+    ).toEqual({ ok: true, href: "https://quiz.productoraglitter.com/Glitter" });
+  });
+});
+
 describe("toSiteLinkIcon", () => {
   it("falls back to the plain link icon for an unknown name", () => {
     expect(toSiteLinkIcon("tiktok")).toBe("tiktok");
