@@ -526,12 +526,7 @@ describe("the links manager", () => {
         target: { value: "/entradas" },
       });
       fireEvent.click(screen.getByRole("radio", { name: "Destacado" }));
-      // Featured is the image: the form goes to where one is added.
-      expect(
-        screen
-          .getByRole("radio", { name: "Imagen" })
-          .getAttribute("aria-checked"),
-      ).toBe("true");
+      fireEvent.click(screen.getByRole("radio", { name: "Imagen" }));
       fireEvent.click(screen.getByRole("button", { name: "Subir imagen" }));
       fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
 
@@ -548,17 +543,38 @@ describe("the links manager", () => {
       );
     });
 
-    it("asks for an image before saving a featured link without one", async () => {
+    it("saves a link as featured with its icon, which is then what is shown large", async () => {
       renderManager();
       fireEvent.click(screen.getAllByRole("button", { name: /Editar/ })[1]);
       fireEvent.click(screen.getByRole("radio", { name: "Destacado" }));
-      fireEvent.click(screen.getByRole("radio", { name: "Ícono" }));
+      // The thumbnail stays the icon it was: nothing is asked for.
+      expect(
+        screen
+          .getByRole("radio", { name: "Ícono" })
+          .getAttribute("aria-checked"),
+      ).toBe("true");
+      expect(screen.getByText(/Muestra el ícono en grande/)).toBeTruthy();
       fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
 
-      expect((await screen.findByRole("alert")).textContent).toMatch(
-        /destacado necesita una imagen/,
+      await waitFor(() =>
+        expect(actions.updateSiteLink).toHaveBeenCalledWith(
+          1,
+          expect.objectContaining({
+            icon: "store",
+            imageUrl: null,
+            layout: "featured",
+          }),
+        ),
       );
-      expect(actions.updateSiteLink).not.toHaveBeenCalled();
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("says a featured link with no thumbnail is drawn classic", () => {
+      renderManager();
+      fireEvent.click(screen.getAllByRole("button", { name: /Editar/ })[1]);
+      fireEvent.click(screen.getByRole("radio", { name: "Destacado" }));
+      fireEvent.click(screen.getByRole("radio", { name: "Ninguna" }));
+      expect(screen.getByText(/se muestra con el diseño clásico/)).toBeTruthy();
     });
 
     it("opens a featured link on that design", () => {

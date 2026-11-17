@@ -81,7 +81,7 @@ export type SiteLinkInput = {
   icon: string;
   /** A thumbnail shown in place of the icon; a file of ours, or none. */
   imageUrl?: string | null;
-  /** `classic` when left out. `featured` needs an image. */
+  /** `classic` when left out. */
   layout?: SiteLinkLayout;
   /**
    * The link's schedule, each end as a `datetime-local` value in Bolivia's
@@ -133,13 +133,6 @@ async function validateInput(
   if (!SITE_LINK_LAYOUTS.includes(layout)) {
     return { ok: false, message: "El diseño no es válido." };
   }
-  if (layout === "featured" && !imageUrl) {
-    return {
-      ok: false,
-      message: "El diseño destacado necesita una imagen.",
-    };
-  }
-
   const visibleFrom = parseScheduleInput(data.visibleFrom);
   const visibleUntil = parseScheduleInput(data.visibleUntil);
   if (visibleFrom === undefined || visibleUntil === undefined) {

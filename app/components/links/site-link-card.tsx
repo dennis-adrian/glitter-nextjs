@@ -90,15 +90,22 @@ export default function SiteLinkCard({
   const cardClass = featured ? FEATURED_CARD_CLASS : CARD_CLASS;
   const content = featured ? (
     <>
-      {/* Wide enough for a 430px phone at twice its pixels. */}
-      <Image
-        src={link.imageUrl!}
-        alt=""
-        width={832}
-        height={468}
-        sizes="(min-width: 448px) 416px, calc(100vw - 2rem)"
-        className="aspect-video w-full rounded-lg object-cover"
-      />
+      {link.imageUrl ? (
+        // Wide enough for a 430px phone at twice its pixels.
+        <Image
+          src={link.imageUrl}
+          alt=""
+          width={832}
+          height={468}
+          sizes="(min-width: 448px) 416px, calc(100vw - 2rem)"
+          className="aspect-video w-full rounded-lg object-cover"
+        />
+      ) : (
+        // No image to show large: its icon is, on a panel of its own.
+        <span className="flex aspect-video w-full items-center justify-center rounded-lg bg-brand-lavender text-brand-primary dark:bg-brand-deep dark:text-brand-ink">
+          <SiteLinkThumb link={link} className="size-20" />
+        </span>
+      )}
       <span className="block px-2 py-1 text-center">
         <span className="block font-semibold break-words">{link.label}</span>
         {email ? (

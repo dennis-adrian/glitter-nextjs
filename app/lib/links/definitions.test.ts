@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_LINKS_HEADER,
+  isFeaturedCard,
   isWithinSchedule,
   mailtoAddress,
   parseScheduleInput,
@@ -245,5 +246,22 @@ describe("toLinksHeader", () => {
     expect(
       toLinksHeader({ title: "   ", description: null, avatarUrl: null }).title,
     ).toBe("Productora Glitter");
+  });
+});
+
+describe("isFeaturedCard", () => {
+  const card = (layout: string, imageUrl: string | null, icon: string) =>
+    isFeaturedCard({ layout, imageUrl, icon });
+
+  it("draws a featured link large from its image, or from its icon", () => {
+    expect(card("featured", "https://app.ufs.sh/f/foto", "link")).toBe(true);
+    expect(card("featured", null, "ticket")).toBe(true);
+    expect(card("featured", null, "si:spotify")).toBe(true);
+  });
+
+  it("draws it classic with nothing to show large, or when it is classic", () => {
+    expect(card("featured", null, "none")).toBe(false);
+    expect(card("classic", "https://app.ufs.sh/f/foto", "link")).toBe(false);
+    expect(card("classic", null, "ticket")).toBe(false);
   });
 });

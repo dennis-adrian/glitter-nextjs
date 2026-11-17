@@ -106,9 +106,9 @@ export function isFeaturedIcon(value: string): value is SiteLinkIcon {
 }
 
 /**
- * How a link's card is drawn. `featured` shows the link's image large with
- * the title under it, for the one thing being pushed; without an image it is
- * drawn as `classic`.
+ * How a link's card is drawn. `featured` shows the link's thumbnail large
+ * with the title under it, for the one thing being pushed: its image, or its
+ * icon when it has none. With no thumbnail at all it is drawn as `classic`.
  */
 export const SITE_LINK_LAYOUTS = ["classic", "featured"] as const;
 export type SiteLinkLayout = (typeof SITE_LINK_LAYOUTS)[number];
@@ -125,11 +125,14 @@ export function toSiteLinkLayout(value: string | null | undefined) {
     : ("classic" satisfies SiteLinkLayout);
 }
 
-/** Whether a link is drawn large: it asks for it and has the image for it. */
+/** Whether a link is drawn large: it asks for it and has something to show. */
 export function isFeaturedCard(
-  link: Pick<SiteLinkRow, "layout" | "imageUrl">,
+  link: Pick<SiteLinkRow, "layout" | "imageUrl" | "icon">,
 ): boolean {
-  return link.layout === "featured" && Boolean(link.imageUrl);
+  return (
+    link.layout === "featured" &&
+    (Boolean(link.imageUrl) || link.icon !== NO_ICON)
+  );
 }
 
 /**

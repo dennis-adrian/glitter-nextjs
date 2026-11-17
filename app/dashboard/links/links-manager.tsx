@@ -434,10 +434,6 @@ function LinkFormDialog({
       setError("Agrega una imagen, o elige un ícono o ninguna miniatura.");
       return;
     }
-    if (layout === "featured" && !shown.imageUrl) {
-      setError("El diseño destacado necesita una imagen como miniatura.");
-      return;
-    }
     if (from && until && until <= from) {
       setError("El enlace debe dejar de mostrarse después de empezar.");
       return;
@@ -554,14 +550,7 @@ function LinkFormDialog({
                   type="button"
                   role="radio"
                   aria-checked={layout === value}
-                  onClick={() => {
-                    setLayout(value);
-                    // Featured is the image, large: go to where one is added.
-                    if (value === "featured") {
-                      thumbnailChosen.current = true;
-                      setMode("image");
-                    }
-                  }}
+                  onClick={() => setLayout(value)}
                   className={cn(
                     "flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-lg border border-border p-2 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                     layout === value &&
@@ -586,7 +575,11 @@ function LinkFormDialog({
             </div>
             {layout === "featured" ? (
               <p className="text-xs text-muted-foreground">
-                Muestra la imagen del enlace en grande, con el título debajo.
+                {mode === "none"
+                  ? "Sin miniatura no hay nada que destacar: el enlace se muestra con el diseño clásico."
+                  : mode === "image"
+                    ? "Muestra la imagen del enlace en grande, con el título debajo."
+                    : "Muestra el ícono en grande, con el título debajo. Con una imagen se luce más."}
               </p>
             ) : null}
           </fieldset>

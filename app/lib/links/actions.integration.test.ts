@@ -488,17 +488,22 @@ describeDatabase("site links dashboard actions", () => {
       });
     });
 
-    it("refuses the featured design without an image, and a design it does not know", async () => {
+    it("stores the featured design for a link with only an icon", async () => {
       expect(
         await actions.createSiteLink({
           ...base,
-          icon: "link",
+          icon: "ticket",
           layout: "featured",
         }),
-      ).toEqual({
-        success: false,
-        message: "El diseño destacado necesita una imagen.",
+      ).toEqual({ success: true });
+      expect((await rowsOf("link"))[0]).toMatchObject({
+        layout: "featured",
+        icon: "ticket",
+        imageUrl: null,
       });
+    });
+
+    it("refuses a design it does not know", async () => {
       expect(
         await actions.createSiteLink({
           ...base,
