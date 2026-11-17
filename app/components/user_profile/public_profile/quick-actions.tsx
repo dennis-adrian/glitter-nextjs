@@ -96,7 +96,12 @@ export default function ProfileQuickActions({
         >
           {triggerContent}
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        {/* Capped to the screen: a festival's name wraps instead of
+            widening the menu past the edge. */}
+        <DropdownMenuContent
+          align="end"
+          className="max-w-[min(22rem,calc(100vw-2rem))]"
+        >
           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
           {!hideViewProfile && (
             <DropdownMenuItem asChild>
@@ -119,8 +124,10 @@ export default function ProfileQuickActions({
                   className="flex items-center gap-1"
                   href={`/profiles/${profile.id}/festivals/${festivalId}/invoices`}
                 >
-                  <ReceiptIcon className="h-4 w-4" />
-                  Pagos pendientes · {festivalName} ({count})
+                  <ReceiptIcon className="h-4 w-4 shrink-0" />
+                  <span className="min-w-0 break-words">
+                    Pagos pendientes · {festivalName} ({count})
+                  </span>
                 </Link>
               </DropdownMenuItem>
             ),

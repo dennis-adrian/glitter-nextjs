@@ -128,12 +128,12 @@ export default async function CreditAccountPanel({
                   <div className="min-w-0">
                     <p className="text-sm">{TYPE_LABELS[entry.type]}</p>
                     {entry.reason && (
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground wrap-anywhere">
                         {entry.reason}
                       </p>
                     )}
                     {entry.internalNote && (
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground wrap-anywhere">
                         Nota interna: {entry.internalNote}
                       </p>
                     )}

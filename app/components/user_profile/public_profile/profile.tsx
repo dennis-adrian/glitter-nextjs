@@ -71,7 +71,11 @@ export default function PublicProfile({
               {subcategories.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {subcategories.map((subcategory) => (
-                    <Badge key={subcategory.id} variant="outline">
+                    <Badge
+                      key={subcategory.id}
+                      variant="outline"
+                      className="min-w-0 max-w-full shrink whitespace-normal wrap-anywhere"
+                    >
                       {subcategory.label}
                     </Badge>
                   ))}
@@ -97,7 +101,7 @@ export default function PublicProfile({
                   </div>
                 )}
                 {profile.bio ? (
-                  <div className="text-sm md:text-base text-muted-foreground">
+                  <div className="text-sm md:text-base text-muted-foreground wrap-anywhere">
                     {profile.bio}
                   </div>
                 ) : (
@@ -115,6 +119,7 @@ export default function PublicProfile({
                           socialMediaType={social.type}
                           username={social.username}
                           socialId={social.id}
+                          wrap
                           canBeDeleted
                         />
                       ))}

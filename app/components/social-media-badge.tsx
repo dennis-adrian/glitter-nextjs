@@ -12,6 +12,12 @@ type SocialMediaBadgeProps = {
   username: string;
   socialId?: number;
   canBeDeleted?: boolean;
+  /**
+   * Let a long username wrap instead of setting its container's minimum
+   * width. Off in table cells, where an auto column would break it letter
+   * by letter.
+   */
+  wrap?: boolean;
 };
 
 export default function SocialMediaBadge(props: SocialMediaBadgeProps) {
@@ -21,18 +27,31 @@ export default function SocialMediaBadge(props: SocialMediaBadgeProps) {
   const url = `${socialsUrls[props.socialMediaType]}${formattedValue}`;
 
   return (
-    <Badge className="max-w-fit font-normal" variant="outline">
+    <Badge
+      className={
+        props.wrap
+          ? "min-w-0 max-w-full shrink whitespace-normal font-normal"
+          : "max-w-fit font-normal"
+      }
+      variant="outline"
+    >
       <Link
-        className="flex items-center"
+        className={
+          props.wrap ? "flex min-w-0 items-center" : "flex items-center"
+        }
         href={url}
         target="_blank"
         rel="noreferrer"
       >
         <FontAwesomeIcon
-          className="w-4 h-4 mr-1"
+          className="w-4 h-4 mr-1 shrink-0"
           icon={socialsIcons[props.socialMediaType]}
         />
-        {formattedValue}
+        {props.wrap ? (
+          <span className="min-w-0 wrap-anywhere">{formattedValue}</span>
+        ) : (
+          formattedValue
+        )}
       </Link>
       {props.canBeDeleted && props.socialId && (
         <DeleteSocialMediaForm socialId={props.socialId} />

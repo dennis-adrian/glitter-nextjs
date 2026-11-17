@@ -51,7 +51,7 @@ export default function RecentImpersonations({
               key={row.id}
               className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3 text-sm"
             >
-              <span className="min-w-0 font-medium text-brand-ink">
+              <span className="min-w-0 font-medium text-brand-ink wrap-anywhere">
                 {personName(show === "subject" ? row.subject : row.admin)}
               </span>
               <span className="text-muted-foreground">
