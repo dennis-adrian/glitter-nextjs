@@ -16,6 +16,7 @@ import {
   AlertDialogTrigger,
 } from "@/app/components/ui/alert-dialog";
 import { Button, type ButtonProps } from "@/app/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const START_URL = "/api/impersonation/start";
 
@@ -38,6 +39,7 @@ export default function EnterAsButton({
   returnTo,
   variant = "outline",
   size = "sm",
+  wrap = false,
   className,
 }: {
   person: EnterAsPerson;
@@ -46,6 +48,12 @@ export default function EnterAsButton({
   returnTo: string;
   variant?: ButtonProps["variant"];
   size?: ButtonProps["size"];
+  /**
+   * For a label that carries the person's name: it wraps and the button
+   * grows instead of setting the page's minimum width. Off for the short
+   * "Entrar", which stays on one line next to a list row.
+   */
+  wrap?: boolean;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -100,14 +108,23 @@ export default function EnterAsButton({
       }}
     >
       <AlertDialogTrigger asChild>
-        <Button variant={variant} size={size} className={className}>
+        <Button
+          variant={variant}
+          size={size}
+          wrap={wrap}
+          className={wrap ? cn("gap-1.5", className) : className}
+        >
           <EyeIcon aria-hidden="true" className="size-4 shrink-0" />
-          <span className="min-w-0 truncate">{label}</span>
+          <span className={wrap ? "min-w-0 wrap-anywhere" : "min-w-0 truncate"}>
+            {label}
+          </span>
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Entrar como {person.name}</AlertDialogTitle>
+          <AlertDialogTitle className="wrap-anywhere">
+            Entrar como {person.name}
+          </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-3 text-sm text-muted-foreground">
               <p className="wrap-anywhere">

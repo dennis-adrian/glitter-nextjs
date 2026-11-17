@@ -49,6 +49,31 @@ function open() {
 }
 
 describe("EnterAsButton", () => {
+  it("keeps the short label on one line, and wraps one that carries a name", () => {
+    const { rerender } = render(
+      <EnterAsButton person={ANA} returnTo="/dashboard/users/2" />,
+    );
+    const short = screen.getByRole("button", { name: "Entrar" });
+    expect(short.className).toContain("whitespace-nowrap");
+    expect(short.querySelector("span")!.className).toContain("truncate");
+
+    rerender(
+      <EnterAsButton
+        person={ANA}
+        label="Entrar como Ana Pérez"
+        returnTo="/dashboard/users/2"
+        wrap
+      />,
+    );
+    // A one-line nowrap label sets the page's minimum width on a phone.
+    const named = screen.getByRole("button", { name: "Entrar como Ana Pérez" });
+    expect(named.className).toContain("whitespace-normal");
+    expect(named.className).not.toContain("whitespace-nowrap");
+    const span = named.querySelector("span")!;
+    expect(span.className).toContain("wrap-anywhere");
+    expect(span.className).not.toContain("truncate");
+  });
+
   it("asks first, saying who, that it is read-only, and for how long", () => {
     const dialog = open();
     expect(dialog.textContent).toContain("Entrar como Ana Pérez");

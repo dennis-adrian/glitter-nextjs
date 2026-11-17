@@ -88,7 +88,7 @@ export default function PublicProfile({
             <div className="relative min-w-full">
               <div className="flex flex-col gap-1 text-center">
                 {profile.displayName ? (
-                  <div className="text-xl md:text-2xl font-bold">
+                  <div className="text-xl md:text-2xl font-bold wrap-anywhere">
                     {profile.displayName}
                   </div>
                 ) : (

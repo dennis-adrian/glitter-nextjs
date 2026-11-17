@@ -90,6 +90,7 @@ export default async function DashboardUserPage(props: DashboardUserPageProps) {
               }}
               label={`Entrar como ${displayName}`}
               returnTo={`/dashboard/users/${forProfile.id}`}
+              wrap
               className="max-w-full"
             />
           ) : null}
