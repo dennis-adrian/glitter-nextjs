@@ -2339,7 +2339,8 @@ export const reservationRequestRegistry = pgTable(
         'addLatePartner',
         'changeReservationStand',
         'settleInvoiceShortfall',
-        'upgradeFullTableReservation'
+        'upgradeFullTableReservation',
+        'transferReservationParticipation'
       )`,
     ),
   ],

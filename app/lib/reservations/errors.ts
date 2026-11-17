@@ -56,6 +56,14 @@ export const RESERVATION_ERROR_CODES = [
   "STAND_CHANGE_EXCHANGE_NOT_CONFIRMED",
   "STAND_CHANGE_PROOF_UNDER_REVIEW",
   "STAND_CHANGE_REFUND_NO_OWNER",
+  "TRANSFER_SAME_ACCOUNT",
+  "TRANSFER_NOT_PARTICIPANT",
+  "TRANSFER_TARGET_NOT_FOUND",
+  "TRANSFER_TARGET_NOT_ELIGIBLE",
+  "TRANSFER_TARGET_ALREADY_PARTICIPANT",
+  "TRANSFER_TARGET_ALREADY_RESERVED",
+  "TRANSFER_FEATURE_ACTIVE",
+  "TRANSFER_CREDITS_APPLIED",
   "AMOUNT_BELOW_CREDITS",
   "CREDITS_NOT_RELEASABLE",
   "CREDITS_ALREADY_RELEASED",
@@ -199,6 +207,31 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> =
     // to as credits, and no retry changes that.
     STAND_CHANGE_REFUND_NO_OWNER:
       "Lo ya pagado supera el precio del espacio nuevo y esta reserva no tiene titular a quien devolverle la diferencia en créditos.",
+    TRANSFER_SAME_ACCOUNT:
+      "La cuenta de destino es la misma que la de origen. Elegí otra cuenta.",
+    // Also what a stale page reads after somebody else already moved it: the
+    // fix is the same, reload and look at who holds it now.
+    TRANSFER_NOT_PARTICIPANT:
+      "Esa cuenta ya no participa de esta reserva. Actualizá la página y revisá quién la tiene.",
+    TRANSFER_TARGET_NOT_FOUND: "La cuenta de destino no existe.",
+    TRANSFER_TARGET_NOT_ELIGIBLE:
+      "La cuenta de destino no puede recibir participaciones: tiene que ser de un participante, y estar verificada para recibir una reserva vigente.",
+    TRANSFER_TARGET_ALREADY_PARTICIPANT:
+      "La cuenta de destino ya participa de esta reserva.",
+    // Two live reservations in one festival is a state no other path creates,
+    // and undoing it means cancelling one of them.
+    TRANSFER_TARGET_ALREADY_RESERVED:
+      "La cuenta de destino ya tiene una reserva vigente en este festival. Resolvé esa reserva antes de transferir esta.",
+    // The credits behind an active feature are held on the wallet that bought
+    // it; moving the reservation away from that wallet would strand them.
+    TRANSFER_FEATURE_ACTIVE:
+      "Esta reserva tiene una función pagada con créditos todavía activa (mesa completa o compañero tardío). Resolvela antes de transferir.",
+    // Every later refund of those credits goes back to the wallet they came
+    // from, and the repricing refunds assume that wallet is the payer's. A
+    // live cobro would keep changing hands between the two; a closed one never
+    // moves money again, so only a live reservation is refused.
+    TRANSFER_CREDITS_APPLIED:
+      "El cobro de esta reserva tiene créditos de la cuenta de origen aplicados. Devolvé esos créditos antes de transferirla; si hace falta, otorgáselos después a la cuenta de destino.",
     AMOUNT_BELOW_CREDITS:
       "El monto no puede quedar por debajo de los créditos ya aplicados. Devolvé los créditos antes de bajarlo.",
     CREDITS_NOT_RELEASABLE:
