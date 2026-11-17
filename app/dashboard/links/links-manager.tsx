@@ -820,8 +820,11 @@ export default function LinksManager({
       </div>
       {isWide ? (
         <aside aria-label="Vista previa" className="sticky top-24 space-y-3">
-          <div className="max-h-[calc(100dvh-11rem)] overflow-y-auto rounded-[2rem] border-4 border-border bg-background shadow-lg">
-            {preview}
+          <div className="max-h-[calc(100dvh-11rem)] overflow-y-auto rounded-[2rem] border-4 border-border bg-background shadow-lg [scrollbar-width:thin]">
+            {/* A miniature of the page on a 390px phone, not the page at
+                full size squeezed into the frame: the 312px the frame leaves
+                are that phone at four fifths. */}
+            <div className="[zoom:0.8]">{preview}</div>
           </div>
           <p className="text-center text-xs text-muted-foreground">
             {PREVIEW_HINT}
