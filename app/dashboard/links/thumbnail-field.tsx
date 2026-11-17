@@ -22,6 +22,7 @@ import {
   THUMBNAIL_MODES,
   THUMBNAIL_MODE_LABELS,
   isFeaturedIcon,
+  isSafeIconSvg,
   parseLibraryIcon,
   type IconLibrarySet,
   type ThumbnailMode,
@@ -55,6 +56,8 @@ function LibraryIconDrawing({
   svg: string;
   className?: string;
 }) {
+  // Put in the page as markup only if it is a plain drawing.
+  if (!isSafeIconSvg(svg)) return null;
   return (
     <span
       aria-hidden

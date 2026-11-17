@@ -1,7 +1,13 @@
 import "server-only";
 
+import { UTFile } from "uploadthing/server";
+
 import { isAllowedRemoteImageHost } from "@/app/lib/images/remote-hosts";
-import { findLinkImage } from "@/app/lib/links/link-image";
+import {
+  fetchPublicImage,
+  findLinkImage,
+  type PublicImage,
+} from "@/app/lib/links/link-image";
 import { deleteStoredFile } from "@/app/lib/uploadthing/storage";
 import { utapi } from "@/app/server/uploadthing";
 
@@ -32,22 +38,32 @@ export function isStoredImageUrl(url: string): boolean {
 /**
  * Copies the image the page at `href` offers for itself (its OpenGraph
  * image) to UploadThing, and answers the copy's address. Null when the page
- * has none or cannot be read. UploadThing fetches the image, not this
- * server; this server reads only the page, through `fetchPublicPage`.
+ * has none, or either cannot be read.
+ *
+ * This server fetches both the page and the image, each through
+ * `link-image.ts`, which refuses any address that is not a public web
+ * server. The image is handed to UploadThing as a file: never as an address
+ * for `uploadFilesFromUrl`, which would have this server fetch it again with
+ * no such check.
  */
 export async function importLinkImage(href: string): Promise<string | null> {
-  let image: string | null;
+  let image: PublicImage;
   try {
-    image = await findLinkImage(href);
+    const address = await findLinkImage(href);
+    if (!address) return null;
+    image = await fetchPublicImage(address);
   } catch (error) {
-    console.warn("link image: page not read", {
+    console.warn("link image: not read", {
       reason: error instanceof Error ? error.message : "unknown",
     });
     return null;
   }
-  if (!image) return null;
 
-  const uploaded = await utapi.uploadFilesFromUrl(image);
+  const uploaded = await utapi.uploadFiles(
+    new UTFile([new Uint8Array(image.body)], `link.${image.extension}`, {
+      type: image.type,
+    }),
+  );
   if (uploaded.error || !uploaded.data) {
     console.warn("link image: copy failed", {
       code: uploaded.error?.code ?? "unknown",
@@ -56,11 +72,6 @@ export async function importLinkImage(href: string): Promise<string | null> {
   }
   const url = uploaded.data.ufsUrl ?? uploaded.data.url;
   if (!url || !isStoredImageUrl(url)) return null;
-  // What the page calls its image is not always one.
-  if (uploaded.data.type && !uploaded.data.type.startsWith("image/")) {
-    await deleteStoredFile(url, uploaded.data.key);
-    return null;
-  }
   return url;
 }
 

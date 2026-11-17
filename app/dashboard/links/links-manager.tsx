@@ -1330,7 +1330,16 @@ export default function LinksManager({
   const [links, setLinks] = useShown(savedLinks);
   const [socialPosition, setShownPosition] = useShown(initialSocialPosition);
   const [draft, setDraft] = useState<LinkDraft | null>(null);
-  const [header, setHeader] = useShown(initialHeader);
+  // The saved header as one object for as long as it says the same: every
+  // refresh hands over a new object, and taking each for a new header would
+  // throw away a name being typed or a picture just uploaded whenever
+  // anything else on the page was saved.
+  const { title, description, avatarUrl } = initialHeader;
+  const savedHeader = useMemo(
+    () => ({ title, description, avatarUrl }),
+    [title, description, avatarUrl],
+  );
+  const [header, setHeader] = useShown(savedHeader);
   const now = useMemo(() => new Date(readAt), [readAt]);
 
   // What a visitor would get with everything on screen saved: the visible
@@ -1440,7 +1449,7 @@ export default function LinksManager({
           </div>
 
           <HeaderSection
-            saved={initialHeader}
+            saved={savedHeader}
             header={header}
             onHeaderChange={setHeader}
           />

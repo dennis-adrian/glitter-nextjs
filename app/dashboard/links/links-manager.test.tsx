@@ -1159,6 +1159,41 @@ describe("the links manager", () => {
       expect(header().queryByAltText("Imagen del encabezado")).toBeNull();
     });
 
+    it("keeps a header being edited when a refresh brings the same saved one", () => {
+      const saved = {
+        title: "Productora Glitter",
+        description: "Festivales",
+        avatarUrl: null,
+      };
+      const manager = (initialHeader: typeof saved, links = LINKS) => (
+        <LinksManager
+          initialLinks={links}
+          initialHeader={initialHeader}
+          publicUrl="https://www.glitter.com.bo/links"
+          now={NOW.getTime()}
+        />
+      );
+      const { rerender } = render(manager(saved));
+      const name = () => header().getByLabelText("Nombre") as HTMLInputElement;
+      fireEvent.change(name(), { target: { value: "Glitter Bolivia" } });
+      fireEvent.click(header().getByRole("button", { name: "Subir imagen" }));
+
+      // Something else was saved: the page comes back with a new list and the
+      // same header, as a new object.
+      rerender(manager({ ...saved }, [...LINKS]));
+      expect(name().value).toBe("Glitter Bolivia");
+      expect(header().getByAltText("Imagen del encabezado")).toBeTruthy();
+      expect(
+        header()
+          .getByRole("button", { name: "Guardar encabezado" })
+          .hasAttribute("disabled"),
+      ).toBe(false);
+
+      // A header that really changed is taken.
+      rerender(manager({ ...saved, title: "Otro nombre" }));
+      expect(name().value).toBe("Otro nombre");
+    });
+
     it("keeps the fields and says why when the header is refused", async () => {
       actions.updateLinksHeader.mockResolvedValue({
         success: false,

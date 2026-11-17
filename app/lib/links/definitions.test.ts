@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_LINKS_HEADER,
   isFeaturedCard,
+  isSafeIconSvg,
   isWithinSchedule,
   mailtoAddress,
   parseScheduleInput,
@@ -337,5 +338,73 @@ describe("isFeaturedCard", () => {
     expect(card("featured", null, "none")).toBe(false);
     expect(card("classic", "https://app.ufs.sh/f/foto", "link")).toBe(false);
     expect(card("classic", null, "ticket")).toBe(false);
+  });
+});
+
+describe("isSafeIconSvg", () => {
+  const open = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">`;
+  const stroked = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`;
+
+  it("takes a drawing of plain shapes, filled or stroked", () => {
+    expect(
+      isSafeIconSvg(`${open}<path d="M12 0C5.4 0 0 5.4 0 12z"/></svg>`),
+    ).toBe(true);
+    expect(
+      isSafeIconSvg(
+        `${stroked}<path d="M14.5 4h-5L7 7H4"/><circle cx="12" cy="13" r="3"/><rect width="20" height="14" x="2" y="3" rx="2"/></svg>`,
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    ["a script", `${open}<script>alert(1)</script></svg>`],
+    [
+      "a handler on a shape",
+      `${open}<path d="M0 0" onclick="alert(1)"/></svg>`,
+    ],
+    [
+      "a handler on the drawing",
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" onload="alert(1)"><path d="M0 0"/></svg>`,
+    ],
+    [
+      "a link",
+      `${open}<a href="javascript:alert(1)"><path d="M0 0"/></a></svg>`,
+    ],
+    ["an image", `${open}<image href="https://evil.example.com/x.png"/></svg>`],
+    [
+      "a style",
+      `${open}<path d="M0 0" style="background:url(//evil.example.com)"/></svg>`,
+    ],
+    [
+      "foreign content",
+      `${open}<foreignObject><iframe src="//evil.example.com"></iframe></foreignObject></svg>`,
+    ],
+    ["a reference", `${open}<use href="#x"/></svg>`],
+    ["an entity", `${open}<path d="&#x3c;script&#x3e;"/></svg>`],
+    [
+      "markup after the drawing",
+      `${open}<path d="M0 0"/></svg><img src=x onerror=alert(1)>`,
+    ],
+    [
+      "markup before the drawing",
+      `<img src=x onerror=alert(1)>${open}<path d="M0 0"/></svg>`,
+    ],
+    [
+      "an attribute that breaks out",
+      `${open}<path d="M0 0"><script>alert(1)</script>"/></svg>`,
+    ],
+    ["an empty drawing", `${open}</svg>`],
+    ["something that is not a drawing", "<svg></svg>"],
+    ["nothing", ""],
+  ])("refuses %s", (_what, svg) => {
+    expect(isSafeIconSvg(svg)).toBe(false);
+  });
+
+  it("refuses what is not text, and a drawing too long to be an icon", () => {
+    expect(isSafeIconSvg(null)).toBe(false);
+    expect(isSafeIconSvg(undefined)).toBe(false);
+    expect(
+      isSafeIconSvg(`${open}<path d="${"M0 0".repeat(30000)}"/></svg>`),
+    ).toBe(false);
   });
 });

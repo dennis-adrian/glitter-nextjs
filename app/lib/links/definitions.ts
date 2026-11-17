@@ -101,6 +101,28 @@ export function parseLibraryIcon(
   return match ? { set: match[1] as IconLibrarySet, name: match[2] } : null;
 }
 
+const ICON_SVG_SHAPE = String.raw`<(?:path|circle|ellipse|line|polygon|polyline|rect)(?: (?:d|cx|cy|r|rx|ry|x|y|x1|x2|y1|y2|width|height|points|fill|stroke|transform|opacity|stroke-width|stroke-linecap|stroke-linejoin|fill-rule|clip-rule)="[^"<>&]*")*/>`;
+const ICON_SVG_RE = new RegExp(
+  String.raw`^<svg xmlns="http://www\.w3\.org/2000/svg" viewBox="0 0 24 24" (?:fill="currentColor"|fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round")>(?:${ICON_SVG_SHAPE}){1,64}</svg>$`,
+);
+
+/**
+ * Whether `svg` is a drawing as `libraryIconSvg` writes one: an `<svg>` of
+ * plain shapes with drawing attributes, and nothing else. No script, no
+ * handler, no link, no style, no entity.
+ *
+ * A stored drawing is only ever written by the server from the icon
+ * libraries' own data, so this should never say no. It is asked anyway
+ * wherever a drawing is put in the page as markup, so that what the page
+ * trusts is the drawing's shape and not how it came to be in the database.
+ */
+export function isSafeIconSvg(svg: string | null | undefined): svg is string {
+  // The most detailed brand marks are some 55,000 characters of path.
+  return (
+    typeof svg === "string" && svg.length <= 100_000 && ICON_SVG_RE.test(svg)
+  );
+}
+
 export function isFeaturedIcon(value: string): value is SiteLinkIcon {
   return (SITE_LINK_ICONS as readonly string[]).includes(value);
 }

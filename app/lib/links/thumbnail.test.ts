@@ -2,17 +2,22 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { findLinkImage, uploadFilesFromUrl, deleteStoredFile } = vi.hoisted(
-  () => ({
+const { findLinkImage, fetchPublicImage, uploadFiles, deleteStoredFile } =
+  vi.hoisted(() => ({
     findLinkImage: vi.fn(),
-    uploadFilesFromUrl: vi.fn(),
+    fetchPublicImage: vi.fn(),
+    uploadFiles: vi.fn(),
     deleteStoredFile: vi.fn(),
-  }),
-);
+  }));
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/app/lib/links/link-image", () => ({ findLinkImage }));
-vi.mock("@/app/server/uploadthing", () => ({ utapi: { uploadFilesFromUrl } }));
+vi.mock("@/app/lib/links/link-image", () => ({
+  findLinkImage,
+  fetchPublicImage,
+}));
+// `uploadFilesFromUrl` is left out on purpose: it has this server fetch the
+// address itself, unchecked, so nothing here may call it.
+vi.mock("@/app/server/uploadthing", () => ({ utapi: { uploadFiles } }));
 vi.mock("@/app/lib/uploadthing/storage", () => ({ deleteStoredFile }));
 
 import {
@@ -22,6 +27,11 @@ import {
 } from "@/app/lib/links/thumbnail";
 
 const STORED = "https://abc123.ufs.sh/f/la-llave";
+const PNG = {
+  body: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+  type: "image/png",
+  extension: "png",
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -51,48 +61,63 @@ describe("isStoredImageUrl", () => {
 });
 
 describe("importLinkImage", () => {
-  it("copies the page's image to our storage and answers the copy", async () => {
+  it("fetches the page's image itself, checked, and stores it as a file", async () => {
     findLinkImage.mockResolvedValue("https://cdn.example.com/share.png");
-    uploadFilesFromUrl.mockResolvedValue({
-      data: { ufsUrl: STORED, key: "la-llave", type: "image/png" },
+    fetchPublicImage.mockResolvedValue(PNG);
+    uploadFiles.mockResolvedValue({
+      data: { ufsUrl: STORED, key: "la-llave" },
       error: null,
     });
 
     expect(await importLinkImage("https://example.com/")).toBe(STORED);
-    expect(uploadFilesFromUrl).toHaveBeenCalledWith(
+    expect(fetchPublicImage).toHaveBeenCalledWith(
       "https://cdn.example.com/share.png",
     );
+    // A file, with its bytes: never the address, for UploadThing's client to
+    // fetch on this server unchecked.
+    const [file] = uploadFiles.mock.calls[0];
+    expect(file).toBeInstanceOf(Blob);
+    expect(file.name).toBe("link.png");
+    expect(file.type).toBe("image/png");
+    expect(Buffer.from(await file.arrayBuffer())).toEqual(PNG.body);
   });
 
-  it("answers null, and copies nothing, for a page with no image", async () => {
+  it("answers null, and fetches nothing more, for a page with no image", async () => {
     findLinkImage.mockResolvedValue(null);
     expect(await importLinkImage("https://example.com/")).toBeNull();
-    expect(uploadFilesFromUrl).not.toHaveBeenCalled();
+    expect(fetchPublicImage).not.toHaveBeenCalled();
+    expect(uploadFiles).not.toHaveBeenCalled();
   });
 
   it("answers null for a page that cannot be read", async () => {
     findLinkImage.mockRejectedValue(new Error("address is not public"));
     expect(await importLinkImage("http://10.0.0.5/")).toBeNull();
-    expect(uploadFilesFromUrl).not.toHaveBeenCalled();
+    expect(uploadFiles).not.toHaveBeenCalled();
   });
+
+  it.each(["address is not public", "not an image", "too large", "deadline"])(
+    "stores nothing when the image is refused: %s",
+    async (reason) => {
+      // The page is fine; the image it names is on a private address, is not
+      // an image, is too big or never finishes.
+      findLinkImage.mockResolvedValue(
+        "http://169.254.169.254/latest/meta-data",
+      );
+      fetchPublicImage.mockRejectedValue(new Error(reason));
+
+      expect(await importLinkImage("https://example.com/")).toBeNull();
+      expect(uploadFiles).not.toHaveBeenCalled();
+    },
+  );
 
   it("answers null when the copy fails", async () => {
     findLinkImage.mockResolvedValue("https://cdn.example.com/share.png");
-    uploadFilesFromUrl.mockResolvedValue({
+    fetchPublicImage.mockResolvedValue(PNG);
+    uploadFiles.mockResolvedValue({
       data: null,
       error: { code: "BAD_REQUEST" },
     });
     expect(await importLinkImage("https://example.com/")).toBeNull();
-  });
-
-  it("throws away a copy that turned out not to be an image", async () => {
-    findLinkImage.mockResolvedValue("https://cdn.example.com/page.html");
-    uploadFilesFromUrl.mockResolvedValue({
-      data: { ufsUrl: STORED, key: "la-llave", type: "text/html" },
-      error: null,
-    });
-    expect(await importLinkImage("https://example.com/")).toBeNull();
-    expect(deleteStoredFile).toHaveBeenCalledWith(STORED, "la-llave");
   });
 });
 

@@ -7,9 +7,11 @@ import { isIP } from "node:net";
 
 /*
  * Finding the image a page offers for itself (its OpenGraph image), for a
- * link's thumbnail. The address is one an admin typed, and this server is
- * what fetches it, so the fetch refuses anything that is not a public web
- * server: see `isPublicAddress`.
+ * link's thumbnail, and fetching that image. The page's address is one an
+ * admin typed and the image's is whatever that page says, and this server is
+ * what fetches both, so every request here refuses anything that is not a
+ * public web server: see `isPublicAddress`. Nothing in this feature may fetch
+ * an address any other way.
  */
 
 /**
@@ -78,7 +80,12 @@ function expandIPv6(address: string): string | null {
   return groups.map((group) => group.padStart(4, "0")).join("");
 }
 
-const META_TAG_RE = /<meta\b[^>]*>/gi;
+/**
+ * A `<meta>` tag, of at most 2,048 characters. Without the bound, a page of
+ * `<meta` with no `>` after them makes every one scan to the end of the page.
+ */
+const META_TAG_RE = /<meta\b[^>]{0,2048}>/gi;
+const HEAD_END_RE = /<\/head\b/i;
 const ATTRIBUTE_RE = /([a-zA-Z:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/g;
 
 function decodeEntities(value: string) {
@@ -105,8 +112,11 @@ const IMAGE_META_NAMES = [
  * the page's own address, or null. Only an `http(s)` address is taken.
  */
 export function findPageImage(html: string, pageUrl: string): string | null {
+  // The tags are in the head; what follows it is not read.
+  const headEnd = html.search(HEAD_END_RE);
+  const head = headEnd >= 0 ? html.slice(0, headEnd) : html;
   const found = new Map<string, string>();
-  for (const [tag] of html.matchAll(META_TAG_RE)) {
+  for (const [tag] of head.matchAll(META_TAG_RE)) {
     const attributes = new Map<string, string>();
     for (const match of tag.matchAll(ATTRIBUTE_RE)) {
       attributes.set(
@@ -181,24 +191,56 @@ function publicOnlyLookup(lookup: Lookup): Lookup {
 
 const MAX_REDIRECTS = 3;
 const MAX_HTML_BYTES = 512 * 1024;
-const TIMEOUT_MS = 6_000;
+/** The size of an upload, which is what a thumbnail may be. */
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+/** How long a connection may say nothing. */
+const IDLE_TIMEOUT_MS = 6_000;
+/** How long one request may take in all, however steadily it trickles. */
+const PAGE_DEADLINE_MS = 10_000;
+const IMAGE_DEADLINE_MS = 20_000;
 
-type PageFetch = { url: string; html: string };
+type FetchLimits = {
+  accept: string;
+  maxBytes: number;
+  deadlineMs: number;
+  /**
+   * What to do with a body longer than `maxBytes`: keep its start (a page,
+   * whose head is all that is read) or refuse it (an image, useless cut).
+   */
+  overflow: "truncate" | "refuse";
+};
+
+type RawResponse = {
+  status: number;
+  location?: string;
+  body: Buffer;
+  type: string;
+};
 
 /** One GET, without following its redirect. */
 function requestOnce(
   url: URL,
   lookup: Lookup,
-): Promise<{ status: number; location?: string; html: string; type: string }> {
+  limits: FetchLimits,
+): Promise<RawResponse> {
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const settle = (finish: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadline);
+      finish();
+    };
+    const fail = (error: Error) => settle(() => reject(error));
+
     const client = url.protocol === "https:" ? https : http;
     const request = client.get(
       url,
       {
         lookup,
-        timeout: TIMEOUT_MS,
+        timeout: IDLE_TIMEOUT_MS,
         headers: {
-          accept: "text/html,application/xhtml+xml",
+          accept: limits.accept,
           // Sites answer a bare client with a consent or bot page.
           "user-agent":
             "Mozilla/5.0 (compatible; link-preview/1.0; +https://ogp.me)",
@@ -210,29 +252,44 @@ function requestOnce(
         const location = response.headers.location;
         if (status >= 300 && status < 400) {
           response.resume();
-          return resolve({ status, location, html: "", type });
+          return settle(() =>
+            resolve({ status, location, body: Buffer.alloc(0), type }),
+          );
         }
         const chunks: Buffer[] = [];
         let size = 0;
+        const done = () =>
+          settle(() => resolve({ status, body: Buffer.concat(chunks), type }));
         response.on("data", (chunk: Buffer) => {
           size += chunk.length;
+          if (size > limits.maxBytes && limits.overflow === "refuse") {
+            fail(new Error("too large"));
+            request.destroy();
+            return;
+          }
           chunks.push(chunk);
-          // The meta tags are in the head; the rest is not read.
-          if (size >= MAX_HTML_BYTES) response.destroy();
+          if (size >= limits.maxBytes) {
+            // Enough was read; the rest is not waited for.
+            done();
+            request.destroy();
+          }
         });
-        const finish = () =>
-          resolve({
-            status,
-            html: Buffer.concat(chunks).toString("utf8"),
-            type,
-          });
-        response.on("end", finish);
-        response.on("close", finish);
-        response.on("error", reject);
+        response.on("end", done);
+        response.on("close", done);
+        response.on("error", fail);
       },
     );
-    request.on("timeout", () => request.destroy(new Error("timeout")));
-    request.on("error", reject);
+    // The idle timeout starts over with every chunk, so a server sending a
+    // byte now and then would hold the request open; this one does not.
+    const deadline = setTimeout(() => {
+      fail(new Error("deadline"));
+      request.destroy();
+    }, limits.deadlineMs);
+    request.on("timeout", () => {
+      fail(new Error("timeout"));
+      request.destroy();
+    });
+    request.on("error", fail);
   });
 }
 
@@ -249,18 +306,19 @@ function assertFetchable(url: URL) {
 }
 
 /**
- * The HTML of a public web page, following a few redirects, each one checked
- * like the first address. Throws when the page cannot be had.
+ * A GET of a public web address, following a few redirects, each one checked
+ * like the first address. Throws when it cannot be had.
  */
-export async function fetchPublicPage(
+async function fetchPublic(
   address: string,
-  { lookup = dnsLookup }: { lookup?: Lookup } = {},
-): Promise<PageFetch> {
+  lookup: Lookup,
+  limits: FetchLimits,
+): Promise<{ url: string; body: Buffer; type: string }> {
   const guarded = publicOnlyLookup(lookup);
   let url = new URL(address);
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
     assertFetchable(url);
-    const response = await requestOnce(url, guarded);
+    const response = await requestOnce(url, guarded, limits);
     if (response.status >= 300 && response.status < 400) {
       if (!response.location) throw new Error("redirect without location");
       url = new URL(response.location, url);
@@ -269,12 +327,31 @@ export async function fetchPublicPage(
     if (response.status < 200 || response.status >= 300) {
       throw new Error(`status ${response.status}`);
     }
-    if (response.type && !/html|xml/i.test(response.type)) {
-      throw new Error("not a page");
-    }
-    return { url: url.href, html: response.html };
+    return { url: url.href, body: response.body, type: response.type };
   }
   throw new Error("too many redirects");
+}
+
+type PageFetch = { url: string; html: string };
+
+/**
+ * The HTML of a public web page (its first 512 KB, where its head is).
+ * Throws when the page cannot be had.
+ */
+export async function fetchPublicPage(
+  address: string,
+  { lookup = dnsLookup }: { lookup?: Lookup } = {},
+): Promise<PageFetch> {
+  const response = await fetchPublic(address, lookup, {
+    accept: "text/html,application/xhtml+xml",
+    maxBytes: MAX_HTML_BYTES,
+    deadlineMs: PAGE_DEADLINE_MS,
+    overflow: "truncate",
+  });
+  if (response.type && !/html|xml/i.test(response.type)) {
+    throw new Error("not a page");
+  }
+  return { url: response.url, html: response.body.toString("utf8") };
 }
 
 /** The image a public page offers for itself, or null. */
@@ -284,4 +361,41 @@ export async function findLinkImage(
 ): Promise<string | null> {
   const page = await fetchPublicPage(address, options);
   return findPageImage(page.html, page.url);
+}
+
+/**
+ * The kinds of image a thumbnail may be, and the extension each is filed
+ * under. Not SVG, which is a document that can carry script.
+ */
+const IMAGE_EXTENSIONS: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/avif": "avif",
+};
+
+export type PublicImage = { body: Buffer; type: string; extension: string };
+
+/**
+ * An image at a public web address, of one of the kinds above and no larger
+ * than an upload may be. The address is checked like a page's, redirects
+ * included: it comes from a page's own markup, so it is anyone's to choose.
+ * Throws when it is not such an image or cannot be had.
+ */
+export async function fetchPublicImage(
+  address: string,
+  { lookup = dnsLookup }: { lookup?: Lookup } = {},
+): Promise<PublicImage> {
+  const response = await fetchPublic(address, lookup, {
+    accept: Object.keys(IMAGE_EXTENSIONS).join(","),
+    maxBytes: MAX_IMAGE_BYTES,
+    deadlineMs: IMAGE_DEADLINE_MS,
+    overflow: "refuse",
+  });
+  const type = response.type.split(";")[0].trim().toLowerCase();
+  const extension = IMAGE_EXTENSIONS[type];
+  if (!extension) throw new Error("not an image");
+  if (response.body.length === 0) throw new Error("empty image");
+  return { body: response.body, type, extension };
 }

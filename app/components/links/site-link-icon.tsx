@@ -14,6 +14,7 @@ import Image from "next/image";
 import BrandIcon, { isBrand } from "@/app/components/brand-icon";
 import {
   NO_ICON,
+  isSafeIconSvg,
   parseLibraryIcon,
   toSiteLinkIcon,
   type PublicSiteLink,
@@ -52,7 +53,8 @@ export default function SiteLinkIcon({
  *
  * A library icon is drawn from the markup stored with the link. That markup
  * is built on the server from the icon libraries' own data
- * (`libraryIconSvg`), never from anything a person typed.
+ * (`libraryIconSvg`), never from anything a person typed, and is checked
+ * again here (`isSafeIconSvg`) before it is put in the page.
  */
 export function SiteLinkThumb({
   link,
@@ -75,7 +77,9 @@ export function SiteLinkThumb({
     );
   }
   if (link.icon === NO_ICON) return null;
-  if (link.iconSvg && parseLibraryIcon(link.icon)) {
+  // Markup goes in the page only if it is a plain drawing; anything else is
+  // shown as the link icon below.
+  if (parseLibraryIcon(link.icon) && isSafeIconSvg(link.iconSvg)) {
     return (
       <span
         aria-hidden

@@ -75,6 +75,16 @@ describe("the icon library", () => {
       expect(refs("base de datos")).toContain("lucide:database");
     });
 
+    it("finds by the one word left once the words that say nothing are dropped", () => {
+      expect(first("de corazón")).toBe("lucide:heart");
+      expect(refs("la cámara")).toContain("lucide:camera");
+      expect(refs("un regalo")).toEqual(refs("regalo"));
+      // With no word left, only the search as typed is looked for: it is not
+      // taken for a search every icon answers.
+      expect(refs("de la").length).toBeLessThan(100);
+      expect(refs("de la")).toEqual(refs("dela"));
+    });
+
     it("still finds the same icons in English, and brands by their name", () => {
       expect(first("camera")).toBe("lucide:camera");
       expect(first("shopping cart")).toBe("lucide:shopping-cart");
@@ -163,6 +173,16 @@ describe("the icon library", () => {
       expect(svg).not.toMatch(/<script|on[a-z]+=|href=|<foreignObject/i);
     }
   });
+
+  it("draws every icon of both libraries as a drawing the page will take", async () => {
+    const { isSafeIconSvg } = await import("@/app/lib/links/definitions");
+    const refused: string[] = [];
+    for (const icon of listLibraryIcons("", 0, ICON_LIBRARY_SIZE).icons) {
+      if (!isSafeIconSvg(await libraryIconSvg(icon.ref)))
+        refused.push(icon.ref);
+    }
+    expect(refused).toEqual([]);
+  }, 60_000);
 
   it.each([
     "lucide:no-such-icon",

@@ -1,14 +1,98 @@
 // @vitest-environment node
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { EventEmitter } from "node:events";
+import { isIP } from "node:net";
+
+/**
+ * The network, played by hand: each request made through `node:http(s)` is
+ * answered by the next of `replies`, and is kept in `requests` to be looked
+ * at. A reply says nothing more until the test makes it.
+ */
+const network = vi.hoisted(() => ({
+  replies: [] as ((request: FakeRequest) => void)[],
+  requests: [] as FakeRequest[],
+}));
+
+type FakeRequest = EventEmitter & {
+  url: string;
+  lookup: unknown;
+  destroyed: boolean;
+  destroy: () => void;
+  respond: (
+    status: number,
+    headers?: Record<string, string>,
+  ) => EventEmitter & { resume: () => void };
+};
+
+function fakeGet(
+  url: URL,
+  options: { lookup: unknown },
+  onResponse: (response: EventEmitter) => void,
+) {
+  const request = new EventEmitter() as FakeRequest;
+  request.url = url.href;
+  request.lookup = options.lookup;
+  request.destroyed = false;
+  request.destroy = () => {
+    request.destroyed = true;
+  };
+  request.respond = (status, headers = {}) => {
+    const response = Object.assign(new EventEmitter(), {
+      statusCode: status,
+      headers,
+      resume: () => {},
+    });
+    onResponse(response);
+    return response;
+  };
+  network.requests.push(request);
+  // As the real client does: a name is resolved first, through the lookup it
+  // was given, and a refusal there is the request's error.
+  const host = url.hostname.replace(/^\[|\]$/g, "");
+  const answer = () => network.replies.shift()?.(request);
+  queueMicrotask(() => {
+    if (isIP(host)) return answer();
+    (options.lookup as (...args: unknown[]) => void)(
+      host,
+      {},
+      (error: Error | null) =>
+        error ? request.emit("error", error) : answer(),
+    );
+  });
+  return request;
+}
 
 vi.mock("server-only", () => ({}));
+vi.mock("node:http", () => ({ default: { get: fakeGet }, get: fakeGet }));
+vi.mock("node:https", () => ({ default: { get: fakeGet }, get: fakeGet }));
 
 import {
+  fetchPublicImage,
   fetchPublicPage,
   findPageImage,
   isPublicAddress,
 } from "@/app/lib/links/link-image";
+
+/** Answers the next request with `status`, `headers` and the whole `body`. */
+function reply(
+  status: number,
+  headers: Record<string, string> = {},
+  body: Buffer | string = "",
+) {
+  network.replies.push((request) => {
+    const response = request.respond(status, headers);
+    if (status >= 300 && status < 400) return;
+    response.emit("data", Buffer.from(body));
+    response.emit("end");
+  });
+}
+
+beforeEach(() => {
+  network.replies.length = 0;
+  network.requests.length = 0;
+});
 
 describe("isPublicAddress", () => {
   it.each([
@@ -108,6 +192,36 @@ describe("findPageImage", () => {
     }
   });
 
+  it("reads only the head, and a tag only if it is of a sane length", () => {
+    const inBody = `<head><title>x</title></head><body><meta property="og:image" content="https://cdn.example.com/body.png"></body>`;
+    expect(findPageImage(inBody, PAGE)).toBeNull();
+    // With no end of head to stop at, the whole page is read.
+    expect(
+      findPageImage(
+        `<meta property="og:image" content="https://cdn.example.com/a.png">`,
+        PAGE,
+      ),
+    ).toBe("https://cdn.example.com/a.png");
+    expect(
+      findPageImage(
+        `<HEAD><META PROPERTY="og:image" CONTENT="https://cdn.example.com/caps.png"></HEAD>`,
+        PAGE,
+      ),
+    ).toBe("https://cdn.example.com/caps.png");
+
+    const long = `<meta data-x="${"a".repeat(3000)}" property="og:image" content="https://cdn.example.com/long.png">`;
+    expect(findPageImage(long, PAGE)).toBeNull();
+  });
+
+  it("does not choke on a page of tags that never close", () => {
+    // Half a megabyte of `<meta ` with no `>`: unbounded, each one would scan
+    // to the end of the page.
+    const hostile = "<meta ".repeat(85_000);
+    const started = performance.now();
+    expect(findPageImage(hostile, PAGE)).toBeNull();
+    expect(performance.now() - started).toBeLessThan(3_000);
+  });
+
   it("answers null for a page with no image", () => {
     expect(
       findPageImage("<html><head><title>x</title></head></html>", PAGE),
@@ -167,5 +281,156 @@ describe("fetchPublicPage", () => {
     await expect(
       fetchPublicPage("https://user:secret@example.com/"),
     ).rejects.toThrow(/credentials/);
+  });
+});
+
+describe("what is fetched, and for how long", () => {
+  /** A resolver that answers every name with a public address. */
+  const publicLookup = ((
+    _hostname: string,
+    _options: unknown,
+    callback: (error: null, address: string, family: number) => void,
+  ) => callback(null, "93.184.216.34", 4)) as never;
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("takes an image of a kind a thumbnail may be", async () => {
+    reply(200, { "content-type": "image/png; charset=binary" }, "PNGDATA");
+    const image = await fetchPublicImage("https://cdn.example.com/share.png", {
+      lookup: publicLookup,
+    });
+    expect(image).toEqual({
+      body: Buffer.from("PNGDATA"),
+      type: "image/png",
+      extension: "png",
+    });
+    // The request carries the lookup that refuses private addresses.
+    expect(typeof network.requests[0].lookup).toBe("function");
+  });
+
+  it.each([
+    ["a page", "text/html"],
+    ["an SVG, which can carry script", "image/svg+xml"],
+    ["something with no type", ""],
+  ])("refuses %s in place of an image", async (_what, type) => {
+    reply(200, type ? { "content-type": type } : {}, "<svg/>");
+    await expect(
+      fetchPublicImage("https://cdn.example.com/x", { lookup: publicLookup }),
+    ).rejects.toThrow(/not an image/);
+  });
+
+  it("refuses an image larger than an upload may be, without reading it all", async () => {
+    network.replies.push((request) => {
+      const response = request.respond(200, { "content-type": "image/jpeg" });
+      response.emit("data", Buffer.alloc(3 * 1024 * 1024));
+      response.emit("data", Buffer.alloc(2 * 1024 * 1024));
+    });
+    await expect(
+      fetchPublicImage("https://cdn.example.com/huge.jpg", {
+        lookup: publicLookup,
+      }),
+    ).rejects.toThrow(/too large/);
+    expect(network.requests[0].destroyed).toBe(true);
+  });
+
+  it.each([
+    ["http://169.254.169.254/latest/meta-data/"],
+    ["http://127.0.0.1:3000/admin"],
+    ["http://[::1]/"],
+    ["http://10.0.0.5/img.png"],
+  ])("refuses an image a page names at %s", async (address) => {
+    await expect(fetchPublicImage(address)).rejects.toThrow(/not public/);
+    expect(network.requests).toHaveLength(0);
+  });
+
+  it("checks the address again after every redirect, for an image and for a page", async () => {
+    reply(302, { location: "http://169.254.169.254/latest/meta-data/" });
+    await expect(
+      fetchPublicImage("https://cdn.example.com/share.png", {
+        lookup: publicLookup,
+      }),
+    ).rejects.toThrow(/not public/);
+    // The first hop was made; the one to the private address never was.
+    expect(network.requests.map((request) => request.url)).toEqual([
+      "https://cdn.example.com/share.png",
+    ]);
+
+    reply(301, { location: "http://127.0.0.1/" });
+    await expect(
+      fetchPublicPage("https://example.com/", { lookup: publicLookup }),
+    ).rejects.toThrow(/not public/);
+  });
+
+  it("gives up after a few redirects", async () => {
+    for (let hop = 0; hop < 6; hop += 1) {
+      reply(302, { location: `https://cdn.example.com/${hop}` });
+    }
+    await expect(
+      fetchPublicImage("https://cdn.example.com/start", {
+        lookup: publicLookup,
+      }),
+    ).rejects.toThrow(/too many redirects/);
+    expect(network.requests).toHaveLength(4);
+  });
+
+  it("stops a request that trickles past its deadline", async () => {
+    vi.useFakeTimers();
+    let response: EventEmitter | undefined;
+    network.replies.push((request) => {
+      response = request.respond(200, { "content-type": "text/html" });
+    });
+    const page = fetchPublicPage("https://slow.example.com/", {
+      lookup: publicLookup,
+    });
+    const outcome = expect(page).rejects.toThrow(/deadline/);
+
+    // A byte every five seconds: the idle timeout never fires.
+    for (let second = 0; second < 15; second += 5) {
+      await vi.advanceTimersByTimeAsync(5_000);
+      response?.emit("data", Buffer.from("x"));
+    }
+    await outcome;
+    expect(network.requests[0].destroyed).toBe(true);
+  });
+
+  it("leaves no timer running once a request is answered", async () => {
+    vi.useFakeTimers();
+    reply(200, { "content-type": "text/html" }, "<html></html>");
+    await fetchPublicPage("https://example.com/", { lookup: publicLookup });
+    expect(vi.getTimerCount()).toBe(0);
+
+    reply(500);
+    await expect(
+      fetchPublicPage("https://example.com/", { lookup: publicLookup }),
+    ).rejects.toThrow(/status 500/);
+    expect(vi.getTimerCount()).toBe(0);
+
+    network.replies.push((request) =>
+      request.emit("error", new Error("socket hang up")),
+    );
+    await expect(
+      fetchPublicPage("https://example.com/", { lookup: publicLookup }),
+    ).rejects.toThrow(/socket hang up/);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("reads only the start of a long page", async () => {
+    network.replies.push((request) => {
+      const response = request.respond(200, { "content-type": "text/html" });
+      response.emit(
+        "data",
+        Buffer.from(
+          `<head><meta property="og:image" content="https://cdn.example.com/a.png"></head>`,
+        ),
+      );
+      response.emit("data", Buffer.alloc(600 * 1024, "x"));
+    });
+    const page = await fetchPublicPage("https://example.com/", {
+      lookup: publicLookup,
+    });
+    expect(page.html).toContain("og:image");
+    expect(network.requests[0].destroyed).toBe(true);
   });
 });

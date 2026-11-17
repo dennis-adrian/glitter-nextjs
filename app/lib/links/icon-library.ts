@@ -114,8 +114,10 @@ function searchRank(icon: IndexedIcon, key: string, words: string[]) {
   if (icon.terms.some((term) => term.startsWith(key))) return 1;
   if (icon.key.includes(key)) return 2;
   if (icon.terms.some((term) => term.includes(key))) return 2;
+  // One word is enough when it is what was left of several ("de corazón"):
+  // the whole search, "decorazon", is in no name. None left finds nothing.
   if (
-    words.length > 1 &&
+    words.length > 0 &&
     words.every((word) => icon.terms.some((term) => term.includes(word)))
   ) {
     return 3;
