@@ -58,6 +58,8 @@ export type AdminParticipationRow = {
   companions: { id: number; name: string; email: string }[];
   /** When this account joined the reservation. */
   joinedAt: Date;
+  /** When the reservation was made; orders a festival that has no dates. */
+  reservationCreatedAt: Date;
 };
 
 export function personName(person: PersonParts): string {
@@ -140,11 +142,12 @@ export function buildAdminParticipationHistory(
             email: participant.user.email,
           })),
         joinedAt: row.createdAt,
+        reservationCreatedAt: reservation.createdAt,
       };
     })
     .sort((a, b) => {
-      const at = (a.festival.startDate ?? a.joinedAt).getTime();
-      const bt = (b.festival.startDate ?? b.joinedAt).getTime();
+      const at = (a.festival.startDate ?? a.reservationCreatedAt).getTime();
+      const bt = (b.festival.startDate ?? b.reservationCreatedAt).getTime();
       if (bt !== at) return bt - at;
       return b.reservationId - a.reservationId;
     });

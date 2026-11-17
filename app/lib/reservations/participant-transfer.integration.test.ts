@@ -20,6 +20,7 @@ import {
   festivals,
   invoices,
   participantProducts,
+  pendingUserDeletions,
   reservationParticipants,
   reservationRequestRegistry,
   scheduledTasks,
@@ -117,6 +118,9 @@ describeDatabase("admin participation transfer", () => {
       await db
         .delete(festivalSectors)
         .where(inArray(festivalSectors.festivalId, fixture.festivalIds));
+      await db
+        .delete(pendingUserDeletions)
+        .where(inArray(pendingUserDeletions.userId, fixture.userIds));
       await db
         .delete(userRequests)
         .where(inArray(userRequests.userId, fixture.userIds));
@@ -616,5 +620,137 @@ describeDatabase("admin participation transfer", () => {
         idempotencyKey: randomUUID(),
       }),
     ).toMatchObject({ success: false, code: "UNAUTHORIZED" });
+  });
+
+  it("makes the target the owner of a legacy reservation it now holds", async () => {
+    const db = integrationDb!;
+    // Accounts are created in order, so the old account has the lowest id: a
+    // legacy row with no owner and no cobro derives its holder from it.
+    const { festival, accounts, standRows } = await seed({ accounts: 3 });
+    const [oldAccount, companion, newAccount] = accounts;
+    const [reservation] = await db
+      .insert(standReservations)
+      .values({
+        festivalId: festival.id,
+        standId: standRows[0].id,
+        status: "accepted",
+        source: "legacy_unknown",
+        ownerUserId: null,
+        bookedParticipantCount: 2,
+      })
+      .returning();
+    await db.insert(standReservationStands).values({
+      reservationId: reservation.id,
+      standId: standRows[0].id,
+      position: 0,
+    });
+    await db.insert(reservationParticipants).values([
+      { userId: oldAccount.id, reservationId: reservation.id },
+      { userId: companion.id, reservationId: reservation.id },
+    ]);
+
+    const result = await service.transferReservationParticipation({
+      reservationId: reservation.id,
+      fromUserId: oldAccount.id,
+      toUserId: newAccount.id,
+      idempotencyKey: randomUUID(),
+    });
+    expect(result.success).toBe(true);
+
+    const [after] = await db
+      .select()
+      .from(standReservations)
+      .where(eq(standReservations.id, reservation.id));
+    // Without it the companion, now the lowest id, would hold it.
+    expect(after.ownerUserId).toBe(newAccount.id);
+    const [event] = await db
+      .select({ payload: standReservationEvents.payload })
+      .from(standReservationEvents)
+      .where(eq(standReservationEvents.reservationId, reservation.id));
+    expect(event.payload).toMatchObject({ movedOwnership: true });
+  });
+
+  it("refuses an account whose deletion is under way", async () => {
+    const db = integrationDb!;
+    const { festival, accounts, standRows } = await seed({});
+    const [oldAccount, newAccount] = accounts;
+    const { reservation } = await seedReservation({
+      festivalId: festival.id,
+      standId: standRows[0].id,
+      ownerUserId: oldAccount.id,
+    });
+    await db.insert(pendingUserDeletions).values({
+      userId: newAccount.id,
+      clerkId: newAccount.clerkId,
+    });
+
+    const input = {
+      reservationId: reservation.id,
+      fromUserId: oldAccount.id,
+      toUserId: newAccount.id,
+    };
+    expect(await service.previewParticipantTransfer(input)).toMatchObject({
+      success: false,
+      code: "TRANSFER_TARGET_DELETION_PENDING",
+    });
+    expect(
+      await service.transferReservationParticipation({
+        ...input,
+        idempotencyKey: randomUUID(),
+      }),
+    ).toMatchObject({
+      success: false,
+      code: "TRANSFER_TARGET_DELETION_PENDING",
+    });
+    const participants = await db
+      .select({ userId: reservationParticipants.userId })
+      .from(reservationParticipants)
+      .where(eq(reservationParticipants.reservationId, reservation.id));
+    expect(participants).toEqual([{ userId: oldAccount.id }]);
+  });
+
+  it("lets a live reservation reach an account whose own attempts in the festival were rejected or cancelled", async () => {
+    const db = integrationDb!;
+    const { festival, accounts, standRows } = await seed({
+      festivalStatus: "active",
+    });
+    const [oldAccount, newAccount] = accounts;
+    const { reservation } = await seedReservation({
+      festivalId: festival.id,
+      standId: standRows[0].id,
+      ownerUserId: oldAccount.id,
+      status: "pending",
+    });
+    // The new account's own tries, refused because the old one held a stand.
+    for (const [index, status] of (
+      ["rejected", "cancelled"] as const
+    ).entries()) {
+      const { reservation: refused } = await seedReservation({
+        festivalId: festival.id,
+        standId: standRows[index + 1].id,
+        ownerUserId: newAccount.id,
+        status: "pending",
+      });
+      await db
+        .update(standReservations)
+        .set({ status })
+        .where(eq(standReservations.id, refused.id));
+    }
+
+    const result = await service.transferReservationParticipation({
+      reservationId: reservation.id,
+      fromUserId: oldAccount.id,
+      toUserId: newAccount.id,
+      idempotencyKey: randomUUID(),
+    });
+    expect(result.success).toBe(true);
+    const [after] = await db
+      .select()
+      .from(standReservations)
+      .where(eq(standReservations.id, reservation.id));
+    expect(after).toMatchObject({
+      ownerUserId: newAccount.id,
+      status: "pending",
+    });
   });
 });

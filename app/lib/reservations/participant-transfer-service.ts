@@ -45,6 +45,7 @@ import {
   invoiceCreditAllocations,
   invoices,
   participantProducts,
+  pendingUserDeletions,
   reservationFeatureActions,
   reservationParticipants,
   scheduledTasks,
@@ -166,6 +167,7 @@ async function readTransferState(tx: DbTx, input: TransferInput) {
     activeFeatureRows,
     creditRows,
     activityRows,
+    targetDeletionRows,
   ] = await Promise.all([
     tx
       .select({ id: scheduledTasks.id })
@@ -275,6 +277,19 @@ async function readTransferState(tx: DbTx, input: TransferInput) {
           isNull(festivalActivityParticipants.removedAt),
         ),
       ),
+    // Read again under the aggregate lock, which holds the target's users row
+    // FOR UPDATE — the row deleteProfile locks while it records the pending
+    // deletion — so the two cannot pass each other.
+    tx
+      .select({ id: pendingUserDeletions.id })
+      .from(pendingUserDeletions)
+      .where(
+        and(
+          eq(pendingUserDeletions.userId, input.toUserId),
+          isNull(pendingUserDeletions.localDeletedAt),
+        ),
+      )
+      .limit(1),
   ]);
 
   const enrollmentOf = (userId: number) => {
@@ -310,7 +325,12 @@ async function readTransferState(tx: DbTx, input: TransferInput) {
       participants,
     }),
     target: target
-      ? { id: target.id, role: target.role, status: target.status }
+      ? {
+          id: target.id,
+          role: target.role,
+          status: target.status,
+          deletionPending: targetDeletionRows.length > 0,
+        }
       : null,
     targetHasLiveReservationInFestival: targetLiveRows.length > 0,
     targetSanctionBlocked,
@@ -517,7 +537,11 @@ export async function transferReservationParticipation(
       .set({ userId: input.toUserId, updatedAt: now })
       .where(eq(participantProducts.participationId, participationId));
 
-    if (state.reservation.ownerUserId === input.fromUserId) {
+    // Written whenever the holding moves, not only when the old account was
+    // the recorded owner: a legacy row with no owner and no cobro derives its
+    // holder from the lowest participant id, which could otherwise hand the
+    // reservation to the companion.
+    if (plan.movesHolding) {
       await tx
         .update(standReservations)
         .set({ ownerUserId: input.toUserId, updatedAt: now })
@@ -577,7 +601,7 @@ export async function transferReservationParticipation(
         participationId,
         fromUserId: input.fromUserId,
         toUserId: input.toUserId,
-        movedOwnership: state.reservation.ownerUserId === input.fromUserId,
+        movedOwnership: plan.movesHolding,
         invoiceIds: state.sourceInvoiceIds,
         scheduledTaskIds: state.scheduledTaskIds,
         enrollment: plan.enrollment,

@@ -62,6 +62,7 @@ const ROWS: AdminParticipationRow[] = [
       },
     ],
     joinedAt: new Date("2026-08-01T00:00:00Z"),
+    reservationCreatedAt: new Date("2026-08-01T00:00:00Z"),
   },
   {
     participationId: 2,
@@ -74,6 +75,7 @@ const ROWS: AdminParticipationRow[] = [
     festival: festival(12, "Glitter Vol 8", "2025-12-06T14:00:00Z"),
     companions: [{ id: 10, name: "Leo", email: "leo@example.com" }],
     joinedAt: new Date("2025-10-01T00:00:00Z"),
+    reservationCreatedAt: new Date("2025-10-01T00:00:00Z"),
   },
   {
     participationId: 3,
@@ -86,6 +88,7 @@ const ROWS: AdminParticipationRow[] = [
     festival: festival(10, "Glitter Vol 7", null),
     companions: [],
     joinedAt: new Date("2025-05-01T00:00:00Z"),
+    reservationCreatedAt: new Date("2025-05-01T00:00:00Z"),
   },
 ];
 
@@ -207,5 +210,63 @@ export const TransferRefused: Story = {
     await expect(
       dialog.getByRole("button", { name: "Transferir participación" }),
     ).toBeDisabled();
+  },
+};
+
+/**
+ * A slow preview for the first pick must not land under the second one: the
+ * admin would read one account's plan and confirm a transfer to another.
+ */
+export const SlowPreviewForAnEarlierPick: Story = {
+  play: async ({ canvasElement }) => {
+    mocked(previewParticipantTransferAction).mockImplementationOnce(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                success: true,
+                message: "Vista previa lista",
+                data: {
+                  reservationId: 7,
+                  festivalName: "Festicker",
+                  status: "accepted",
+                  from: { id: 1, name: "Mafe", email: "mafe@example.com" },
+                  to: { id: 42, name: "María", email: "maria@example.com" },
+                  plan: {
+                    movesHolding: false,
+                    enrollment: "none",
+                    moves: ["Plan de la primera cuenta"],
+                    warnings: [],
+                  },
+                },
+              }),
+            600,
+          ),
+        ),
+    );
+
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getAllByRole("button", { name: /Transferir/ })[0],
+    );
+    const dialog = within(await within(document.body).findByRole("dialog"));
+    await userEvent.type(dialog.getByLabelText("Cuenta de destino"), "maría");
+    await userEvent.click(
+      await dialog.findByRole("button", { name: /María Fernanda/ }),
+    );
+    await userEvent.click(dialog.getByRole("button", { name: "Cambiar" }));
+    await userEvent.type(dialog.getByLabelText("Cuenta de destino"), "mafe");
+    await userEvent.click(
+      await dialog.findByRole("button", { name: /Mafe Ilustra/ }),
+    );
+
+    await dialog.findByText("La participación en la reserva");
+    // Past the slow answer for the first pick.
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    await expect(
+      dialog.queryByText("Plan de la primera cuenta"),
+    ).not.toBeInTheDocument();
+    await expect(dialog.getByText("Mafe Ilustra")).toBeInTheDocument();
   },
 };

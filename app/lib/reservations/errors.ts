@@ -64,6 +64,7 @@ export const RESERVATION_ERROR_CODES = [
   "TRANSFER_TARGET_ALREADY_RESERVED",
   "TRANSFER_FEATURE_ACTIVE",
   "TRANSFER_CREDITS_APPLIED",
+  "TRANSFER_TARGET_DELETION_PENDING",
   "AMOUNT_BELOW_CREDITS",
   "CREDITS_NOT_RELEASABLE",
   "CREDITS_ALREADY_RELEASED",
@@ -232,6 +233,11 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> =
     // moves money again, so only a live reservation is refused.
     TRANSFER_CREDITS_APPLIED:
       "El cobro de esta reserva tiene créditos de la cuenta de origen aplicados. Devolvé esos créditos antes de transferirla; si hace falta, otorgáselos después a la cuenta de destino.",
+    // The deletion refuses an account with participations, but only once its
+    // Clerk login may already be gone; a transfer landing in between would
+    // leave a profile nobody can sign in to or delete.
+    TRANSFER_TARGET_DELETION_PENDING:
+      "La cuenta de destino se está eliminando. Elegí otra cuenta.",
     AMOUNT_BELOW_CREDITS:
       "El monto no puede quedar por debajo de los créditos ya aplicados. Devolvé los créditos antes de bajarlo.",
     CREDITS_NOT_RELEASABLE:

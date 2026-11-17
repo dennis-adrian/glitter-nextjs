@@ -29,6 +29,7 @@ function row(input: {
   participantIds?: number[];
   invoiceUserIds?: number[];
   createdAt?: Date;
+  reservationCreatedAt?: Date;
   members?: AdminParticipationSource["reservation"]["members"];
 }): AdminParticipationSource {
   const userId = input.userId ?? 1;
@@ -42,7 +43,7 @@ function row(input: {
       status: input.status ?? "accepted",
       source: "user_reservation",
       ownerUserId: input.ownerUserId === undefined ? userId : input.ownerUserId,
-      createdAt,
+      createdAt: input.reservationCreatedAt ?? createdAt,
       stand: { label: "A", standNumber: input.reservationId },
       members: input.members ?? [],
       festival: {
@@ -100,6 +101,32 @@ describe("buildAdminParticipationHistory", () => {
     ]);
     expect(rows[2].festival.startDate).toEqual(
       new Date("2023-05-01T15:00:00Z"),
+    );
+  });
+
+  it("orders undated festivals by when the reservation was made, not when this account joined it", () => {
+    const rows = buildAdminParticipationHistory([
+      // Joined late (a late partner, or a transfer), but reserved early.
+      row({
+        id: 1,
+        reservationId: 10,
+        festivalId: 1,
+        reservationCreatedAt: new Date("2024-01-01T00:00:00Z"),
+        createdAt: new Date("2024-09-01T00:00:00Z"),
+      }),
+      row({
+        id: 2,
+        reservationId: 11,
+        festivalId: 2,
+        reservationCreatedAt: new Date("2024-05-01T00:00:00Z"),
+        createdAt: new Date("2024-05-01T00:00:00Z"),
+      }),
+    ]);
+    expect(rows.map((item) => item.reservationId)).toEqual([11, 10]);
+    // The participation keeps its own date.
+    expect(rows[1].joinedAt).toEqual(new Date("2024-09-01T00:00:00Z"));
+    expect(rows[1].reservationCreatedAt).toEqual(
+      new Date("2024-01-01T00:00:00Z"),
     );
   });
 

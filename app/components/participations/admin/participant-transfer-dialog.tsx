@@ -75,10 +75,21 @@ export default function ParticipantTransferDialog({
     crypto.randomUUID(),
   );
   const searchRun = useRef(0);
+  // Same idea for the preview: only the destination picked last may show its
+  // plan, or a slow answer for an earlier pick would sit under the new one and
+  // be what the admin confirms.
+  const previewRun = useRef(0);
+
+  function clearTarget() {
+    previewRun.current += 1;
+    setTarget(null);
+    setPreview({ kind: "idle" });
+  }
 
   function reset() {
     // Nothing still in flight may publish into a dialog that starts over.
     searchRun.current += 1;
+    previewRun.current += 1;
     search.cancel();
     setTerm("");
     setCandidates([]);
@@ -114,6 +125,7 @@ export default function ParticipantTransferDialog({
   }, 300);
 
   async function choose(candidate: TransferCandidate) {
+    const run = ++previewRun.current;
     setTarget(candidate);
     setIdempotencyKey(crypto.randomUUID());
     setPreview({ kind: "loading" });
@@ -123,6 +135,7 @@ export default function ParticipantTransferDialog({
         fromUserId,
         toUserId: candidate.id,
       });
+      if (run !== previewRun.current) return;
       setPreview(
         result.success
           ? { kind: "ready", preview: result.data }
@@ -130,6 +143,7 @@ export default function ParticipantTransferDialog({
       );
     } catch (error) {
       console.error("Error previewing participation transfer", error);
+      if (run !== previewRun.current) return;
       setPreview({
         kind: "refused",
         message: "No pudimos revisar la transferencia. Intentá nuevamente.",
@@ -221,10 +235,7 @@ export default function ParticipantTransferDialog({
                   size="sm"
                   className="shrink-0"
                   disabled={pending}
-                  onClick={() => {
-                    setTarget(null);
-                    setPreview({ kind: "idle" });
-                  }}
+                  onClick={clearTarget}
                 >
                   Cambiar
                 </Button>

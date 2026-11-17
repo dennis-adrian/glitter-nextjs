@@ -13,7 +13,7 @@ function snapshot(overrides: Partial<TransferSnapshot> = {}): TransferSnapshot {
     reservation: { status: "accepted", festivalStatus: "archived" },
     participantUserIds: [1],
     holderUserId: 1,
-    target: { id: 2, role: "user", status: "verified" },
+    target: { id: 2, role: "user", status: "verified", deletionPending: false },
     targetHasLiveReservationInFestival: false,
     targetSanctionBlocked: false,
     activeFeatureActionCount: 0,
@@ -82,18 +82,44 @@ describe("decideParticipantTransfer", () => {
 
   it("only lets participant accounts receive", () => {
     expect(
-      refusal({ target: { id: 2, role: "admin", status: "verified" } }),
+      refusal({
+        target: {
+          id: 2,
+          role: "admin",
+          status: "verified",
+          deletionPending: false,
+        },
+      }),
     ).toBe("TRANSFER_TARGET_NOT_ELIGIBLE");
-    expect(refusal({ target: { id: 2, role: "user", status: "banned" } })).toBe(
-      "TRANSFER_TARGET_NOT_ELIGIBLE",
-    );
     expect(
-      refusal({ target: { id: 2, role: "user", status: "pending" } }),
+      refusal({
+        target: {
+          id: 2,
+          role: "user",
+          status: "banned",
+          deletionPending: false,
+        },
+      }),
+    ).toBe("TRANSFER_TARGET_NOT_ELIGIBLE");
+    expect(
+      refusal({
+        target: {
+          id: 2,
+          role: "user",
+          status: "pending",
+          deletionPending: false,
+        },
+      }),
     ).toBe("TRANSFER_TARGET_NOT_ELIGIBLE");
   });
 
   it("treats an archived festival's accepted reservation as history", () => {
-    const paused = { id: 2, role: "user", status: "paused" };
+    const paused = {
+      id: 2,
+      role: "user",
+      status: "paused",
+      deletionPending: false,
+    };
     expect(refusal({ target: paused })).toBeNull();
     expect(
       refusal({
@@ -103,8 +129,31 @@ describe("decideParticipantTransfer", () => {
     ).toBe("TRANSFER_TARGET_NOT_ELIGIBLE");
   });
 
+  it("refuses an account whose deletion is under way, history included", () => {
+    const deleting = {
+      id: 2,
+      role: "user",
+      status: "verified",
+      deletionPending: true,
+    };
+    expect(refusal({ target: deleting })).toBe(
+      "TRANSFER_TARGET_DELETION_PENDING",
+    );
+    expect(
+      refusal({
+        target: deleting,
+        reservation: { status: "pending", festivalStatus: "active" },
+      }),
+    ).toBe("TRANSFER_TARGET_DELETION_PENDING");
+  });
+
   it("accepts a paused account for history but not for a live reservation", () => {
-    const paused = { id: 2, role: "user", status: "paused" };
+    const paused = {
+      id: 2,
+      role: "user",
+      status: "paused",
+      deletionPending: false,
+    };
     expect(refusal({ target: paused })).toBeNull();
     expect(
       refusal({

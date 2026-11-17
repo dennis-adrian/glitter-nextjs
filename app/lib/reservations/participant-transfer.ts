@@ -27,6 +27,8 @@ export type TransferTarget = {
   id: number;
   role: string;
   status: string;
+  /** A profile deletion was started for this account and has not finished. */
+  deletionPending: boolean;
 };
 
 export type TransferEnrollment = { id: number; status: string } | null;
@@ -49,7 +51,12 @@ export type TransferSnapshot = {
   /** Owner, or the legacy fallback: see `reservationHolderId`. */
   holderUserId: number | null;
   target: TransferTarget | null;
-  /** Another live reservation of the target in the same festival. */
+  /**
+   * Another live reservation of the target in the same festival. Deliberately
+   * not its rejected or cancelled ones: a common way a new account gets one is
+   * an admin refusing its attempt to reserve while the old account still held
+   * the stand — the very case a transfer exists to fix.
+   */
   targetHasLiveReservationInFestival: boolean;
   /** Only read for a live reservation; history is not re-judged. */
   targetSanctionBlocked: boolean;
@@ -74,7 +81,11 @@ export type TransferSnapshot = {
 };
 
 export type TransferPlan = {
-  /** Whether the reservation's ownership goes along with the participation. */
+  /**
+   * Whether the reservation's holding goes along with the participation. When
+   * it does, the target becomes the recorded owner — also on a legacy row with
+   * no owner, whose holder is otherwise derived and could fall to a companion.
+   */
   movesHolding: boolean;
   enrollment: TransferEnrollmentPlan;
   /** Plain sentences for the admin: what this will carry. */
@@ -135,6 +146,11 @@ export function decideParticipantTransfer(
   }
   if (snapshot.participantUserIds.includes(snapshot.toUserId)) {
     return { ok: false, code: "TRANSFER_TARGET_ALREADY_PARTICIPANT" };
+  }
+  // History or not: the deletion would refuse the account afterwards, by
+  // which point its login may already be gone.
+  if (snapshot.target.deletionPending) {
+    return { ok: false, code: "TRANSFER_TARGET_DELETION_PENDING" };
   }
 
   const live = isLiveTransfer(snapshot.reservation);
