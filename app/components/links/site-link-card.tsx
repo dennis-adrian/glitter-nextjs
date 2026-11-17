@@ -37,14 +37,21 @@ function recordClick(link: PublicSiteLink) {
  * One network of the row of social icons: the mark alone, named for screen
  * readers by its network.
  */
-export function SiteSocialLink({ link }: { link: PublicSiteLink }) {
+export function SiteSocialLink({
+  link,
+  preview = false,
+}: {
+  link: PublicSiteLink;
+  /** In the dashboard's preview: the tap opens the link and is not counted. */
+  preview?: boolean;
+}) {
   const isMail = mailtoAddress(link.href) != null;
   return (
     <a
       href={link.href}
       aria-label={link.label}
       title={link.label}
-      onClick={() => recordClick(link)}
+      onClick={preview ? undefined : () => recordClick(link)}
       className="flex size-11 items-center justify-center rounded-full text-brand-ink transition hover:bg-brand-lavender hover:text-brand-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary dark:hover:bg-brand-deep dark:hover:text-brand-ink"
       {...(isMail ? {} : { target: "_blank", rel: "noopener noreferrer" })}
     >
@@ -54,7 +61,17 @@ export function SiteSocialLink({ link }: { link: PublicSiteLink }) {
 }
 
 /** One link of the `/links` page. */
-export default function SiteLinkCard({ link }: { link: PublicSiteLink }) {
+export default function SiteLinkCard({
+  link,
+  preview = false,
+}: {
+  link: PublicSiteLink;
+  /**
+   * In the dashboard's preview: the tap is not counted, and a path of this
+   * site opens in a new tab too, so the editor stays where it is.
+   */
+  preview?: boolean;
+}) {
   const email = mailtoAddress(link.href);
   const content = (
     <>
@@ -75,12 +92,12 @@ export default function SiteLinkCard({ link }: { link: PublicSiteLink }) {
     </>
   );
 
-  if (isExternalLink(link.href)) {
+  if (preview || isExternalLink(link.href)) {
     return (
       <a
         href={link.href}
         className={CARD_CLASS}
-        onClick={() => recordClick(link)}
+        onClick={preview ? undefined : () => recordClick(link)}
         // A mailto opens the mail app; a new tab for it would stay blank.
         {...(email == null
           ? { target: "_blank", rel: "noopener noreferrer" }

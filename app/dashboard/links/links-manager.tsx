@@ -19,15 +19,22 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   ExternalLinkIcon,
+  EyeIcon,
   GripVerticalIcon,
   PencilIcon,
   PlusIcon,
   Trash2Icon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type FormEvent } from "react";
+import {
+  useState,
+  useSyncExternalStore,
+  useTransition,
+  type FormEvent,
+} from "react";
 import { toast } from "sonner";
 
+import LinksPageView from "@/app/components/links/links-page-view";
 import SiteLinkIcon from "@/app/components/links/site-link-icon";
 import {
   AlertDialog,
@@ -48,6 +55,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/app/components/ui/dialog";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/app/components/ui/drawer";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { Switch } from "@/app/components/ui/switch";
@@ -62,6 +77,7 @@ import {
   updateSocialLink,
 } from "@/app/lib/links/actions";
 import {
+  LINKS_PATH,
   SITE_LINK_ICONS,
   SITE_LINK_ICON_LABELS,
   SITE_LINK_LABEL_MAX,
@@ -673,6 +689,27 @@ function LinksSection({
   );
 }
 
+/** Room for the editor and a phone-sized preview side by side. */
+const WIDE_QUERY = "(min-width: 1280px)";
+
+function subscribeToWide(onChange: () => void) {
+  if (typeof matchMedia !== "function") return () => {};
+  const media = matchMedia(WIDE_QUERY);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+
+function useIsWide() {
+  return useSyncExternalStore(
+    subscribeToWide,
+    () => typeof matchMedia === "function" && matchMedia(WIDE_QUERY).matches,
+    () => false,
+  );
+}
+
+const PREVIEW_HINT =
+  "Así se ve la página con lo guardado. Los toques aquí no cuentan como clics.";
+
 export default function LinksManager({
   initialLinks,
   initialSocialPosition = "top",
@@ -684,6 +721,16 @@ export default function LinksManager({
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState<Editing>(null);
+  const isWide = useIsWide();
+
+  // What a visitor gets: the visible rows, each kind in its order.
+  const preview = (
+    <LinksPageView
+      preview
+      links={initialLinks.filter((link) => link.isVisible)}
+      socialPosition={initialSocialPosition}
+    />
+  );
 
   const socials = initialLinks.filter((link) => link.kind === "social");
   const links = initialLinks.filter((link) => link.kind !== "social");
@@ -702,52 +749,84 @@ export default function LinksManager({
     : undefined;
 
   return (
-    <div className="max-w-3xl space-y-8">
-      <div className="space-y-3">
-        <Button variant="outline" asChild>
-          <a href={publicUrl} target="_blank" rel="noopener noreferrer">
-            <ExternalLinkIcon className="mr-2 size-4" />
-            Ver página
-          </a>
-        </Button>
-        <p className="text-sm text-muted-foreground wrap-anywhere">
-          Dirección para la bio:{" "}
-          <span className="font-medium">{publicUrl}</span>
-        </p>
+    <div className="xl:grid xl:grid-cols-[minmax(0,48rem)_20rem] xl:items-start xl:gap-10">
+      <div className="space-y-8">
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {isWide ? null : (
+              <Drawer>
+                <DrawerTrigger asChild>
+                  <Button type="button">
+                    <EyeIcon className="mr-2 size-4" />
+                    Vista previa
+                  </Button>
+                </DrawerTrigger>
+                <DrawerContent>
+                  <DrawerHeader>
+                    <DrawerTitle>Vista previa</DrawerTitle>
+                    <DrawerDescription>{PREVIEW_HINT}</DrawerDescription>
+                  </DrawerHeader>
+                  <div className="min-h-0 overflow-y-auto">{preview}</div>
+                </DrawerContent>
+              </Drawer>
+            )}
+            {/* A path, not an address: it opens on whatever domain this is. */}
+            <Button variant="outline" asChild>
+              <a href={LINKS_PATH} target="_blank" rel="noopener noreferrer">
+                <ExternalLinkIcon className="mr-2 size-4" />
+                Ver página
+              </a>
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground wrap-anywhere">
+            Dirección para la bio:{" "}
+            <span className="font-medium">{publicUrl}</span>
+          </p>
+        </div>
+
+        <LinksSection
+          kind="social"
+          links={socials}
+          canAdd={availableNetworks.length > 0}
+          onAdd={() => setEditing({ kind: "social", target: "new" })}
+          onEdit={(link) => setEditing({ kind: "social", target: link })}
+        >
+          <SocialPositionPicker initial={initialSocialPosition} />
+        </LinksSection>
+        <LinksSection
+          kind="link"
+          links={links}
+          onAdd={() => setEditing({ kind: "link", target: "new" })}
+          onEdit={(link) => setEditing({ kind: "link", target: link })}
+        />
+
+        {editing?.kind === "link" ? (
+          <LinkFormDialog
+            key={formKey}
+            editing={editing.target}
+            onClose={closeForm}
+            onSaved={savedForm}
+          />
+        ) : null}
+        {editing?.kind === "social" ? (
+          <SocialFormDialog
+            key={formKey}
+            editing={editing.target}
+            available={availableNetworks}
+            onClose={closeForm}
+            onSaved={savedForm}
+          />
+        ) : null}
       </div>
-
-      <LinksSection
-        kind="social"
-        links={socials}
-        canAdd={availableNetworks.length > 0}
-        onAdd={() => setEditing({ kind: "social", target: "new" })}
-        onEdit={(link) => setEditing({ kind: "social", target: link })}
-      >
-        <SocialPositionPicker initial={initialSocialPosition} />
-      </LinksSection>
-      <LinksSection
-        kind="link"
-        links={links}
-        onAdd={() => setEditing({ kind: "link", target: "new" })}
-        onEdit={(link) => setEditing({ kind: "link", target: link })}
-      />
-
-      {editing?.kind === "link" ? (
-        <LinkFormDialog
-          key={formKey}
-          editing={editing.target}
-          onClose={closeForm}
-          onSaved={savedForm}
-        />
-      ) : null}
-      {editing?.kind === "social" ? (
-        <SocialFormDialog
-          key={formKey}
-          editing={editing.target}
-          available={availableNetworks}
-          onClose={closeForm}
-          onSaved={savedForm}
-        />
+      {isWide ? (
+        <aside aria-label="Vista previa" className="sticky top-24 space-y-3">
+          <div className="max-h-[calc(100dvh-11rem)] overflow-y-auto rounded-[2rem] border-4 border-border bg-background shadow-lg">
+            {preview}
+          </div>
+          <p className="text-center text-xs text-muted-foreground">
+            {PREVIEW_HINT}
+          </p>
+        </aside>
       ) : null}
     </div>
   );

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 
 import LinksManager from "@/app/dashboard/links/links-manager";
 import { listSiteLinksForAdmin } from "@/app/lib/links/actions";
@@ -8,11 +9,30 @@ import { publicBaseUrl } from "@/app/lib/urls";
 
 export const metadata: Metadata = { title: "Enlaces" };
 
+/**
+ * The origin this request came to, so the address shown is the one of the
+ * domain the admin is on (production, staging or a preview) and not the one
+ * configured for emails.
+ */
+async function requestOrigin() {
+  const requestHeaders = await headers();
+  const host = (
+    requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host")
+  )
+    ?.split(",")[0]
+    ?.trim();
+  if (!host) return publicBaseUrl();
+  const proto =
+    requestHeaders.get("x-forwarded-proto")?.split(",")[0]?.trim() ??
+    (/^(localhost|127\.0\.0\.1)(:|$)/.test(host) ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
 export default async function SiteLinksDashboardPage() {
   // The list first: it is what turns away anyone who may not be here.
   const links = await listSiteLinksForAdmin();
   const socialPosition = await fetchSocialPosition();
-  const publicUrl = `${publicBaseUrl()}${LINKS_PATH}`;
+  const publicUrl = `${await requestOrigin()}${LINKS_PATH}`;
 
   return (
     <div className="container p-4 md:p-6">

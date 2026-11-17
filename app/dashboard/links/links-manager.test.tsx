@@ -75,10 +75,25 @@ function renderManager(links = LINKS) {
   );
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // A phone: no room for the preview beside the editor. The drawer reads it.
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+    })),
+  );
   for (const action of Object.values(actions)) {
     action.mockResolvedValue({ success: true });
   }
@@ -91,6 +106,24 @@ describe("the links manager", () => {
     expect(screen.getByText(/3[.,]512 clics · \/store/)).toBeTruthy();
     expect(screen.getByText(/1 clic · mailto:/)).toBeTruthy();
     expect(screen.getByText("https://www.glitter.com.bo/links")).toBeTruthy();
+  });
+
+  it("opens the public page on the domain it is on", () => {
+    renderManager();
+    const view = screen.getByRole("link", { name: /Ver página/ });
+    expect(view.getAttribute("href")).toBe("/links");
+  });
+
+  it("previews the page with the visible links only, uncounted", () => {
+    renderManager();
+    fireEvent.click(screen.getByRole("button", { name: /Vista previa/ }));
+
+    const preview = within(screen.getByRole("dialog"));
+    const card = preview.getByRole("link", { name: "Tiendita" });
+    expect(card.getAttribute("target")).toBe("_blank");
+    expect(preview.getByRole("link", { name: "Instagram" })).toBeTruthy();
+    // Hidden in the dashboard, so not on the page.
+    expect(preview.queryByText("Correo")).toBeNull();
   });
 
   it("says so when there are no links yet", () => {
