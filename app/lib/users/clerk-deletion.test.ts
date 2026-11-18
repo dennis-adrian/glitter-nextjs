@@ -41,9 +41,11 @@ describe("deleteClerkLogin", () => {
     deleteClerkUser.mockResolvedValue(failed);
 
     clerkLoginStatus.mockResolvedValueOnce("exists");
+    // Its own prefix: a stored "clerk_delete_failed" without an attempt
+    // marker is how a row from the earlier code is recognised.
     expect(await deleteClerkLogin("c1", 50)).toEqual({
       kind: "not_deleted",
-      message: "clerk_delete_failed: reset",
+      message: "clerk_refused: reset",
     });
 
     // The delete reached Clerk although the answer did not come back.
@@ -81,7 +83,7 @@ describe("deleteClerkLogin", () => {
     clerkLoginStatus.mockResolvedValue("exists");
     expect(await deleteClerkLogin("c1", 50)).toEqual({
       kind: "not_deleted",
-      message: "clerk_delete_failed: refused during view",
+      message: "clerk_refused: refused during view",
     });
   });
 

@@ -47,6 +47,7 @@ export const previewParticipantTransferAction = fn(async () => ({
         "La cuenta de origen está inscrita en 2 actividades de este festival. Esas inscripciones no se mueven.",
       ],
     },
+    planKey: '{"invoices":[11],"tasks":[3],"holding":true,"enrollment":"move"}',
   },
 }));
 

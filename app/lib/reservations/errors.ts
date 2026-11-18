@@ -65,6 +65,7 @@ export const RESERVATION_ERROR_CODES = [
   "TRANSFER_FEATURE_ACTIVE",
   "TRANSFER_CREDITS_APPLIED",
   "TRANSFER_TARGET_DELETION_PENDING",
+  "TRANSFER_PLAN_CHANGED",
   "AMOUNT_BELOW_CREDITS",
   "CREDITS_NOT_RELEASABLE",
   "CREDITS_ALREADY_RELEASED",
@@ -237,6 +238,8 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> =
     // leave a profile nobody can sign in to or delete.
     TRANSFER_TARGET_DELETION_PENDING:
       "La cuenta de destino se está eliminando. Elegí otra cuenta.",
+    TRANSFER_PLAN_CHANGED:
+      "Lo que se iba a mover cambió desde que lo revisaste. Volvé a elegir la cuenta de destino para ver lo que se moverá ahora.",
     AMOUNT_BELOW_CREDITS:
       "El monto no puede quedar por debajo de los créditos ya aplicados. Devolvé los créditos antes de bajarlo.",
     CREDITS_NOT_RELEASABLE:

@@ -24,6 +24,9 @@ const transferTargetSchema = z.object({
 const transferSchema = transferTargetSchema.extend({
   idempotencyKey: uuidSchema,
   note: z.string().trim().max(500).optional().nullable(),
+  // Required here: the dialog always confirms a preview, and the command
+  // refuses if what moves is no longer what that preview showed.
+  planKey: z.string().min(1).max(10_000),
 });
 
 const searchSchema = z.object({

@@ -72,7 +72,28 @@ export type TransferPreview = {
   from: TransferAccount;
   to: TransferAccount;
   plan: TransferPlan;
+  /**
+   * What the admin is shown as moving, in a form the command can compare: it
+   * refuses when the rows it would move are no longer the ones reviewed.
+   */
+  planKey: string;
 };
+
+/**
+ * The rows and decisions a transfer would act on: the cobros and reminders
+ * it moves, whether the holding goes and what happens to the enrollment.
+ */
+function transferPlanKey(
+  state: { sourceInvoiceIds: number[]; scheduledTaskIds: number[] },
+  plan: TransferPlan,
+): string {
+  return JSON.stringify({
+    invoices: [...state.sourceInvoiceIds].sort((a, b) => a - b),
+    tasks: [...state.scheduledTaskIds].sort((a, b) => a - b),
+    holding: plan.movesHolding,
+    enrollment: plan.enrollment,
+  });
+}
 
 export type TransferResult = ReservationActionResult<{
   reservationId: number;
@@ -418,8 +439,12 @@ export async function previewParticipantTransfer(
     return adminReservationFailure("UNAUTHORIZED");
   }
 
-  // One transaction for one consistent read; nothing here writes.
-  const state = await db.transaction((tx) => readTransferState(tx, input));
+  // One snapshot for every read, so the plan is not pieced together from
+  // different moments; nothing here writes.
+  const state = await db.transaction((tx) => readTransferState(tx, input), {
+    isolationLevel: "repeatable read",
+    accessMode: "read only",
+  });
   if (!state) return adminReservationFailure("TRANSFER_NOT_PARTICIPANT");
 
   const decision = decideParticipantTransfer(state.snapshot);
@@ -438,6 +463,7 @@ export async function previewParticipantTransfer(
       from: state.source,
       to: state.target,
       plan: decision.plan,
+      planKey: transferPlanKey(state, decision.plan),
     },
     "Vista previa lista",
   );
@@ -456,7 +482,12 @@ export async function previewParticipantTransfer(
  * the old account is no longer on the reservation.
  */
 export async function transferReservationParticipation(
-  input: TransferInput & { idempotencyKey: string; note?: string | null },
+  input: TransferInput & {
+    idempotencyKey: string;
+    note?: string | null;
+    /** From the preview the admin confirmed; see `TransferPreview.planKey`. */
+    planKey?: string;
+  },
 ): Promise<TransferResult> {
   const actor = await getCurrentUserProfile();
   if (!canMutateAdminReservations(actor)) {
@@ -550,6 +581,13 @@ export async function transferReservationParticipation(
     }
     const decision = decideParticipantTransfer(state.snapshot);
     if (!decision.ok) return fail(transferFailure(decision.code));
+    // The admin confirmed a list of what moves: not a different one.
+    if (
+      input.planKey !== undefined &&
+      input.planKey !== transferPlanKey(state, decision.plan)
+    ) {
+      return fail(transferFailure("TRANSFER_PLAN_CHANGED"));
+    }
     const participationId = state.sourceParticipationId;
     if (participationId == null) {
       return fail(adminReservationFailure("TRANSFER_NOT_PARTICIPANT"));

@@ -1,24 +1,30 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
   comunicadoResends,
   comunicados,
   creditLedgerEntries,
+  creditTopUps,
   infractionEvidence,
   infractionNotes,
   infractions,
   invoiceCreditAllocations,
   invoices,
+  orderAdjustmentItems,
   orderAdjustments,
+  orderItems,
+  orderReturnItems,
   orderReturns,
+  orders,
   rentalReturnLogs,
   reservationFeatureActions,
   reservationParticipants,
   reservationRequestRegistry,
   sanctions,
+  standReservations,
 } from "@/db/schema";
 
 type DeletionTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -26,26 +32,31 @@ type DeletionTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 /**
  * Why a profile cannot be deleted, phrased for the admin who tried.
  *
- * The first four are permanent: those rows are kept on purpose (discipline,
- * who did what, and an append-only credit ledger), so nothing an admin does
- * makes the account deletable. `participations` is fixed by a transfer;
- * `reservation_invoices` needs someone to look at the cobros.
+ * The first five are permanent: those rows are kept on purpose (discipline,
+ * who did what, the records of its orders, and an append-only credit ledger),
+ * so nothing an admin does makes the account deletable. `participations` is
+ * fixed by a transfer; `reservation_records` needs someone to look at them.
  */
 export const PROFILE_DELETION_BLOCK_MESSAGES = {
   infractions: "No se puede eliminar un perfil con historial de infracciones.",
   sanctions: "No se puede eliminar un perfil con historial de sanciones.",
   admin_records:
     "No se puede eliminar un perfil con registros administrativos vinculados.",
+  // Its orders go with the account, but not the adjustments, returns and
+  // rental returns recorded against them: the delete would be refused.
+  order_records:
+    "No se puede eliminar un perfil con pedidos que tienen ajustes, devoluciones o alquileres registrados.",
   credit_history: "No se puede eliminar un perfil con historial de créditos.",
   // Deleting the account would cascade over them: the participation, and the
   // cobro with every payment and proof on it. The reservation itself would
   // survive with nobody on it.
   participations:
     "No se puede eliminar un perfil que todavía tiene participaciones o cobros de reservas. Si la persona usa otra cuenta, transferíselos desde su historial de participaciones antes de eliminarlo.",
-  // Cobros billed to the account on reservations it no longer takes part in.
-  // A transfer starts from a participation, so it cannot move these.
-  reservation_invoices:
-    "No se puede eliminar un perfil que tiene cobros de reservas en las que ya no participa: eliminarlo borraría esos cobros y sus pagos. Revisá esos cobros a mano antes de eliminarlo.",
+  // Reservations the account is still tied to without taking part in them:
+  // cobros billed to it, or a reservation it is still the titular of. A
+  // transfer starts from a participation, so it cannot move these.
+  reservation_records:
+    "No se puede eliminar un perfil que todavía figura como titular o tiene cobros de reservas en las que ya no participa: eliminarlo borraría esos cobros y sus pagos, o dejaría la reserva sin titular. Revisá esas reservas a mano antes de eliminarlo.",
 } as const;
 
 export type ProfileDeletionBlocker =
@@ -87,6 +98,23 @@ export const GUARDED_USER_REFERENCES = {
   // Kept and anonymised by `anonymizeProgramPurchasesForUser`.
   "session_purchases.user_id": "cleared",
 } as const satisfies Record<string, ProfileDeletionBlocker | "cleared">;
+
+/**
+ * References that refuse a delete one step removed: rows of tables that go
+ * with the account (its orders and their items, its credit top-ups) that
+ * other tables keep with RESTRICT. Keyed as `table.columns -> referenced
+ * table`; the same test compares it with the database.
+ */
+export const GUARDED_INDIRECT_REFERENCES = {
+  "credit_ledger_entries.top_up_id -> credit_top_ups": "credit_history",
+  "order_adjustment_items.base_order_item_id -> order_items": "order_records",
+  "order_adjustments.order_id -> orders": "order_records",
+  "order_return_items.order_id,order_item_id -> order_items": "order_records",
+  "order_return_items.order_item_id -> order_items": "order_records",
+  "order_returns.order_id -> orders": "order_records",
+  "rental_return_logs.order_id -> orders": "order_records",
+  "rental_return_logs.order_item_id -> order_items": "order_records",
+} as const satisfies Record<string, ProfileDeletionBlocker>;
 
 /**
  * The first reason `profileId` cannot be deleted, or null.
@@ -187,6 +215,61 @@ export async function findProfileDeletionBlocker(
   ]);
   if (adminRecords.some(Boolean)) return "admin_records";
 
+  // The account's orders and their items cascade with it; these keep them.
+  const ownOrders = tx
+    .select({ id: orders.id })
+    .from(orders)
+    .where(eq(orders.userId, profileId));
+  const ownOrderItems = tx
+    .select({ id: orderItems.id })
+    .from(orderItems)
+    .where(inArray(orderItems.orderId, ownOrders));
+  const orderRecords = await Promise.all([
+    exists(
+      tx
+        .select({ id: orderAdjustments.id })
+        .from(orderAdjustments)
+        .where(inArray(orderAdjustments.orderId, ownOrders))
+        .limit(1),
+    ),
+    exists(
+      tx
+        .select({ id: orderReturns.id })
+        .from(orderReturns)
+        .where(inArray(orderReturns.orderId, ownOrders))
+        .limit(1),
+    ),
+    exists(
+      tx
+        .select({ id: rentalReturnLogs.id })
+        .from(rentalReturnLogs)
+        .where(inArray(rentalReturnLogs.orderId, ownOrders))
+        .limit(1),
+    ),
+    exists(
+      tx
+        .select({ id: rentalReturnLogs.id })
+        .from(rentalReturnLogs)
+        .where(inArray(rentalReturnLogs.orderItemId, ownOrderItems))
+        .limit(1),
+    ),
+    exists(
+      tx
+        .select({ id: orderAdjustmentItems.id })
+        .from(orderAdjustmentItems)
+        .where(inArray(orderAdjustmentItems.baseOrderItemId, ownOrderItems))
+        .limit(1),
+    ),
+    exists(
+      tx
+        .select({ id: orderReturnItems.id })
+        .from(orderReturnItems)
+        .where(inArray(orderReturnItems.orderItemId, ownOrderItems))
+        .limit(1),
+    ),
+  ]);
+  if (orderRecords.some(Boolean)) return "order_records";
+
   // The ledger is append-only and its spends back the allocations and paid
   // features below, so all three are one retained history.
   const creditHistory = await Promise.all([
@@ -211,6 +294,22 @@ export async function findProfileDeletionBlocker(
         .where(eq(reservationFeatureActions.ownerUserId, profileId))
         .limit(1),
     ),
+    // Its top-ups go with the account, but a ledger entry keeps each one.
+    exists(
+      tx
+        .select({ id: creditLedgerEntries.id })
+        .from(creditLedgerEntries)
+        .where(
+          inArray(
+            creditLedgerEntries.topUpId,
+            tx
+              .select({ id: creditTopUps.id })
+              .from(creditTopUps)
+              .where(eq(creditTopUps.userId, profileId)),
+          ),
+        )
+        .limit(1),
+    ),
   ]);
   if (creditHistory.some(Boolean)) return "credit_history";
 
@@ -229,17 +328,25 @@ export async function findProfileDeletionBlocker(
   ) {
     return "participations";
   }
-  if (
-    await exists(
+  const reservationRecords = await Promise.all([
+    exists(
       tx
         .select({ id: invoices.id })
         .from(invoices)
         .where(eq(invoices.userId, profileId))
         .limit(1),
-    )
-  ) {
-    return "reservation_invoices";
-  }
+    ),
+    // Still the recorded titular: the delete would only null the owner, and
+    // the reservation would pass to whoever is derived as its holder.
+    exists(
+      tx
+        .select({ id: standReservations.id })
+        .from(standReservations)
+        .where(eq(standReservations.ownerUserId, profileId))
+        .limit(1),
+    ),
+  ]);
+  if (reservationRecords.some(Boolean)) return "reservation_records";
 
   return null;
 }

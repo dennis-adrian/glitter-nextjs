@@ -472,10 +472,20 @@ export async function handleDeletionEmails(): Promise<
           });
           break;
         case "clerk_not_deleted":
-        case "clerk_unknown":
-          // Retried on a later run; an unknown attempt stays on the row, so
-          // the next try settles it before anything is released.
+          // Clerk refused and the login is there: retried on a later run,
+          // up to the cap.
           await recordDeletionFailure(pendingId, attempts, outcome.message);
+          break;
+        case "clerk_unknown":
+          // Retried on a later run with its backoff, but never parked: Clerk
+          // may still apply that request, and only a later run, asking again,
+          // can find the login gone and finish the delete. Parked, the
+          // profile would stay with no login and no one coming back to it.
+          await recordDeletionFailure(
+            pendingId,
+            Math.min(attempts, MAX_DELETION_ATTEMPTS - 2),
+            outcome.message,
+          );
           break;
         case "local_failed":
           console.error("Error deleting profile locally", outcome.error);

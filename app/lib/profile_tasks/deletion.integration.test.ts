@@ -120,21 +120,20 @@ describeDatabase("the profile-deletion cron", () => {
 
   // The cron claims every overdue profile task in the database, not only this
   // suite's. Its cases are only meaningful, and only safe, when nothing else
-  // is there to claim; this suite's own profiles are the `cron-` ones.
+  // is there to claim. Checked before each case seeds anything, so any task
+  // found is foreign, a leftover of an interrupted run of this suite included.
   beforeEach(async () => {
     const { rows } = await pool!.query<{ count: string }>(`
       SELECT count(*) AS count
-      FROM scheduled_tasks t
-      JOIN users u ON u.id = t.profile_id
-      WHERE t.task_type = 'profile_creation'
-        AND t.completed_at IS NULL
-        AND t.ran_after_due_date = false
-        AND t.due_date <= now()
-        AND u.clerk_id NOT LIKE 'cron-%'
+      FROM scheduled_tasks
+      WHERE task_type = 'profile_creation'
+        AND completed_at IS NULL
+        AND ran_after_due_date = false
+        AND due_date <= now()
     `);
     if (Number(rows[0].count) > 0) {
       throw new Error(
-        "The test database has overdue profile tasks this suite did not create; the cron would claim them. Run it against a database of its own.",
+        "The test database already has overdue profile tasks, which the cron would claim. Remove them (a leftover run's profiles start with 'cron-') or run against a database of its own.",
       );
     }
   });
@@ -334,20 +333,24 @@ describeDatabase("the profile-deletion cron", () => {
         })),
       )
       .returning({ id: posts.id });
-    const [job] = await db
-      .insert(disciplinaryNotificationJobs)
-      .values({
-        deduplicationKey: `deletion-${suffix}`,
-        userId: profile.id,
-        entityType: "infraction",
-        entityId: 1,
-        notificationKind: "infraction_created",
-        recipientEmail: profile.email,
-        payload: { name: "Para borrar" },
-      })
-      .returning({ id: disciplinaryNotificationJobs.id });
+    let jobId: number | undefined;
 
     try {
+      // Inside the try, so the posts are cleaned up even if this fails.
+      const [job] = await db
+        .insert(disciplinaryNotificationJobs)
+        .values({
+          deduplicationKey: `deletion-${suffix}`,
+          userId: profile.id,
+          entityType: "infraction",
+          entityId: 1,
+          notificationKind: "infraction_created",
+          recipientEmail: profile.email,
+          payload: { name: "Para borrar" },
+        })
+        .returning({ id: disciplinaryNotificationJobs.id });
+      jobId = job.id;
+
       await cron.handleDeletionEmails();
 
       expect(await userRow(profile.id)).toEqual([]);
@@ -362,7 +365,7 @@ describeDatabase("the profile-deletion cron", () => {
       const [scrubbed] = await db
         .select()
         .from(disciplinaryNotificationJobs)
-        .where(eq(disciplinaryNotificationJobs.id, job.id));
+        .where(eq(disciplinaryNotificationJobs.id, jobId));
       expect(scrubbed).toMatchObject({
         userId: null,
         status: "failed",
@@ -373,9 +376,11 @@ describeDatabase("the profile-deletion cron", () => {
       await db
         .delete(posts)
         .where(inArray(posts.id, [scheduled.id, published.id]));
-      await db
-        .delete(disciplinaryNotificationJobs)
-        .where(eq(disciplinaryNotificationJobs.id, job.id));
+      if (jobId !== undefined) {
+        await db
+          .delete(disciplinaryNotificationJobs)
+          .where(eq(disciplinaryNotificationJobs.id, jobId));
+      }
     }
   });
 

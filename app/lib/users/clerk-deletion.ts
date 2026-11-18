@@ -96,8 +96,8 @@ export async function deleteClerkLogin(
       failure = `clerk_delete_failed: ${result.message}`;
     }
   } catch (error) {
-    // Thrown before anything was sent (a refused write during a view, a
-    // client that could not be built): nothing reached Clerk.
+    // Only `refuseDuringView` throws, before anything is sent: every error
+    // after it is caught inside `deleteClerkUser` and reported as a result.
     failure = `clerk_delete_failed: ${error instanceof Error ? error.message : String(error)}`;
   }
 
@@ -106,7 +106,12 @@ export async function deleteClerkLogin(
     remainingMs > 0 ? await checkClerkLogin(clerkId, remainingMs) : "unknown";
   if (status === "gone") return { kind: "deleted" };
   if (status === "exists" && !ambiguous) {
-    return { kind: "not_deleted", message: failure };
+    // Its own prefix: a stored `clerk_delete_failed` with no attempt marker
+    // means a row from the earlier code (`profile-deletion.ts`).
+    return {
+      kind: "not_deleted",
+      message: failure.replace(/^clerk_delete_failed/, "clerk_refused"),
+    };
   }
   return { kind: "unknown", message: failure };
 }

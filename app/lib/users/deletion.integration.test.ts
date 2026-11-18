@@ -21,6 +21,8 @@ import {
   festivals,
   invoiceSettlementSubmissions,
   invoices,
+  orderAdjustments,
+  orders,
   payments,
   pendingUserDeletions,
   posts,
@@ -496,10 +498,14 @@ describeDatabase("deleting a profile", () => {
 
     // At that moment an admin puts the account back on a reservation, and a
     // cobro is billed to it: the two writes the participations check guards.
-    const writers = [await pool!.connect(), await pool!.connect()];
+    const writers: import("pg").PoolClient[] = [];
     const settled = [false, false];
     let writes: Promise<unknown>[] = [];
     try {
+      // Inside the try: if the second connection fails, the first is still
+      // released and the held deletion still ended below.
+      writers.push(await pool!.connect());
+      writers.push(await pool!.connect());
       writes = [
         writers[0].query(
           "INSERT INTO participations (user_id, reservation_id) VALUES ($1, $2)",
@@ -746,10 +752,114 @@ describeDatabase("deleting a profile", () => {
 
     expect(await userActions.deleteProfile(f.oldAccount.id, NO_STATE)).toEqual({
       success: false,
-      message: blockers.PROFILE_DELETION_BLOCK_MESSAGES.reservation_invoices,
+      message: blockers.PROFILE_DELETION_BLOCK_MESSAGES.reservation_records,
     });
     expect(deleteClerkUser).not.toHaveBeenCalled();
     expect(await userExists(f.oldAccount.id)).toBe(true);
+  });
+
+  it("does not delete the titular of a reservation it is no longer on", async () => {
+    const f = await seed();
+    await transferAway(f);
+    // Still the recorded owner though the participation moved: deleting would
+    // only null the owner, and the holding would pass to someone else.
+    await integrationDb!
+      .update(standReservations)
+      .set({ ownerUserId: f.oldAccount.id })
+      .where(eq(standReservations.id, f.reservation.id));
+
+    expect(await userActions.deleteProfile(f.oldAccount.id, NO_STATE)).toEqual({
+      success: false,
+      message: blockers.PROFILE_DELETION_BLOCK_MESSAGES.reservation_records,
+    });
+    expect(deleteClerkUser).not.toHaveBeenCalled();
+  });
+
+  it("refuses a customer whose order has an adjustment, before Clerk is touched", async () => {
+    const f = await seed();
+    await transferAway(f);
+    const db = integrationDb!;
+    // The order goes with the account; its adjustment refuses that.
+    const [order] = await db
+      .insert(orders)
+      .values({ userId: f.oldAccount.id, totalAmount: 100 })
+      .returning({ id: orders.id });
+    await db.insert(orderAdjustments).values({
+      orderId: order.id,
+      actorUserId: f.admin.id,
+      actorRole: "admin",
+      reason: "Cambio de talla",
+      previousTotal: 100,
+      totalDelta: -10,
+      newTotal: 90,
+    });
+
+    try {
+      expect(
+        await userActions.deleteProfile(f.oldAccount.id, NO_STATE),
+      ).toEqual({
+        success: false,
+        message: blockers.PROFILE_DELETION_BLOCK_MESSAGES.order_records,
+      });
+      expect(deleteClerkUser).not.toHaveBeenCalled();
+      expect(await userExists(f.oldAccount.id)).toBe(true);
+    } finally {
+      await db
+        .delete(orderAdjustments)
+        .where(eq(orderAdjustments.orderId, order.id));
+      await db.delete(orders).where(eq(orders.id, order.id));
+    }
+  });
+
+  it("has the attempt on record, committed, before the Clerk request goes out", async () => {
+    const f = await seed();
+    await transferAway(f);
+    // Seen from another connection while Clerk is being asked: what survives
+    // if the process dies right there.
+    let seenDuringCall: Date | null | undefined;
+    deleteClerkUser.mockImplementation(async () => {
+      const { rows } = await pool!.query<{ clerk_attempted_at: Date | null }>(
+        "SELECT clerk_attempted_at FROM pending_user_deletions WHERE clerk_id = $1 AND local_deleted_at IS NULL",
+        [f.oldAccount.clerkId],
+      );
+      seenDuringCall = rows[0]?.clerk_attempted_at;
+      return { success: true, status: "deleted", message: "ok" };
+    });
+
+    expect(await userActions.deleteProfile(f.oldAccount.id, NO_STATE)).toEqual({
+      success: true,
+      message: "Perfil eliminado",
+    });
+    expect(seenDuringCall).toBeInstanceOf(Date);
+  });
+
+  it("treats a failed Clerk call left by the earlier code as possibly on its way", async () => {
+    const f = await seed();
+    const core = await import("@/app/lib/users/profile-deletion");
+    // What the earlier code left: its error, no attempt marker. A participation
+    // still blocks the account.
+    const [pending] = await integrationDb!
+      .insert(pendingUserDeletions)
+      .values({
+        userId: f.oldAccount.id,
+        clerkId: f.oldAccount.clerkId,
+        lastError: "clerk_delete_failed: Error al eliminar la cuenta.",
+        updatedAt: new Date(Date.now() - 60_000),
+      })
+      .returning({ id: pendingUserDeletions.id });
+    clerkLoginStatus.mockResolvedValue("exists");
+
+    expect(
+      await core.releaseRefusedDeletion({
+        profileId: f.oldAccount.id,
+        pendingId: pending.id,
+        clerkId: f.oldAccount.clerkId,
+        clerkBudgetMs: 1_000,
+      }),
+    ).toBe("unknown");
+    // Not released at once: Clerk was read, and a minute is inside the window.
+    expect(clerkLoginStatus).toHaveBeenCalled();
+    expect(await activePending(f.oldAccount.clerkId)).toHaveLength(1);
   });
 
   it("reports a deletion another attempt finished as done, not as a lost login", async () => {
@@ -787,7 +897,10 @@ describeDatabase("deleting a profile", () => {
         clerkId: f.oldAccount.clerkId,
         clerkAttemptedAt:
           attemptedAgoMs == null ? null : new Date(Date.now() - attemptedAgoMs),
-        lastError: "clerk_delete_failed: timed out",
+        // No request sent, no Clerk error: a stored Clerk failure without a
+        // marker is how a row from the earlier code reads.
+        lastError:
+          attemptedAgoMs == null ? null : "clerk_delete_failed: timed out",
       });
       return f;
     }
@@ -1089,21 +1202,24 @@ describeDatabase("deleting a profile", () => {
     it("decides whether an attempt has settled before reading the login, not after", async () => {
       const f = await seed();
       const core = await import("@/app/lib/users/profile-deletion");
-      // Just inside the window when the read starts; past it once it ends.
+      const attemptedAt = new Date(Date.now() - 60_000);
       const [pending] = await integrationDb!
         .insert(pendingUserDeletions)
         .values({
           userId: f.oldAccount.id,
           clerkId: f.oldAccount.clerkId,
-          clerkAttemptedAt: new Date(
-            Date.now() - core.UNCONFIRMED_ATTEMPT_SETTLES_AFTER_MS + 200,
-          ),
+          clerkAttemptedAt: attemptedAt,
         })
         .returning({ id: pendingUserDeletions.id });
-      clerkLoginStatus.mockImplementation(
-        () =>
-          new Promise((resolve) => setTimeout(() => resolve("exists"), 600)),
-      );
+      // The clock stands just inside the window until the read starts, and
+      // past it once the read answers, whatever setup and the lock cost.
+      const window = core.UNCONFIRMED_ATTEMPT_SETTLES_AFTER_MS;
+      let clock = attemptedAt.getTime() + window - 100;
+      vi.spyOn(Date, "now").mockImplementation(() => clock);
+      clerkLoginStatus.mockImplementation(async () => {
+        clock = attemptedAt.getTime() + window + 1_000;
+        return "exists";
+      });
 
       expect(
         await core.releaseRefusedDeletion({
@@ -1113,6 +1229,7 @@ describeDatabase("deleting a profile", () => {
           clerkBudgetMs: 2_000,
         }),
       ).toBe("unknown");
+      vi.restoreAllMocks();
       expect(await activePending(f.oldAccount.clerkId)).toHaveLength(1);
     });
 
@@ -1161,6 +1278,35 @@ describeDatabase("deleting a profile", () => {
     // cleared in the delete; otherwise the login goes and the row stays.
     expect(rows.map((row) => row.reference).sort()).toEqual(
       Object.keys(blockers.GUARDED_USER_REFERENCES).sort(),
+    );
+  });
+
+  it("accounts for every reference that refuses a delete one step removed", async () => {
+    // Tables that go with a user (ON DELETE CASCADE, followed down), and the
+    // RESTRICT references into them, which would refuse the delete after the
+    // login is gone unless a blocker catches them first.
+    const { rows } = await pool!.query<{ reference: string }>(`
+      WITH RECURSIVE fk AS (
+        SELECT c.conrelid AS child, c.confrelid AS parent, c.confdeltype AS del,
+          (SELECT string_agg(a.attname::text, ',' ORDER BY a.attnum)
+             FROM pg_attribute a
+            WHERE a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)) AS col
+        FROM pg_constraint c WHERE c.contype = 'f'
+      ),
+      cascaded AS (
+        SELECT 'users'::regclass AS rel, 1 AS depth
+        UNION
+        SELECT fk.child::regclass, cascaded.depth + 1
+        FROM fk JOIN cascaded ON fk.parent = cascaded.rel
+        WHERE fk.del = 'c' AND cascaded.depth < 8
+      )
+      SELECT DISTINCT fk.child::regclass::text || '.' || fk.col || ' -> ' ||
+        fk.parent::regclass::text AS reference
+      FROM fk JOIN (SELECT DISTINCT rel FROM cascaded) c ON fk.parent = c.rel
+      WHERE fk.del IN ('a', 'r') AND c.rel <> 'users'::regclass
+    `);
+    expect(rows.map((row) => row.reference).sort()).toEqual(
+      Object.keys(blockers.GUARDED_INDIRECT_REFERENCES).sort(),
     );
   });
 });

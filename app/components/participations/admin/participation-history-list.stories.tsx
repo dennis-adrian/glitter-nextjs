@@ -211,6 +211,9 @@ export const TransferConfirmed: Story = {
           fromUserId: 1,
           toUserId: 42,
           note: "Perdió el acceso a su cuenta anterior",
+          // The plan the admin just read, so a changed one is refused.
+          planKey:
+            '{"invoices":[11],"tasks":[3],"holding":true,"enrollment":"move"}',
         }),
       ),
     );
@@ -267,6 +270,7 @@ export const SlowPreviewForAnEarlierPick: Story = {
                     moves: ["Plan de la primera cuenta"],
                     warnings: [],
                   },
+                  planKey: "first-pick",
                 },
               }),
             600,

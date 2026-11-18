@@ -1,6 +1,8 @@
+import { asc, desc } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ScheduledTaskWithProfile } from "@/app/lib/profile_tasks/definitions";
+import { scheduledTasks } from "@/db/schema";
 
 const transactionMock = vi.hoisted(() => vi.fn());
 const updateMock = vi.hoisted(() => vi.fn());
@@ -79,7 +81,8 @@ let owedEmails: {
   recipientEmail: string | null;
   attempts?: number;
 }[];
-let eligibleOrdered: boolean;
+/** What the eligible-task scan was ordered by. */
+let eligibleOrder: unknown;
 /** Rows locked FOR UPDATE or inserted in the claim, in call order. */
 let lockedForUpdate: string[];
 
@@ -130,8 +133,8 @@ function claimTx(
       from: vi.fn(() => ({
         leftJoin: vi.fn(() => ({
           where: vi.fn(() => ({
-            orderBy: vi.fn(() => {
-              eligibleOrdered = true;
+            orderBy: vi.fn((order: unknown) => {
+              eligibleOrder = order;
               return {
                 limit: vi.fn(async (rows: number) => {
                   claimLimit = rows;
@@ -206,7 +209,7 @@ describe("handleDeletionEmails", () => {
     timeline = [];
     writes = [];
     claimLimit = undefined;
-    eligibleOrdered = false;
+    eligibleOrder = undefined;
     lockedForUpdate = [];
     owedEmails = [];
     transactionMock.mockReset();
@@ -322,6 +325,27 @@ describe("handleDeletionEmails", () => {
     expect(writes).toContainEqual(
       expect.objectContaining({
         attempts: 3,
+        lastError: "clerk_delete_failed: timed out",
+      }),
+    );
+  });
+
+  it("never parks an unconfirmed Clerk outcome, so a later run can still finish it", async () => {
+    const task = makeTask({ taskId: 11, profileId: 16, clerkId: "user_late" });
+    finalizeMock.mockResolvedValue({
+      kind: "clerk_unknown",
+      message: "clerk_delete_failed: timed out",
+    });
+    // One short of the cap. Counting this as the fifth failure would drop the
+    // row from the claim while Clerk may still apply the request, leaving a
+    // profile with no login that no run comes back to.
+    runClaim(claimTx([task], [{ id: 61, clerkDeletedAt: null, attempts: 4 }]));
+
+    await handleDeletionEmails();
+
+    expect(writes).toContainEqual(
+      expect.objectContaining({
+        attempts: 4,
         lastError: "clerk_delete_failed: timed out",
       }),
     );
@@ -756,7 +780,10 @@ describe("handleDeletionEmails", () => {
     await handleDeletionEmails();
 
     expect(claimLimit).toBe(25);
-    expect(eligibleOrdered).toBe(true);
+    // Oldest due date first, specifically: newest first would starve the
+    // longest-waiting profiles behind a steady stream of new ones.
+    expect(eligibleOrder).toEqual(asc(scheduledTasks.dueDate));
+    expect(eligibleOrder).not.toEqual(desc(scheduledTasks.dueDate));
   });
 
   it("does nothing when no task is overdue", async () => {

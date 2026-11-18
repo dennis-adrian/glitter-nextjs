@@ -162,6 +162,7 @@ export default function ParticipantTransferDialog({
           toUserId: target.id,
           idempotencyKey,
           note: note.trim() || null,
+          planKey: preview.preview.planKey,
         });
       } catch (error) {
         console.error("Error transferring participation", error);

@@ -463,6 +463,64 @@ describeDatabase("admin participation transfer", () => {
     });
   });
 
+  it("refuses a transfer whose cobros changed after the admin reviewed them", async () => {
+    const db = integrationDb!;
+    const { festival, accounts, standRows } = await seed({});
+    const [oldAccount, newAccount] = accounts;
+    await enroll(oldAccount.id, festival.id);
+    const { reservation, participations } = await seedReservation({
+      festivalId: festival.id,
+      standId: standRows[0].id,
+      ownerUserId: oldAccount.id,
+    });
+    const input = {
+      reservationId: reservation.id,
+      fromUserId: oldAccount.id,
+      toUserId: newAccount.id,
+    };
+    const reviewed = await service.previewParticipantTransfer(input);
+    expect(reviewed.success).toBe(true);
+    if (!reviewed.success) return;
+
+    // A second cobro is billed to the old account before the admin confirms:
+    // the list they read said one.
+    await db.insert(invoices).values({
+      date: new Date(),
+      userId: oldAccount.id,
+      reservationId: reservation.id,
+      originalAmount: 50,
+      amount: 50,
+      status: "pending",
+    });
+
+    const refused = await service.transferReservationParticipation({
+      ...input,
+      idempotencyKey: randomUUID(),
+      planKey: reviewed.data.planKey,
+    });
+    expect(refused).toMatchObject({
+      success: false,
+      code: "TRANSFER_PLAN_CHANGED",
+    });
+    const [participation] = await db
+      .select({ userId: reservationParticipants.userId })
+      .from(reservationParticipants)
+      .where(eq(reservationParticipants.id, participations[0].id));
+    expect(participation.userId).toBe(oldAccount.id);
+
+    // Reviewed again, it goes through.
+    const again = await service.previewParticipantTransfer(input);
+    if (!again.success) throw new Error(again.message);
+    expect(again.data.planKey).not.toBe(reviewed.data.planKey);
+    expect(
+      await service.transferReservationParticipation({
+        ...input,
+        idempotencyKey: randomUUID(),
+        planKey: again.data.planKey,
+      }),
+    ).toMatchObject({ success: true });
+  });
+
   it("moves only a partner's own participation and leaves the holder's things alone", async () => {
     const db = integrationDb!;
     const { festival, accounts, standRows } = await seed({ accounts: 3 });

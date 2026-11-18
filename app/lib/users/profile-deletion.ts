@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, isNull, lt, or } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import { scrubDisciplinaryNotificationJobsForUser } from "@/app/lib/infractions/notifications";
 import { forgetPushDevices } from "@/app/lib/notifications/push/devices";
@@ -32,12 +32,22 @@ import { pendingUserDeletions, users } from "@/db/schema";
  *   row that references `users`, so writing one waits on that lock and then
  *   fails on the missing user: nothing new can block the delete once Clerk
  *   has been asked.
- * - Nothing else is written outside that transaction while it is open, so it
+ * - Before that transaction, a short one under the same lock and checks
+ *   commits `clerkAttemptedAt`. So the attempt is on record before the
+ *   request goes out, even if the process dies during the Clerk call.
+ * - Nothing else is written outside a transaction while it is open, so it
  *   never needs a second pool connection. What has to outlive a rollback is
  *   written again once the transaction has ended.
  * - A Clerk deletion whose outcome is unknown leaves `clerkAttemptedAt` set,
  *   and the pending row is not released while that request could still land.
  */
+
+/**
+ * What the code before `clerk_attempted_at` existed wrote when a Clerk call
+ * failed, timed out included. A row it left with this error and no marker
+ * may have a deletion on its way, as of its last change.
+ */
+const LEGACY_CLERK_FAILURE_PREFIX = "clerk_delete_failed";
 
 type DeletionTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -103,6 +113,8 @@ async function lockAccount(
       clerkDeletedAt: pendingUserDeletions.clerkDeletedAt,
       clerkAttemptedAt: pendingUserDeletions.clerkAttemptedAt,
       localDeletedAt: pendingUserDeletions.localDeletedAt,
+      lastError: pendingUserDeletions.lastError,
+      updatedAt: pendingUserDeletions.updatedAt,
     })
     .from(pendingUserDeletions)
     .where(eq(pendingUserDeletions.id, pendingId))
@@ -120,6 +132,55 @@ function remainingBudget(clerkBudgetMs: number, deadline?: number): number {
     clerkBudgetMs,
     deadline === undefined ? Infinity : deadline - Date.now(),
   );
+}
+
+/**
+ * When an unconfirmed Clerk deletion was sent for this row, if one may have
+ * been. Rows from the earlier code carry no marker; their Clerk failures are
+ * read from `lastError` instead.
+ */
+function unconfirmedAttemptAt(pending: {
+  clerkAttemptedAt: Date | null;
+  lastError: string | null;
+  updatedAt: Date;
+}): Date | null {
+  if (pending.clerkAttemptedAt) return pending.clerkAttemptedAt;
+  if (pending.lastError?.startsWith(LEGACY_CLERK_FAILURE_PREFIX)) {
+    return pending.updatedAt;
+  }
+  return null;
+}
+
+type LockedAccount = Awaited<ReturnType<typeof lockAccount>>;
+
+/**
+ * What stops a deletion before Clerk is asked, checked under the lock: run in
+ * both transactions, since anything may have changed between them.
+ */
+async function stopBeforeClerk(
+  tx: DeletionTx,
+  input: { profileId: number; pendingId: number },
+  { user, pending }: LockedAccount,
+  now: Date,
+): Promise<FinalizeOutcome | null> {
+  if (!pending || pending.localDeletedAt) return { kind: "conflict" };
+  if (!user) {
+    // Removed by another path while this one waited: nothing left to do.
+    await tx
+      .update(pendingUserDeletions)
+      .set({ localDeletedAt: now, lastError: null, updatedAt: now })
+      .where(eq(pendingUserDeletions.id, input.pendingId));
+    return { kind: "deleted" };
+  }
+  const blocker = await findProfileDeletionBlocker(tx, input.profileId);
+  if (blocker) {
+    return {
+      kind: "blocked",
+      blocker,
+      loginAlreadyGone: pending.clerkDeletedAt != null,
+    };
+  }
+  return null;
 }
 
 /**
@@ -143,64 +204,103 @@ export async function finalizeProfileDeletion(input: {
   ) => Partial<typeof pendingUserDeletions.$inferInsert>;
 }): Promise<FinalizeOutcome> {
   const now = new Date();
+
+  // First, the attempt goes on record and is committed, so it survives even
+  // a process that dies during the Clerk call. Same lock and checks as the
+  // delete itself; a deletion stopped here never sends anything.
+  const recorded = await db.transaction(
+    async (
+      tx,
+    ): Promise<
+      | { kind: "stop"; outcome: FinalizeOutcome }
+      | { kind: "login_gone" }
+      | { kind: "recorded"; attemptAt: Date; earlierAttempt: Date | null }
+    > => {
+      const locked = await lockAccount(tx, input.profileId, input.pendingId);
+      const stop = await stopBeforeClerk(tx, input, locked, now);
+      if (stop) return { kind: "stop", outcome: stop };
+      const pending = locked.pending!;
+      if (pending.clerkDeletedAt != null) return { kind: "login_gone" };
+      if (remainingBudget(input.clerkBudgetMs, input.deadline) <= 0) {
+        return { kind: "stop", outcome: { kind: "out_of_time" } };
+      }
+
+      // Taken now, after the lock wait: the marker must not be older than
+      // the request it stands for, or the settle window would be shorter.
+      const attemptAt = new Date();
+      // An earlier request whose outcome is still unknown. A definite answer
+      // to this attempt's own request does not settle that one.
+      const earlier = unconfirmedAttemptAt(pending);
+      const earlierAttempt =
+        earlier &&
+        attemptAt.getTime() - earlier.getTime() <
+          UNCONFIRMED_ATTEMPT_SETTLES_AFTER_MS
+          ? earlier
+          : null;
+      await tx
+        .update(pendingUserDeletions)
+        .set({ clerkAttemptedAt: attemptAt, updatedAt: attemptAt })
+        .where(eq(pendingUserDeletions.id, input.pendingId));
+      return { kind: "recorded", attemptAt, earlierAttempt };
+    },
+  );
+  if (recorded.kind === "stop") return recorded.outcome;
+
   // Whether the login is known to be gone, so a rollback below cannot lose it.
-  let loginGone = false;
+  let loginGone = recorded.kind === "login_gone";
   let loginRemovedNow = false;
-  // When this attempt sent Clerk a deletion, so a rollback cannot lose it.
-  let attemptSentAt: Date | null = null;
   try {
     return await db.transaction(async (tx): Promise<FinalizeOutcome> => {
-      const { user, pending } = await lockAccount(
-        tx,
-        input.profileId,
-        input.pendingId,
-      );
-      if (!pending || pending.localDeletedAt) return { kind: "conflict" };
-
-      if (!user) {
-        // Removed by another path while this one waited: nothing left to do.
-        await tx
-          .update(pendingUserDeletions)
-          .set({ localDeletedAt: now, lastError: null, updatedAt: now })
-          .where(eq(pendingUserDeletions.id, input.pendingId));
-        return { kind: "deleted" };
+      const locked = await lockAccount(tx, input.profileId, input.pendingId);
+      // A stop from here on sent nothing: the marker this attempt committed
+      // goes back to what it replaced, unless another attempt has written its
+      // own since, which is left for that attempt to settle.
+      const withdrawMarker = async () => {
+        if (
+          recorded.kind === "recorded" &&
+          locked.pending?.clerkAttemptedAt?.getTime() ===
+            recorded.attemptAt.getTime()
+        ) {
+          await tx
+            .update(pendingUserDeletions)
+            .set({ clerkAttemptedAt: recorded.earlierAttempt })
+            .where(eq(pendingUserDeletions.id, input.pendingId));
+        }
+      };
+      // Between the two transactions the lock was free: check it all again.
+      const stop = await stopBeforeClerk(tx, input, locked, now);
+      if (stop) {
+        if (stop.kind === "blocked") await withdrawMarker();
+        return stop;
       }
-
+      const pending = locked.pending!;
       loginGone = pending.clerkDeletedAt != null;
-      const blocker = await findProfileDeletionBlocker(tx, input.profileId);
-      if (blocker) {
-        return { kind: "blocked", blocker, loginAlreadyGone: loginGone };
-      }
 
       if (!loginGone) {
+        if (recorded.kind !== "recorded") {
+          // The login was gone at the first check and is back on record as
+          // not deleted: another attempt changed it. Start again.
+          return { kind: "conflict" };
+        }
         const budget = remainingBudget(input.clerkBudgetMs, input.deadline);
-        if (budget <= 0) return { kind: "out_of_time" };
+        if (budget <= 0) {
+          await withdrawMarker();
+          return { kind: "out_of_time" };
+        }
 
-        // Taken now, after the lock wait: the marker must not be older than
-        // the request it stands for, or the settle window would be shorter.
-        const attemptAt = new Date();
-        // An earlier request whose outcome is still unknown. A definite answer
-        // to this attempt's own request does not settle that one.
-        const earlierAttempt =
-          pending.clerkAttemptedAt &&
-          attemptAt.getTime() - pending.clerkAttemptedAt.getTime() <
-            UNCONFIRMED_ATTEMPT_SETTLES_AFTER_MS
-            ? pending.clerkAttemptedAt
-            : null;
-        // Committed with the outcome if it stays unknown, so a later attempt
-        // knows a request may still be on its way.
+        // Fresh again: this lock may have been waited on as well.
+        const sentAt = new Date();
         await tx
           .update(pendingUserDeletions)
-          .set({ clerkAttemptedAt: attemptAt, updatedAt: attemptAt })
+          .set({ clerkAttemptedAt: sentAt, updatedAt: sentAt })
           .where(eq(pendingUserDeletions.id, input.pendingId));
 
-        attemptSentAt = attemptAt;
         const clerk = await deleteClerkLogin(input.clerkId, budget);
         if (clerk.kind === "not_deleted") {
           await tx
             .update(pendingUserDeletions)
             .set({
-              clerkAttemptedAt: earlierAttempt,
+              clerkAttemptedAt: recorded.earlierAttempt,
               lastError: clerk.message,
               updatedAt: new Date(),
             })
@@ -278,29 +378,9 @@ export async function finalizeProfileDeletion(input: {
       } catch (recordError) {
         console.error("Could not record a deleted Clerk login", recordError);
       }
-    } else if (attemptSentAt) {
-      // A deletion was sent and the rollback also undid its marker: without
-      // it, a later refusal would release the row while that request could
-      // still land. A later marker already there is kept.
-      try {
-        await db
-          .update(pendingUserDeletions)
-          .set({ clerkAttemptedAt: attemptSentAt, updatedAt: new Date() })
-          .where(
-            and(
-              eq(pendingUserDeletions.id, input.pendingId),
-              isNull(pendingUserDeletions.localDeletedAt),
-              isNull(pendingUserDeletions.clerkDeletedAt),
-              or(
-                isNull(pendingUserDeletions.clerkAttemptedAt),
-                lt(pendingUserDeletions.clerkAttemptedAt, attemptSentAt),
-              ),
-            ),
-          );
-      } catch (recordError) {
-        console.error("Could not record a Clerk deletion attempt", recordError);
-      }
     }
+    // An unconfirmed attempt needs nothing written here: its marker was
+    // committed before the request went out.
     return { kind: "local_failed", error, loginGone, loginRemovedNow };
   }
 }
@@ -313,7 +393,8 @@ export async function finalizeProfileDeletion(input: {
  * row another attempt is using. The pending row is removed, which ends the
  * "deletion pending" state that credits, notices and push all honour, only
  * when no Clerk request is unconfirmed, or the last one is old enough that it
- * can no longer land and Clerk says the login exists.
+ * can no longer land and Clerk says the login exists. A row the earlier code
+ * left after a failed Clerk call counts as such a request.
  */
 export async function releaseRefusedDeletion(input: {
   profileId: number;
@@ -337,14 +418,15 @@ export async function releaseRefusedDeletion(input: {
       return "intact" as const;
     };
 
-    if (!pending.clerkAttemptedAt) return release();
+    const attemptedAt = unconfirmedAttemptAt(pending);
+    if (!attemptedAt) return release();
 
     const budget = remainingBudget(input.clerkBudgetMs, input.deadline);
     if (budget <= 0) return "unknown";
     // Decided before the read, not after: a read that starts while the
     // request could still land says nothing about whether it later did.
     const settled =
-      Date.now() - pending.clerkAttemptedAt.getTime() >=
+      Date.now() - attemptedAt.getTime() >=
       UNCONFIRMED_ATTEMPT_SETTLES_AFTER_MS;
     const status = await checkClerkLogin(input.clerkId, budget);
     const now = new Date();
