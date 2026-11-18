@@ -122,6 +122,39 @@ export const GUARDED_INDIRECT_REFERENCES = {
 } as const satisfies Record<string, ProfileDeletionBlocker>;
 
 /**
+ * Locks the rows that go with the account and that `GUARDED_INDIRECT_REFERENCES`
+ * point into: its orders, their items and its credit top-ups. Taken under the
+ * account's own lock, before the blocker check, so a return, an adjustment or
+ * a ledger entry written against one of them waits for the delete and then
+ * fails, instead of landing after the check and refusing the delete once the
+ * login is gone. Same order everywhere: orders, then items, then top-ups.
+ */
+export async function lockRowsTheDeleteCascadesTo(
+  tx: DeletionTx,
+  profileId: number,
+) {
+  const ownOrders = tx
+    .select({ id: orders.id })
+    .from(orders)
+    .where(eq(orders.userId, profileId));
+  await tx
+    .select({ id: orders.id })
+    .from(orders)
+    .where(eq(orders.userId, profileId))
+    .for("update");
+  await tx
+    .select({ id: orderItems.id })
+    .from(orderItems)
+    .where(inArray(orderItems.orderId, ownOrders))
+    .for("update");
+  await tx
+    .select({ id: creditTopUps.id })
+    .from(creditTopUps)
+    .where(eq(creditTopUps.userId, profileId))
+    .for("update");
+}
+
+/**
  * The first reason `profileId` cannot be deleted, or null.
  *
  * Run before the Clerk login is deleted, so a refusal keeps the person able to

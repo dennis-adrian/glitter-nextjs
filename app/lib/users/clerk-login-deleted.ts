@@ -37,7 +37,9 @@ export type ClerkLoginDeletedResult =
  * what it left. Writes no request to Clerk and deletes nothing.
  *
  * - A deletion under way gets `clerkDeletedAt`: whoever retries it next
- *   finishes the local delete without asking Clerk again.
+ *   finishes the local delete without asking Clerk again. One the cron owns
+ *   is made claimable again if it had been parked; one parked with no cron
+ *   to come back to it is reported as flagged.
  * - A sign-up never completed, whose open profile-creation task the cron
  *   will act on, gets a pending deletion with the login recorded as gone and
  *   no attempts spent, so the cron finishes it as it would have anyway.
@@ -64,6 +66,7 @@ export async function recordClerkLoginDeleted(
       .select({
         id: pendingUserDeletions.id,
         clerkDeletedAt: pendingUserDeletions.clerkDeletedAt,
+        attempts: pendingUserDeletions.attempts,
       })
       .from(pendingUserDeletions)
       .where(
@@ -76,20 +79,9 @@ export async function recordClerkLoginDeleted(
       .limit(1)
       .for("update");
 
-    const now = new Date();
-    if (pending) {
-      if (pending.clerkDeletedAt) {
-        return { kind: "already_recorded", profileId: user.id };
-      }
-      await tx
-        .update(pendingUserDeletions)
-        .set({ clerkDeletedAt: now, clerkAttemptedAt: null, updatedAt: now })
-        .where(eq(pendingUserDeletions.id, pending.id));
-      return { kind: "recorded", profileId: user.id };
-    }
-
-    // Parked, the row would keep the cron from ever claiming the task; left
-    // claimable, the cron deletes the profile when the task is due.
+    // A sign-up never completed belongs to the cron that removes those: its
+    // row is left claimable, never parked, so the cron finishes the delete
+    // when the task is due.
     const [cronTask] = await tx
       .select({ id: scheduledTasks.id })
       .from(scheduledTasks)
@@ -102,6 +94,29 @@ export async function recordClerkLoginDeleted(
         ),
       )
       .limit(1);
+
+    const now = new Date();
+    if (pending) {
+      if (pending.clerkDeletedAt) {
+        return { kind: "already_recorded", profileId: user.id };
+      }
+      await tx
+        .update(pendingUserDeletions)
+        .set({
+          clerkDeletedAt: now,
+          clerkAttemptedAt: null,
+          updatedAt: now,
+          // A row the cron had parked (Clerk kept refusing) is claimable
+          // again: nothing is left to ask Clerk.
+          ...(cronTask ? { attempts: 0, nextAttemptAt: now } : {}),
+        })
+        .where(eq(pendingUserDeletions.id, pending.id));
+      if (cronTask) return { kind: "queued", profileId: user.id };
+      // Parked with no cron to come back to it: an operator has to know.
+      return pending.attempts >= MAX_DELETION_ATTEMPTS
+        ? { kind: "flagged", profileId: user.id }
+        : { kind: "recorded", profileId: user.id };
+    }
 
     await tx.insert(pendingUserDeletions).values({
       userId: user.id,

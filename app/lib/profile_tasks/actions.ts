@@ -41,6 +41,7 @@ import {
   type ProfileDeletionBlocker,
 } from "@/app/lib/users/deletion-blockers";
 import { MAX_DELETION_ATTEMPTS } from "@/app/lib/users/deletion-limits";
+import { keepLegacyClerkAttempt } from "@/app/lib/users/legacy-clerk-attempt";
 import {
   finalizeProfileDeletion,
   noteDeletionError,
@@ -125,6 +126,7 @@ async function recordDeletionFailure(
     .set({
       attempts: nextAttempt,
       lastError,
+      clerkAttemptedAt: keepLegacyClerkAttempt(),
       nextAttemptAt: computeNextAttemptAt(nextAttempt, now),
       updatedAt: now,
     })
@@ -143,6 +145,7 @@ async function reconcileLoginLater(pendingId: number, lastError: string) {
     .update(pendingUserDeletions)
     .set({
       lastError,
+      clerkAttemptedAt: keepLegacyClerkAttempt(),
       nextAttemptAt: new Date(
         now.getTime() + UNCONFIRMED_ATTEMPT_SETTLES_AFTER_MS,
       ),
@@ -490,9 +493,15 @@ export async function handleDeletionEmails(): Promise<
           // count failures of the local delete from there, not from the
           // earlier Clerk tries. A row resumed with the login already gone
           // keeps counting, so a delete that always fails reaches the cap.
+          // While the login is not known to be gone, the row may hold an
+          // unconfirmed Clerk request: like `clerk_unknown`, never parked.
           await recordDeletionFailure(
             pendingId,
-            outcome.loginRemovedNow ? 0 : attempts,
+            outcome.loginRemovedNow
+              ? 0
+              : outcome.loginGone
+                ? attempts
+                : Math.min(attempts, MAX_DELETION_ATTEMPTS - 2),
             toLocalDeleteError(outcome.error),
           );
           break;

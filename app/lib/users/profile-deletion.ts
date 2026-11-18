@@ -14,8 +14,13 @@ import {
 import {
   findProfileDeletionBlocker,
   forgetDeletedUserRequestLog,
+  lockRowsTheDeleteCascadesTo,
   type ProfileDeletionBlocker,
 } from "@/app/lib/users/deletion-blockers";
+import {
+  keepLegacyClerkAttempt,
+  LEGACY_CLERK_FAILURE_PREFIX,
+} from "@/app/lib/users/legacy-clerk-attempt";
 import { db } from "@/db";
 import { pendingUserDeletions, users } from "@/db/schema";
 
@@ -41,13 +46,6 @@ import { pendingUserDeletions, users } from "@/db/schema";
  * - A Clerk deletion whose outcome is unknown leaves `clerkAttemptedAt` set,
  *   and the pending row is not released while that request could still land.
  */
-
-/**
- * What the code before `clerk_attempted_at` existed wrote when a Clerk call
- * failed, timed out included. A row it left with this error and no marker
- * may have a deletion on its way, as of its last change.
- */
-const LEGACY_CLERK_FAILURE_PREFIX = "clerk_delete_failed";
 
 type DeletionTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -172,6 +170,9 @@ async function stopBeforeClerk(
       .where(eq(pendingUserDeletions.id, input.pendingId));
     return { kind: "deleted" };
   }
+  // Rows a blocker can reference without referencing the user (a return on
+  // one of its orders): locked too, so none is written after this check.
+  await lockRowsTheDeleteCascadesTo(tx, input.profileId);
   const blocker = await findProfileDeletionBlocker(tx, input.profileId);
   if (blocker) {
     return {
@@ -492,7 +493,12 @@ export async function noteDeletionError(
 ) {
   await db
     .update(pendingUserDeletions)
-    .set({ lastError, updatedAt: new Date(), ...extra })
+    .set({
+      lastError,
+      clerkAttemptedAt: keepLegacyClerkAttempt(),
+      updatedAt: new Date(),
+      ...extra,
+    })
     .where(
       and(
         eq(pendingUserDeletions.id, pendingId),

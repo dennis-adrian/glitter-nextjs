@@ -456,6 +456,8 @@ describe("handleDeletionEmails", () => {
       expect(writes).toEqual([
         {
           lastError: "blocked_login_unconfirmed: participations",
+          // Written so a row from the earlier code keeps its attempt.
+          clerkAttemptedAt: expect.anything(),
           nextAttemptAt: expect.any(Date),
           updatedAt: expect.any(Date),
         },
@@ -644,6 +646,24 @@ describe("handleDeletionEmails", () => {
 
     const failure = writes.find((write) => typeof write.lastError === "string");
     expect(failure!.attempts).toBe(5);
+  });
+
+  it("never parks a local failure while the login is not known to be gone", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const task = makeTask({ taskId: 63, profileId: 73, clerkId: "user_blip" });
+    // A transient database error; the row may hold an unconfirmed request.
+    finalizeMock.mockResolvedValue({
+      kind: "local_failed",
+      error: new Error("connection lost"),
+      loginGone: false,
+      loginRemovedNow: false,
+    });
+    runClaim(claimTx([task], [{ id: 96, clerkDeletedAt: null, attempts: 4 }]));
+
+    await handleDeletionEmails();
+
+    const failure = writes.find((write) => typeof write.lastError === "string");
+    expect(failure!.attempts).toBe(4);
   });
 
   it("keeps counting from the claimed attempts when the login is still there", async () => {

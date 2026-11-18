@@ -406,6 +406,31 @@ describeDatabase("the profile-deletion cron", () => {
     expect(pending.localDeletedAt).not.toBeNull();
   });
 
+  it("takes back a parked sign-up once Clerk deletes its login on its own", async () => {
+    const { profile, task } = await seedOverdue();
+    sendEmail.mockResolvedValue({ data: { id: "e1" }, error: null });
+    // Clerk refused it five times: parked, no longer claimed.
+    await integrationDb!.insert(pendingUserDeletions).values({
+      userId: profile.id,
+      clerkId: profile.clerkId,
+      attempts: 5,
+      lastError: "clerk_refused: Error al eliminar la cuenta.",
+      nextAttemptAt: new Date(Date.now() - 1000),
+    });
+    const { recordClerkLoginDeleted } =
+      await import("@/app/lib/users/clerk-login-deleted");
+
+    expect(await recordClerkLoginDeleted(profile.clerkId)).toEqual({
+      kind: "queued",
+      profileId: profile.id,
+    });
+    const done = await cron.handleDeletionEmails();
+
+    expect(done.map((t) => t.id)).toContain(task.id);
+    expect(deleteClerkUser).not.toHaveBeenCalled();
+    expect(await userRow(profile.id)).toEqual([]);
+  });
+
   it("never asks Clerk about a profile that has to stay, and closes its task", async () => {
     const { profile, task } = await seedOverdue();
     await giveParticipation(profile.id);

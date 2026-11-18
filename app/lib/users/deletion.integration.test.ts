@@ -546,6 +546,68 @@ describeDatabase("deleting a profile", () => {
     expect(await userExists(f.oldAccount.id)).toBe(false);
   });
 
+  it("holds the account's orders while Clerk answers, so an adjustment written then waits and fails", async () => {
+    const db = integrationDb!;
+    const f = await seed();
+    await transferAway(f);
+    // An order with nothing against it yet: the deletion goes ahead.
+    const [order] = await db
+      .insert(orders)
+      .values({ userId: f.oldAccount.id, totalAmount: 100 })
+      .returning({ id: orders.id });
+
+    let answerClerk!: (value: { status: "deleted" }) => void;
+    deleteClerkUser.mockReset();
+    deleteClerkUser.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          answerClerk = resolve;
+        }),
+    );
+    const deletion = userActions.deleteProfile(f.oldAccount.id, NO_STATE);
+    await vi.waitFor(() => expect(deleteClerkUser).toHaveBeenCalled(), {
+      timeout: 5_000,
+    });
+
+    // At that moment an admin records an adjustment on the order: it names
+    // the order and the admin, never the account being deleted.
+    const writer = await pool!.connect();
+    let settled = false;
+    let write: Promise<unknown> = Promise.resolve();
+    try {
+      write = writer
+        .query(
+          `INSERT INTO order_adjustments
+             (order_id, actor_user_id, actor_role, reason, previous_total, total_delta, new_total)
+           VALUES ($1, $2, 'admin', 'Cambio', 100, -10, 90)`,
+          [order.id, f.admin.id],
+        )
+        .finally(() => {
+          settled = true;
+        });
+      write.catch(() => {});
+      await new Promise((resolve) => setTimeout(resolve, 750));
+      expect(settled).toBe(false);
+
+      answerClerk({ status: "deleted" });
+      expect(await deletion).toEqual({
+        success: true,
+        message: "Perfil eliminado",
+      });
+      await expect(write).rejects.toMatchObject({ code: "23503" });
+    } finally {
+      answerClerk({ status: "deleted" });
+      await deletion.catch(() => {});
+      await Promise.allSettled([write]);
+      writer.release();
+      await db
+        .delete(orderAdjustments)
+        .where(eq(orderAdjustments.orderId, order.id));
+      await db.delete(orders).where(eq(orders.id, order.id));
+    }
+    expect(await userExists(f.oldAccount.id)).toBe(false);
+  });
+
   async function activePending(clerkId: string) {
     return integrationDb!
       .select()
@@ -1369,6 +1431,28 @@ describeDatabase("deleting a profile", () => {
       ).toBe("unknown");
       vi.restoreAllMocks();
       expect(await activePending(f.oldAccount.clerkId)).toHaveLength(1);
+    });
+
+    it("keeps an old-code row's attempt when a later error replaces its own", async () => {
+      const f = await seed();
+      const core = await import("@/app/lib/users/profile-deletion");
+      const lastChanged = new Date(Date.now() - 90_000);
+      const [pending] = await integrationDb!
+        .insert(pendingUserDeletions)
+        .values({
+          userId: f.oldAccount.id,
+          clerkId: f.oldAccount.clerkId,
+          lastError: "clerk_delete_failed: timed out",
+          updatedAt: lastChanged,
+        })
+        .returning({ id: pendingUserDeletions.id });
+
+      // Any failure noted on it, a transient database error say.
+      await core.noteDeletionError(pending.id, "connection lost");
+
+      const [row] = await activePending(f.oldAccount.clerkId);
+      expect(row.lastError).toBe("connection lost");
+      expect(row.clerkAttemptedAt?.getTime()).toBe(lastChanged.getTime());
     });
 
     it("writes no error onto a deletion finished meanwhile, which is in its notice phase", async () => {
