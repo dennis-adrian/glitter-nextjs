@@ -56,3 +56,22 @@ export async function deleteClerkUser(
     };
   }
 }
+
+/**
+ * Whether the Clerk login still exists. "unknown" when Clerk could not say:
+ * a caller deciding whether a person can still sign in must not read a failed
+ * request as either answer.
+ */
+export async function clerkLoginStatus(
+  clerkId: string,
+): Promise<"exists" | "gone" | "unknown"> {
+  try {
+    const clerk = await clerkClient();
+    const user = await clerk.users.getUser(clerkId);
+    return user ? "exists" : "gone";
+  } catch (error) {
+    if (isClerkAPIResponseError(error) && error.status === 404) return "gone";
+    console.error("Error reading clerk user", error);
+    return "unknown";
+  }
+}

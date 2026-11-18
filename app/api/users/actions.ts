@@ -4,7 +4,7 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { hasPgErrorCode } from "@/app/lib/errors/postgres";
-import { db } from "@/db";
+import { db, pool } from "@/db";
 import { pendingUserDeletions, userRequests, users } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { BaseProfile, ProfileType, UserCategory } from "./definitions";
@@ -20,12 +20,16 @@ import { scrubDisciplinaryNotificationJobsForUser } from "@/app/lib/infractions/
 import { forgetPushDevices } from "@/app/lib/notifications/push/devices";
 import { scrubNotificationsNamingUser } from "@/app/lib/notifications/scrub";
 import { anonymizeProgramPurchasesForUser } from "@/app/lib/programs/anonymization";
-import { deleteClerkUser } from "@/app/lib/users/clerk";
+import {
+  checkClerkLogin,
+  deleteClerkLogin,
+} from "@/app/lib/users/clerk-deletion";
 import {
   findProfileDeletionBlocker,
   forgetDeletedUserRequestLog,
   isProfileDeletionBlockMessage,
   PROFILE_DELETION_BLOCK_MESSAGES,
+  type ProfileDeletionBlocker,
 } from "@/app/lib/users/deletion-blockers";
 import {
   requireAdmin,
@@ -89,14 +93,6 @@ type FormState = {
 
 const PERMANENT_ERROR_PREFIX = "PERMANENT:";
 
-/** Clerk refused or did not answer: nothing was deleted on either side. */
-class ClerkDeletionFailed extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ClerkDeletionFailed";
-  }
-}
-
 function isPermanentDeletionBlocker(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   if (
@@ -120,6 +116,70 @@ function toPendingDeletionError(error: unknown): string {
   }
   return message;
 }
+
+/**
+ * The refusal for an account whose Clerk login is already gone: the profile is
+ * kept for the blocker's reason, and the admin is told plainly that nobody can
+ * sign in to it any more, rather than reading a message that implies the
+ * person still can.
+ */
+function strandedProfileMessage(blocker: ProfileDeletionBlocker): string {
+  return `${PROFILE_DELETION_BLOCK_MESSAGES[blocker]} Su cuenta de acceso ya fue eliminada, así que esta persona ya no puede iniciar sesión con ella.`;
+}
+
+const CLERK_OUTCOME_UNKNOWN_MESSAGE =
+  "No pudimos confirmar si se eliminó la cuenta de acceso. Volvé a intentar en unos minutos.";
+
+/**
+ * Settles a deletion refused for `blocker` while its pending row says the
+ * login was never confirmed deleted. That can still mean an earlier attempt
+ * removed it without hearing back, so Clerk is asked before the account is
+ * either released (login intact: the pending row goes, so nothing keeps
+ * treating the account as being deleted) or reported as stranded.
+ */
+async function settleRefusedDeletion(input: {
+  pendingId: number;
+  clerkId: string;
+  blocker: ProfileDeletionBlocker;
+}): Promise<string> {
+  const message = PROFILE_DELETION_BLOCK_MESSAGES[input.blocker];
+  const status = await checkClerkLogin(input.clerkId);
+  if (status === "exists") {
+    await db
+      .delete(pendingUserDeletions)
+      .where(
+        and(
+          eq(pendingUserDeletions.id, input.pendingId),
+          isNull(pendingUserDeletions.clerkDeletedAt),
+          isNull(pendingUserDeletions.localDeletedAt),
+        ),
+      );
+    return message;
+  }
+  const now = new Date();
+  if (status === "gone") {
+    await db
+      .update(pendingUserDeletions)
+      .set({
+        clerkDeletedAt: now,
+        lastError: `${PERMANENT_ERROR_PREFIX} ${message}`,
+        updatedAt: now,
+      })
+      .where(eq(pendingUserDeletions.id, input.pendingId));
+    return strandedProfileMessage(input.blocker);
+  }
+  await db
+    .update(pendingUserDeletions)
+    .set({ lastError: `clerk_status_unknown: ${message}`, updatedAt: now })
+    .where(eq(pendingUserDeletions.id, input.pendingId));
+  return message;
+}
+
+type FinalDeletion =
+  | { kind: "deleted" }
+  | { kind: "blocked"; blocker: ProfileDeletionBlocker }
+  | { kind: "clerk_not_deleted"; message: string }
+  | { kind: "clerk_unknown"; message: string };
 
 export async function deleteProfile(profileId: number, prevState: FormState) {
   const actor = await requireAdmin();
@@ -164,7 +224,14 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
         // delete: a reference added since the first try keeps the account.
         if (existingPending.clerkDeletedAt === null) {
           const blocker = await findProfileDeletionBlocker(tx, profileId);
-          if (blocker) return { ok: false as const, blocker };
+          if (blocker) {
+            return {
+              ok: false as const,
+              blocker,
+              pendingId: existingPending.id,
+              clerkId: existingPending.clerkId,
+            };
+          }
         }
 
         await forgetPushDevices(tx, lockedUser.id);
@@ -203,6 +270,17 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
 
     if (!preparation.ok) {
       if (preparation.blocker) {
+        // A retry of an earlier attempt: that attempt may have reached Clerk.
+        if ("pendingId" in preparation && preparation.pendingId != null) {
+          return {
+            success: false,
+            message: await settleRefusedDeletion({
+              pendingId: preparation.pendingId,
+              clerkId: preparation.clerkId,
+              blocker: preparation.blocker,
+            }),
+          };
+        }
         return {
           success: false,
           message: PROFILE_DELETION_BLOCK_MESSAGES[preparation.blocker],
@@ -211,18 +289,22 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
       return { success: false, message: "Error al eliminar el perfil" };
     }
 
-    // One transaction from the last blocker check, through Clerk, to the local
-    // delete, holding the account's row FOR UPDATE the whole way. Every blocker
-    // is a row that references `users`, and writing one takes a key-share lock
-    // on this row, so nothing can add a participation, an infraction or a
-    // sanction once the check has passed: such a write waits, then fails on
-    // the missing user. A refusal is still possible, but only before Clerk is
-    // asked, which leaves the person able to sign in. Holding a transaction
-    // over a network call is what IDLE_IN_TRANSACTION_TIMEOUT_MS in db/index.ts
-    // is sized for.
+    // Reserved before the transaction, never from inside it: recording that
+    // the login is gone must commit on its own, even if the transaction rolls
+    // back, and a second connection requested from within the transaction
+    // could wait on the transaction itself when the pool is exhausted.
+    const recorder = await pool.connect();
     const now = new Date();
+    let outcome: FinalDeletion;
     try {
-      await db.transaction(async (tx) => {
+      // One transaction from the last blocker check, through Clerk, to the
+      // local delete, holding the account's row FOR UPDATE the whole way.
+      // Every blocker is a row that references `users`, and writing one takes
+      // a key-share lock on this row, so nothing can add a participation, an
+      // invoice, an infraction or a sanction once the check has passed: such
+      // a write waits, then fails on the missing user. The Clerk call is
+      // bounded (`CLERK_CALL_TIMEOUT_MS`), so the row is never held for long.
+      outcome = await db.transaction(async (tx): Promise<FinalDeletion> => {
         const [lockedUser] = await tx
           .select({ id: users.id })
           .from(users)
@@ -235,26 +317,27 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
             .update(pendingUserDeletions)
             .set({ localDeletedAt: now, lastError: null, updatedAt: now })
             .where(eq(pendingUserDeletions.id, preparation.pendingId));
-          return;
+          return { kind: "deleted" };
         }
 
         const blocker = await findProfileDeletionBlocker(tx, profileId);
-        if (blocker) {
-          throw new Error(PROFILE_DELETION_BLOCK_MESSAGES[blocker]);
-        }
+        // Nothing written yet: returning commits nothing.
+        if (blocker) return { kind: "blocked", blocker };
 
         if (!preparation.clerkAlreadyDeleted) {
-          const clerkResult = await deleteClerkUser(preparation.clerkId);
-          if (clerkResult.status === "request_failed") {
-            throw new ClerkDeletionFailed(clerkResult.message);
+          const clerk = await deleteClerkLogin(preparation.clerkId);
+          if (clerk.kind === "not_deleted") {
+            return { kind: "clerk_not_deleted", message: clerk.message };
           }
-          // Recorded outside this transaction, so it survives a rollback
-          // below: the next try must know the login is already gone.
-          const clerkDeletedAt = new Date();
-          await db
-            .update(pendingUserDeletions)
-            .set({ clerkDeletedAt, lastError: null, updatedAt: clerkDeletedAt })
-            .where(eq(pendingUserDeletions.id, preparation.pendingId));
+          if (clerk.kind === "unknown") {
+            return { kind: "clerk_unknown", message: clerk.message };
+          }
+          await recorder.query(
+            `UPDATE pending_user_deletions
+             SET clerk_deleted_at = now(), last_error = NULL, updated_at = now()
+             WHERE id = $1 AND clerk_deleted_at IS NULL`,
+            [preparation.pendingId],
+          );
         }
 
         // Its idempotency records only; RESTRICT, so they go first.
@@ -275,45 +358,74 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
           .update(pendingUserDeletions)
           .set({ localDeletedAt: now, lastError: null, updatedAt: now })
           .where(eq(pendingUserDeletions.id, preparation.pendingId));
+        return { kind: "deleted" };
       });
     } catch (error) {
       console.error(error);
-      if (error instanceof ClerkDeletionFailed) {
-        // Rolled back before anything local changed, and the login is
-        // untouched as far as Clerk told us.
-        await db
-          .update(pendingUserDeletions)
-          .set({
-            lastError: `clerk_delete_failed: ${error.message}`,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(pendingUserDeletions.id, preparation.pendingId),
-              isNull(pendingUserDeletions.clerkDeletedAt),
-              isNull(pendingUserDeletions.localDeletedAt),
-            ),
-          );
-        return { success: false, message: "Error al eliminar el perfil" };
-      }
-
-      const lastError = toPendingDeletionError(error);
       await db
         .update(pendingUserDeletions)
         .set({
-          lastError,
+          lastError: toPendingDeletionError(error),
           updatedAt: new Date(),
         })
         .where(eq(pendingUserDeletions.id, preparation.pendingId));
-
-      const blockerMessage = error instanceof Error ? error.message : undefined;
-      if (blockerMessage && isProfileDeletionBlockMessage(blockerMessage)) {
-        // Found before Clerk was asked in this attempt. Only a login an
-        // earlier attempt already removed can be gone at this point.
-        return { success: false, message: blockerMessage };
-      }
-
       return { success: false, message: "Error al eliminar el perfil" };
+    } finally {
+      recorder.release();
+    }
+
+    if (outcome.kind === "blocked") {
+      // The login was already gone before this attempt: nothing can give it
+      // back, so say so instead of implying the person can still sign in.
+      if (preparation.clerkAlreadyDeleted) {
+        await db
+          .update(pendingUserDeletions)
+          .set({
+            lastError: `${PERMANENT_ERROR_PREFIX} ${PROFILE_DELETION_BLOCK_MESSAGES[outcome.blocker]}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(pendingUserDeletions.id, preparation.pendingId));
+        return {
+          success: false,
+          message: strandedProfileMessage(outcome.blocker),
+        };
+      }
+      return {
+        success: false,
+        message: await settleRefusedDeletion({
+          pendingId: preparation.pendingId,
+          clerkId: preparation.clerkId,
+          blocker: outcome.blocker,
+        }),
+      };
+    }
+
+    if (outcome.kind === "clerk_not_deleted") {
+      // Clerk confirmed the login is still there and nothing local changed:
+      // the account goes back to normal, ready for another try.
+      console.error("Clerk login not deleted", {
+        profileId,
+        reason: outcome.message,
+      });
+      await db
+        .delete(pendingUserDeletions)
+        .where(
+          and(
+            eq(pendingUserDeletions.id, preparation.pendingId),
+            isNull(pendingUserDeletions.clerkDeletedAt),
+            isNull(pendingUserDeletions.localDeletedAt),
+          ),
+        );
+      return { success: false, message: "Error al eliminar el perfil" };
+    }
+
+    if (outcome.kind === "clerk_unknown") {
+      // Kept pending: the next try asks Clerk again and settles it.
+      await db
+        .update(pendingUserDeletions)
+        .set({ lastError: outcome.message, updatedAt: new Date() })
+        .where(eq(pendingUserDeletions.id, preparation.pendingId));
+      return { success: false, message: CLERK_OUTCOME_UNKNOWN_MESSAGE };
     }
   } catch (error) {
     console.error(error);
