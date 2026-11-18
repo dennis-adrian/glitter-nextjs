@@ -188,6 +188,62 @@ export const userStatusEventsRelations = relations(
   }),
 );
 
+/**
+ * One row per time an admin changed the address a person signs in with. It is
+ * the audit of who moved whom from which address to which, and the durable
+ * record of a change in flight: Clerk changes outside any transaction, so a
+ * row with `clerk_changed_at` set and `completed_at` null is a change the
+ * database has not caught up with, and running the action again finishes it.
+ */
+export const userEmailChanges = pgTable(
+  "user_email_changes",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    /** Kept as text so the audit still names the account once a row is gone. */
+    clerkId: text("clerk_id").notNull(),
+    oldEmail: text("old_email").notNull(),
+    newEmail: text("new_email").notNull(),
+    changedByUserId: integer("changed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    /** Connected accounts removed in Clerk, e.g. `oauth_google`. */
+    unlinkedProviders: text("unlinked_providers")
+      .array()
+      .default(sql`'{}'::text[]`)
+      .notNull(),
+    clerkChangedAt: timestamp("clerk_changed_at"),
+    completedAt: timestamp("completed_at"),
+    /** A code, never a Clerk or driver message: those can quote an address. */
+    lastError: text("last_error"),
+    /** `sent`, or a log-safe failure type such as `resend:validation_error`. */
+    oldNoticeStatus: text("old_notice_status"),
+    newNoticeStatus: text("new_notice_status"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("user_email_changes_user_created_idx").on(t.userId, t.createdAt),
+  ],
+);
+export const userEmailChangesRelations = relations(
+  userEmailChanges,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [userEmailChanges.userId],
+      references: [users.id],
+      relationName: "emailChanges",
+    }),
+    changedBy: one(users, {
+      fields: [userEmailChanges.changedByUserId],
+      references: [users.id],
+      relationName: "emailChangesMade",
+    }),
+  }),
+);
+
 export const usersRelations = relations(users, ({ many, one }) => ({
   userRequests: many(userRequests),
   userSocials: many(userSocials),
@@ -228,6 +284,10 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   }),
   createdStatusEvents: many(userStatusEvents, {
     relationName: "createdUserStatusEvents",
+  }),
+  emailChanges: many(userEmailChanges, { relationName: "emailChanges" }),
+  emailChangesMade: many(userEmailChanges, {
+    relationName: "emailChangesMade",
   }),
   impersonationsAsAdmin: many(impersonationSessions, {
     relationName: "impersonationsAsAdmin",

@@ -10,8 +10,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { viewState, refuseMock, clerk, sendNotificationMock } = vi.hoisted(
-  () => {
+const { viewState, refuseMock, clerk, clerkEmails, sendNotificationMock } =
+  vi.hoisted(() => {
     const viewState = { viewing: true };
     class Refusal extends Error {
       readonly code = "IMPERSONATION_READ_ONLY";
@@ -24,29 +24,39 @@ const { viewState, refuseMock, clerk, sendNotificationMock } = vi.hoisted(
       clerk: {
         getUser: vi.fn(async () => ({ id: "user_ana" })),
         deleteUser: vi.fn(async () => ({})),
+        getUserList: vi.fn(async () => ({ data: [], totalCount: 0 })),
+        deleteUserExternalAccount: vi.fn(async () => ({})),
       },
-      sendNotificationMock: vi.fn(async () => ({ statusCode: 201, headers: {} })),
+      clerkEmails: {
+        createEmailAddress: vi.fn(async () => ({ id: "idn_new" })),
+        updateEmailAddress: vi.fn(async () => ({})),
+        deleteEmailAddress: vi.fn(async () => ({})),
+      },
+      sendNotificationMock: vi.fn(async () => ({
+        statusCode: 201,
+        headers: {},
+      })),
     };
-  },
-);
+  });
 
 vi.mock("@/db/write-guard", () => ({ refuseDuringView: refuseMock }));
 vi.mock("@clerk/nextjs/server", () => ({
-  clerkClient: async () => ({ users: clerk }),
+  clerkClient: async () => ({ users: clerk, emailAddresses: clerkEmails }),
 }));
 vi.mock("web-push", () => ({
   default: { sendNotification: sendNotificationMock },
 }));
 
 import { guardUTApi } from "@/app/server/uploadthing";
-import { deleteClerkUser } from "@/app/lib/users/clerk";
+import { changeClerkUserEmail, deleteClerkUser } from "@/app/lib/users/clerk";
 import { sendPush } from "@/app/vendors/web-push";
 
 beforeEach(() => {
   viewState.viewing = true;
   refuseMock.mockClear();
-  clerk.getUser.mockClear();
-  clerk.deleteUser.mockClear();
+  for (const mock of [...Object.values(clerk), ...Object.values(clerkEmails)]) {
+    mock.mockClear();
+  }
   sendNotificationMock.mockClear();
 });
 
@@ -126,6 +136,20 @@ describe("Clerk during a view", () => {
       status: "deleted",
     });
     expect(clerk.deleteUser).toHaveBeenCalledWith("user_ana");
+  });
+});
+
+describe("Clerk email change during a view", () => {
+  it("refuses before Clerk is asked", async () => {
+    await expect(
+      changeClerkUserEmail("user_ana", "nueva@example.com"),
+    ).rejects.toMatchObject({ code: "IMPERSONATION_READ_ONLY" });
+    for (const mock of [
+      ...Object.values(clerk),
+      ...Object.values(clerkEmails),
+    ]) {
+      expect(mock).not.toHaveBeenCalled();
+    }
   });
 });
 
