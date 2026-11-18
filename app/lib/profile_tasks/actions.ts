@@ -526,10 +526,17 @@ export async function handleDeletionEmails(): Promise<
           break;
         case "clerk_not_deleted":
           // Clerk refused and the login is there: retried on a later run,
-          // up to the cap.
-          await recordDeletionFailure(pendingId, attempts, outcome.message, {
-            whileLoginNotGone: true,
-          });
+          // up to the cap. Not parked while an earlier request may still
+          // land, as with `clerk_unknown`: once it is too old to, a refusal
+          // clears it and the cap applies again.
+          await recordDeletionFailure(
+            pendingId,
+            outcome.earlierAttemptPending
+              ? Math.min(attempts, MAX_DELETION_ATTEMPTS - 2)
+              : attempts,
+            outcome.message,
+            { whileLoginNotGone: true },
+          );
           break;
         case "clerk_unknown":
           // Retried on a later run with its backoff, but never parked: Clerk

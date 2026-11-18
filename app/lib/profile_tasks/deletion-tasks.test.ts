@@ -295,6 +295,7 @@ describe("handleDeletionEmails", () => {
     const task = makeTask({ taskId: 9, profileId: 14, clerkId: "user_bad" });
     finalizeMock.mockResolvedValue({
       kind: "clerk_not_deleted",
+      earlierAttemptPending: false,
       message: "clerk_delete_failed: Error al eliminar la cuenta.",
     });
     runClaim(claimTx([task], [undefined], [57]));
@@ -366,6 +367,7 @@ describe("handleDeletionEmails", () => {
     const task = makeTask({ taskId: 50, profileId: 60, clerkId: "user_retry" });
     finalizeMock.mockResolvedValue({
       kind: "clerk_not_deleted",
+      earlierAttemptPending: false,
       message: "clerk_delete_failed: boom",
     });
     // Second attempt on a row that already failed once.
@@ -388,6 +390,7 @@ describe("handleDeletionEmails", () => {
     const task = makeTask({ taskId: 51, profileId: 61, clerkId: "user_stuck" });
     finalizeMock.mockResolvedValue({
       kind: "clerk_not_deleted",
+      earlierAttemptPending: false,
       message: "clerk_delete_failed: still broken",
     });
     // One short of MAX_DELETION_ATTEMPTS (5).
@@ -400,6 +403,23 @@ describe("handleDeletionEmails", () => {
     // an operator to read.
     expect(failure!.attempts).toBe(5);
     expect(failure!.lastError).toBe("clerk_delete_failed: still broken");
+  });
+
+  it("does not park a refusal while an earlier request may still land", async () => {
+    const task = makeTask({ taskId: 52, profileId: 62, clerkId: "user_early" });
+    finalizeMock.mockResolvedValue({
+      kind: "clerk_not_deleted",
+      message: "clerk_refused: Clerk 429",
+      earlierAttemptPending: true,
+    });
+    // One short of the cap: a fifth failure would drop the row from the claim
+    // while the earlier request could still remove the login.
+    runClaim(claimTx([task], [{ id: 92, clerkDeletedAt: null, attempts: 4 }]));
+
+    await handleDeletionEmails();
+
+    const failure = writes.find((write) => "attempts" in write);
+    expect(failure!.attempts).toBe(4);
   });
 
   describe("a profile something keeps (an infraction, credits, a reservation)", () => {

@@ -77,8 +77,16 @@ export type FinalizeOutcome =
       /** The login was already gone before this attempt began. */
       loginAlreadyGone: boolean;
     }
-  /** Clerk confirmed the login is still there; nothing local changed. */
-  | { kind: "clerk_not_deleted"; message: string }
+  /**
+   * Clerk confirmed the login is still there; nothing local changed.
+   * `earlierAttemptPending`: an earlier request whose outcome is unknown is
+   * still on record, and may yet remove the login.
+   */
+  | {
+      kind: "clerk_not_deleted";
+      message: string;
+      earlierAttemptPending: boolean;
+    }
   /** Clerk's answer could not be confirmed; the row keeps the attempt. */
   | { kind: "clerk_unknown"; message: string }
   /** The deadline passed while waiting for the lock: Clerk was not asked. */
@@ -351,7 +359,11 @@ export async function finalizeProfileDeletion(input: {
               updatedAt: new Date(),
             })
             .where(eq(pendingUserDeletions.id, input.pendingId));
-          return { kind: "clerk_not_deleted", message: clerk.message };
+          return {
+            kind: "clerk_not_deleted",
+            message: clerk.message,
+            earlierAttemptPending: earlierAttempt != null,
+          };
         }
         if (clerk.kind === "unknown") {
           await tx

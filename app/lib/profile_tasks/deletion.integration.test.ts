@@ -15,6 +15,7 @@ import {
   vi,
 } from "vitest";
 
+import { MAX_DELETION_ATTEMPTS } from "@/app/lib/users/deletion-limits";
 import * as schema from "@/db/schema";
 import {
   disciplinaryNotificationJobs,
@@ -134,6 +135,20 @@ describeDatabase("the profile-deletion cron", () => {
     if (Number(rows[0].count) > 0) {
       throw new Error(
         "The test database already has overdue profile tasks, which the cron would claim. Remove them (a leftover run's profiles start with 'cron-') or run against a database of its own.",
+      );
+    }
+    // Nor deletion notices still owed, due now or later: the run drains them.
+    const owed = await pool!.query<{ count: string }>(`
+      SELECT count(*) AS count
+      FROM pending_user_deletions
+      WHERE local_deleted_at IS NOT NULL
+        AND email_sent_at IS NULL
+        AND recipient_email IS NOT NULL
+        AND attempts < ${MAX_DELETION_ATTEMPTS}
+    `);
+    if (Number(owed.rows[0].count) > 0) {
+      throw new Error(
+        "The test database already has deletion notices still owed, which the cron would send. Remove them or run against a database of its own.",
       );
     }
   });
@@ -669,6 +684,35 @@ describeDatabase("the profile-deletion cron", () => {
     );
     const [open] = await taskRow(task.id);
     expect(open.ranAfterDueDate).toBe(false);
+  });
+
+  it("does not park a refused row while an earlier request may still land", async () => {
+    const { profile } = await seedOverdue();
+    // One short of the cap, with an earlier request still unconfirmed.
+    const earlier = new Date(Date.now() - 30_000);
+    await integrationDb!.insert(pendingUserDeletions).values({
+      userId: profile.id,
+      clerkId: profile.clerkId,
+      attempts: 4,
+      clerkAttemptedAt: earlier,
+      lastError: "clerk_delete_failed: timed out",
+      nextAttemptAt: new Date(Date.now() - 1000),
+    });
+    deleteClerkUser.mockResolvedValue({
+      success: false,
+      status: "request_failed",
+      message: "Clerk 429",
+      definite: true,
+    });
+    clerkLoginStatus.mockResolvedValue("exists");
+
+    await cron.handleDeletionEmails();
+
+    // Still claimable: parked, it would never be checked again if that
+    // request later removes the login.
+    const [pending] = await pendingFor(profile.clerkId);
+    expect(pending.attempts).toBe(4);
+    expect(pending.clerkAttemptedAt?.getTime()).toBe(earlier.getTime());
   });
 
   it("parks a resumed row whose local delete keeps failing once it reaches the cap", async () => {

@@ -55,10 +55,35 @@ vi.mock("@/app/lib/reservations/notification-outbox", () => ({
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
+/**
+ * Only a disposable, locally hosted database: the cleanup below deletes users
+ * and switches off the ledger's append-only trigger. A test-like name alone
+ * does not make a remote endpoint safe.
+ */
+const ALLOWED_TEST_HOSTS = new Set([
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "[::1]",
+  "host.docker.internal",
+]);
+
+/**
+ * Judged on what pg will actually connect to. Query parameters can override
+ * the host and database (`?host=…`), and a URL without a host makes pg fall
+ * back to PGHOST, so either is refused rather than interpreted.
+ */
 function isSafeTestDatabase(url: string): boolean {
   try {
-    const databaseName = decodeURIComponent(new URL(url).pathname.slice(1));
-    return /(^|[_-])(test|ci)([_-]|$)/i.test(databaseName);
+    const parsed = new URL(url);
+    if (!["postgres:", "postgresql:"].includes(parsed.protocol)) return false;
+    if (parsed.search !== "" || parsed.hash !== "") return false;
+    if (parsed.hostname === "") return false;
+    const databaseName = decodeURIComponent(parsed.pathname.slice(1));
+    return (
+      ALLOWED_TEST_HOSTS.has(parsed.hostname.toLowerCase()) &&
+      /(^|[_-])(test|ci)([_-]|$)/i.test(databaseName)
+    );
   } catch {
     return false;
   }
@@ -66,7 +91,7 @@ function isSafeTestDatabase(url: string): boolean {
 
 if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
   throw new Error(
-    "TEST_DATABASE_URL must target a database whose name contains 'test' or 'ci'.",
+    "TEST_DATABASE_URL must be a plain postgres:// URL to a local database whose name contains 'test' or 'ci', with no query parameters.",
   );
 }
 
