@@ -744,6 +744,63 @@ describeDatabase("admin participation transfer", () => {
     expect(participants).toEqual([{ userId: oldAccount.id }]);
   });
 
+  it("waits for a deletion that holds the target's row, then refuses the target", async () => {
+    const db = integrationDb!;
+    const { festival, accounts, standRows } = await seed({});
+    const [oldAccount, newAccount] = accounts;
+    const { reservation } = await seedReservation({
+      festivalId: festival.id,
+      standId: standRows[0].id,
+      ownerUserId: oldAccount.id,
+    });
+
+    // What deleteProfile's first transaction does: lock the account's row,
+    // then record the pending deletion and commit, all before Clerk.
+    const deletion = await pool!.connect();
+    let settled = false;
+    try {
+      await deletion.query("BEGIN");
+      await deletion.query("SELECT id FROM users WHERE id = $1 FOR UPDATE", [
+        newAccount.id,
+      ]);
+
+      // The transfer's first read finds no deletion; it must wait on the
+      // aggregate lock and decide again under it.
+      const transfer = service
+        .transferReservationParticipation({
+          reservationId: reservation.id,
+          fromUserId: oldAccount.id,
+          toUserId: newAccount.id,
+          idempotencyKey: randomUUID(),
+        })
+        .finally(() => {
+          settled = true;
+        });
+      await new Promise((resolve) => setTimeout(resolve, 750));
+      expect(settled).toBe(false);
+
+      await deletion.query(
+        "INSERT INTO pending_user_deletions (user_id, clerk_id) VALUES ($1, $2)",
+        [newAccount.id, newAccount.clerkId],
+      );
+      await deletion.query("COMMIT");
+
+      expect(await transfer).toMatchObject({
+        success: false,
+        code: "TRANSFER_TARGET_DELETION_PENDING",
+      });
+    } finally {
+      if (!settled) await deletion.query("ROLLBACK").catch(() => {});
+      deletion.release();
+    }
+
+    const participants = await db
+      .select({ userId: reservationParticipants.userId })
+      .from(reservationParticipants)
+      .where(eq(reservationParticipants.reservationId, reservation.id));
+    expect(participants).toEqual([{ userId: oldAccount.id }]);
+  });
+
   it("lets a live reservation reach an account whose own attempts in the festival were rejected or cancelled", async () => {
     const db = integrationDb!;
     const { festival, accounts, standRows } = await seed({
