@@ -89,6 +89,14 @@ type FormState = {
 
 const PERMANENT_ERROR_PREFIX = "PERMANENT:";
 
+/** Clerk refused or did not answer: nothing was deleted on either side. */
+class ClerkDeletionFailed extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ClerkDeletionFailed";
+  }
+}
+
 function isPermanentDeletionBlocker(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   if (
@@ -203,37 +211,15 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
       return { success: false, message: "Error al eliminar el perfil" };
     }
 
-    if (!preparation.clerkAlreadyDeleted) {
-      const clerkResult = await deleteClerkUser(preparation.clerkId);
-      if (clerkResult.status === "request_failed") {
-        const failedAt = new Date();
-        await db
-          .update(pendingUserDeletions)
-          .set({
-            lastError: `clerk_delete_failed: ${clerkResult.message}`,
-            updatedAt: failedAt,
-          })
-          .where(
-            and(
-              eq(pendingUserDeletions.id, preparation.pendingId),
-              isNull(pendingUserDeletions.clerkDeletedAt),
-              isNull(pendingUserDeletions.localDeletedAt),
-            ),
-          );
-        return { success: false, message: "Error al eliminar el perfil" };
-      }
-
-      const clerkDeletedAt = new Date();
-      await db
-        .update(pendingUserDeletions)
-        .set({
-          clerkDeletedAt,
-          lastError: null,
-          updatedAt: clerkDeletedAt,
-        })
-        .where(eq(pendingUserDeletions.id, preparation.pendingId));
-    }
-
+    // One transaction from the last blocker check, through Clerk, to the local
+    // delete, holding the account's row FOR UPDATE the whole way. Every blocker
+    // is a row that references `users`, and writing one takes a key-share lock
+    // on this row, so nothing can add a participation, an infraction or a
+    // sanction once the check has passed: such a write waits, then fails on
+    // the missing user. A refusal is still possible, but only before Clerk is
+    // asked, which leaves the person able to sign in. Holding a transaction
+    // over a network call is what IDLE_IN_TRANSACTION_TIMEOUT_MS in db/index.ts
+    // is sized for.
     const now = new Date();
     try {
       await db.transaction(async (tx) => {
@@ -257,6 +243,20 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
           throw new Error(PROFILE_DELETION_BLOCK_MESSAGES[blocker]);
         }
 
+        if (!preparation.clerkAlreadyDeleted) {
+          const clerkResult = await deleteClerkUser(preparation.clerkId);
+          if (clerkResult.status === "request_failed") {
+            throw new ClerkDeletionFailed(clerkResult.message);
+          }
+          // Recorded outside this transaction, so it survives a rollback
+          // below: the next try must know the login is already gone.
+          const clerkDeletedAt = new Date();
+          await db
+            .update(pendingUserDeletions)
+            .set({ clerkDeletedAt, lastError: null, updatedAt: clerkDeletedAt })
+            .where(eq(pendingUserDeletions.id, preparation.pendingId));
+        }
+
         // Its idempotency records only; RESTRICT, so they go first.
         await forgetDeletedUserRequestLog(tx, profileId);
 
@@ -278,6 +278,25 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
       });
     } catch (error) {
       console.error(error);
+      if (error instanceof ClerkDeletionFailed) {
+        // Rolled back before anything local changed, and the login is
+        // untouched as far as Clerk told us.
+        await db
+          .update(pendingUserDeletions)
+          .set({
+            lastError: `clerk_delete_failed: ${error.message}`,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(pendingUserDeletions.id, preparation.pendingId),
+              isNull(pendingUserDeletions.clerkDeletedAt),
+              isNull(pendingUserDeletions.localDeletedAt),
+            ),
+          );
+        return { success: false, message: "Error al eliminar el perfil" };
+      }
+
       const lastError = toPendingDeletionError(error);
       await db
         .update(pendingUserDeletions)
@@ -289,6 +308,8 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
 
       const blockerMessage = error instanceof Error ? error.message : undefined;
       if (blockerMessage && isProfileDeletionBlockMessage(blockerMessage)) {
+        // Found before Clerk was asked in this attempt. Only a login an
+        // earlier attempt already removed can be gone at this point.
         return { success: false, message: blockerMessage };
       }
 

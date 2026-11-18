@@ -438,6 +438,87 @@ describeDatabase("deleting a profile", () => {
     expect(await userExists(f.oldAccount.id)).toBe(false);
   });
 
+  it("holds the account while Clerk answers, so a blocker written then waits and fails", async () => {
+    const f = await seed();
+    await transfers.transferReservationParticipation({
+      reservationId: f.reservation.id,
+      fromUserId: f.oldAccount.id,
+      toUserId: f.newAccount.id,
+      idempotencyKey: randomUUID(),
+    });
+
+    // Clerk answers only when the test says so.
+    let answerClerk!: (value: { status: "deleted" }) => void;
+    deleteClerkUser.mockReset();
+    deleteClerkUser.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          answerClerk = resolve;
+        }),
+    );
+    const deletion = userActions.deleteProfile(f.oldAccount.id, NO_STATE);
+    await vi.waitFor(() => expect(deleteClerkUser).toHaveBeenCalled(), {
+      timeout: 5_000,
+    });
+
+    // An admin putting the account back on a reservation at that moment.
+    const writer = await pool!.connect();
+    let settled = false;
+    try {
+      const write = writer
+        .query(
+          "INSERT INTO participations (user_id, reservation_id) VALUES ($1, $2)",
+          [f.oldAccount.id, f.reservation.id],
+        )
+        .finally(() => {
+          settled = true;
+        });
+      write.catch(() => {});
+      await new Promise((resolve) => setTimeout(resolve, 750));
+      expect(settled).toBe(false);
+
+      answerClerk({ status: "deleted" });
+      expect(await deletion).toEqual({
+        success: true,
+        message: "Perfil eliminado",
+      });
+      await expect(write).rejects.toMatchObject({ code: "23503" });
+    } finally {
+      writer.release();
+    }
+    expect(await userExists(f.oldAccount.id)).toBe(false);
+  });
+
+  it("leaves the profile and its login as they were when Clerk fails", async () => {
+    const f = await seed();
+    await transfers.transferReservationParticipation({
+      reservationId: f.reservation.id,
+      fromUserId: f.oldAccount.id,
+      toUserId: f.newAccount.id,
+      idempotencyKey: randomUUID(),
+    });
+    deleteClerkUser.mockResolvedValue({
+      success: false,
+      status: "request_failed",
+      message: "Clerk no respondió",
+    });
+
+    expect(await userActions.deleteProfile(f.oldAccount.id, NO_STATE)).toEqual({
+      success: false,
+      message: "Error al eliminar el perfil",
+    });
+    expect(await userExists(f.oldAccount.id)).toBe(true);
+    const [pending] = await integrationDb!
+      .select()
+      .from(pendingUserDeletions)
+      .where(eq(pendingUserDeletions.clerkId, f.oldAccount.clerkId));
+    expect(pending).toMatchObject({
+      clerkDeletedAt: null,
+      localDeletedAt: null,
+      lastError: "clerk_delete_failed: Clerk no respondió",
+    });
+  });
+
   it("accounts for every reference to users that refuses a delete", async () => {
     const { rows } = await pool!.query<{ reference: string }>(`
       SELECT c.conrelid::regclass::text || '.' || a.attname AS reference
