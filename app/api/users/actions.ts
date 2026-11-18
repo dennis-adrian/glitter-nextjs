@@ -16,7 +16,6 @@ import {
   getFestivalCategories,
 } from "@/app/lib/festivals/utils";
 import ProfileRejectionEmailTemplate from "@/app/emails/profile-rejection";
-import { scrubDisciplinaryNotificationJobsForUser } from "@/app/lib/infractions/notifications";
 import { CLERK_CALL_TIMEOUT_MS } from "@/app/lib/users/clerk-deletion";
 import {
   finalizeProfileDeletion,
@@ -254,9 +253,6 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
       pendingId: preparation.pendingId,
       clerkId: preparation.clerkId,
       clerkBudgetMs: CLERK_CALL_TIMEOUT_MS,
-      // Scrub outbox PII before the user row is removed; FK only nulls user_id.
-      beforeUserDelete: (tx, now) =>
-        scrubDisciplinaryNotificationJobsForUser(tx, profileId, now),
     });
 
     switch (outcome.kind) {

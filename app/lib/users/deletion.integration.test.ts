@@ -16,12 +16,14 @@ import {
 
 import * as schema from "@/db/schema";
 import {
+  disciplinaryNotificationJobs,
   festivalSectors,
   festivals,
   invoiceSettlementSubmissions,
   invoices,
   payments,
   pendingUserDeletions,
+  posts,
   pushSubscriptions,
   reservationFeatureActions,
   reservationParticipants,
@@ -742,6 +744,70 @@ describeDatabase("deleting a profile", () => {
       const [pending] = await activePending(f.oldAccount.clerkId);
       expect(pending.clerkDeletedAt).not.toBeNull();
     });
+  });
+
+  it("settles the account's posts and scrubs its queued notices, as the cron does", async () => {
+    const f = await seed();
+    await transferAway(f);
+    const db = integrationDb!;
+    const suffix = randomUUID();
+    const [scheduled, published] = await db
+      .insert(posts)
+      .values(
+        (["scheduled", "published"] as const).map((status) => ({
+          title: `Artículo ${status}`,
+          slug: `deletion-${status}-${suffix}`,
+          content: [{ type: "paragraph", content: [] }],
+          contentHtml: "<p></p>",
+          authorId: f.oldAccount.id,
+          status,
+          publishedAt: status === "published" ? new Date() : null,
+        })),
+      )
+      .returning({ id: posts.id });
+    const [job] = await db
+      .insert(disciplinaryNotificationJobs)
+      .values({
+        deduplicationKey: `deletion-${suffix}`,
+        userId: f.oldAccount.id,
+        entityType: "infraction",
+        entityId: 1,
+        notificationKind: "infraction_created",
+        recipientEmail: f.oldAccount.email,
+        payload: { name: "Para borrar" },
+      })
+      .returning({ id: disciplinaryNotificationJobs.id });
+
+    try {
+      expect(
+        await userActions.deleteProfile(f.oldAccount.id, NO_STATE),
+      ).toEqual({ success: true, message: "Perfil eliminado" });
+      // A scheduled post must not go out after its author is gone; the
+      // published one stays under "Equipo Glitter".
+      const left = await db
+        .select({ id: posts.id, authorId: posts.authorId })
+        .from(posts)
+        .where(inArray(posts.id, [scheduled.id, published.id]));
+      expect(left).toEqual([{ id: published.id, authorId: null }]);
+      // The unsent notice is failed and keeps no address or details.
+      const [scrubbed] = await db
+        .select()
+        .from(disciplinaryNotificationJobs)
+        .where(eq(disciplinaryNotificationJobs.id, job.id));
+      expect(scrubbed).toMatchObject({
+        userId: null,
+        status: "failed",
+        recipientEmail: "",
+      });
+      expect(JSON.stringify(scrubbed.payload)).not.toContain("Para borrar");
+    } finally {
+      await db
+        .delete(posts)
+        .where(inArray(posts.id, [scheduled.id, published.id]));
+      await db
+        .delete(disciplinaryNotificationJobs)
+        .where(eq(disciplinaryNotificationJobs.id, job.id));
+    }
   });
 
   it("keeps the push devices of an account whose deletion does not go ahead", async () => {

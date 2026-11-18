@@ -9,7 +9,6 @@ const finalizeMock = vi.hoisted(() => vi.fn());
 const releaseMock = vi.hoisted(() => vi.fn());
 const noteErrorMock = vi.hoisted(() => vi.fn());
 const blockerMock = vi.hoisted(() => vi.fn());
-const detachPostsMock = vi.hoisted(() => vi.fn());
 const sendEmailMock = vi.hoisted(() => vi.fn());
 
 vi.mock("server-only", () => ({}));
@@ -34,10 +33,6 @@ vi.mock("@/app/lib/users/profile-deletion", () => ({
 
 vi.mock("@/app/lib/users/deletion-blockers", () => ({
   findProfileDeletionBlocker: blockerMock,
-}));
-
-vi.mock("@/app/lib/posts/anonymization", () => ({
-  detachPostsForDeletedUser: detachPostsMock,
 }));
 
 // The payment reminder's in-app copy; these tests never reach it, and the
@@ -219,7 +214,6 @@ describe("handleDeletionEmails", () => {
     releaseMock.mockReset();
     noteErrorMock.mockReset();
     blockerMock.mockReset();
-    detachPostsMock.mockReset();
     sendEmailMock.mockReset();
 
     finalizeMock.mockImplementation(async () => {
@@ -232,7 +226,6 @@ describe("handleDeletionEmails", () => {
         writes.push({ pendingId, lastError, ...extra });
       },
     );
-    detachPostsMock.mockResolvedValue({ deleted: 0, detached: 0 });
     sendEmailMock.mockResolvedValue({ data: { id: "email_1" }, error: null });
     updateMock.mockImplementation(recordingUpdate());
     // db.select(...)...limit() drives the deletion-email drain.
@@ -279,9 +272,8 @@ describe("handleDeletionEmails", () => {
       attempts: 0,
       nextAttemptAt: now,
     });
-    // Posts are settled on the same path, inside the delete.
-    await input.beforeUserDelete("tx", now);
-    expect(detachPostsMock).toHaveBeenCalledWith("tx", 12);
+    // Cleanup (posts, notices) is the core's own, the same for every path.
+    expect(input).not.toHaveProperty("beforeUserDelete");
     expect(result).toEqual([task]);
     expect(sendEmailMock).toHaveBeenCalledTimes(1);
   });

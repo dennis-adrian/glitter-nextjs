@@ -16,9 +16,11 @@ import {
 
 import * as schema from "@/db/schema";
 import {
+  disciplinaryNotificationJobs,
   festivalSectors,
   festivals,
   pendingUserDeletions,
+  posts,
   reservationParticipants,
   scheduledTasks,
   standReservationStands,
@@ -274,6 +276,74 @@ describeDatabase("the profile-deletion cron", () => {
     expect(pending.clerkAttemptedAt).toBeNull();
     expect(pending.localDeletedAt).not.toBeNull();
     expect(pending.emailSentAt).not.toBeNull();
+  });
+
+  it("settles the profile's posts and scrubs its queued notices, as the admin does", async () => {
+    const { profile } = await seedOverdue();
+    deleteClerkUser.mockResolvedValue({
+      success: true,
+      status: "deleted",
+      message: "ok",
+    });
+    const db = integrationDb!;
+    const suffix = randomUUID();
+    const [scheduled, published] = await db
+      .insert(posts)
+      .values(
+        (["scheduled", "published"] as const).map((status) => ({
+          title: `Artículo ${status}`,
+          slug: `deletion-${status}-${suffix}`,
+          content: [{ type: "paragraph", content: [] }],
+          contentHtml: "<p></p>",
+          authorId: profile.id,
+          status,
+          publishedAt: status === "published" ? new Date() : null,
+        })),
+      )
+      .returning({ id: posts.id });
+    const [job] = await db
+      .insert(disciplinaryNotificationJobs)
+      .values({
+        deduplicationKey: `deletion-${suffix}`,
+        userId: profile.id,
+        entityType: "infraction",
+        entityId: 1,
+        notificationKind: "infraction_created",
+        recipientEmail: profile.email,
+        payload: { name: "Para borrar" },
+      })
+      .returning({ id: disciplinaryNotificationJobs.id });
+
+    try {
+      await cron.handleDeletionEmails();
+
+      expect(await userRow(profile.id)).toEqual([]);
+      // A scheduled post must not go out after its author is gone; the
+      // published one stays under "Equipo Glitter".
+      const left = await db
+        .select({ id: posts.id, authorId: posts.authorId })
+        .from(posts)
+        .where(inArray(posts.id, [scheduled.id, published.id]));
+      expect(left).toEqual([{ id: published.id, authorId: null }]);
+      // The unsent notice is failed and keeps no address or details.
+      const [scrubbed] = await db
+        .select()
+        .from(disciplinaryNotificationJobs)
+        .where(eq(disciplinaryNotificationJobs.id, job.id));
+      expect(scrubbed).toMatchObject({
+        userId: null,
+        status: "failed",
+        recipientEmail: "",
+      });
+      expect(JSON.stringify(scrubbed.payload)).not.toContain("Para borrar");
+    } finally {
+      await db
+        .delete(posts)
+        .where(inArray(posts.id, [scheduled.id, published.id]));
+      await db
+        .delete(disciplinaryNotificationJobs)
+        .where(eq(disciplinaryNotificationJobs.id, job.id));
+    }
   });
 
   it("never asks Clerk about a profile that has to stay, and closes its task", async () => {

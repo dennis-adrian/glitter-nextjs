@@ -2,8 +2,10 @@ import "server-only";
 
 import { and, eq, isNull } from "drizzle-orm";
 
+import { scrubDisciplinaryNotificationJobsForUser } from "@/app/lib/infractions/notifications";
 import { forgetPushDevices } from "@/app/lib/notifications/push/devices";
 import { scrubNotificationsNamingUser } from "@/app/lib/notifications/scrub";
+import { detachPostsForDeletedUser } from "@/app/lib/posts/anonymization";
 import { anonymizeProgramPurchasesForUser } from "@/app/lib/programs/anonymization";
 import {
   checkClerkLogin,
@@ -106,16 +108,15 @@ async function lockAccount(
  * Deletes the Clerk login and then the profile, or says why it did not.
  *
  * `clerkBudgetMs` bounds the whole Clerk step, which runs with the row
- * locked. `beforeUserDelete` is the caller's own cleanup, in the same
- * transaction; `deletedPendingValues` adds columns to the pending row when
- * the profile goes.
+ * locked. Every deletion, the admin's or the cron's, runs the same cleanup
+ * in that transaction. `deletedPendingValues` adds columns to the pending
+ * row when the profile goes.
  */
 export async function finalizeProfileDeletion(input: {
   profileId: number;
   pendingId: number;
   clerkId: string;
   clerkBudgetMs: number;
-  beforeUserDelete?: (tx: DeletionTx, now: Date) => Promise<unknown>;
   deletedPendingValues?: (
     now: Date,
   ) => Partial<typeof pendingUserDeletions.$inferInsert>;
@@ -211,7 +212,13 @@ export async function finalizeProfileDeletion(input: {
       // seat counts survive. Required before the delete: their FK is
       // RESTRICT, so skipping this would abort the transaction.
       await anonymizeProgramPurchasesForUser(tx, input.profileId, now);
-      await input.beforeUserDelete?.(tx, now);
+      // Published articles stay under "Equipo Glitter"; drafts and posts
+      // still waiting to go out, scheduled ones included, go with their
+      // author, so none is published after they are gone.
+      await detachPostsForDeletedUser(tx, input.profileId);
+      // Their queued disciplinary notices keep only what history and dedupe
+      // need: the address and details go, and unsent ones are failed.
+      await scrubDisciplinaryNotificationJobsForUser(tx, input.profileId, now);
 
       await tx.delete(users).where(eq(users.id, input.profileId));
       await tx

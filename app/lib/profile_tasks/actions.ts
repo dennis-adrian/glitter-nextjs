@@ -10,7 +10,6 @@ import {
   ScheduledTaskWithProfile,
   ScheduledTaskWithProfileAndReservation,
 } from "@/app/lib/profile_tasks/definitions";
-import { detachPostsForDeletedUser } from "@/app/lib/posts/anonymization";
 import { db } from "@/db";
 import { pendingUserDeletions, scheduledTasks, users } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
@@ -426,10 +425,6 @@ export async function handleDeletionEmails(): Promise<
         pendingId,
         clerkId: task.profile.clerkId,
         clerkBudgetMs: clerkBudgetMs(deadline),
-        // Published articles stay under "Equipo Glitter"; drafts and other
-        // never-public posts go with their author.
-        beforeUserDelete: (tx) =>
-          detachPostsForDeletedUser(tx, task.profile.id),
         // scheduled_tasks.profile_id is ON DELETE CASCADE, so the delete
         // removes this task's row; no flag to set. The address is carried on
         // the outbox row because the profile it came from is gone. The email
