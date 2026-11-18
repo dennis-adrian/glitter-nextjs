@@ -495,13 +495,16 @@ export async function handleDeletionEmails(): Promise<
           // keeps counting, so a delete that always fails reaches the cap.
           // While the login is not known to be gone, the row may hold an
           // unconfirmed Clerk request: like `clerk_unknown`, never parked.
+          // Counted from the row as the delete last read it, not as claimed:
+          // the webhook may have made a parked row claimable in between.
+          const current = outcome.attempts ?? attempts;
           await recordDeletionFailure(
             pendingId,
             outcome.loginRemovedNow
               ? 0
               : outcome.loginGone
-                ? attempts
-                : Math.min(attempts, MAX_DELETION_ATTEMPTS - 2),
+                ? current
+                : Math.min(current, MAX_DELETION_ATTEMPTS - 2),
             toLocalDeleteError(outcome.error),
           );
           break;

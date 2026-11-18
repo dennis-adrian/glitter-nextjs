@@ -1,6 +1,6 @@
 import "server-only";
 
-import { eq, inArray } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -137,20 +137,26 @@ export async function lockRowsTheDeleteCascadesTo(
     .select({ id: orders.id })
     .from(orders)
     .where(eq(orders.userId, profileId));
+  // By ascending id within each table, as the writers that lock several
+  // orders do (category corrections, backfills), so two of them never wait
+  // on each other in a cycle.
   await tx
     .select({ id: orders.id })
     .from(orders)
     .where(eq(orders.userId, profileId))
+    .orderBy(asc(orders.id))
     .for("update");
   await tx
     .select({ id: orderItems.id })
     .from(orderItems)
     .where(inArray(orderItems.orderId, ownOrders))
+    .orderBy(asc(orderItems.id))
     .for("update");
   await tx
     .select({ id: creditTopUps.id })
     .from(creditTopUps)
     .where(eq(creditTopUps.userId, profileId))
+    .orderBy(asc(creditTopUps.id))
     .for("update");
 }
 

@@ -1504,7 +1504,9 @@ describeDatabase("deleting a profile", () => {
       });
 
       expect(await loginDeleted(f.oldAccount.clerkId)).toEqual({
-        kind: "recorded",
+        // An admin's deletion: only an admin retries it, so an operator has
+        // to be told the login went.
+        kind: "flagged",
         profileId: f.oldAccount.id,
       });
       const [pending] = await activePending(f.oldAccount.clerkId);

@@ -85,13 +85,16 @@ export type FinalizeOutcome =
   | { kind: "out_of_time" }
   /**
    * The local delete failed. `loginGone` says whether the login is gone;
-   * `loginRemovedNow`, whether this attempt is the one that removed it.
+   * `loginRemovedNow`, whether this attempt is the one that removed it;
+   * `attempts`, the row's count as last read under the lock, when it was
+   * read (it may have changed since the caller claimed the row).
    */
   | {
       kind: "local_failed";
       error: unknown;
       loginGone: boolean;
       loginRemovedNow: boolean;
+      attempts?: number;
     };
 
 async function lockAccount(
@@ -113,6 +116,7 @@ async function lockAccount(
       localDeletedAt: pendingUserDeletions.localDeletedAt,
       lastError: pendingUserDeletions.lastError,
       updatedAt: pendingUserDeletions.updatedAt,
+      attempts: pendingUserDeletions.attempts,
     })
     .from(pendingUserDeletions)
     .where(eq(pendingUserDeletions.id, pendingId))
@@ -215,9 +219,14 @@ export async function finalizeProfileDeletion(input: {
     /** `replaced`: the unconfirmed attempt on record before this one. */
     | { kind: "recorded"; attemptAt: Date; replaced: Date | null };
   let recorded: Recorded;
+  // The row's attempts as last read under the lock, for a caller that counts
+  // failures: the count it claimed may have been changed since (the
+  // user.deleted webhook makes a parked row claimable again).
+  let seenAttempts: number | undefined;
   try {
     recorded = await db.transaction(async (tx): Promise<Recorded> => {
       const locked = await lockAccount(tx, input.profileId, input.pendingId);
+      seenAttempts = locked.pending?.attempts ?? seenAttempts;
       const stop = await stopBeforeClerk(tx, input, locked, now);
       if (stop) return { kind: "stop", outcome: stop };
       const pending = locked.pending!;
@@ -247,6 +256,7 @@ export async function finalizeProfileDeletion(input: {
       error,
       loginGone: false,
       loginRemovedNow: false,
+      attempts: seenAttempts,
     };
   }
   if (recorded.kind === "stop") return recorded.outcome;
@@ -257,6 +267,7 @@ export async function finalizeProfileDeletion(input: {
   try {
     return await db.transaction(async (tx): Promise<FinalizeOutcome> => {
       const locked = await lockAccount(tx, input.profileId, input.pendingId);
+      seenAttempts = locked.pending?.attempts ?? seenAttempts;
       // Whether the marker on the row is still the one this attempt wrote,
       // or another attempt has written its own since.
       const markerIsOurs =
@@ -407,7 +418,13 @@ export async function finalizeProfileDeletion(input: {
     }
     // An unconfirmed attempt needs nothing written here: its marker was
     // committed before the request went out.
-    return { kind: "local_failed", error, loginGone, loginRemovedNow };
+    return {
+      kind: "local_failed",
+      error,
+      loginGone,
+      loginRemovedNow,
+      attempts: seenAttempts,
+    };
   }
 }
 

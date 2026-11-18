@@ -17,8 +17,6 @@ export const LOGIN_DELETED_OUTSIDE_APP_ERROR =
 export type ClerkLoginDeletedResult =
   /** No profile has this login: deleted with it, or never created. */
   | { kind: "no_profile" }
-  /** A deletion under way now knows the login is gone. */
-  | { kind: "recorded"; profileId: number }
   /** Already known; a repeated delivery. */
   | { kind: "already_recorded"; profileId: number }
   /**
@@ -38,8 +36,8 @@ export type ClerkLoginDeletedResult =
  *
  * - A deletion under way gets `clerkDeletedAt`: whoever retries it next
  *   finishes the local delete without asking Clerk again. One the cron owns
- *   is made claimable again if it had been parked; one parked with no cron
- *   to come back to it is reported as flagged.
+ *   is made claimable again if it had been parked; any other (an admin's,
+ *   retried only by an admin) is reported as flagged for an operator.
  * - A sign-up never completed, whose open profile-creation task the cron
  *   will act on, gets a pending deletion with the login recorded as gone and
  *   no attempts spent, so the cron finishes it as it would have anyway.
@@ -112,10 +110,9 @@ export async function recordClerkLoginDeleted(
         })
         .where(eq(pendingUserDeletions.id, pending.id));
       if (cronTask) return { kind: "queued", profileId: user.id };
-      // Parked with no cron to come back to it: an operator has to know.
-      return pending.attempts >= MAX_DELETION_ATTEMPTS
-        ? { kind: "flagged", profileId: user.id }
-        : { kind: "recorded", profileId: user.id };
+      // No cron comes back to it: an admin's deletion is only ever retried
+      // by an admin, whatever its attempts. An operator has to know.
+      return { kind: "flagged", profileId: user.id };
     }
 
     await tx.insert(pendingUserDeletions).values({

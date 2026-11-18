@@ -666,6 +666,28 @@ describe("handleDeletionEmails", () => {
     expect(failure!.attempts).toBe(4);
   });
 
+  it("counts from the row as the delete read it, not as it was claimed", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const task = makeTask({ taskId: 64, profileId: 74, clerkId: "user_fresh" });
+    // Claimed at 4; meanwhile the webhook found the login gone and made the
+    // row claimable again (0). One local failure must not park it.
+    finalizeMock.mockResolvedValue({
+      kind: "local_failed",
+      error: new Error("connection lost"),
+      loginGone: true,
+      loginRemovedNow: false,
+      attempts: 0,
+    });
+    runClaim(
+      claimTx([task], [{ id: 95, clerkDeletedAt: new Date(), attempts: 4 }]),
+    );
+
+    await handleDeletionEmails();
+
+    const failure = writes.find((write) => typeof write.lastError === "string");
+    expect(failure!.attempts).toBe(1);
+  });
+
   it("keeps counting from the claimed attempts when the login is still there", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const task = makeTask({ taskId: 61, profileId: 71, clerkId: "user_keep" });
