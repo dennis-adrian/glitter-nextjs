@@ -14,6 +14,7 @@ import {
   DrawerDialogFooter,
   DrawerDialogHeader,
   DrawerDialogTitle,
+  DrawerDialogTrigger,
 } from "@/app/components/ui/drawer-dialog";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import {
@@ -72,100 +73,98 @@ export default function ParticipationHistoryTrigger({
   }
 
   return (
-    <>
-      <Button
-        type="button"
-        variant="link"
-        size="inline"
-        className="h-auto min-h-0 px-0 py-0 font-medium"
-        aria-label={`Ver el historial de participaciones de ${userName}: ${count}`}
-        onClick={() => {
-          setOpen(true);
-          void load();
-        }}
-      >
-        {count}
-      </Button>
+    <DrawerDialog
+      isDesktop={isDesktop}
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) void load();
+        else loadRun.current += 1;
+      }}
+    >
+      {/* A real trigger, so closing hands focus back to this count. Padded
+          past the digit so a phone has something to tap, pulled back so the
+          number still lines up with the column. */}
+      <DrawerDialogTrigger isDesktop={isDesktop}>
+        <Button
+          type="button"
+          variant="link"
+          size="inline"
+          className="-mx-2 min-h-8 min-w-8 px-2 py-1 font-medium"
+          aria-label={`Ver el historial de participaciones de ${userName}: ${count}`}
+        >
+          {count}
+        </Button>
+      </DrawerDialogTrigger>
 
-      <DrawerDialog
+      <DrawerDialogContent
         isDesktop={isDesktop}
-        open={open}
-        onOpenChange={(next) => {
-          setOpen(next);
-          if (!next) loadRun.current += 1;
-        }}
+        className="sm:max-w-2xl"
+        // A read-only view with nothing to lose: tapping outside closes it.
+        onPointerDownOutside={() => {}}
+        onInteractOutside={() => {}}
       >
-        <DrawerDialogContent isDesktop={isDesktop} className="sm:max-w-2xl">
-          <DrawerDialogHeader isDesktop={isDesktop}>
-            <DrawerDialogTitle
-              isDesktop={isDesktop}
-              className="break-words text-left"
-            >
-              Participaciones de {userName}
-            </DrawerDialogTitle>
-            <DrawerDialogDescription
-              isDesktop={isDesktop}
-              className="text-left"
-            >
-              {state.kind === "ready"
-                ? participationHistorySummary(state.groups)
-                : "Cada festival cuenta una vez, aunque haya tenido más de una reserva."}
-            </DrawerDialogDescription>
-          </DrawerDialogHeader>
-
-          <div
-            className={`max-h-[65vh] overflow-y-auto ${isDesktop ? "" : "px-4"}`}
+        <DrawerDialogHeader isDesktop={isDesktop}>
+          <DrawerDialogTitle
+            isDesktop={isDesktop}
+            className="text-left wrap-anywhere"
           >
-            {state.kind === "ready" ? (
-              <ParticipationHistoryEntries
-                groups={state.groups}
-                userId={userId}
-                userName={userName}
-                canTransfer={false}
-              />
-            ) : state.kind === "failed" ? (
-              <div className="flex flex-col items-start gap-2 py-4 text-sm">
-                <p className="text-destructive">
-                  No pudimos cargar el historial.
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={load}
-                >
-                  Reintentar
-                </Button>
-              </div>
-            ) : (
-              <p className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-                Cargando historial…
+            Participaciones de {userName}
+          </DrawerDialogTitle>
+          <DrawerDialogDescription isDesktop={isDesktop} className="text-left">
+            {state.kind === "ready"
+              ? participationHistorySummary(state.groups)
+              : "Cada festival cuenta una vez, aunque haya tenido más de una reserva."}
+          </DrawerDialogDescription>
+        </DrawerDialogHeader>
+
+        <div
+          className={`max-h-[65vh] overflow-y-auto ${isDesktop ? "" : "px-4"}`}
+        >
+          {state.kind === "ready" ? (
+            <ParticipationHistoryEntries
+              groups={state.groups}
+              userId={userId}
+              userName={userName}
+              canTransfer={false}
+            />
+          ) : state.kind === "failed" ? (
+            <div className="flex flex-col items-start gap-2 py-4 text-sm">
+              <p className="text-destructive">
+                No pudimos cargar el historial.
               </p>
-            )}
-          </div>
+              <Button type="button" variant="outline" size="sm" onClick={load}>
+                Reintentar
+              </Button>
+            </div>
+          ) : (
+            <p className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+              <Loader2Icon className="h-4 w-4 animate-spin" />
+              Cargando historial…
+            </p>
+          )}
+        </div>
 
-          <div
-            className={`flex flex-wrap gap-2 ${isDesktop ? "justify-end" : "px-4 pt-2"}`}
+        <div
+          className={`flex flex-wrap gap-2 ${isDesktop ? "justify-end" : "px-4 pt-2"}`}
+        >
+          <Link
+            href={`/dashboard/users/${userId}`}
+            className={buttonVariants({
+              variant: "outline",
+              size: "sm",
+              wrap: true,
+            })}
           >
-            <Link
-              href={`/dashboard/users/${userId}`}
-              className={buttonVariants({
-                variant: "outline",
-                size: "sm",
-                wrap: true,
-              })}
-            >
-              Ver perfil completo
-            </Link>
-          </div>
-          <DrawerDialogFooter isDesktop={isDesktop} className="pt-2">
-            <DrawerDialogClose isDesktop={isDesktop}>
-              <Button variant="outline">Cerrar</Button>
-            </DrawerDialogClose>
-          </DrawerDialogFooter>
-        </DrawerDialogContent>
-      </DrawerDialog>
-    </>
+            Ver perfil completo
+          </Link>
+        </div>
+        <DrawerDialogFooter isDesktop={isDesktop} className="pt-2">
+          <DrawerDialogClose isDesktop={isDesktop}>
+            <Button variant="outline">Cerrar</Button>
+          </DrawerDialogClose>
+        </DrawerDialogFooter>
+      </DrawerDialogContent>
+    </DrawerDialog>
   );
 }

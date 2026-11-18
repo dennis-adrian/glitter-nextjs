@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import { expect, fn, mocked, userEvent, within } from "storybook/test";
+import { expect, fn, mocked, userEvent, waitFor, within } from "storybook/test";
 
 import ParticipationHistoryTrigger from "@/app/components/participations/admin/participation-history-trigger";
 import { fetchParticipationHistoryAction } from "@/app/lib/participations/admin-history-actions";
@@ -55,7 +55,9 @@ export const Open: Story = {
       userId: 1,
     });
     await expect(
-      body.getByText(/^2 festivales \(3 reservas\),/),
+      body.getByText(
+        "2 participaciones · Se listan 2 festivales y 3 reservas, incluidas las canceladas y rechazadas.",
+      ),
     ).toBeInTheDocument();
     await expect(
       body.getByText("2 reservas en este festival"),
@@ -82,5 +84,33 @@ export const LoadFails: Story = {
     await expect(
       body.getByRole("button", { name: "Reintentar" }),
     ).toBeInTheDocument();
+  },
+};
+
+/** Closing hands focus back to the count, so a keyboard user keeps their row. */
+export const FocusReturnsOnClose: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const trigger = canvas.getByRole("button", {
+      name: /historial de participaciones/,
+    });
+    await userEvent.click(trigger);
+    await within(document.body).findByText("Glitter Vol 8");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(trigger).toHaveFocus());
+  },
+};
+
+/** An account with no name falls back to its email, which must wrap. */
+export const EmailOnlyName: Story = {
+  args: {
+    userName: "mariafernanda.quispe.mamani.ilustraciones@example.com",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: /historial de participaciones/ }),
+    );
+    await within(document.body).findByText("Glitter Vol 8");
   },
 };

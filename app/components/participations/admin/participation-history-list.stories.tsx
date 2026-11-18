@@ -138,7 +138,9 @@ export const GlobalAdmin: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByText(/^3 festivales \(4 reservas\),/),
+      canvas.getByText(
+        "2 participaciones · Se listan 3 festivales y 4 reservas, incluidas las canceladas y rechazadas.",
+      ),
     ).toBeInTheDocument();
     await expect(
       canvas.getByText("2 reservas en este festival"),

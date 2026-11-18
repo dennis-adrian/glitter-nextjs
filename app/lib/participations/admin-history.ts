@@ -204,21 +204,38 @@ function plural(count: number, one: string, many: string) {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-/** The line under the title: festivals first, reservations only when more. */
+/**
+ * Festivals that count as a participation: those with a confirmed (accepted)
+ * reservation. The same rule as the participants table's "Participaciones"
+ * column, so the number an admin clicks is the number the history repeats.
+ */
+export function countParticipatedFestivals(
+  groups: readonly AdminFestivalParticipation[],
+): number {
+  return groups.filter((group) =>
+    group.reservations.some((reservation) => reservation.status === "accepted"),
+  ).length;
+}
+
+/**
+ * The line under the title. It leads with the participations, counted like
+ * the table's column, then says what else the list holds: festivals with only
+ * cancelled or rejected reservations, and a second stand in an edition.
+ */
 export function participationHistorySummary(
   groups: readonly AdminFestivalParticipation[],
 ): string {
   if (groups.length === 0) {
     return "Esta cuenta todavía no participó de ningún festival.";
   }
+  const participated = countParticipatedFestivals(groups);
   const reservations = groups.reduce(
     (sum, group) => sum + group.reservations.length,
     0,
   );
-  const festivals = plural(groups.length, "festival", "festivales");
-  const breakdown =
-    reservations > groups.length
-      ? ` (${plural(reservations, "reserva", "reservas")})`
-      : "";
-  return `${festivals}${breakdown}, del más reciente al más antiguo. Incluye las reservas canceladas y rechazadas.`;
+  const lead = plural(participated, "participación", "participaciones");
+  if (participated === groups.length && reservations === groups.length) {
+    return `${lead}, de la más reciente a la más antigua.`;
+  }
+  return `${lead} · Se listan ${plural(groups.length, "festival", "festivales")} y ${plural(reservations, "reserva", "reservas")}, incluidas las canceladas y rechazadas.`;
 }

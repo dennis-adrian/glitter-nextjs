@@ -315,11 +315,43 @@ function group(id: number, reservations: number): AdminFestivalParticipation {
 }
 
 describe("participationHistorySummary", () => {
-  it("counts festivals, and reservations only when there are more of them", () => {
-    expect(participationHistorySummary([group(1, 1)])).toMatch(/^1 festival,/);
-    expect(participationHistorySummary([group(1, 2), group(2, 1)])).toMatch(
-      /^2 festivales \(3 reservas\),/,
+  function withStatuses(id: number, statuses: string[]) {
+    return {
+      ...group(id, statuses.length),
+      reservations: statuses.map((status) => ({ status }) as never),
+    };
+  }
+
+  it("leads with the same count as the table: festivals with a confirmed reservation", () => {
+    // Accepted in one festival, only rejected in another: the column says 1.
+    expect(
+      participationHistorySummary([
+        withStatuses(1, ["accepted"]),
+        withStatuses(2, ["rejected"]),
+      ]),
+    ).toBe(
+      "1 participación · Se listan 2 festivales y 2 reservas, incluidas las canceladas y rechazadas.",
     );
+  });
+
+  it("counts two stands in one edition as one participation", () => {
+    expect(
+      participationHistorySummary([
+        withStatuses(1, ["accepted", "accepted"]),
+        withStatuses(2, ["accepted"]),
+      ]),
+    ).toBe(
+      "2 participaciones · Se listan 2 festivales y 3 reservas, incluidas las canceladas y rechazadas.",
+    );
+  });
+
+  it("stays short when every reservation is its own participation", () => {
+    expect(
+      participationHistorySummary([
+        withStatuses(1, ["accepted"]),
+        withStatuses(2, ["accepted"]),
+      ]),
+    ).toBe("2 participaciones, de la más reciente a la más antigua.");
   });
 
   it("says when there is nothing to list", () => {
