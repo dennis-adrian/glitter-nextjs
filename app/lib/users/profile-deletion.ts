@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, lt, or } from "drizzle-orm";
 
 import { scrubDisciplinaryNotificationJobsForUser } from "@/app/lib/infractions/notifications";
 import { forgetPushDevices } from "@/app/lib/notifications/push/devices";
@@ -43,8 +43,13 @@ type DeletionTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * How long an unconfirmed Clerk deletion has to be in the past before a read
- * that finds the login settles it. Far past the 100s function cap, so the
- * request that went unanswered can no longer be on its way.
+ * that finds the login settles it. Far past the 100s function cap
+ * (vercel.json). The Clerk SDK makes one request per call and never retries
+ * it, and `deleteClerkUser` does not send a DELETE once its caller has given
+ * up, so a request still unsent at that point never goes out. What this
+ * cannot rule out is a request already handed to the network when the caller
+ * gave up and then held back for longer than this; no Clerk API lets that be
+ * cancelled or confirmed.
  */
 export const UNCONFIRMED_ATTEMPT_SETTLES_AFTER_MS = 5 * 60_000;
 
@@ -68,6 +73,8 @@ export type FinalizeOutcome =
   | { kind: "clerk_not_deleted"; message: string }
   /** Clerk's answer could not be confirmed; the row keeps the attempt. */
   | { kind: "clerk_unknown"; message: string }
+  /** The deadline passed while waiting for the lock: Clerk was not asked. */
+  | { kind: "out_of_time" }
   /**
    * The local delete failed. `loginGone` says whether the login is gone;
    * `loginRemovedNow`, whether this attempt is the one that removed it.
@@ -105,18 +112,32 @@ async function lockAccount(
 }
 
 /**
+ * The time a Clerk step may take, measured once the row lock is held: its own
+ * bound, cut short by the caller's deadline. Zero or less means "do not ask".
+ */
+function remainingBudget(clerkBudgetMs: number, deadline?: number): number {
+  return Math.min(
+    clerkBudgetMs,
+    deadline === undefined ? Infinity : deadline - Date.now(),
+  );
+}
+
+/**
  * Deletes the Clerk login and then the profile, or says why it did not.
  *
  * `clerkBudgetMs` bounds the whole Clerk step, which runs with the row
- * locked. Every deletion, the admin's or the cron's, runs the same cleanup
- * in that transaction. `deletedPendingValues` adds columns to the pending
- * row when the profile goes.
+ * locked; `deadline` (epoch ms), when given, cuts it short, and is checked
+ * after the lock is taken, so time spent waiting for it counts. Every
+ * deletion, the admin's or the cron's, runs the same cleanup in that
+ * transaction. `deletedPendingValues` adds columns to the pending row when
+ * the profile goes.
  */
 export async function finalizeProfileDeletion(input: {
   profileId: number;
   pendingId: number;
   clerkId: string;
   clerkBudgetMs: number;
+  deadline?: number;
   deletedPendingValues?: (
     now: Date,
   ) => Partial<typeof pendingUserDeletions.$inferInsert>;
@@ -125,6 +146,8 @@ export async function finalizeProfileDeletion(input: {
   // Whether the login is known to be gone, so a rollback below cannot lose it.
   let loginGone = false;
   let loginRemovedNow = false;
+  // When this attempt sent Clerk a deletion, so a rollback cannot lose it.
+  let attemptSentAt: Date | null = null;
   try {
     return await db.transaction(async (tx): Promise<FinalizeOutcome> => {
       const { user, pending } = await lockAccount(
@@ -144,31 +167,35 @@ export async function finalizeProfileDeletion(input: {
       }
 
       loginGone = pending.clerkDeletedAt != null;
-      // An earlier request whose outcome is still unknown. A definite answer
-      // to this attempt's own request does not settle that one.
-      const earlierAttempt =
-        pending.clerkAttemptedAt &&
-        now.getTime() - pending.clerkAttemptedAt.getTime() <
-          UNCONFIRMED_ATTEMPT_SETTLES_AFTER_MS
-          ? pending.clerkAttemptedAt
-          : null;
       const blocker = await findProfileDeletionBlocker(tx, input.profileId);
       if (blocker) {
         return { kind: "blocked", blocker, loginAlreadyGone: loginGone };
       }
 
       if (!loginGone) {
+        const budget = remainingBudget(input.clerkBudgetMs, input.deadline);
+        if (budget <= 0) return { kind: "out_of_time" };
+
+        // Taken now, after the lock wait: the marker must not be older than
+        // the request it stands for, or the settle window would be shorter.
+        const attemptAt = new Date();
+        // An earlier request whose outcome is still unknown. A definite answer
+        // to this attempt's own request does not settle that one.
+        const earlierAttempt =
+          pending.clerkAttemptedAt &&
+          attemptAt.getTime() - pending.clerkAttemptedAt.getTime() <
+            UNCONFIRMED_ATTEMPT_SETTLES_AFTER_MS
+            ? pending.clerkAttemptedAt
+            : null;
         // Committed with the outcome if it stays unknown, so a later attempt
         // knows a request may still be on its way.
         await tx
           .update(pendingUserDeletions)
-          .set({ clerkAttemptedAt: now, updatedAt: now })
+          .set({ clerkAttemptedAt: attemptAt, updatedAt: attemptAt })
           .where(eq(pendingUserDeletions.id, input.pendingId));
 
-        const clerk = await deleteClerkLogin(
-          input.clerkId,
-          input.clerkBudgetMs,
-        );
+        attemptSentAt = attemptAt;
+        const clerk = await deleteClerkLogin(input.clerkId, budget);
         if (clerk.kind === "not_deleted") {
           await tx
             .update(pendingUserDeletions)
@@ -251,6 +278,28 @@ export async function finalizeProfileDeletion(input: {
       } catch (recordError) {
         console.error("Could not record a deleted Clerk login", recordError);
       }
+    } else if (attemptSentAt) {
+      // A deletion was sent and the rollback also undid its marker: without
+      // it, a later refusal would release the row while that request could
+      // still land. A later marker already there is kept.
+      try {
+        await db
+          .update(pendingUserDeletions)
+          .set({ clerkAttemptedAt: attemptSentAt, updatedAt: new Date() })
+          .where(
+            and(
+              eq(pendingUserDeletions.id, input.pendingId),
+              isNull(pendingUserDeletions.localDeletedAt),
+              isNull(pendingUserDeletions.clerkDeletedAt),
+              or(
+                isNull(pendingUserDeletions.clerkAttemptedAt),
+                lt(pendingUserDeletions.clerkAttemptedAt, attemptSentAt),
+              ),
+            ),
+          );
+      } catch (recordError) {
+        console.error("Could not record a Clerk deletion attempt", recordError);
+      }
     }
     return { kind: "local_failed", error, loginGone, loginRemovedNow };
   }
@@ -271,6 +320,8 @@ export async function releaseRefusedDeletion(input: {
   pendingId: number;
   clerkId: string;
   clerkBudgetMs: number;
+  /** Epoch ms; checked after the lock is taken. */
+  deadline?: number;
 }): Promise<LoginState> {
   return db.transaction(async (tx): Promise<LoginState> => {
     const { pending } = await lockAccount(tx, input.profileId, input.pendingId);
@@ -288,7 +339,14 @@ export async function releaseRefusedDeletion(input: {
 
     if (!pending.clerkAttemptedAt) return release();
 
-    const status = await checkClerkLogin(input.clerkId, input.clerkBudgetMs);
+    const budget = remainingBudget(input.clerkBudgetMs, input.deadline);
+    if (budget <= 0) return "unknown";
+    // Decided before the read, not after: a read that starts while the
+    // request could still land says nothing about whether it later did.
+    const settled =
+      Date.now() - pending.clerkAttemptedAt.getTime() >=
+      UNCONFIRMED_ATTEMPT_SETTLES_AFTER_MS;
+    const status = await checkClerkLogin(input.clerkId, budget);
     const now = new Date();
     if (status === "gone") {
       await tx
@@ -297,18 +355,16 @@ export async function releaseRefusedDeletion(input: {
         .where(eq(pendingUserDeletions.id, input.pendingId));
       return "gone";
     }
-    if (
-      status === "exists" &&
-      now.getTime() - pending.clerkAttemptedAt.getTime() >=
-        UNCONFIRMED_ATTEMPT_SETTLES_AFTER_MS
-    ) {
-      return release();
-    }
+    if (status === "exists" && settled) return release();
     return "unknown";
   });
 }
 
-/** Records why a deletion stopped, outside any transaction. */
+/**
+ * Records why a deletion stopped, outside any transaction. Only while the
+ * deletion is unfinished: one completed meanwhile by another attempt is in
+ * its notice phase, with its own attempts and address, and is left alone.
+ */
 export async function noteDeletionError(
   pendingId: number,
   lastError: string,
@@ -317,5 +373,10 @@ export async function noteDeletionError(
   await db
     .update(pendingUserDeletions)
     .set({ lastError, updatedAt: new Date(), ...extra })
-    .where(eq(pendingUserDeletions.id, pendingId));
+    .where(
+      and(
+        eq(pendingUserDeletions.id, pendingId),
+        isNull(pendingUserDeletions.localDeletedAt),
+      ),
+    );
 }

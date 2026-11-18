@@ -29,6 +29,7 @@ vi.mock("@/app/lib/users/profile-deletion", () => ({
   finalizeProfileDeletion: finalizeMock,
   releaseRefusedDeletion: releaseMock,
   noteDeletionError: noteErrorMock,
+  UNCONFIRMED_ATTEMPT_SETTLES_AFTER_MS: 5 * 60_000,
 }));
 
 vi.mock("@/app/lib/users/deletion-blockers", () => ({
@@ -415,22 +416,30 @@ describe("handleDeletionEmails", () => {
       expect(writes).toEqual([closedTask]);
     });
 
-    it("on a retry, retries later when Clerk cannot confirm the login", async () => {
+    it("on a retry, checks again later when Clerk cannot confirm the login, without spending attempts", async () => {
       const task = makeTask({ taskId: 18, profileId: 23, clerkId: "user_q" });
       blockerMock.mockResolvedValue("participations");
       releaseMock.mockResolvedValue("unknown");
+      // One short of the cap: counting this as a failed deletion would drop
+      // the still-pending account out of the claim for good.
       runClaim(
-        claimTx([task], [{ id: 68, clerkDeletedAt: null, attempts: 1 }]),
+        claimTx([task], [{ id: 68, clerkDeletedAt: null, attempts: 4 }]),
       );
 
+      const before = Date.now();
       await handleDeletionEmails();
 
       expect(writes).toEqual([
-        expect.objectContaining({
-          attempts: 2,
+        {
           lastError: "blocked_login_unconfirmed: participations",
-        }),
+          nextAttemptAt: expect.any(Date),
+          updatedAt: expect.any(Date),
+        },
       ]);
+      // Once an unconfirmed request can no longer land.
+      expect(
+        (writes[0].nextAttemptAt as Date).getTime(),
+      ).toBeGreaterThanOrEqual(before + 5 * 60_000);
     });
 
     it("is parked for an operator when its login is already gone", async () => {
@@ -794,10 +803,11 @@ describe("handleDeletionEmails", () => {
     );
   });
 
-  it("cuts the Clerk step short near the run deadline", async () => {
+  it("hands the run deadline to the delete, to be checked once the lock is held", async () => {
     const task = makeTask({ taskId: 30, profileId: 40, clerkId: "user_late" });
-    // 3s of the 60s run left when the profile comes up: the Clerk step may not
-    // take its full 10s, or the run would overshoot the function limit.
+    // 3s of the 60s run left when the profile comes up. The budget is not
+    // worked out here: waiting for the row lock could use it up, so the core
+    // measures what is left after taking the lock.
     let claimCommitted = false;
     vi.spyOn(Date, "now").mockImplementation(() =>
       claimCommitted ? 57_000 : 0,
@@ -814,8 +824,20 @@ describe("handleDeletionEmails", () => {
     await handleDeletionEmails();
 
     expect(finalizeMock).toHaveBeenCalledWith(
-      expect.objectContaining({ clerkBudgetMs: 3_000 }),
+      expect.objectContaining({ clerkBudgetMs: 10_000, deadline: 60_000 }),
     );
+  });
+
+  it("leaves a profile queued when the run ran out while waiting for its lock", async () => {
+    const task = makeTask({ taskId: 31, profileId: 41, clerkId: "user_wait" });
+    finalizeMock.mockResolvedValue({ kind: "out_of_time" });
+    runClaim(claimTx([task], [{ id: 71, clerkDeletedAt: null, attempts: 2 }]));
+
+    const result = await handleDeletionEmails();
+
+    // Nothing was asked of Clerk, so nothing counts as a failure.
+    expect(result).toEqual([]);
+    expect(writes).toEqual([]);
   });
 
   it("counts the claiming transaction against the run budget", async () => {

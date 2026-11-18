@@ -8,6 +8,7 @@ import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
@@ -62,9 +63,17 @@ const ALLOWED_TEST_HOSTS = new Set([
   "host.docker.internal",
 ]);
 
+/**
+ * Judged on what pg will actually connect to. Query parameters can override
+ * the host and database (`?host=…`), and a URL without a host makes pg fall
+ * back to PGHOST, so either is refused rather than interpreted.
+ */
 function isSafeTestDatabase(url: string): boolean {
   try {
     const parsed = new URL(url);
+    if (!["postgres:", "postgresql:"].includes(parsed.protocol)) return false;
+    if (parsed.search !== "" || parsed.hash !== "") return false;
+    if (parsed.hostname === "") return false;
     const databaseName = decodeURIComponent(parsed.pathname.slice(1));
     return (
       ALLOWED_TEST_HOSTS.has(parsed.hostname.toLowerCase()) &&
@@ -77,7 +86,7 @@ function isSafeTestDatabase(url: string): boolean {
 
 if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
   throw new Error(
-    "TEST_DATABASE_URL must target a local database whose name contains 'test' or 'ci'.",
+    "TEST_DATABASE_URL must be a plain postgres:// URL to a local database whose name contains 'test' or 'ci', with no query parameters.",
   );
 }
 
@@ -108,6 +117,27 @@ describeDatabase("the profile-deletion cron", () => {
     process.env.UPLOADTHING_TOKEN ??= "integration-test";
     cron = await import("@/app/lib/profile_tasks/actions");
   }, 60_000);
+
+  // The cron claims every overdue profile task in the database, not only this
+  // suite's. Its cases are only meaningful, and only safe, when nothing else
+  // is there to claim; this suite's own profiles are the `cron-` ones.
+  beforeEach(async () => {
+    const { rows } = await pool!.query<{ count: string }>(`
+      SELECT count(*) AS count
+      FROM scheduled_tasks t
+      JOIN users u ON u.id = t.profile_id
+      WHERE t.task_type = 'profile_creation'
+        AND t.completed_at IS NULL
+        AND t.ran_after_due_date = false
+        AND t.due_date <= now()
+        AND u.clerk_id NOT LIKE 'cron-%'
+    `);
+    if (Number(rows[0].count) > 0) {
+      throw new Error(
+        "The test database has overdue profile tasks this suite did not create; the cron would claim them. Run it against a database of its own.",
+      );
+    }
+  });
 
   afterEach(async () => {
     deleteClerkUser.mockReset();
@@ -269,7 +299,10 @@ describeDatabase("the profile-deletion cron", () => {
     const done = await cron.handleDeletionEmails();
 
     expect(done.map((t) => t.id)).toContain(task.id);
-    expect(deleteClerkUser).toHaveBeenCalledWith(profile.clerkId);
+    expect(deleteClerkUser).toHaveBeenCalledWith(
+      profile.clerkId,
+      expect.any(AbortSignal),
+    );
     expect(await userRow(profile.id)).toEqual([]);
     const [pending] = await pendingFor(profile.clerkId);
     expect(pending.clerkDeletedAt).not.toBeNull();
@@ -370,6 +403,7 @@ describeDatabase("the profile-deletion cron", () => {
       success: false,
       status: "request_failed",
       message: "boom",
+      definite: true,
     });
     clerkLoginStatus.mockResolvedValue("exists");
 
@@ -418,6 +452,7 @@ describeDatabase("the profile-deletion cron", () => {
       success: false,
       status: "request_failed",
       message: "Clerk 429",
+      definite: true,
     });
     clerkLoginStatus.mockResolvedValue("exists");
 
@@ -441,7 +476,12 @@ describeDatabase("the profile-deletion cron", () => {
     expect(deleteClerkUser).not.toHaveBeenCalled();
     [pending] = await pendingFor(profile.clerkId);
     expect(pending.lastError).toBe("blocked_login_unconfirmed: participations");
-    expect(pending.attempts).toBe(3);
+    // Not a failed deletion: the attempts are left alone, and it is checked
+    // again once the first request can no longer land.
+    expect(pending.attempts).toBe(2);
+    expect(pending.nextAttemptAt.getTime()).toBeGreaterThan(
+      Date.now() + 4 * 60_000,
+    );
     const [open] = await taskRow(task.id);
     expect(open.ranAfterDueDate).toBe(false);
   });

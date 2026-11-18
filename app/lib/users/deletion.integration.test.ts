@@ -71,9 +71,17 @@ const ALLOWED_TEST_HOSTS = new Set([
   "host.docker.internal",
 ]);
 
+/**
+ * Judged on what pg will actually connect to. Query parameters can override
+ * the host and database (`?host=…`), and a URL without a host makes pg fall
+ * back to PGHOST, so either is refused rather than interpreted.
+ */
 function isSafeTestDatabase(url: string): boolean {
   try {
     const parsed = new URL(url);
+    if (!["postgres:", "postgresql:"].includes(parsed.protocol)) return false;
+    if (parsed.search !== "" || parsed.hash !== "") return false;
+    if (parsed.hostname === "") return false;
     const databaseName = decodeURIComponent(parsed.pathname.slice(1));
     return (
       ALLOWED_TEST_HOSTS.has(parsed.hostname.toLowerCase()) &&
@@ -86,7 +94,7 @@ function isSafeTestDatabase(url: string): boolean {
 
 if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
   throw new Error(
-    "TEST_DATABASE_URL must target a local database whose name contains 'test' or 'ci'.",
+    "TEST_DATABASE_URL must be a plain postgres:// URL to a local database whose name contains 'test' or 'ci', with no query parameters.",
   );
 }
 
@@ -357,7 +365,10 @@ describeDatabase("deleting a profile", () => {
       success: true,
       message: "Perfil eliminado",
     });
-    expect(deleteClerkUser).toHaveBeenCalledWith(f.oldAccount.clerkId);
+    expect(deleteClerkUser).toHaveBeenCalledWith(
+      f.oldAccount.clerkId,
+      expect.any(AbortSignal),
+    );
     expect(await userExists(f.oldAccount.id)).toBe(false);
 
     const [invoice] = await db
@@ -557,6 +568,7 @@ describeDatabase("deleting a profile", () => {
       success: false,
       status: "request_failed",
       message: "Clerk no respondió",
+      definite: true,
     });
     clerkLoginStatus.mockResolvedValue("exists");
 
@@ -638,6 +650,7 @@ describeDatabase("deleting a profile", () => {
       success: false,
       status: "request_failed",
       message: "Clerk 429",
+      definite: true,
     });
     clerkLoginStatus.mockResolvedValue("exists");
 
@@ -648,6 +661,94 @@ describeDatabase("deleting a profile", () => {
     });
     const [pending] = await activePending(f.oldAccount.clerkId);
     expect(pending.clerkAttemptedAt?.getTime()).toBe(earlier.getTime());
+    expect(await userExists(f.oldAccount.id)).toBe(true);
+  });
+
+  it("keeps the deletion pending when the failure may still have been applied", async () => {
+    const f = await seed();
+    await transferAway(f);
+    // A 5xx: Clerk may apply the delete after the read below finds the login.
+    deleteClerkUser.mockResolvedValue({
+      success: false,
+      status: "request_failed",
+      message: "Clerk 502",
+      definite: false,
+    });
+    clerkLoginStatus.mockResolvedValue("exists");
+
+    expect(await userActions.deleteProfile(f.oldAccount.id, NO_STATE)).toEqual({
+      success: false,
+      message:
+        "No pudimos confirmar si se eliminó la cuenta de acceso. Volvé a intentar en unos minutos.",
+    });
+    const [pending] = await activePending(f.oldAccount.clerkId);
+    expect(pending.clerkAttemptedAt).not.toBeNull();
+    expect(await userExists(f.oldAccount.id)).toBe(true);
+  });
+
+  it("keeps the attempt on record when the transaction rolls back after Clerk was asked", async () => {
+    const f = await seed();
+    await transferAway(f);
+    // Fails the write that records Clerk's answer, as a dropped connection or
+    // a failed commit would, after the request went out.
+    await pool!.query(`
+      CREATE OR REPLACE FUNCTION deletion_test_fail_write() RETURNS trigger AS $$
+      BEGIN
+        IF NEW.last_error = 'clerk_delete_failed: test-rollback' THEN
+          RAISE EXCEPTION 'simulated failure after Clerk';
+        END IF;
+        RETURN NEW;
+      END $$ LANGUAGE plpgsql;
+      CREATE TRIGGER deletion_test_fail_write
+        BEFORE UPDATE ON pending_user_deletions
+        FOR EACH ROW EXECUTE FUNCTION deletion_test_fail_write();
+    `);
+    deleteClerkUser.mockResolvedValue({
+      success: false,
+      status: "request_failed",
+      message: "test-rollback",
+      definite: false,
+    });
+    clerkLoginStatus.mockResolvedValue("exists");
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      expect(
+        (await userActions.deleteProfile(f.oldAccount.id, NO_STATE)).success,
+      ).toBe(false);
+    } finally {
+      quiet.mockRestore();
+      await pool!.query(`
+        DROP TRIGGER IF EXISTS deletion_test_fail_write ON pending_user_deletions;
+        DROP FUNCTION IF EXISTS deletion_test_fail_write();
+      `);
+    }
+    // Without the marker, a refusal on the next try would release the row
+    // at once, while that request could still land.
+    const [pending] = await activePending(f.oldAccount.clerkId);
+    expect(pending.clerkAttemptedAt).not.toBeNull();
+    expect(await userExists(f.oldAccount.id)).toBe(true);
+  });
+
+  it("does not send to the transfer an account whose cobros are on reservations it left", async () => {
+    const f = await seed();
+    await transferAway(f);
+    // A cobro still billed to the old account on a reservation it is no
+    // longer on: a transfer starts from a participation, so it cannot move it.
+    await integrationDb!.insert(invoices).values({
+      date: new Date(),
+      userId: f.oldAccount.id,
+      reservationId: f.reservation.id,
+      originalAmount: 50,
+      amount: 50,
+      status: "pending",
+    });
+
+    expect(await userActions.deleteProfile(f.oldAccount.id, NO_STATE)).toEqual({
+      success: false,
+      message: blockers.PROFILE_DELETION_BLOCK_MESSAGES.reservation_invoices,
+    });
+    expect(deleteClerkUser).not.toHaveBeenCalled();
     expect(await userExists(f.oldAccount.id)).toBe(true);
   });
 
@@ -904,6 +1005,146 @@ describeDatabase("deleting a profile", () => {
     ).toEqual({ kind: "conflict" });
     expect(deleteClerkUser).not.toHaveBeenCalled();
     expect(await userExists(f.oldAccount.id)).toBe(true);
+  });
+
+  describe("the shared deletion core", () => {
+    async function pendingFor(f: Awaited<ReturnType<typeof seed>>) {
+      const [pending] = await integrationDb!
+        .insert(pendingUserDeletions)
+        .values({ userId: f.oldAccount.id, clerkId: f.oldAccount.clerkId })
+        .returning({ id: pendingUserDeletions.id });
+      return pending.id;
+    }
+
+    it("does not ask Clerk when the deadline passed while it waited for the lock", async () => {
+      const f = await seed();
+      await transferAway(f);
+      const pendingId = await pendingFor(f);
+      const core = await import("@/app/lib/users/profile-deletion");
+
+      // Another transaction holds the account's row past the deadline.
+      const holder = await pool!.connect();
+      try {
+        await holder.query("BEGIN");
+        await holder.query("SELECT id FROM users WHERE id = $1 FOR UPDATE", [
+          f.oldAccount.id,
+        ]);
+        const outcome = core.finalizeProfileDeletion({
+          profileId: f.oldAccount.id,
+          pendingId,
+          clerkId: f.oldAccount.clerkId,
+          clerkBudgetMs: 10_000,
+          deadline: Date.now() + 200,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await holder.query("COMMIT");
+        expect(await outcome).toEqual({ kind: "out_of_time" });
+      } finally {
+        holder.release();
+      }
+      expect(deleteClerkUser).not.toHaveBeenCalled();
+      const [row] = await activePending(f.oldAccount.clerkId);
+      expect(row.clerkAttemptedAt).toBeNull();
+    });
+
+    it("dates the attempt from when the request went out, not from before the lock wait", async () => {
+      const f = await seed();
+      await transferAway(f);
+      const pendingId = await pendingFor(f);
+      const core = await import("@/app/lib/users/profile-deletion");
+      deleteClerkUser.mockResolvedValue({
+        success: false,
+        status: "request_failed",
+        message: "Clerk 502",
+        definite: false,
+      });
+      clerkLoginStatus.mockResolvedValue("unknown");
+
+      const holder = await pool!.connect();
+      let released = 0;
+      try {
+        await holder.query("BEGIN");
+        await holder.query("SELECT id FROM users WHERE id = $1 FOR UPDATE", [
+          f.oldAccount.id,
+        ]);
+        const outcome = core.finalizeProfileDeletion({
+          profileId: f.oldAccount.id,
+          pendingId,
+          clerkId: f.oldAccount.clerkId,
+          clerkBudgetMs: 1_000,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        released = Date.now();
+        await holder.query("COMMIT");
+        expect((await outcome).kind).toBe("clerk_unknown");
+      } finally {
+        holder.release();
+      }
+      const [row] = await activePending(f.oldAccount.clerkId);
+      expect(row.clerkAttemptedAt!.getTime()).toBeGreaterThanOrEqual(
+        released - 50,
+      );
+    });
+
+    it("decides whether an attempt has settled before reading the login, not after", async () => {
+      const f = await seed();
+      const core = await import("@/app/lib/users/profile-deletion");
+      // Just inside the window when the read starts; past it once it ends.
+      const [pending] = await integrationDb!
+        .insert(pendingUserDeletions)
+        .values({
+          userId: f.oldAccount.id,
+          clerkId: f.oldAccount.clerkId,
+          clerkAttemptedAt: new Date(
+            Date.now() - core.UNCONFIRMED_ATTEMPT_SETTLES_AFTER_MS + 200,
+          ),
+        })
+        .returning({ id: pendingUserDeletions.id });
+      clerkLoginStatus.mockImplementation(
+        () =>
+          new Promise((resolve) => setTimeout(() => resolve("exists"), 600)),
+      );
+
+      expect(
+        await core.releaseRefusedDeletion({
+          profileId: f.oldAccount.id,
+          pendingId: pending.id,
+          clerkId: f.oldAccount.clerkId,
+          clerkBudgetMs: 2_000,
+        }),
+      ).toBe("unknown");
+      expect(await activePending(f.oldAccount.clerkId)).toHaveLength(1);
+    });
+
+    it("writes no error onto a deletion finished meanwhile, which is in its notice phase", async () => {
+      const f = await seed();
+      const core = await import("@/app/lib/users/profile-deletion");
+      const [pending] = await integrationDb!
+        .insert(pendingUserDeletions)
+        .values({
+          userId: f.oldAccount.id,
+          clerkId: f.oldAccount.clerkId,
+          clerkDeletedAt: new Date(),
+          localDeletedAt: new Date(),
+          recipientEmail: f.oldAccount.email,
+          attempts: 0,
+        })
+        .returning({ id: pendingUserDeletions.id });
+
+      await core.noteDeletionError(pending.id, "late failure", {
+        attempts: 5,
+      });
+
+      const [row] = await integrationDb!
+        .select()
+        .from(pendingUserDeletions)
+        .where(eq(pendingUserDeletions.id, pending.id));
+      expect(row).toMatchObject({
+        attempts: 0,
+        lastError: null,
+        recipientEmail: f.oldAccount.email,
+      });
+    });
   });
 
   it("accounts for every reference to users that refuses a delete", async () => {

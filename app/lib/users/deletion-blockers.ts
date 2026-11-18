@@ -28,7 +28,8 @@ type DeletionTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
  *
  * The first four are permanent: those rows are kept on purpose (discipline,
  * who did what, and an append-only credit ledger), so nothing an admin does
- * makes the account deletable. The last one is the only one with a fix.
+ * makes the account deletable. `participations` is fixed by a transfer;
+ * `reservation_invoices` needs someone to look at the cobros.
  */
 export const PROFILE_DELETION_BLOCK_MESSAGES = {
   infractions: "No se puede eliminar un perfil con historial de infracciones.",
@@ -41,6 +42,10 @@ export const PROFILE_DELETION_BLOCK_MESSAGES = {
   // survive with nobody on it.
   participations:
     "No se puede eliminar un perfil que todavía tiene participaciones o cobros de reservas. Si la persona usa otra cuenta, transferíselos desde su historial de participaciones antes de eliminarlo.",
+  // Cobros billed to the account on reservations it no longer takes part in.
+  // A transfer starts from a participation, so it cannot move these.
+  reservation_invoices:
+    "No se puede eliminar un perfil que tiene cobros de reservas en las que ya no participa: eliminarlo borraría esos cobros y sus pagos. Revisá esos cobros a mano antes de eliminarlo.",
 } as const;
 
 export type ProfileDeletionBlocker =
@@ -210,24 +215,31 @@ export async function findProfileDeletionBlocker(
   if (creditHistory.some(Boolean)) return "credit_history";
 
   // Not a foreign-key refusal: both cascade. Refused anyway, because the
-  // cascade would erase a festival's participation and its payments.
-  const reservationRecords = await Promise.all([
-    exists(
+  // cascade would erase a festival's participation and its payments. A
+  // participation comes first: transferring it also moves the cobros billed
+  // to the account on that reservation.
+  if (
+    await exists(
       tx
         .select({ id: reservationParticipants.id })
         .from(reservationParticipants)
         .where(eq(reservationParticipants.userId, profileId))
         .limit(1),
-    ),
-    exists(
+    )
+  ) {
+    return "participations";
+  }
+  if (
+    await exists(
       tx
         .select({ id: invoices.id })
         .from(invoices)
         .where(eq(invoices.userId, profileId))
         .limit(1),
-    ),
-  ]);
-  if (reservationRecords.some(Boolean)) return "participations";
+    )
+  ) {
+    return "reservation_invoices";
+  }
 
   return null;
 }

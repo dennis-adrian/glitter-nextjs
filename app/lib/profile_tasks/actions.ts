@@ -44,6 +44,7 @@ import {
   finalizeProfileDeletion,
   noteDeletionError,
   releaseRefusedDeletion,
+  UNCONFIRMED_ATTEMPT_SETTLES_AFTER_MS,
 } from "@/app/lib/users/profile-deletion";
 
 // Leaves headroom under the 100s function limit set in vercel.json so a large
@@ -97,10 +98,20 @@ function computeNextAttemptAt(attemptCount: number, now = new Date()) {
   return new Date(now.getTime() + delayMs);
 }
 
+/** Only a deletion still under way: a finished one is in its notice phase. */
+function unfinishedDeletion(pendingId: number) {
+  return and(
+    eq(pendingUserDeletions.id, pendingId),
+    isNull(pendingUserDeletions.localDeletedAt),
+  );
+}
+
 /**
  * Records a failed deletion attempt on its outbox row. Once the attempt cap is
  * reached the row keeps its lastError and stops being claimed, so a profile
- * that can never be deleted does not consume a slot on every run.
+ * that can never be deleted does not consume a slot on every run. A row
+ * another attempt finished meanwhile is left alone: its attempts and address
+ * now belong to the notice.
  */
 async function recordDeletionFailure(
   pendingId: number,
@@ -117,16 +128,27 @@ async function recordDeletionFailure(
       nextAttemptAt: computeNextAttemptAt(nextAttempt, now),
       updatedAt: now,
     })
-    .where(eq(pendingUserDeletions.id, pendingId));
+    .where(unfinishedDeletion(pendingId));
 }
 
 /**
- * The time the Clerk step may take for one profile: its own bound, cut short
- * by the run deadline so a hung call cannot push the run past the function
- * limit.
+ * A kept profile whose login Clerk could not confirm yet. Not a failed
+ * deletion, so it does not spend the deletion's attempts, and it never
+ * reaches the cap and drops out of the claim while still pending: it is
+ * checked again once an unconfirmed request can no longer land.
  */
-function clerkBudgetMs(deadline: number): number {
-  return Math.min(CLERK_CALL_TIMEOUT_MS, deadline - Date.now());
+async function reconcileLoginLater(pendingId: number, lastError: string) {
+  const now = new Date();
+  await db
+    .update(pendingUserDeletions)
+    .set({
+      lastError,
+      nextAttemptAt: new Date(
+        now.getTime() + UNCONFIRMED_ATTEMPT_SETTLES_AFTER_MS,
+      ),
+      updatedAt: now,
+    })
+    .where(unfinishedDeletion(pendingId));
 }
 
 /**
@@ -194,7 +216,6 @@ export async function handleReminderEmails(): Promise<
 async function settleBlockedDeletion(input: {
   task: ScheduledTaskWithProfile;
   pendingId: number;
-  attempts: number;
   blocker: ProfileDeletionBlocker;
   loginAlreadyGone: boolean;
   deadline: number;
@@ -205,7 +226,8 @@ async function settleBlockedDeletion(input: {
         profileId: input.task.profile.id,
         pendingId: input.pendingId,
         clerkId: input.task.profile.clerkId,
-        clerkBudgetMs: Math.max(1, clerkBudgetMs(input.deadline)),
+        clerkBudgetMs: CLERK_CALL_TIMEOUT_MS,
+        deadline: input.deadline,
       });
 
   // Finished meanwhile by another run or an admin, notice and all.
@@ -225,9 +247,8 @@ async function settleBlockedDeletion(input: {
     );
     return;
   }
-  await recordDeletionFailure(
+  await reconcileLoginLater(
     input.pendingId,
-    input.attempts,
     `blocked_login_unconfirmed: ${input.blocker}`,
   );
 }
@@ -301,7 +322,6 @@ export async function handleDeletionEmails(): Promise<
       const blockedRetries: {
         task: ScheduledTaskWithProfile;
         pendingId: number;
-        attempts: number;
         blocker: ProfileDeletionBlocker;
       }[] = [];
 
@@ -352,7 +372,6 @@ export async function handleDeletionEmails(): Promise<
               blockedRetries.push({
                 task,
                 pendingId: existing.id,
-                attempts: existing.attempts,
                 blocker,
               });
             } else {
@@ -395,17 +414,11 @@ export async function handleDeletionEmails(): Promise<
     // need draining even when there is nothing new to delete.
     const completedTasks: ScheduledTaskWithProfile[] = [];
 
-    for (const {
-      task,
-      pendingId,
-      attempts,
-      blocker,
-    } of claimed.blockedRetries) {
+    for (const { task, pendingId, blocker } of claimed.blockedRetries) {
       if (Date.now() >= deadline) break;
       await settleBlockedDeletion({
         task,
         pendingId,
-        attempts,
         blocker,
         loginAlreadyGone: false,
         deadline,
@@ -424,7 +437,10 @@ export async function handleDeletionEmails(): Promise<
         profileId: task.profile.id,
         pendingId,
         clerkId: task.profile.clerkId,
-        clerkBudgetMs: clerkBudgetMs(deadline),
+        // Checked once the row lock is held: waiting for it counts against
+        // the run, and no Clerk call starts past the deadline.
+        clerkBudgetMs: CLERK_CALL_TIMEOUT_MS,
+        deadline,
         // scheduled_tasks.profile_id is ON DELETE CASCADE, so the delete
         // removes this task's row; no flag to set. The address is carried on
         // the outbox row because the profile it came from is gone. The email
@@ -442,12 +458,14 @@ export async function handleDeletionEmails(): Promise<
           completedTasks.push(task);
           break;
         case "conflict":
+        // The run ran out while waiting for the lock: nothing was asked or
+        // written, and the row stays queued for the next run.
+        case "out_of_time":
           break;
         case "blocked":
           await settleBlockedDeletion({
             task,
             pendingId,
-            attempts,
             blocker: outcome.blocker,
             loginAlreadyGone: outcome.loginAlreadyGone,
             deadline,

@@ -31,11 +31,12 @@ describe("deleteClerkLogin", () => {
     expect(clerkLoginStatus).not.toHaveBeenCalled();
   });
 
-  it("reads the login after a failure before deciding nothing changed", async () => {
+  it("reads the login after a refusal before deciding nothing changed", async () => {
     const failed = {
       success: false,
       status: "request_failed",
       message: "reset",
+      definite: true,
     };
     deleteClerkUser.mockResolvedValue(failed);
 
@@ -56,13 +57,47 @@ describe("deleteClerkLogin", () => {
     });
   });
 
-  it("treats a thrown call like a failed one", async () => {
+  it("never reads a failure that may have been applied as 'not deleted'", async () => {
+    // A 5xx or a dropped connection: Clerk may still apply the request after
+    // the read, so the read finding the login settles nothing.
+    deleteClerkUser.mockResolvedValue({
+      success: false,
+      status: "request_failed",
+      message: "Clerk 502",
+      definite: false,
+    });
+    clerkLoginStatus.mockResolvedValue("exists");
+    expect(await deleteClerkLogin("c1", 50)).toEqual({
+      kind: "unknown",
+      message: "clerk_delete_failed: Clerk 502",
+    });
+
+    clerkLoginStatus.mockResolvedValue("gone");
+    expect(await deleteClerkLogin("c1", 50)).toEqual({ kind: "deleted" });
+  });
+
+  it("treats a thrown call, sent to nobody, as a refusal", async () => {
     deleteClerkUser.mockRejectedValue(new Error("refused during view"));
     clerkLoginStatus.mockResolvedValue("exists");
     expect(await deleteClerkLogin("c1", 50)).toEqual({
       kind: "not_deleted",
       message: "clerk_delete_failed: refused during view",
     });
+  });
+
+  it("tells a timed-out delete to stop, so it is not sent later", async () => {
+    let signal: AbortSignal | undefined;
+    deleteClerkUser.mockImplementation(
+      (_clerkId: string, given: AbortSignal) => {
+        signal = given;
+        return never();
+      },
+    );
+    clerkLoginStatus.mockResolvedValue("exists");
+
+    await deleteClerkLogin("c1", 20);
+
+    expect(signal?.aborted).toBe(true);
   });
 
   it("never reads a timed-out delete as 'not deleted': it may still land", async () => {

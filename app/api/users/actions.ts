@@ -259,6 +259,8 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
       case "deleted":
         break;
       case "conflict":
+      // Not given a deadline here, so not expected; handled all the same.
+      case "out_of_time":
         return { success: false, message: CONFLICT_MESSAGE };
       case "blocked": {
         const login = outcome.loginAlreadyGone
