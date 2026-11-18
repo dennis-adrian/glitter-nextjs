@@ -517,6 +517,53 @@ describeDatabase("the profile-deletion cron", () => {
     expect(spy).toHaveBeenCalled();
   });
 
+  it("counts a failure before the row was read from the row, not the claim", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { profile } = await seedOverdue();
+    const [pending] = await integrationDb!
+      .insert(pendingUserDeletions)
+      .values({
+        userId: profile.id,
+        clerkId: profile.clerkId,
+        attempts: 3,
+        nextAttemptAt: new Date(Date.now() - 1000),
+      })
+      .returning({ id: pendingUserDeletions.id });
+    // Claimed at 3. Then the webhook finds the login gone and resets the row,
+    // and the delete's first transaction fails before reading it.
+    const { db } = await import("@/db");
+    const original = db.transaction.bind(db);
+    let calls = 0;
+    vi.spyOn(db, "transaction").mockImplementation(
+      async (...args: Parameters<typeof original>) => {
+        calls += 1;
+        if (calls === 2) {
+          await pool!.query(
+            "UPDATE pending_user_deletions SET clerk_deleted_at = now(), attempts = 0, next_attempt_at = now() WHERE id = $1",
+            [pending.id],
+          );
+          throw new Error("connection timeout");
+        }
+        return original(...args);
+      },
+    );
+
+    try {
+      await cron.handleDeletionEmails();
+    } finally {
+      vi.restoreAllMocks();
+    }
+
+    // From the reset row: one failure, a minute of backoff. Not the claimed
+    // count, which would leave it one failure from parked.
+    const [row] = await pendingFor(profile.clerkId);
+    expect(row.attempts).toBe(1);
+    expect(row.lastError).toBe("local_delete_failed type=Error");
+    const backoffMs = row.nextAttemptAt.getTime() - row.updatedAt.getTime();
+    expect(backoffMs).toBeGreaterThanOrEqual(59_000);
+    expect(backoffMs).toBeLessThanOrEqual(61_000);
+  });
+
   it("never asks Clerk about a profile that has to stay, and closes its task", async () => {
     const { profile, task } = await seedOverdue();
     await giveParticipation(profile.id);

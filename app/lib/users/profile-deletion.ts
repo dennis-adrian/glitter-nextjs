@@ -274,6 +274,9 @@ export async function finalizeProfileDeletion(input: {
     return await db.transaction(async (tx): Promise<FinalizeOutcome> => {
       const locked = await lockAccount(tx, input.profileId, input.pendingId);
       seenAttempts = locked.pending?.attempts ?? seenAttempts;
+      // Refreshed with the count, before anything below can throw: the login
+      // may have gone between the two transactions (the user.deleted webhook).
+      if (locked.pending) loginGone = locked.pending.clerkDeletedAt != null;
       // Whether the marker on the row is still the one this attempt wrote,
       // or another attempt has written its own since.
       const markerIsOurs =

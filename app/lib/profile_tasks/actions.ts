@@ -153,6 +153,37 @@ async function recordDeletionFailure(
 }
 
 /**
+ * A failed attempt counted from the row itself, for a failure that came
+ * before the row could be read: the count claimed with the task may be stale
+ * (the user.deleted webhook resets it). Never parks the row, since its login
+ * state is unknown too.
+ */
+async function recordDeletionFailureFromRow(
+  pendingId: number,
+  lastError: string,
+) {
+  const now = new Date();
+  // Postgres reads every column on the right as it was before this write,
+  // so both expressions use the same previous count.
+  const next = sql`least(${pendingUserDeletions.attempts}, ${MAX_DELETION_ATTEMPTS - 2}) + 1`;
+  await db
+    .update(pendingUserDeletions)
+    .set({
+      attempts: next,
+      lastError,
+      clerkAttemptedAt: keepLegacyClerkAttempt(),
+      // computeNextAttemptAt in SQL: a minute, doubled per attempt, at most
+      // a day.
+      nextAttemptAt: sql`${now}::timestamp + least(
+        interval '1 minute' * power(2, least(${pendingUserDeletions.attempts}, ${MAX_DELETION_ATTEMPTS - 2})),
+        interval '1 day'
+      )`,
+      updatedAt: now,
+    })
+    .where(unfinishedDeletion(pendingId));
+}
+
+/**
  * A kept profile whose login Clerk could not confirm yet. Not a failed
  * deletion, so it does not spend the deletion's attempts, and it never
  * reaches the cap and drops out of the claim while still pending: it is
@@ -519,20 +550,23 @@ export async function handleDeletionEmails(): Promise<
           // unconfirmed Clerk request: like `clerk_unknown`, never parked.
           // Counted from the row as the delete last read it, not as claimed:
           // the webhook may have made a parked row claimable in between.
-          const current = outcome.attempts ?? attempts;
-          // Not read at all (it failed before reading the row): the login
-          // state is unknown, so the failure is written whatever it is, and
-          // never parks the row.
-          const rowRead = outcome.attempts !== undefined;
+          if (outcome.attempts === undefined) {
+            // Failed before the row was read: count from the row as it is.
+            await recordDeletionFailureFromRow(
+              pendingId,
+              toLocalDeleteError(outcome.error),
+            );
+            break;
+          }
           await recordDeletionFailure(
             pendingId,
             outcome.loginRemovedNow
               ? 0
               : outcome.loginGone
-                ? current
-                : Math.min(current, MAX_DELETION_ATTEMPTS - 2),
+                ? outcome.attempts
+                : Math.min(outcome.attempts, MAX_DELETION_ATTEMPTS - 2),
             toLocalDeleteError(outcome.error),
-            { whileLoginNotGone: rowRead && !outcome.loginGone },
+            { whileLoginNotGone: !outcome.loginGone },
           );
           break;
       }

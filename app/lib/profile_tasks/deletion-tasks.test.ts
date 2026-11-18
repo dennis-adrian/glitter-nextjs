@@ -618,6 +618,7 @@ describe("handleDeletionEmails", () => {
       error: new Error("nope"),
       loginGone: true,
       loginRemovedNow: true,
+      attempts: 3,
     });
     runClaim(claimTx([task], [{ id: 99, clerkDeletedAt: null, attempts: 3 }]));
 
@@ -637,6 +638,7 @@ describe("handleDeletionEmails", () => {
       error: new Error("still failing"),
       loginGone: true,
       loginRemovedNow: false,
+      attempts: 4,
     });
     runClaim(
       claimTx([task], [{ id: 97, clerkDeletedAt: new Date(), attempts: 4 }]),
@@ -657,6 +659,7 @@ describe("handleDeletionEmails", () => {
       error: new Error("connection lost"),
       loginGone: false,
       loginRemovedNow: false,
+      attempts: 4,
     });
     runClaim(claimTx([task], [{ id: 96, clerkDeletedAt: null, attempts: 4 }]));
 
@@ -688,7 +691,31 @@ describe("handleDeletionEmails", () => {
     expect(failure!.attempts).toBe(1);
   });
 
-  it("keeps counting from the claimed attempts when the login is still there", async () => {
+  it("counts from the row itself when the delete failed before reading it", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const task = makeTask({
+      taskId: 65,
+      profileId: 75,
+      clerkId: "user_unread",
+    });
+    // No attempts reported: the row was never read, so the claimed count may
+    // be stale. The new count comes from the row, in the write itself.
+    finalizeMock.mockResolvedValue({
+      kind: "local_failed",
+      error: new Error("connection timeout"),
+      loginGone: false,
+      loginRemovedNow: false,
+    });
+    runClaim(claimTx([task], [{ id: 94, clerkDeletedAt: null, attempts: 3 }]));
+
+    await handleDeletionEmails();
+
+    const failure = writes.find((write) => typeof write.lastError === "string");
+    expect(failure!.lastError).toBe("local_delete_failed type=Error");
+    expect(typeof failure!.attempts).not.toBe("number");
+  });
+
+  it("keeps counting from the row's attempts when the login is still there", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const task = makeTask({ taskId: 61, profileId: 71, clerkId: "user_keep" });
     finalizeMock.mockResolvedValue({
@@ -696,6 +723,7 @@ describe("handleDeletionEmails", () => {
       error: new Error("before clerk"),
       loginGone: false,
       loginRemovedNow: false,
+      attempts: 2,
     });
     runClaim(claimTx([task], [{ id: 98, clerkDeletedAt: null, attempts: 2 }]));
 

@@ -1399,6 +1399,42 @@ describeDatabase("deleting a profile", () => {
       expect(deleteClerkUser).not.toHaveBeenCalled();
     });
 
+    it("reports the login gone when the second transaction fails after the webhook recorded it", async () => {
+      const f = await seed();
+      await transferAway(f);
+      const pendingId = await pendingFor(f);
+      const core = await import("@/app/lib/users/profile-deletion");
+      const blockers = await import("@/app/lib/users/deletion-blockers");
+      // Between the two transactions, Clerk's event records the login gone.
+      const spy = await betweenTheTwoTransactions(async () => {
+        await pool!.query(
+          "UPDATE pending_user_deletions SET clerk_deleted_at = now(), clerk_attempted_at = NULL WHERE id = $1",
+          [pendingId],
+        );
+      });
+      // The second transaction then fails after reading the row.
+      const original = blockers.findProfileDeletionBlocker;
+      const blockerSpy = vi
+        .spyOn(blockers, "findProfileDeletionBlocker")
+        .mockImplementationOnce(original)
+        .mockRejectedValueOnce(new Error("query failed"));
+
+      try {
+        expect(
+          await core.finalizeProfileDeletion({
+            profileId: f.oldAccount.id,
+            pendingId,
+            clerkId: f.oldAccount.clerkId,
+            clerkBudgetMs: 1_000,
+          }),
+        ).toMatchObject({ kind: "local_failed", loginGone: true });
+      } finally {
+        spy.mockRestore();
+        blockerSpy.mockRestore();
+      }
+      expect(deleteClerkUser).not.toHaveBeenCalled();
+    });
+
     it("decides whether an attempt has settled before reading the login, not after", async () => {
       const f = await seed();
       const core = await import("@/app/lib/users/profile-deletion");
