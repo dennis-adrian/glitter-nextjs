@@ -44,6 +44,14 @@ vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentBaseProfile: currentProfileMock,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+// The deadline extension below queues a participant notice; nothing here
+// should reach a mail provider.
+vi.mock("@/app/lib/reservations/notification-outbox", () => ({
+  enqueueAdminAndOwnerNotifications: vi.fn().mockResolvedValue([]),
+  enqueueReservationNotifications: vi.fn().mockResolvedValue([]),
+  enqueueReservationNotification: vi.fn().mockResolvedValue(null),
+  scheduleReservationNotificationJobs: vi.fn(),
+}));
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
@@ -977,6 +985,120 @@ describeDatabase("admin participation transfer", () => {
         .from(standReservations)
         .where(eq(standReservations.id, reservation.id));
       expect(after.ownerUserId).toBe(holder.id);
+    });
+  });
+
+  describe("the payment reminder of an ownerless reservation", () => {
+    /**
+     * A live legacy reservation with no owner: two participations in the
+     * given order and one pending cobro billed to `payerUserId`.
+     */
+    async function seedOwnerless(input: {
+      festivalId: number;
+      standId: number;
+      participantUserIds: number[];
+      payerUserId: number;
+    }) {
+      const db = integrationDb!;
+      const [reservation] = await db
+        .insert(standReservations)
+        .values({
+          festivalId: input.festivalId,
+          standId: input.standId,
+          status: "pending",
+          source: "legacy_unknown",
+          ownerUserId: null,
+          priceAmountSnapshot: 150,
+          individualPriceSnapshot: 100,
+          sharedPriceSnapshot: 150,
+          bookedParticipantCount: input.participantUserIds.length,
+        })
+        .returning();
+      await db.insert(standReservationStands).values({
+        reservationId: reservation.id,
+        standId: input.standId,
+        position: 0,
+      });
+      // One at a time, so the row order is the order given.
+      for (const userId of input.participantUserIds) {
+        await db
+          .insert(reservationParticipants)
+          .values({ userId, reservationId: reservation.id });
+      }
+      await db.insert(invoices).values({
+        date: new Date(),
+        userId: input.payerUserId,
+        reservationId: reservation.id,
+        originalAmount: 150,
+        amount: 150,
+        status: "pending",
+      });
+      return reservation;
+    }
+
+    async function extendAndReadReminder(reservationId: number) {
+      const { extendReservationPaymentDeadline } =
+        await import("@/app/lib/reservations/admin-service");
+      const result = await extendReservationPaymentDeadline({
+        reservationId,
+        dueAt: new Date(Date.now() + 10 * 86_400_000),
+      });
+      expect(result).toMatchObject({ success: true });
+      return integrationDb!
+        .select({ profileId: scheduledTasks.profileId })
+        .from(scheduledTasks)
+        .where(eq(scheduledTasks.reservationId, reservationId));
+    }
+
+    it("goes to the live cobro's payer, not to whichever participation a scan returns first", async () => {
+      const { festival, accounts, standRows } = await seed({
+        festivalStatus: "active",
+      });
+      const [companion, payer] = accounts;
+      const reservation = await seedOwnerless({
+        festivalId: festival.id,
+        standId: standRows[0].id,
+        // The companion's participation was made first.
+        participantUserIds: [companion.id, payer.id],
+        payerUserId: payer.id,
+      });
+
+      expect(await extendAndReadReminder(reservation.id)).toEqual([
+        { profileId: payer.id },
+      ]);
+    });
+
+    it("stays with the holder after a companion's participation moves to an account with a lower id", async () => {
+      const db = integrationDb!;
+      // Created in order: the target has the lowest user id.
+      const { festival, accounts, standRows } = await seed({
+        festivalStatus: "active",
+        accounts: 3,
+      });
+      const [target, holder, companion] = accounts;
+      const reservation = await seedOwnerless({
+        festivalId: festival.id,
+        standId: standRows[0].id,
+        participantUserIds: [holder.id, companion.id],
+        payerUserId: holder.id,
+      });
+
+      const transfer = await service.transferReservationParticipation({
+        reservationId: reservation.id,
+        fromUserId: companion.id,
+        toUserId: target.id,
+        idempotencyKey: randomUUID(),
+      });
+      expect(transfer.success).toBe(true);
+      const [after] = await db
+        .select({ ownerUserId: standReservations.ownerUserId })
+        .from(standReservations)
+        .where(eq(standReservations.id, reservation.id));
+      expect(after.ownerUserId).toBeNull();
+
+      expect(await extendAndReadReminder(reservation.id)).toEqual([
+        { profileId: holder.id },
+      ]);
     });
   });
 });

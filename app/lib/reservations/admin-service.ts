@@ -28,6 +28,7 @@ import { assertReservationPartner } from "@/app/lib/reservations/partner-eligibi
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { releaseReservationInvoiceCreditsInTx } from "@/app/lib/reservations/repricing-refunds";
 import { roundMoney } from "@/app/lib/reservations/money";
+import { taskHolderForOwnerlessReservation } from "@/app/lib/reservations/reservation-holder";
 import {
   planReservationRepricing,
   repriceInvoiceAmounts,
@@ -800,8 +801,12 @@ export async function extendReservationPaymentDeadline(
         });
       }
 
+      // The same holder the repricing reminders pick for an ownerless row:
+      // its live cobro's payer, else the participation made first. The
+      // participant list is unordered, and a transfer can reorder it.
       const creatorId =
-        reservation.ownerUserId ?? lockedParticipantIds[0] ?? null;
+        reservation.ownerUserId ??
+        (await taskHolderForOwnerlessReservation(tx, reservation.id));
       if (creatorId == null) {
         return finish({
           ok: false,
