@@ -384,6 +384,28 @@ describeDatabase("the profile-deletion cron", () => {
     }
   });
 
+  it("finishes an incomplete sign-up whose login Clerk deleted on its own", async () => {
+    const { profile, task } = await seedOverdue();
+    sendEmail.mockResolvedValue({ data: { id: "e1" }, error: null });
+    const { recordClerkLoginDeleted } =
+      await import("@/app/lib/users/clerk-login-deleted");
+
+    // Deleted in Clerk's dashboard, say: the webhook leaves it to the cron
+    // instead of parking it where the cron would never claim it.
+    expect(await recordClerkLoginDeleted(profile.clerkId)).toEqual({
+      kind: "queued",
+      profileId: profile.id,
+    });
+
+    const done = await cron.handleDeletionEmails();
+
+    expect(done.map((t) => t.id)).toContain(task.id);
+    expect(deleteClerkUser).not.toHaveBeenCalled();
+    expect(await userRow(profile.id)).toEqual([]);
+    const [pending] = await pendingFor(profile.clerkId);
+    expect(pending.localDeletedAt).not.toBeNull();
+  });
+
   it("never asks Clerk about a profile that has to stay, and closes its task", async () => {
     const { profile, task } = await seedOverdue();
     await giveParticipation(profile.id);

@@ -4,7 +4,7 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 
 import { MAX_DELETION_ATTEMPTS } from "@/app/lib/users/deletion-limits";
 import { db } from "@/db";
-import { pendingUserDeletions, users } from "@/db/schema";
+import { pendingUserDeletions, scheduledTasks, users } from "@/db/schema";
 
 /**
  * Stored on a profile whose Clerk login was deleted without the app deleting
@@ -21,6 +21,11 @@ export type ClerkLoginDeletedResult =
   | { kind: "recorded"; profileId: number }
   /** Already known; a repeated delivery. */
   | { kind: "already_recorded"; profileId: number }
+  /**
+   * A sign-up never completed: the cron that removes those owns it, and now
+   * finishes it when its task is due, without asking Clerk.
+   */
+  | { kind: "queued"; profileId: number }
   /** The profile was being kept: it is now on record, parked for review. */
   | { kind: "flagged"; profileId: number };
 
@@ -33,8 +38,11 @@ export type ClerkLoginDeletedResult =
  *
  * - A deletion under way gets `clerkDeletedAt`: whoever retries it next
  *   finishes the local delete without asking Clerk again.
- * - A profile the app was keeping gets a pending deletion with the login
- *   recorded as gone, parked at the attempt cap with
+ * - A sign-up never completed, whose open profile-creation task the cron
+ *   will act on, gets a pending deletion with the login recorded as gone and
+ *   no attempts spent, so the cron finishes it as it would have anyway.
+ * - Any other profile the app was keeping gets a pending deletion with the
+ *   login recorded as gone, parked at the attempt cap with
  *   `LOGIN_DELETED_OUTSIDE_APP_ERROR`. That marks it as leaving: nothing is
  *   moved to it and its devices get nothing, since nobody can sign in to it.
  *   An admin then decides: deleting the profile finishes without Clerk, and
@@ -80,14 +88,32 @@ export async function recordClerkLoginDeleted(
       return { kind: "recorded", profileId: user.id };
     }
 
+    // Parked, the row would keep the cron from ever claiming the task; left
+    // claimable, the cron deletes the profile when the task is due.
+    const [cronTask] = await tx
+      .select({ id: scheduledTasks.id })
+      .from(scheduledTasks)
+      .where(
+        and(
+          eq(scheduledTasks.profileId, user.id),
+          eq(scheduledTasks.taskType, "profile_creation"),
+          isNull(scheduledTasks.completedAt),
+          eq(scheduledTasks.ranAfterDueDate, false),
+        ),
+      )
+      .limit(1);
+
     await tx.insert(pendingUserDeletions).values({
       userId: user.id,
       clerkId,
       clerkDeletedAt: now,
       lastError: LOGIN_DELETED_OUTSIDE_APP_ERROR,
-      attempts: MAX_DELETION_ATTEMPTS,
+      attempts: cronTask ? 0 : MAX_DELETION_ATTEMPTS,
+      nextAttemptAt: now,
       updatedAt: now,
     });
-    return { kind: "flagged", profileId: user.id };
+    return cronTask
+      ? { kind: "queued", profileId: user.id }
+      : { kind: "flagged", profileId: user.id };
   });
 }
