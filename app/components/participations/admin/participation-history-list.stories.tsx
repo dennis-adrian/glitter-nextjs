@@ -64,6 +64,21 @@ const ROWS: AdminParticipationRow[] = [
     joinedAt: new Date("2026-08-01T00:00:00Z"),
     reservationCreatedAt: new Date("2026-08-01T00:00:00Z"),
   },
+  // A second stand in the same edition, booked the old way: as its own
+  // reservation. It is listed inside that festival, not as another one.
+  {
+    participationId: 4,
+    reservationId: 8,
+    status: "accepted",
+    source: "user_reservation",
+    isHolder: true,
+    standLabel: "G5",
+    standCount: 1,
+    festival: festival(12, "Glitter Vol 8", "2025-12-06T14:00:00Z"),
+    companions: [],
+    joinedAt: new Date("2025-10-03T00:00:00Z"),
+    reservationCreatedAt: new Date("2025-10-03T00:00:00Z"),
+  },
   {
     participationId: 2,
     reservationId: 6,
@@ -118,7 +133,18 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const GlobalAdmin: Story = {};
+/** Three festivals, four reservations: Glitter Vol 8 had two stands. */
+export const GlobalAdmin: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText(/^3 festivales \(4 reservas\),/),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByText("2 reservas en este festival"),
+    ).toBeInTheDocument();
+  },
+};
 
 /** Festival admins read the history but cannot move anything. */
 export const FestivalAdmin: Story = {
@@ -127,7 +153,7 @@ export const FestivalAdmin: Story = {
     const canvas = within(canvasElement);
     await expect(
       canvas.getAllByRole("link", { name: "Ver reserva" }),
-    ).toHaveLength(3);
+    ).toHaveLength(4);
     await expect(
       canvas.queryByRole("button", { name: /Transferir/ }),
     ).not.toBeInTheDocument();

@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildAdminParticipationHistory,
+  groupParticipationHistoryByFestival,
+  participationHistorySummary,
+  type AdminFestivalParticipation,
   personName,
   reservationHolderId,
   type AdminParticipationSource,
@@ -255,5 +258,73 @@ describe("personName", () => {
       personName({ ...person(1, null), firstName: "Ana", lastName: "Paz" }),
     ).toBe("Ana Paz");
     expect(personName(person(1, ""))).toBe("p1@example.test");
+  });
+});
+
+describe("groupParticipationHistoryByFestival", () => {
+  it("makes one entry per festival, its reservations in the order they were made", () => {
+    const rows = buildAdminParticipationHistory([
+      // Two stands in one edition: the only way before full tables.
+      row({
+        id: 1,
+        reservationId: 10,
+        festivalId: 1,
+        start: new Date("2025-05-01T15:00:00Z"),
+        reservationCreatedAt: new Date("2025-03-02T00:00:00Z"),
+      }),
+      row({
+        id: 2,
+        reservationId: 11,
+        festivalId: 1,
+        start: new Date("2025-05-01T15:00:00Z"),
+        reservationCreatedAt: new Date("2025-03-01T00:00:00Z"),
+      }),
+      row({
+        id: 3,
+        reservationId: 12,
+        festivalId: 2,
+        start: new Date("2024-05-01T15:00:00Z"),
+        status: "rejected",
+      }),
+    ]);
+
+    const groups = groupParticipationHistoryByFestival(rows);
+    expect(groups.map((group) => group.festival.id)).toEqual([1, 2]);
+    expect(groups[0].reservations.map((item) => item.reservationId)).toEqual([
+      11, 10,
+    ]);
+    expect(groups[1].reservations).toHaveLength(1);
+  });
+
+  it("keeps an empty history empty", () => {
+    expect(groupParticipationHistoryByFestival([])).toEqual([]);
+  });
+});
+
+function group(id: number, reservations: number): AdminFestivalParticipation {
+  return {
+    festival: {
+      id,
+      name: `F${id}`,
+      status: "archived",
+      startDate: null,
+      endDate: null,
+    },
+    reservations: Array.from({ length: reservations }, () => ({}) as never),
+  };
+}
+
+describe("participationHistorySummary", () => {
+  it("counts festivals, and reservations only when there are more of them", () => {
+    expect(participationHistorySummary([group(1, 1)])).toMatch(/^1 festival,/);
+    expect(participationHistorySummary([group(1, 2), group(2, 1)])).toMatch(
+      /^2 festivales \(3 reservas\),/,
+    );
+  });
+
+  it("says when there is nothing to list", () => {
+    expect(participationHistorySummary([])).toBe(
+      "Esta cuenta todavía no participó de ningún festival.",
+    );
   });
 });

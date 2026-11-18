@@ -13,6 +13,8 @@ import {
   TableRow,
 } from "@/app/components/ui/table";
 import ProfileCategoryBadge from "@/app/components/user_profile/category-badge";
+import ParticipationHistoryTrigger from "@/app/components/participations/admin/participation-history-trigger";
+import { getUserName } from "@/app/lib/users/utils";
 import ActivityDateCell from "@/app/components/users/cells/activity-date-cell";
 import { ParticipantActionsCell } from "@/app/components/users/cells/participant-actions";
 import ProfileStatusCell from "@/app/components/users/cells/profile-status";
@@ -134,7 +136,14 @@ export default function ParticipantsTable({
                       />
                     </TableCell>
                     <TableCell>
-                      {participant.activitySummary.acceptedParticipationsCount}
+                      <ParticipationHistoryTrigger
+                        userId={participant.id}
+                        userName={getUserName(participant) || participant.email}
+                        count={
+                          participant.activitySummary
+                            .acceptedParticipationsCount
+                        }
+                      />
                     </TableCell>
                     <TableCell>
                       {participant.verifiedAt

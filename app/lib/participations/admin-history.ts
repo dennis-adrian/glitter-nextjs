@@ -160,3 +160,65 @@ export function buildAdminParticipationHistory(
       return b.reservationId - a.reservationId;
     });
 }
+
+/** One festival in an account's history, with every reservation it had there. */
+export type AdminFestivalParticipation = {
+  festival: AdminParticipationRow["festival"];
+  /** Oldest first: the order they were made in. */
+  reservations: AdminParticipationRow[];
+};
+
+/**
+ * The history as the admin reads it: one entry per festival. Until recently
+ * the only way to hold two stands in one edition was to make two reservations,
+ * which also made two participations, but it is still one participation in
+ * that festival. Each reservation stays listed inside its festival, since
+ * reviewing or transferring one is still a per-reservation decision.
+ *
+ * Festivals keep the order of `buildAdminParticipationHistory`, newest first.
+ */
+export function groupParticipationHistoryByFestival(
+  rows: readonly AdminParticipationRow[],
+): AdminFestivalParticipation[] {
+  const groups = new Map<number, AdminFestivalParticipation>();
+  for (const row of rows) {
+    const group = groups.get(row.festival.id);
+    if (group) group.reservations.push(row);
+    else
+      groups.set(row.festival.id, {
+        festival: row.festival,
+        reservations: [row],
+      });
+  }
+  return [...groups.values()].map((group) => ({
+    ...group,
+    reservations: [...group.reservations].sort(
+      (a, b) =>
+        a.reservationCreatedAt.getTime() - b.reservationCreatedAt.getTime() ||
+        a.reservationId - b.reservationId,
+    ),
+  }));
+}
+
+function plural(count: number, one: string, many: string) {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/** The line under the title: festivals first, reservations only when more. */
+export function participationHistorySummary(
+  groups: readonly AdminFestivalParticipation[],
+): string {
+  if (groups.length === 0) {
+    return "Esta cuenta todavía no participó de ningún festival.";
+  }
+  const reservations = groups.reduce(
+    (sum, group) => sum + group.reservations.length,
+    0,
+  );
+  const festivals = plural(groups.length, "festival", "festivales");
+  const breakdown =
+    reservations > groups.length
+      ? ` (${plural(reservations, "reserva", "reservas")})`
+      : "";
+  return `${festivals}${breakdown}, del más reciente al más antiguo. Incluye las reservas canceladas y rechazadas.`;
+}
