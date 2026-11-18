@@ -787,6 +787,57 @@ describeDatabase("admin participation transfer", () => {
       ownerUserId: newAccount.id,
       status: "pending",
     });
+
+    // What the participant's own pages read, the way the new-reservation
+    // pages read it: the live stand is there next to the refused attempts,
+    // and a new reservation is still refused, but for the stand they have.
+    const memberships = await db.query.reservationParticipants.findMany({
+      where: eq(reservationParticipants.userId, newAccount.id),
+      with: {
+        reservation: {
+          columns: { id: true, festivalId: true, status: true, source: true },
+        },
+      },
+    });
+    const live = memberships
+      .map((row) => row.reservation)
+      .filter((row) =>
+        ["pending", "verification_payment", "accepted"].includes(row.status),
+      );
+    expect(live.map((row) => row.id)).toEqual([reservation.id]);
+    const { evaluateSelfServiceEligibility, summarizeFestivalParticipations } =
+      await import("@/app/lib/reservations/policy");
+    const summary = summarizeFestivalParticipations(
+      memberships.map((row) => row.reservation),
+      festival.id,
+    );
+    expect(summary).toMatchObject({
+      hasRejectedFestivalReservation: true,
+      hasLiveFestivalReservation: true,
+    });
+    expect(
+      evaluateSelfServiceEligibility({
+        now: new Date(),
+        actor: { id: newAccount.id, role: "user" },
+        targetProfileId: newAccount.id,
+        intent: "view",
+        profile: { id: newAccount.id, status: "verified" },
+        festival: {
+          id: festival.id,
+          status: "active",
+          reservationsStartDate: new Date(Date.now() - 60_000),
+          participantTermsEnabled: true,
+        },
+        publishedTermsVersionId: 1,
+        enrollment: {
+          type: "festival_participation",
+          status: "accepted",
+          termsVersionId: 1,
+        },
+        sanctionBlocked: false,
+        ...summary,
+      }),
+    ).toEqual({ allowed: false, code: "ALREADY_RESERVED" });
   });
 
   it("leaves an ownerless reservation's holder in place when a companion's participation moves", async () => {

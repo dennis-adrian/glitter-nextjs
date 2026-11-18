@@ -340,6 +340,7 @@ describe("summarizeFestivalParticipations", () => {
       hasLiveSelfServiceReservation: false,
       hasRejectedFestivalReservation: true,
       hasAnyFestivalReservation: true,
+      hasLiveFestivalReservation: false,
     });
   });
 
@@ -353,6 +354,7 @@ describe("summarizeFestivalParticipations", () => {
       hasLiveSelfServiceReservation: true,
       hasRejectedFestivalReservation: false,
       hasAnyFestivalReservation: true,
+      hasLiveFestivalReservation: true,
     });
   });
 
@@ -369,7 +371,46 @@ describe("summarizeFestivalParticipations", () => {
       hasLiveSelfServiceReservation: false,
       hasRejectedFestivalReservation: true,
       hasAnyFestivalReservation: true,
+      hasLiveFestivalReservation: false,
     });
+  });
+});
+
+describe("a live stand next to a rejected attempt", () => {
+  // A participation transferred onto an account whose own attempt in the
+  // festival was turned down, or an admin assignment to one.
+  it.each(["user_reservation", "admin_assignment"])(
+    "sees a live %s reservation even beside a rejected one",
+    (source) => {
+      expect(
+        summarizeFestivalParticipations(
+          [
+            { festivalId: 10, status: "rejected", source: "user_reservation" },
+            { festivalId: 10, status: "pending", source },
+          ],
+          10,
+        ),
+      ).toMatchObject({
+        hasRejectedFestivalReservation: true,
+        hasLiveFestivalReservation: true,
+      });
+    },
+  );
+
+  it("still refuses a new reservation, but names the stand it has", () => {
+    expect(
+      evaluateSelfServiceEligibility(
+        allowedInput({
+          hasRejectedFestivalReservation: true,
+          hasLiveFestivalReservation: true,
+        }),
+      ),
+    ).toEqual({ allowed: false, code: "ALREADY_RESERVED" });
+    expect(
+      evaluateSelfServiceEligibility(
+        allowedInput({ hasRejectedFestivalReservation: true }),
+      ),
+    ).toEqual({ allowed: false, code: "RESERVATION_REJECTED" });
   });
 });
 

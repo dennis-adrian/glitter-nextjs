@@ -83,6 +83,7 @@ export async function getSelfServicePageDenial(input: {
     sanctionBlocked: boolean;
     hasLiveSelfServiceReservation: boolean;
     hasRejectedFestivalReservation: boolean;
+    hasLiveFestivalReservation?: boolean;
   }) =>
     evaluateSelfServiceEligibility({
       now,
@@ -150,6 +151,8 @@ export async function getSelfServicePageDenial(input: {
       participation?.hasLiveSelfServiceReservation ?? false,
     hasRejectedFestivalReservation:
       participation?.hasRejectedFestivalReservation ?? false,
+    hasLiveFestivalReservation:
+      participation?.hasLiveFestivalReservation ?? false,
   });
 
   if (result.allowed) {
