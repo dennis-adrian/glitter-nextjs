@@ -223,10 +223,13 @@ export async function finalizeProfileDeletion(input: {
   // failures: the count it claimed may have been changed since (the
   // user.deleted webhook makes a parked row claimable again).
   let seenAttempts: number | undefined;
+  // Whether that same read found the login already gone.
+  let seenLoginGone = false;
   try {
     recorded = await db.transaction(async (tx): Promise<Recorded> => {
       const locked = await lockAccount(tx, input.profileId, input.pendingId);
       seenAttempts = locked.pending?.attempts ?? seenAttempts;
+      seenLoginGone = locked.pending?.clerkDeletedAt != null;
       const stop = await stopBeforeClerk(tx, input, locked, now);
       if (stop) return { kind: "stop", outcome: stop };
       const pending = locked.pending!;
@@ -251,10 +254,13 @@ export async function finalizeProfileDeletion(input: {
   } catch (error) {
     // Nothing was sent; reported like any other failed attempt, so one bad
     // row does not stop a run working through many.
+    // The login as the row said under the lock: a caller writing a failure
+    // that assumes the login is still there must not write it to a row whose
+    // login is already gone, nor skip one whose login is.
     return {
       kind: "local_failed",
       error,
-      loginGone: false,
+      loginGone: seenLoginGone,
       loginRemovedNow: false,
       attempts: seenAttempts,
     };

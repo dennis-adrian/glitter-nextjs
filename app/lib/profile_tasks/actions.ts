@@ -520,6 +520,10 @@ export async function handleDeletionEmails(): Promise<
           // Counted from the row as the delete last read it, not as claimed:
           // the webhook may have made a parked row claimable in between.
           const current = outcome.attempts ?? attempts;
+          // Not read at all (it failed before reading the row): the login
+          // state is unknown, so the failure is written whatever it is, and
+          // never parks the row.
+          const rowRead = outcome.attempts !== undefined;
           await recordDeletionFailure(
             pendingId,
             outcome.loginRemovedNow
@@ -528,7 +532,7 @@ export async function handleDeletionEmails(): Promise<
                 ? current
                 : Math.min(current, MAX_DELETION_ATTEMPTS - 2),
             toLocalDeleteError(outcome.error),
-            { whileLoginNotGone: !outcome.loginGone },
+            { whileLoginNotGone: rowRead && !outcome.loginGone },
           );
           break;
       }

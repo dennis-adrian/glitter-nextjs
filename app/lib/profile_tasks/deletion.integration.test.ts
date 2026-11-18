@@ -486,6 +486,37 @@ describeDatabase("the profile-deletion cron", () => {
     expect(await userRow(profile.id)).toEqual([]);
   });
 
+  it("records a failure of the first step on a row whose login is already gone", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { profile } = await seedOverdue();
+    await integrationDb!.insert(pendingUserDeletions).values({
+      userId: profile.id,
+      clerkId: profile.clerkId,
+      clerkDeletedAt: new Date(Date.now() - 60_000),
+      attempts: 2,
+      nextAttemptAt: new Date(Date.now() - 1000),
+    });
+    // The first transaction fails after reading the row (a query error).
+    const blockers = await import("@/app/lib/users/deletion-blockers");
+    const spy = vi
+      .spyOn(blockers, "findProfileDeletionBlocker")
+      .mockRejectedValueOnce(new Error("query failed"));
+
+    try {
+      await cron.handleDeletionEmails();
+    } finally {
+      vi.restoreAllMocks();
+    }
+
+    // Recorded, with its backoff: not skipped as if the login were still
+    // there, which would have it claimed again every run with no trace.
+    const [pending] = await pendingFor(profile.clerkId);
+    expect(pending.attempts).toBe(3);
+    expect(pending.lastError).toContain("local_delete_failed");
+    expect(pending.nextAttemptAt.getTime()).toBeGreaterThan(Date.now());
+    expect(spy).toHaveBeenCalled();
+  });
+
   it("never asks Clerk about a profile that has to stay, and closes its task", async () => {
     const { profile, task } = await seedOverdue();
     await giveParticipation(profile.id);
