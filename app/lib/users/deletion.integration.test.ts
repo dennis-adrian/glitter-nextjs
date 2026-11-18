@@ -461,30 +461,40 @@ describeDatabase("deleting a profile", () => {
       timeout: 5_000,
     });
 
-    // An admin putting the account back on a reservation at that moment.
-    const writer = await pool!.connect();
-    let settled = false;
+    // At that moment an admin puts the account back on a reservation, and a
+    // cobro is billed to it: the two writes the participations check guards.
+    const writers = [await pool!.connect(), await pool!.connect()];
+    const settled = [false, false];
     try {
-      const write = writer
-        .query(
+      const writes = [
+        writers[0].query(
           "INSERT INTO participations (user_id, reservation_id) VALUES ($1, $2)",
           [f.oldAccount.id, f.reservation.id],
-        )
-        .finally(() => {
-          settled = true;
-        });
-      write.catch(() => {});
+        ),
+        writers[1].query(
+          `INSERT INTO invoices (user_id, reservation_id, amount, original_amount, date)
+           VALUES ($1, $2, 50, 50, now())`,
+          [f.oldAccount.id, f.reservation.id],
+        ),
+      ].map((write, index) =>
+        write.finally(() => {
+          settled[index] = true;
+        }),
+      );
+      writes.forEach((write) => write.catch(() => {}));
       await new Promise((resolve) => setTimeout(resolve, 750));
-      expect(settled).toBe(false);
+      expect(settled).toEqual([false, false]);
 
       answerClerk({ status: "deleted" });
       expect(await deletion).toEqual({
         success: true,
         message: "Perfil eliminado",
       });
-      await expect(write).rejects.toMatchObject({ code: "23503" });
+      for (const write of writes) {
+        await expect(write).rejects.toMatchObject({ code: "23503" });
+      }
     } finally {
-      writer.release();
+      writers.forEach((writer) => writer.release());
     }
     expect(await userExists(f.oldAccount.id)).toBe(false);
   });
