@@ -56,6 +56,9 @@ const serverSchema = z
     // Signs Resend's webhook (whsec_…); without it the webhook refuses events.
     // An empty `RESEND_WEBHOOK_SECRET=` (as copied from .env.example) is unset.
     RESEND_WEBHOOK_SECRET: optionalSecret,
+    // Signs Clerk's webhook (whsec_…, from the endpoint in Clerk's dashboard);
+    // without it the webhook refuses events. Empty is unset, as above.
+    CLERK_WEBHOOK_SIGNING_SECRET: optionalSecret,
 
     // Web push (VAPID), one pair per environment. Optional: without all three
     // push is off and the control says so. Their shape is checked where push

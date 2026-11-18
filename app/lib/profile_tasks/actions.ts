@@ -40,6 +40,7 @@ import {
   findProfileDeletionBlocker,
   type ProfileDeletionBlocker,
 } from "@/app/lib/users/deletion-blockers";
+import { MAX_DELETION_ATTEMPTS } from "@/app/lib/users/deletion-limits";
 import {
   finalizeProfileDeletion,
   noteDeletionError,
@@ -59,9 +60,8 @@ const MAX_DELETIONS_PER_RUN = 25;
 // run deadline; the loop guard only runs between iterations.
 const CLERK_CALL_TIMEOUT_MS = 10_000;
 
-// Matches the disciplinary notification outbox: five tries, exponential backoff
-// capped at a day, then the row stops retrying and waits for an operator.
-const MAX_DELETION_ATTEMPTS = 5;
+// Exponential backoff capped at a day; at MAX_DELETION_ATTEMPTS the row stops
+// retrying and waits for an operator.
 const MAX_DELETION_BACKOFF_MS = 24 * 60 * 60 * 1000;
 
 const MAX_PERSISTED_ERROR_LENGTH = 120;

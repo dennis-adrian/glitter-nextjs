@@ -1264,6 +1264,115 @@ describeDatabase("deleting a profile", () => {
     });
   });
 
+  describe("a login Clerk deletes on its own (the user.deleted webhook)", () => {
+    const loginDeleted = async (clerkId: string) =>
+      (
+        await import("@/app/lib/users/clerk-login-deleted")
+      ).recordClerkLoginDeleted(clerkId);
+
+    it("tells a deletion under way that the login is gone, so the retry skips Clerk", async () => {
+      const f = await seed();
+      await transferAway(f);
+      // The earlier try timed out: its request may or may not have landed.
+      await integrationDb!.insert(pendingUserDeletions).values({
+        userId: f.oldAccount.id,
+        clerkId: f.oldAccount.clerkId,
+        clerkAttemptedAt: new Date(Date.now() - 30_000),
+        lastError: "clerk_delete_failed: timed out",
+      });
+
+      expect(await loginDeleted(f.oldAccount.clerkId)).toEqual({
+        kind: "recorded",
+        profileId: f.oldAccount.id,
+      });
+      const [pending] = await activePending(f.oldAccount.clerkId);
+      expect(pending.clerkDeletedAt).not.toBeNull();
+      expect(pending.clerkAttemptedAt).toBeNull();
+
+      expect(
+        await userActions.deleteProfile(f.oldAccount.id, NO_STATE),
+      ).toEqual({ success: true, message: "Perfil eliminado" });
+      expect(deleteClerkUser).not.toHaveBeenCalled();
+    });
+
+    it("flags a profile the app kept, which then reports its login as gone", async () => {
+      // Still holds its participation: a deletion of it was refused and
+      // released, and the request it had sent landed afterwards.
+      const f = await seed();
+
+      expect(await loginDeleted(f.oldAccount.clerkId)).toEqual({
+        kind: "flagged",
+        profileId: f.oldAccount.id,
+      });
+      const [pending] = await activePending(f.oldAccount.clerkId);
+      expect(pending).toMatchObject({
+        userId: f.oldAccount.id,
+        lastError: "clerk_login_deleted_outside_app",
+        attempts: 5,
+      });
+      expect(pending.clerkDeletedAt).not.toBeNull();
+
+      // An admin trying to delete it is told the login is already gone, and
+      // Clerk is not asked again.
+      expect(
+        await userActions.deleteProfile(f.oldAccount.id, NO_STATE),
+      ).toEqual({
+        success: false,
+        message: `${blockers.PROFILE_DELETION_BLOCK_MESSAGES.participations} Su cuenta de acceso ya fue eliminada, así que esta persona ya no puede iniciar sesión con ella.`,
+      });
+      expect(deleteClerkUser).not.toHaveBeenCalled();
+      expect(await userExists(f.oldAccount.id)).toBe(true);
+    });
+
+    it("takes a repeated delivery as already known", async () => {
+      const f = await seed();
+      await loginDeleted(f.oldAccount.clerkId);
+
+      expect(await loginDeleted(f.oldAccount.clerkId)).toEqual({
+        kind: "already_recorded",
+        profileId: f.oldAccount.id,
+      });
+      expect(await activePending(f.oldAccount.clerkId)).toHaveLength(1);
+    });
+
+    it("does nothing for a profile the app deleted itself", async () => {
+      const f = await seed();
+      await transferAway(f);
+      expect(
+        (await userActions.deleteProfile(f.oldAccount.id, NO_STATE)).success,
+      ).toBe(true);
+
+      expect(await loginDeleted(f.oldAccount.clerkId)).toEqual({
+        kind: "no_profile",
+      });
+      expect(await activePending(f.oldAccount.clerkId)).toEqual([]);
+    });
+
+    it("waits for a deletion in progress instead of racing it", async () => {
+      const f = await seed();
+      await transferAway(f);
+      // Clerk's own event for the deletion arrives while that deletion still
+      // holds the account's row.
+      let webhook: Promise<unknown> | undefined;
+      let webhookSettled = false;
+      deleteClerkUser.mockImplementation(async () => {
+        webhook = loginDeleted(f.oldAccount.clerkId).finally(() => {
+          webhookSettled = true;
+        });
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        expect(webhookSettled).toBe(false);
+        return { success: true, status: "deleted", message: "ok" };
+      });
+
+      expect(
+        await userActions.deleteProfile(f.oldAccount.id, NO_STATE),
+      ).toEqual({ success: true, message: "Perfil eliminado" });
+      // Once the deletion committed, the profile is simply gone.
+      expect(await webhook).toEqual({ kind: "no_profile" });
+      expect(await activePending(f.oldAccount.clerkId)).toEqual([]);
+    });
+  });
+
   it("accounts for every reference to users that refuses a delete", async () => {
     const { rows } = await pool!.query<{ reference: string }>(`
       SELECT c.conrelid::regclass::text || '.' || a.attname AS reference
