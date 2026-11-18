@@ -42,6 +42,7 @@ import {
 } from "@/app/lib/users/deletion-blockers";
 import { MAX_DELETION_ATTEMPTS } from "@/app/lib/users/deletion-limits";
 import { keepLegacyClerkAttempt } from "@/app/lib/users/legacy-clerk-attempt";
+import { utcTimestamp } from "@/app/lib/sql-time";
 import {
   finalizeProfileDeletion,
   noteDeletionError,
@@ -174,7 +175,9 @@ async function recordDeletionFailureFromRow(
       clerkAttemptedAt: keepLegacyClerkAttempt(),
       // computeNextAttemptAt in SQL: a minute, doubled per attempt, at most
       // a day.
-      nextAttemptAt: sql`${now}::timestamp + least(
+      // utcTimestamp: a Date bound as is lands off by the process's UTC
+      // offset in a timestamp column (see app/lib/sql-time.ts).
+      nextAttemptAt: sql`${utcTimestamp(now)} + least(
         interval '1 minute' * power(2, least(${pendingUserDeletions.attempts}, ${MAX_DELETION_ATTEMPTS - 2})),
         interval '1 day'
       )`,

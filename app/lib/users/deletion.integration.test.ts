@@ -1305,7 +1305,9 @@ describeDatabase("deleting a profile", () => {
       const spy = await betweenTheTwoTransactions(async () => {
         await pool!.query(
           "UPDATE pending_user_deletions SET clerk_attempted_at = $1, last_error = 'clerk_delete_failed: timed out' WHERE id = $2",
-          [theirs, pendingId],
+          // As a UTC string, as Drizzle writes it: a Date bound raw lands off
+          // by the process's UTC offset (app/lib/sql-time.ts).
+          [theirs.toISOString(), pendingId],
         );
       });
       deleteClerkUser.mockResolvedValue({
