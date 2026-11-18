@@ -209,6 +209,8 @@ async function settleBlockedDeletion(input: {
         clerkBudgetMs: Math.max(1, clerkBudgetMs(input.deadline)),
       });
 
+  // Finished meanwhile by another run or an admin, notice and all.
+  if (login === "deleted") return;
   if (login === "intact") {
     await keepProfile(input.task.id);
     return;
@@ -464,11 +466,13 @@ export async function handleDeletionEmails(): Promise<
           break;
         case "local_failed":
           console.error("Error deleting profile locally", outcome.error);
-          // Once the login is gone the Clerk step is done: count failures of
-          // the local delete from there, not from the earlier Clerk tries.
+          // When this attempt removed the login the Clerk step is done:
+          // count failures of the local delete from there, not from the
+          // earlier Clerk tries. A row resumed with the login already gone
+          // keeps counting, so a delete that always fails reaches the cap.
           await recordDeletionFailure(
             pendingId,
-            outcome.loginGone ? 0 : attempts,
+            outcome.loginRemovedNow ? 0 : attempts,
             toLocalDeleteError(outcome.error),
           );
           break;

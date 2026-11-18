@@ -595,6 +595,60 @@ describeDatabase("deleting a profile", () => {
     expect(await userExists(f.oldAccount.id)).toBe(false);
   });
 
+  it("keeps an earlier unconfirmed request on record when the retry gets a definite no", async () => {
+    const f = await seed();
+    await transferAway(f);
+    const earlier = new Date(Date.now() - 20_000);
+    await integrationDb!.insert(pendingUserDeletions).values({
+      userId: f.oldAccount.id,
+      clerkId: f.oldAccount.clerkId,
+      clerkAttemptedAt: earlier,
+      lastError: "clerk_delete_failed: timed out",
+    });
+    // This request is refused and the login is there now, but that settles
+    // only this request: the one sent 20s ago may still land.
+    deleteClerkUser.mockResolvedValue({
+      success: false,
+      status: "request_failed",
+      message: "Clerk 429",
+    });
+    clerkLoginStatus.mockResolvedValue("exists");
+
+    expect(await userActions.deleteProfile(f.oldAccount.id, NO_STATE)).toEqual({
+      success: false,
+      message:
+        "No pudimos confirmar si se eliminó la cuenta de acceso. Volvé a intentar en unos minutos.",
+    });
+    const [pending] = await activePending(f.oldAccount.clerkId);
+    expect(pending.clerkAttemptedAt?.getTime()).toBe(earlier.getTime());
+    expect(await userExists(f.oldAccount.id)).toBe(true);
+  });
+
+  it("reports a deletion another attempt finished as done, not as a lost login", async () => {
+    const db = integrationDb!;
+    const f = await seed();
+    const [pending] = await db
+      .insert(pendingUserDeletions)
+      .values({
+        userId: f.oldAccount.id,
+        clerkId: f.oldAccount.clerkId,
+        clerkDeletedAt: new Date(),
+        localDeletedAt: new Date(),
+      })
+      .returning({ id: pendingUserDeletions.id });
+
+    const core = await import("@/app/lib/users/profile-deletion");
+    expect(
+      await core.releaseRefusedDeletion({
+        profileId: f.oldAccount.id,
+        pendingId: pending.id,
+        clerkId: f.oldAccount.clerkId,
+        clerkBudgetMs: 1_000,
+      }),
+    ).toBe("deleted");
+    expect(clerkLoginStatus).not.toHaveBeenCalled();
+  });
+
   describe("a retry refused for a blocker added since the last try", () => {
     // The account still holds its participation. `attemptedAgoMs` puts an
     // earlier Clerk request whose outcome was never confirmed on the row.

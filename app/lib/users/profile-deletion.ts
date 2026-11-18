@@ -46,7 +46,11 @@ type DeletionTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
  */
 export const UNCONFIRMED_ATTEMPT_SETTLES_AFTER_MS = 5 * 60_000;
 
-export type LoginState = "intact" | "gone" | "unknown";
+/**
+ * What a release found. `deleted` means the deletion was finished meanwhile
+ * (by another run or an admin): nothing is kept, so there is nothing to park.
+ */
+export type LoginState = "intact" | "gone" | "unknown" | "deleted";
 
 export type FinalizeOutcome =
   | { kind: "deleted" }
@@ -62,8 +66,16 @@ export type FinalizeOutcome =
   | { kind: "clerk_not_deleted"; message: string }
   /** Clerk's answer could not be confirmed; the row keeps the attempt. */
   | { kind: "clerk_unknown"; message: string }
-  /** The local delete failed. `loginGone` says whether the login is gone. */
-  | { kind: "local_failed"; error: unknown; loginGone: boolean };
+  /**
+   * The local delete failed. `loginGone` says whether the login is gone;
+   * `loginRemovedNow`, whether this attempt is the one that removed it.
+   */
+  | {
+      kind: "local_failed";
+      error: unknown;
+      loginGone: boolean;
+      loginRemovedNow: boolean;
+    };
 
 async function lockAccount(
   tx: DeletionTx,
@@ -111,6 +123,7 @@ export async function finalizeProfileDeletion(input: {
   const now = new Date();
   // Whether the login is known to be gone, so a rollback below cannot lose it.
   let loginGone = false;
+  let loginRemovedNow = false;
   try {
     return await db.transaction(async (tx): Promise<FinalizeOutcome> => {
       const { user, pending } = await lockAccount(
@@ -130,6 +143,14 @@ export async function finalizeProfileDeletion(input: {
       }
 
       loginGone = pending.clerkDeletedAt != null;
+      // An earlier request whose outcome is still unknown. A definite answer
+      // to this attempt's own request does not settle that one.
+      const earlierAttempt =
+        pending.clerkAttemptedAt &&
+        now.getTime() - pending.clerkAttemptedAt.getTime() <
+          UNCONFIRMED_ATTEMPT_SETTLES_AFTER_MS
+          ? pending.clerkAttemptedAt
+          : null;
       const blocker = await findProfileDeletionBlocker(tx, input.profileId);
       if (blocker) {
         return { kind: "blocked", blocker, loginAlreadyGone: loginGone };
@@ -151,7 +172,7 @@ export async function finalizeProfileDeletion(input: {
           await tx
             .update(pendingUserDeletions)
             .set({
-              clerkAttemptedAt: null,
+              clerkAttemptedAt: earlierAttempt,
               lastError: clerk.message,
               updatedAt: new Date(),
             })
@@ -167,6 +188,7 @@ export async function finalizeProfileDeletion(input: {
         }
 
         loginGone = true;
+        loginRemovedNow = true;
         await tx
           .update(pendingUserDeletions)
           .set({
@@ -223,7 +245,7 @@ export async function finalizeProfileDeletion(input: {
         console.error("Could not record a deleted Clerk login", recordError);
       }
     }
-    return { kind: "local_failed", error, loginGone };
+    return { kind: "local_failed", error, loginGone, loginRemovedNow };
   }
 }
 
@@ -245,9 +267,10 @@ export async function releaseRefusedDeletion(input: {
 }): Promise<LoginState> {
   return db.transaction(async (tx): Promise<LoginState> => {
     const { pending } = await lockAccount(tx, input.profileId, input.pendingId);
-    // Released by another attempt, or finished: nothing is pending here.
+    // Released by another attempt: nothing is pending here.
     if (!pending) return "intact";
-    if (pending.localDeletedAt || pending.clerkDeletedAt) return "gone";
+    if (pending.localDeletedAt) return "deleted";
+    if (pending.clerkDeletedAt) return "gone";
 
     const release = async () => {
       await tx

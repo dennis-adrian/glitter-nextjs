@@ -314,6 +314,77 @@ describeDatabase("the profile-deletion cron", () => {
     expect(pending.attempts).toBe(1);
   }, 30_000);
 
+  it("does not release a profile while an earlier unconfirmed request could land", async () => {
+    const { profile, task } = await seedOverdue();
+    // Run 1, a minute ago: the request went unanswered.
+    const earlier = new Date(Date.now() - 60_000);
+    await integrationDb!.insert(pendingUserDeletions).values({
+      userId: profile.id,
+      clerkId: profile.clerkId,
+      clerkAttemptedAt: earlier,
+      lastError: "clerk_delete_failed: timed out",
+      attempts: 1,
+      nextAttemptAt: new Date(Date.now() - 1000),
+    });
+    // Run 2: a definite no for its own request.
+    deleteClerkUser.mockResolvedValue({
+      success: false,
+      status: "request_failed",
+      message: "Clerk 429",
+    });
+    clerkLoginStatus.mockResolvedValue("exists");
+
+    await cron.handleDeletionEmails();
+
+    let [pending] = await pendingFor(profile.clerkId);
+    expect(pending.clerkAttemptedAt?.getTime()).toBe(earlier.getTime());
+    expect(pending.attempts).toBe(2);
+
+    // Run 3: the profile has gained a participation meanwhile. The first
+    // request is still young enough to land, so the row is not released.
+    await giveParticipation(profile.id);
+    await integrationDb!
+      .update(pendingUserDeletions)
+      .set({ nextAttemptAt: new Date(Date.now() - 1000) })
+      .where(eq(pendingUserDeletions.id, pending.id));
+    deleteClerkUser.mockClear();
+
+    await cron.handleDeletionEmails();
+
+    expect(deleteClerkUser).not.toHaveBeenCalled();
+    [pending] = await pendingFor(profile.clerkId);
+    expect(pending.lastError).toBe("blocked_login_unconfirmed: participations");
+    expect(pending.attempts).toBe(3);
+    const [open] = await taskRow(task.id);
+    expect(open.ranAfterDueDate).toBe(false);
+  });
+
+  it("parks a resumed row whose local delete keeps failing once it reaches the cap", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { profile } = await seedOverdue();
+    // The login went in an earlier run; four local deletes have failed since.
+    await integrationDb!.insert(pendingUserDeletions).values({
+      userId: profile.id,
+      clerkId: profile.clerkId,
+      clerkDeletedAt: new Date(Date.now() - 10 * 60_000),
+      attempts: 4,
+      nextAttemptAt: new Date(Date.now() - 1000),
+    });
+    const posts = await import("@/app/lib/posts/anonymization");
+    vi.spyOn(posts, "detachPostsForDeletedUser").mockRejectedValueOnce(
+      new Error("still failing"),
+    );
+
+    await cron.handleDeletionEmails();
+
+    expect(deleteClerkUser).not.toHaveBeenCalled();
+    const [pending] = await pendingFor(profile.clerkId);
+    expect(pending.attempts).toBe(5);
+    expect(pending.clerkDeletedAt).not.toBeNull();
+    expect(await userRow(profile.id)).toHaveLength(1);
+    vi.restoreAllMocks();
+  });
+
   it("gives a profile that gained a participation back once Clerk is sure", async () => {
     const { profile, task } = await seedOverdue();
     // An earlier run's attempt went unanswered long ago; since then the

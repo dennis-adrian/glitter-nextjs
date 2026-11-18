@@ -474,6 +474,24 @@ describe("handleDeletionEmails", () => {
       );
     });
 
+    it("leaves a deletion another run finished meanwhile alone", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      const task = makeTask({ taskId: 19, profileId: 24, clerkId: "user_f" });
+      blockerMock.mockResolvedValue("credit_history");
+      releaseMock.mockResolvedValue("deleted");
+      runClaim(
+        claimTx([task], [{ id: 69, clerkDeletedAt: null, attempts: 1 }]),
+      );
+
+      await handleDeletionEmails();
+
+      // Not parked: its notice still has to go out.
+      expect(writes).toEqual([]);
+      expect(consoleSpy).not.toHaveBeenCalled();
+    });
+
     it("settles a blocker that appeared after the claim through the release", async () => {
       const task = makeTask({ taskId: 17, profileId: 22, clerkId: "user_u" });
       finalizeMock.mockResolvedValue({
@@ -508,6 +526,7 @@ describe("handleDeletionEmails", () => {
       kind: "local_failed",
       error: pgError,
       loginGone: true,
+      loginRemovedNow: true,
     });
     runClaim(claimTx([task], [undefined], [95]));
 
@@ -537,6 +556,7 @@ describe("handleDeletionEmails", () => {
         constraint: `c_${"x".repeat(300)}`,
       }),
       loginGone: true,
+      loginRemovedNow: true,
     });
     runClaim(claimTx([task], [undefined], [97]));
 
@@ -553,6 +573,7 @@ describe("handleDeletionEmails", () => {
       kind: "local_failed",
       error: new TypeError("cannot read property of undefined at row 42"),
       loginGone: true,
+      loginRemovedNow: true,
     });
     runClaim(claimTx([task], [undefined], [96]));
 
@@ -569,6 +590,7 @@ describe("handleDeletionEmails", () => {
       kind: "local_failed",
       error: new Error("nope"),
       loginGone: true,
+      loginRemovedNow: true,
     });
     runClaim(claimTx([task], [{ id: 99, clerkDeletedAt: null, attempts: 3 }]));
 
@@ -580,6 +602,25 @@ describe("handleDeletionEmails", () => {
     expect(failure!.attempts).toBe(1);
   });
 
+  it("keeps counting when the login went in an earlier run, so the delete reaches the cap", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const task = makeTask({ taskId: 62, profileId: 72, clerkId: "user_again" });
+    finalizeMock.mockResolvedValue({
+      kind: "local_failed",
+      error: new Error("still failing"),
+      loginGone: true,
+      loginRemovedNow: false,
+    });
+    runClaim(
+      claimTx([task], [{ id: 97, clerkDeletedAt: new Date(), attempts: 4 }]),
+    );
+
+    await handleDeletionEmails();
+
+    const failure = writes.find((write) => typeof write.lastError === "string");
+    expect(failure!.attempts).toBe(5);
+  });
+
   it("keeps counting from the claimed attempts when the login is still there", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const task = makeTask({ taskId: 61, profileId: 71, clerkId: "user_keep" });
@@ -587,6 +628,7 @@ describe("handleDeletionEmails", () => {
       kind: "local_failed",
       error: new Error("before clerk"),
       loginGone: false,
+      loginRemovedNow: false,
     });
     runClaim(claimTx([task], [{ id: 98, clerkDeletedAt: null, attempts: 2 }]));
 

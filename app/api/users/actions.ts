@@ -131,6 +131,9 @@ function refusalMessage(
   return reason;
 }
 
+const LOGIN_REMOVED_RETRY_MESSAGE =
+  "La cuenta de acceso ya fue eliminada, pero el perfil sigue. Volvé a intentar para terminar de borrarlo.";
+
 const CLERK_OUTCOME_UNKNOWN_MESSAGE =
   "No pudimos confirmar si se eliminó la cuenta de acceso. Volvé a intentar en unos minutos.";
 const CLERK_NOT_DELETED_MESSAGE =
@@ -232,6 +235,9 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
           clerkId: preparation.clerkId,
           clerkBudgetMs: CLERK_CALL_TIMEOUT_MS,
         });
+        if (login === "deleted") {
+          return { success: false, message: CONFLICT_MESSAGE };
+        }
         return {
           success: false,
           message: refusalMessage(preparation.blocker, login),
@@ -267,6 +273,9 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
               clerkId: preparation.clerkId,
               clerkBudgetMs: CLERK_CALL_TIMEOUT_MS,
             });
+        if (login === "deleted") {
+          return { success: false, message: CONFLICT_MESSAGE };
+        }
         if (login === "gone") {
           await noteDeletionError(
             preparation.pendingId,
@@ -278,20 +287,33 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
           message: refusalMessage(outcome.blocker, login),
         };
       }
-      case "clerk_not_deleted":
+      case "clerk_not_deleted": {
         // Clerk confirmed the login is there and this attempt's request is
-        // settled: the account goes back to normal, ready for another try.
+        // settled: the account goes back to normal, ready for another try,
+        // unless an earlier unconfirmed request could still land.
         console.error("Clerk login not deleted", {
           profileId,
           reason: outcome.message,
         });
-        await releaseRefusedDeletion({
+        const login = await releaseRefusedDeletion({
           profileId,
           pendingId: preparation.pendingId,
           clerkId: preparation.clerkId,
           clerkBudgetMs: CLERK_CALL_TIMEOUT_MS,
         });
+        if (login === "unknown") {
+          return { success: false, message: CLERK_OUTCOME_UNKNOWN_MESSAGE };
+        }
+        if (login === "gone") {
+          // The earlier request landed after all: the next try finishes the
+          // local delete without asking Clerk again.
+          return { success: false, message: LOGIN_REMOVED_RETRY_MESSAGE };
+        }
+        if (login === "deleted") {
+          return { success: false, message: CONFLICT_MESSAGE };
+        }
         return { success: false, message: CLERK_NOT_DELETED_MESSAGE };
+      }
       case "clerk_unknown":
         // Kept pending with the attempt on record: the next try asks Clerk
         // again and settles it.
