@@ -19,6 +19,7 @@ import {
   sameIdSet,
   uniqueSortedIds,
 } from "@/app/lib/reservations/locks";
+import { latePartnerPrepaidAmount } from "@/app/lib/reservations/late-partner-prepaid";
 import { activeReservationStandIds } from "@/app/lib/reservations/members";
 import { roundMoney } from "@/app/lib/reservations/money";
 import {
@@ -172,6 +173,7 @@ async function readTransferState(tx: DbTx, input: TransferInput) {
     creditRows,
     activityRows,
     targetDeletionRows,
+    sourceLatePartnerRows,
   ] = await Promise.all([
     tx
       .select({ id: scheduledTasks.id })
@@ -294,6 +296,27 @@ async function readTransferState(tx: DbTx, input: TransferInput) {
         ),
       )
       .limit(1),
+    // A late partner the old account paid for from its wallet, spend not
+    // reversed: the same test `latePartnerPrepaidAmount` applies.
+    tx
+      .select({ id: reservationFeatureActions.id })
+      .from(reservationFeatureActions)
+      .where(
+        and(
+          eq(reservationFeatureActions.reservationId, reservation.id),
+          eq(reservationFeatureActions.ownerUserId, input.fromUserId),
+          eq(reservationFeatureActions.type, "late_partner"),
+          eq(reservationFeatureActions.status, "fulfilled"),
+          sql`NOT EXISTS (
+            SELECT 1
+            FROM ${creditLedgerEntries} s
+            JOIN ${creditLedgerEntries} r ON r.reverses_entry_id = s.id
+            WHERE s.feature_action_id = ${reservationFeatureActions.id}
+              AND s.type = 'spend'
+          )`,
+        ),
+      )
+      .limit(1),
   ]);
 
   const enrollmentOf = (userId: number) => {
@@ -342,6 +365,12 @@ async function readTransferState(tx: DbTx, input: TransferInput) {
     creditsAppliedFromSource: roundMoney(
       creditRows.reduce((sum, row) => sum + Number(row.amount), 0),
     ),
+    // What is still behind the reservation, net of what a repricing already
+    // returned; only counted when the old account is the one who paid it.
+    sourceLatePartnerPrepaid:
+      sourceLatePartnerRows.length > 0
+        ? await latePartnerPrepaidAmount(tx, reservation.id)
+        : 0,
     sourceActivitySignups: activityRows.length,
     enrollment: {
       from: enrollmentOf(input.fromUserId),

@@ -18,6 +18,7 @@ function snapshot(overrides: Partial<TransferSnapshot> = {}): TransferSnapshot {
     targetSanctionBlocked: false,
     activeFeatureActionCount: 0,
     creditsAppliedFromSource: 0,
+    sourceLatePartnerPrepaid: 0,
     sourceActivitySignups: 0,
     enrollment: {
       from: { id: 10, status: "accepted" },
@@ -189,11 +190,47 @@ describe("decideParticipantTransfer", () => {
     ).toBeNull();
   });
 
-  it("warns where credits stay behind on a closed reservation", () => {
-    const decision = decideParticipantTransfer(
-      snapshot({ creditsAppliedFromSource: 120.5 }),
+  it("refuses to move the holding while the old wallet's credits back the reservation, archived or not", () => {
+    // A cheaper stand would refund the new owner while a release returns the
+    // same credits to the old wallet: paid twice. Archived is no exception,
+    // since nothing stops repricing an archived festival's reservation.
+    expect(refusal({ creditsAppliedFromSource: 120.5 })).toBe(
+      "TRANSFER_CREDITS_APPLIED",
     );
-    expect(decision.ok && decision.plan.warnings[0]).toContain("Bs120.5");
+    expect(refusal({ sourceLatePartnerPrepaid: 50 })).toBe(
+      "TRANSFER_CREDITS_APPLIED",
+    );
+    expect(
+      refusal({
+        reservation: { status: "accepted", festivalStatus: "active" },
+        sourceLatePartnerPrepaid: 50,
+      }),
+    ).toBe("TRANSFER_CREDITS_APPLIED");
+  });
+
+  it("moves a companion's closed participation with credits, which stay with the owner unchanged", () => {
+    const decision = decideParticipantTransfer(
+      snapshot({
+        participantUserIds: [3, 1],
+        holderUserId: 3,
+        creditsAppliedFromSource: 120.5,
+      }),
+    );
+    expect(decision.ok).toBe(true);
+    if (!decision.ok) return;
+    expect(decision.plan.movesHolding).toBe(false);
+    expect(decision.plan.warnings[0]).toContain("Bs120.5");
+  });
+
+  it("still refuses a companion's live participation with credits on it", () => {
+    expect(
+      refusal({
+        participantUserIds: [3, 1],
+        holderUserId: 3,
+        reservation: { status: "pending", festivalStatus: "active" },
+        creditsAppliedFromSource: 10,
+      }),
+    ).toBe("TRANSFER_CREDITS_APPLIED");
   });
 
   it("warns that a rejected reservation in an active festival blocks the target", () => {

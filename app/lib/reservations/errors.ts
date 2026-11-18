@@ -227,12 +227,11 @@ export const RESERVATION_ERROR_MESSAGES: Record<ReservationErrorCode, string> =
     // it; moving the reservation away from that wallet would strand them.
     TRANSFER_FEATURE_ACTIVE:
       "Esta reserva tiene una función pagada con créditos todavía activa (mesa completa o compañero tardío). Resolvela antes de transferir.",
-    // Every later refund of those credits goes back to the wallet they came
-    // from, and the repricing refunds assume that wallet is the payer's. A
-    // live cobro would keep changing hands between the two; a closed one never
-    // moves money again, so only a live reservation is refused.
+    // A release returns credits to the wallet they came from, but a repricing
+    // refund goes to the owner: once those are different accounts, the same
+    // credits could be paid out twice. Covers a late partner's payment too.
     TRANSFER_CREDITS_APPLIED:
-      "El cobro de esta reserva tiene créditos de la cuenta de origen aplicados. Devolvé esos créditos antes de transferirla; si hace falta, otorgáselos después a la cuenta de destino.",
+      "Esta reserva se pagó en parte con créditos de la cuenta de origen. Devolvéselos antes de transferirla; si hace falta, otorgáselos después a la cuenta de destino.",
     // The deletion refuses an account with participations, but only once its
     // Clerk login may already be gone; a transfer landing in between would
     // leave a profile nobody can sign in to or delete.

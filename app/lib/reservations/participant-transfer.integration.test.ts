@@ -16,11 +16,15 @@ import {
 
 import * as schema from "@/db/schema";
 import {
+  creditLedgerEntries,
   festivalSectors,
   festivals,
+  invoiceCreditAllocations,
   invoices,
   participantProducts,
   pendingUserDeletions,
+  reservationFeatureActionItems,
+  reservationFeatureActions,
   reservationParticipants,
   reservationRequestRegistry,
   scheduledTasks,
@@ -112,6 +116,29 @@ describeDatabase("admin participation transfer", () => {
           .delete(standReservations)
           .where(inArray(standReservations.id, reservationIds));
       }
+      // The ledger is append-only, enforced by a trigger, and its user FK is
+      // `restrict`; dropped only for this delete and restored at once.
+      const client = await pool!.connect();
+      try {
+        await client.query(
+          "ALTER TABLE credit_ledger_entries DISABLE TRIGGER credit_ledger_entries_append_only",
+        );
+        await client.query(
+          "DELETE FROM credit_ledger_entries WHERE user_id = ANY($1::int[])",
+          [fixture.userIds],
+        );
+      } finally {
+        await client.query(
+          "ALTER TABLE credit_ledger_entries ENABLE TRIGGER credit_ledger_entries_append_only",
+        );
+        client.release();
+      }
+      // Items cascade from their action.
+      await db
+        .delete(reservationFeatureActions)
+        .where(
+          inArray(reservationFeatureActions.festivalId, fixture.festivalIds),
+        );
       await db
         .delete(stands)
         .where(inArray(stands.festivalId, fixture.festivalIds));
@@ -808,5 +835,148 @@ describeDatabase("admin participation transfer", () => {
     expect(
       reservationHolderId({ ownerUserId: null, invoices: [], participants }),
     ).toBe(holder.id);
+  });
+
+  describe("credits from the old wallet behind an archived reservation", () => {
+    async function spend(
+      userId: number,
+      amount: number,
+      featureActionId?: number,
+    ) {
+      const [entry] = await integrationDb!
+        .insert(creditLedgerEntries)
+        .values({
+          userId,
+          amount: -amount,
+          type: "spend",
+          featureActionId: featureActionId ?? null,
+          idempotencyKey: `transfer-test-spend:${randomUUID()}`,
+        })
+        .returning();
+      return entry;
+    }
+
+    it("refuses to move the holding while credits from the old wallet pay its cobro", async () => {
+      const db = integrationDb!;
+      const { festival, accounts, standRows } = await seed({});
+      const [oldAccount, newAccount] = accounts;
+      const { reservation, invoice } = await seedReservation({
+        festivalId: festival.id,
+        standId: standRows[0].id,
+        ownerUserId: oldAccount.id,
+      });
+      const entry = await spend(oldAccount.id, 40);
+      await db.insert(invoiceCreditAllocations).values({
+        invoiceId: invoice.id,
+        userId: oldAccount.id,
+        amount: 40,
+        ledgerEntryId: entry.id,
+        idempotencyKey: `transfer-test-alloc:${randomUUID()}`,
+      });
+
+      const input = {
+        reservationId: reservation.id,
+        fromUserId: oldAccount.id,
+        toUserId: newAccount.id,
+      };
+      expect(await service.previewParticipantTransfer(input)).toMatchObject({
+        success: false,
+        code: "TRANSFER_CREDITS_APPLIED",
+      });
+      expect(
+        await service.transferReservationParticipation({
+          ...input,
+          idempotencyKey: randomUUID(),
+        }),
+      ).toMatchObject({ success: false, code: "TRANSFER_CREDITS_APPLIED" });
+      const [unchanged] = await db
+        .select()
+        .from(standReservations)
+        .where(eq(standReservations.id, reservation.id));
+      expect(unchanged.ownerUserId).toBe(oldAccount.id);
+
+      // Once the spend is reversed the credits no longer back the cobro.
+      await db.insert(creditLedgerEntries).values({
+        userId: oldAccount.id,
+        amount: -40,
+        type: "reversal",
+        reversesEntryId: entry.id,
+        idempotencyKey: `transfer-test-reversal:${randomUUID()}`,
+      });
+      expect(await service.previewParticipantTransfer(input)).toMatchObject({
+        success: true,
+      });
+    });
+
+    it("refuses to move the holding while the old wallet's late-partner payment is still behind it", async () => {
+      const db = integrationDb!;
+      const { festival, accounts, standRows } = await seed({ accounts: 3 });
+      const [oldAccount, partner, newAccount] = accounts;
+      const { reservation } = await seedReservation({
+        festivalId: festival.id,
+        standId: standRows[0].id,
+        ownerUserId: oldAccount.id,
+        participantUserIds: [oldAccount.id, partner.id],
+      });
+      const [action] = await db
+        .insert(reservationFeatureActions)
+        .values({
+          festivalId: festival.id,
+          reservationId: reservation.id,
+          ownerUserId: oldAccount.id,
+          targetPartnerUserId: partner.id,
+          type: "late_partner",
+          status: "fulfilled",
+          featurePriceSnapshot: 10,
+        })
+        .returning();
+      await db.insert(reservationFeatureActionItems).values({
+        featureActionId: action.id,
+        kind: "shared_price_difference",
+        amount: 50,
+      });
+      await spend(oldAccount.id, 60, action.id);
+
+      expect(
+        await service.previewParticipantTransfer({
+          reservationId: reservation.id,
+          fromUserId: oldAccount.id,
+          toUserId: newAccount.id,
+        }),
+      ).toMatchObject({ success: false, code: "TRANSFER_CREDITS_APPLIED" });
+    });
+
+    it("still moves a companion's participation: the owner, and so every refund, stays put", async () => {
+      const db = integrationDb!;
+      const { festival, accounts, standRows } = await seed({ accounts: 3 });
+      const [holder, oldAccount, newAccount] = accounts;
+      const { reservation, invoice } = await seedReservation({
+        festivalId: festival.id,
+        standId: standRows[0].id,
+        ownerUserId: holder.id,
+        participantUserIds: [holder.id, oldAccount.id],
+      });
+      const entry = await spend(holder.id, 40);
+      await db.insert(invoiceCreditAllocations).values({
+        invoiceId: invoice.id,
+        userId: holder.id,
+        amount: 40,
+        ledgerEntryId: entry.id,
+        idempotencyKey: `transfer-test-alloc:${randomUUID()}`,
+      });
+
+      const result = await service.transferReservationParticipation({
+        reservationId: reservation.id,
+        fromUserId: oldAccount.id,
+        toUserId: newAccount.id,
+        idempotencyKey: randomUUID(),
+      });
+      expect(result.success).toBe(true);
+      const [after] = await db
+        .select()
+        .from(standReservations)
+        .where(eq(standReservations.id, reservation.id));
+      expect(after.ownerUserId).toBe(holder.id);
+    });
   });
 });

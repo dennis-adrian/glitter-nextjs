@@ -64,6 +64,12 @@ export type TransferSnapshot = {
   activeFeatureActionCount: number;
   /** Credits from the old account's wallet applied to this reservation. */
   creditsAppliedFromSource: number;
+  /**
+   * A late partner's shared-price difference the old account paid in credits
+   * and that has not been handed back yet. Like an invoice allocation, a
+   * cheaper stand returns it to whoever owns the reservation by then.
+   */
+  sourceLatePartnerPrepaid: number;
   /** The old account's sign-ups to this festival's activities, which stay. */
   sourceActivitySignups: number;
   enrollment: {
@@ -166,6 +172,18 @@ export function decideParticipantTransfer(
     return { ok: false, code: "TRANSFER_TARGET_NOT_ELIGIBLE" };
   }
 
+  const movesHolding = snapshot.holderUserId === snapshot.fromUserId;
+  const sourceCredits =
+    snapshot.creditsAppliedFromSource + snapshot.sourceLatePartnerPrepaid;
+  // A repricing refund goes to the owner while a release goes back to the
+  // wallet the credits came from. With the holding on another account those
+  // are two people, and a cheaper stand followed by "Devolver créditos" would
+  // pay the same credits twice. Nothing stops repricing an archived
+  // festival's reservation, so history is no exception.
+  if (movesHolding && sourceCredits > 0) {
+    return { ok: false, code: "TRANSFER_CREDITS_APPLIED" };
+  }
+
   if (live) {
     if (snapshot.targetHasLiveReservationInFestival) {
       return { ok: false, code: "TRANSFER_TARGET_ALREADY_RESERVED" };
@@ -176,12 +194,11 @@ export function decideParticipantTransfer(
     if (snapshot.activeFeatureActionCount > 0) {
       return { ok: false, code: "TRANSFER_FEATURE_ACTIVE" };
     }
-    if (snapshot.creditsAppliedFromSource > 0) {
+    if (sourceCredits > 0) {
       return { ok: false, code: "TRANSFER_CREDITS_APPLIED" };
     }
   }
 
-  const movesHolding = snapshot.holderUserId === snapshot.fromUserId;
   const enrollment = planEnrollment(snapshot.enrollment);
 
   const moves = ["La participación en la reserva"];
@@ -211,8 +228,9 @@ export function decideParticipantTransfer(
   }
 
   const warnings: string[] = [];
-  // Only reachable for a closed reservation: a live one with credits on it
-  // was refused above.
+  // Only reachable for a companion's participation on a closed reservation:
+  // every other case with credits on it was refused above. The owner does not
+  // change, so a later release and any refund keep landing where they did.
   if (snapshot.creditsAppliedFromSource > 0) {
     warnings.push(
       `Los Bs${snapshot.creditsAppliedFromSource} en créditos aplicados al cobro quedan registrados en la billetera de la cuenta de origen: si alguna vez se devuelven, vuelven a esa billetera.`,
