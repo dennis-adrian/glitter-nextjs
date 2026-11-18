@@ -21,7 +21,7 @@ const { changeUserEmail, refresh, toast } = vi.hoisted(() => ({
     }),
   ),
   refresh: vi.fn(),
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
 }));
 vi.mock("@/app/lib/users/email-change-actions", () => ({ changeUserEmail }));
 vi.mock("sonner", () => ({ toast }));
@@ -135,6 +135,91 @@ describe("ChangeEmailModal", () => {
       description: "Se desvinculó su cuenta de Google.",
     });
     expect(refresh).toHaveBeenCalled();
+  });
+
+  it("keeps a result that needs follow-up on screen until dismissed", async () => {
+    changeUserEmail.mockResolvedValueOnce({
+      success: true,
+      message: "Correo actualizado.",
+      description: "El correo anterior todavía sirve para entrar.",
+      needsFollowUp: true,
+    });
+    const setOpen = open();
+    fill("ana.nueva@example.com");
+    submit();
+
+    await waitFor(() => expect(setOpen).toHaveBeenCalledWith(false));
+    expect(toast.warning).toHaveBeenCalledWith("Correo actualizado.", {
+      description: "El correo anterior todavía sirve para entrar.",
+      duration: Infinity,
+      closeButton: true,
+    });
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("accepts the current address, which re-syncs the account", async () => {
+    open();
+    expect(screen.getByText(/Si repetís el correo actual/)).toBeTruthy();
+    fill(CURRENT);
+    submit();
+
+    await waitFor(() =>
+      expect(changeUserEmail).toHaveBeenCalledWith({
+        userId: 7,
+        email: CURRENT,
+      }),
+    );
+  });
+
+  it("says that sessions already open stay open", () => {
+    open();
+
+    expect(
+      screen.getByText(/Las sesiones que ya tiene abiertas siguen abiertas/),
+    ).toBeTruthy();
+  });
+
+  it("mounts the form only while open, so nothing typed survives a close", () => {
+    const props = { profile: { id: 7, email: CURRENT } as never, setOpen() {} };
+    const { rerender } = render(<ChangeEmailModal open {...props} />);
+    fill("a.medias@example.com");
+
+    rerender(<ChangeEmailModal open={false} {...props} />);
+    expect(screen.queryByLabelText("Correo nuevo")).toBeNull();
+
+    rerender(<ChangeEmailModal open {...props} />);
+    expect(
+      (screen.getByLabelText("Correo nuevo") as HTMLInputElement).value,
+    ).toBe("");
+    expect(
+      (screen.getByLabelText("Repetí el correo nuevo") as HTMLInputElement)
+        .value,
+    ).toBe("");
+  });
+
+  it("starts over for another profile behind the same dialog", () => {
+    const setOpen = vi.fn();
+    const { rerender } = render(
+      <ChangeEmailModal
+        open
+        profile={{ id: 7, email: CURRENT } as never}
+        setOpen={setOpen}
+      />,
+    );
+    fill("a.medias@example.com");
+
+    rerender(
+      <ChangeEmailModal
+        open
+        profile={{ id: 8, email: "otra@example.com" } as never}
+        setOpen={setOpen}
+      />,
+    );
+
+    expect(
+      (screen.getByLabelText("Correo nuevo") as HTMLInputElement).value,
+    ).toBe("");
   });
 
   it("does not close while the change is still running", async () => {

@@ -194,6 +194,7 @@ export const userStatusEventsRelations = relations(
  * record of a change in flight: Clerk changes outside any transaction, so a
  * row with `clerk_changed_at` set and `completed_at` null is a change the
  * database has not caught up with, and running the action again finishes it.
+ * Deleting the profile blanks both addresses and keeps the rest.
  */
 export const userEmailChanges = pgTable(
   "user_email_changes",
@@ -204,6 +205,7 @@ export const userEmailChanges = pgTable(
     }),
     /** Kept as text so the audit still names the account once a row is gone. */
     clerkId: text("clerk_id").notNull(),
+    /** Equal to `newEmail`, case aside, on a resync. Blank once deleted. */
     oldEmail: text("old_email").notNull(),
     newEmail: text("new_email").notNull(),
     changedByUserId: integer("changed_by_user_id").references(() => users.id, {

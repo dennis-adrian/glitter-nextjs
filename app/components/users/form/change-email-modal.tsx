@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircleIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -52,51 +52,9 @@ export function ChangeEmailModal({
   profile: ProfileType;
   setOpen: (open: boolean) => void;
 }) {
-  const router = useRouter();
   const isDesktop = useMediaQuery("(min-width: 768px)");
-  const form = useForm({
-    resolver: zodResolver(ChangeUserEmailFormSchema),
-    defaultValues: { email: "", confirmEmail: "" },
-  });
-  const isSubmitting = form.formState.isSubmitting;
-
-  // Covers a close driven by the parent and a different profile behind the
-  // same instance: a half-typed address must not carry over to either.
-  useEffect(() => {
-    form.reset();
-  }, [form, open, profile.id]);
-
-  const action = form.handleSubmit(async (data) => {
-    try {
-      const result = await changeUserEmail({
-        userId: profile.id,
-        email: data.email,
-      });
-      if (!result.success) {
-        form.setError("email", {
-          message: [result.message, result.description]
-            .filter(Boolean)
-            .join(" "),
-        });
-        return;
-      }
-      toast.success(
-        result.message,
-        result.description ? { description: result.description } : undefined,
-      );
-      form.reset();
-      setOpen(false);
-      router.refresh();
-    } catch (error) {
-      // Not logged: the error can carry the request, and with it the address.
-      // A thrown call has an unknown outcome, so the copy sends the admin to
-      // check before trying again.
-      toastActionError(
-        error,
-        "No se pudo confirmar el cambio de correo. Recargá la página y revisá el correo del usuario antes de intentar de nuevo.",
-      );
-    }
-  });
+  // Lives here and not in the form: the shell is what refuses to close.
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   return (
     <DrawerDialog
@@ -131,7 +89,8 @@ export function ChangeEmailModal({
             <AlertDescription className="min-w-0 space-y-2 break-words">
               <p>
                 Desde ahora va a iniciar sesión con el correo nuevo. El actual
-                deja de funcionar.
+                deja de funcionar. Las sesiones que ya tiene abiertas siguen
+                abiertas.
               </p>
               <p>
                 Si tiene una cuenta de Google vinculada al correo actual, se
@@ -145,29 +104,14 @@ export function ChangeEmailModal({
             </AlertDescription>
           </Alert>
 
-          <Form {...form}>
-            {/* noValidate: the schema's messages, not the browser's bubbles. */}
-            <form onSubmit={action} className="grid gap-4" noValidate>
-              <TextInput
-                name="email"
-                label="Correo nuevo"
-                disabled={isSubmitting}
-                {...EMAIL_INPUT_PROPS}
-              />
-              <TextInput
-                name="confirmEmail"
-                label="Repetí el correo nuevo"
-                disabled={isSubmitting}
-                {...EMAIL_INPUT_PROPS}
-              />
-              <SubmitButton
-                disabled={isSubmitting}
-                label="Cambiar correo"
-                submittingLabel="Cambiando correo..."
-                wrap
-              />
-            </form>
-          </Form>
+          {/* Content unmounts when the dialog closes, so a half-typed address
+              goes with it; the key covers another profile behind this one. */}
+          <ChangeEmailForm
+            key={profile.id}
+            profileId={profile.id}
+            onSubmittingChange={setIsSubmitting}
+            onSuccess={() => setOpen(false)}
+          />
         </div>
         {isDesktop ? null : (
           <DrawerDialogFooter isDesktop={isDesktop} className="pt-2">
@@ -184,5 +128,94 @@ export function ChangeEmailModal({
         )}
       </DrawerDialogContent>
     </DrawerDialog>
+  );
+}
+
+function ChangeEmailForm({
+  profileId,
+  onSubmittingChange,
+  onSuccess,
+}: {
+  profileId: number;
+  onSubmittingChange: (submitting: boolean) => void;
+  onSuccess: () => void;
+}) {
+  const router = useRouter();
+  const form = useForm({
+    resolver: zodResolver(ChangeUserEmailFormSchema),
+    defaultValues: { email: "", confirmEmail: "" },
+  });
+  const isSubmitting = form.formState.isSubmitting;
+
+  const action = form.handleSubmit(async (data) => {
+    // Set here and not from an effect on `isSubmitting`: the guard has to be
+    // up before the request leaves.
+    onSubmittingChange(true);
+    try {
+      const result = await changeUserEmail({
+        userId: profileId,
+        email: data.email,
+      });
+      if (!result.success) {
+        form.setError("email", {
+          message: [result.message, result.description]
+            .filter(Boolean)
+            .join(" "),
+        });
+        return;
+      }
+      if (result.needsFollowUp) {
+        // Something is left for the admin to do: it stays until dismissed.
+        toast.warning(result.message, {
+          description: result.description,
+          duration: Infinity,
+          closeButton: true,
+        });
+      } else {
+        toast.success(
+          result.message,
+          result.description ? { description: result.description } : undefined,
+        );
+      }
+      onSuccess();
+      router.refresh();
+    } catch (error) {
+      // Not logged: the error can carry the request, and with it the address.
+      // A thrown call has an unknown outcome, so the copy sends the admin to
+      // check before trying again.
+      toastActionError(
+        error,
+        "No se pudo confirmar el cambio de correo. Recargá la página y revisá el correo del usuario antes de intentar de nuevo.",
+      );
+    } finally {
+      onSubmittingChange(false);
+    }
+  });
+
+  return (
+    <Form {...form}>
+      {/* noValidate: the schema's messages, not the browser's bubbles. */}
+      <form onSubmit={action} className="grid gap-4" noValidate>
+        <TextInput
+          name="email"
+          label="Correo nuevo"
+          description="Si repetís el correo actual, la cuenta de acceso se vuelve a sincronizar con él."
+          disabled={isSubmitting}
+          {...EMAIL_INPUT_PROPS}
+        />
+        <TextInput
+          name="confirmEmail"
+          label="Repetí el correo nuevo"
+          disabled={isSubmitting}
+          {...EMAIL_INPUT_PROPS}
+        />
+        <SubmitButton
+          disabled={isSubmitting}
+          label="Cambiar correo"
+          submittingLabel="Cambiando correo..."
+          wrap
+        />
+      </form>
+    </Form>
   );
 }

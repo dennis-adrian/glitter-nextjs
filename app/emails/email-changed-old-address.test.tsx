@@ -27,6 +27,18 @@ describe("EmailChangedOldAddressEmail", () => {
     expect(html).not.toContain("camila.rojas");
   });
 
+  /**
+   * The old address can still be on the account for a moment, and sessions
+   * already open stay open, so the notice does not promise otherwise.
+   */
+  it("says this mailbox stops getting our notices, not that it cannot sign in", () => {
+    const html = render();
+
+    expect(html).toContain("este correo deja de recibir nuestros avisos");
+    expect(html).not.toContain("ya no sirve");
+    expect(html).not.toMatch(/no (vas a poder|podés|puede) (entrar|ingresar)/);
+  });
+
   it("says where to write if they did not ask for it", () => {
     const html = render();
 

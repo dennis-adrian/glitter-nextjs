@@ -11,7 +11,7 @@ export function normalizeEmail(address: string) {
 const emailField = z
   .string()
   .trim()
-  .min(1, { error: "Escribe el correo" })
+  .min(1, { error: "Escribí el correo" })
   .max(254, { error: "El correo es demasiado largo" })
   .pipe(z.email({ error: "El correo no es válido" }))
   .transform(normalizeEmail);
@@ -43,6 +43,8 @@ export type ChangeUserEmailResult = {
   message: string;
   /** Extra line for the toast: what else changed, or what is left to do. */
   description?: string;
+  /** The change went through but the admin still has something to do. */
+  needsFollowUp?: boolean;
 };
 
 /**
@@ -53,10 +55,15 @@ export type ChangeUserEmailResult = {
 export type ChangeClerkEmailResult =
   | {
       status: "changed";
-      /** Providers of the connected accounts removed, e.g. "oauth_google". */
+      /** Providers of the accounts this run unlinked, e.g. "oauth_google". */
       unlinkedProviders: string[];
-      /** False when an address other than the new one is still on the account. */
+      /**
+       * False when an address other than the new one, or a connected account
+       * off the new one, is still on the account, or when that is unknown.
+       */
       oldAddressesRemoved: boolean;
+      /** Without one, a connected account or an emailed code is the way in. */
+      passwordEnabled: boolean;
     }
   | { status: "email_taken" }
   | { status: "not_found" }

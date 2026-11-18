@@ -40,7 +40,8 @@ const REFUSALS: Record<
   not_found: "No encontramos ese perfil.",
   deletion_pending:
     "Este perfil está en proceso de eliminación; no se puede cambiar su correo.",
-  same_email: "Ese ya es el correo de esta cuenta.",
+  in_progress:
+    "Ya hay un cambio de correo en curso para este perfil. Esperá un momento y volvé a intentar.",
   email_taken: "Ese correo ya pertenece a otra cuenta.",
   suppressed:
     "Ese correo está bloqueado por rebotes o reportes de spam y no recibiría nuestros avisos. Desbloquealo primero en /dashboard/emails.",
@@ -92,10 +93,67 @@ async function sendNotice(
   }
 }
 
+/**
+ * Tells both mailboxes. The change is committed by now, so a failed notice
+ * is recorded and never reported as a failed change.
+ */
+async function sendNotices(input: {
+  changeId: number;
+  oldEmail: string;
+  newEmail: string;
+  name: string | null;
+}) {
+  const { changeId, oldEmail, newEmail, name } = input;
+  // Two sends, never one with both recipients: a shared `to` would show the
+  // old mailbox the full new address.
+  const notices = {
+    old: await sendNotice("old", changeId, () =>
+      sendEmail(
+        {
+          to: [oldEmail],
+          from: NOTICE_FROM,
+          subject: "Cambiamos el correo de tu cuenta Glitter",
+          react: EmailChangedOldAddressEmail({
+            name,
+            newEmail,
+          }) as React.ReactElement,
+        },
+        { idempotencyKey: `email-change-${changeId}-old` },
+      ),
+    ),
+    new: await sendNotice("new", changeId, () =>
+      sendEmail(
+        {
+          to: [newEmail],
+          from: NOTICE_FROM,
+          subject: "Este es ahora tu correo de acceso a Glitter",
+          react: EmailChangedNewAddressEmail({
+            name,
+            newEmail,
+          }) as React.ReactElement,
+        },
+        { idempotencyKey: `email-change-${changeId}-new` },
+      ),
+    ),
+  };
+  try {
+    await recordEmailChangeNotices(changeId, notices);
+  } catch (error) {
+    console.error(
+      "Error recording email change notices",
+      changeId,
+      emailChangeErrorCode(error),
+    );
+  }
+  return notices;
+}
+
 function describeOutcome(input: {
   unlinkedProviders: string[];
   oldAddressesRemoved: boolean;
-  notices: { old: string; new: string };
+  passwordEnabled: boolean;
+  /** Null on a resync, which writes to nobody. */
+  notices: { old: string; new: string } | null;
 }) {
   const lines: string[] = [];
   // Clerk names the provider "oauth_google" in some payloads and "google" in
@@ -104,7 +162,11 @@ function describeOutcome(input: {
     input.unlinkedProviders.some((p) => p === "oauth_google" || p === "google")
   ) {
     lines.push(
-      "Desvinculamos su cuenta de Google anterior; ya puede entrar con Google usando el correo nuevo.",
+      input.passwordEnabled
+        ? "Desvinculamos su cuenta de Google anterior; ya puede entrar con Google usando el correo nuevo."
+        : // Google was likely their only way in, and nothing here can tell
+          // whether a Google account exists for the new address.
+          "Desvinculamos su cuenta de Google anterior. No tiene contraseña: para entrar necesita una cuenta de Google del correo nuevo o el código que le llega a ese correo. Confirmá con la persona que pudo entrar.",
     );
   } else if (input.unlinkedProviders.length > 0) {
     lines.push(
@@ -113,10 +175,10 @@ function describeOutcome(input: {
   }
   if (!input.oldAddressesRemoved) {
     lines.push(
-      "El correo anterior sigue asociado a la cuenta en Clerk: quitalo desde el panel de Clerk para que no se pueda usar para entrar.",
+      "El correo anterior todavía sirve para entrar: volvé a hacer el cambio con el mismo correo para quitarlo.",
     );
   }
-  if (input.notices.new !== "sent") {
+  if (input.notices && input.notices.new !== "sent") {
     lines.push("No pudimos enviar el aviso al correo nuevo; avisale vos.");
   }
   return lines.length > 0 ? lines.join(" ") : undefined;
@@ -130,6 +192,10 @@ function describeOutcome(input: {
  * Clerk and the database cannot change together. If it stops in between, the
  * profile still shows the old address, and running the same change again
  * finishes it: the Clerk half answers `changed` when it is already done.
+ *
+ * Asking for the address the profile already has is a resync: the same steps
+ * clear whatever an earlier change left on the Clerk account, and nobody is
+ * written to.
  */
 export async function changeUserEmail(
   input: ChangeUserEmailInput,
@@ -194,49 +260,14 @@ export async function changeUserEmail(
       return { success: false, message: HALFWAY[completed.status] };
     }
 
-    // The change is committed; a failed notice must not report it as failed.
-    // Two sends, never one with both recipients: a shared `to` would show the
-    // old mailbox the full new address.
-    const name = getUserName(begun) || null;
-    const notices = {
-      old: await sendNotice("old", changeId, () =>
-        sendEmail(
-          {
-            to: [begun.oldEmail],
-            from: NOTICE_FROM,
-            subject: "Cambiamos el correo de tu cuenta Glitter",
-            react: EmailChangedOldAddressEmail({
-              name,
-              newEmail,
-            }) as React.ReactElement,
-          },
-          { idempotencyKey: `email-change-${begun.changeId}-old` },
-        ),
-      ),
-      new: await sendNotice("new", changeId, () =>
-        sendEmail(
-          {
-            to: [newEmail],
-            from: NOTICE_FROM,
-            subject: "Este es ahora tu correo de acceso a Glitter",
-            react: EmailChangedNewAddressEmail({
-              name,
-              newEmail,
-            }) as React.ReactElement,
-          },
-          { idempotencyKey: `email-change-${begun.changeId}-new` },
-        ),
-      ),
-    };
-    try {
-      await recordEmailChangeNotices(changeId, notices);
-    } catch (error) {
-      console.error(
-        "Error recording email change notices",
-        changeId,
-        emailChangeErrorCode(error),
-      );
-    }
+    const notices = begun.resync
+      ? null
+      : await sendNotices({
+          changeId,
+          oldEmail: begun.oldEmail,
+          newEmail,
+          name: getUserName(begun) || null,
+        });
 
     revalidatePath("/dashboard/users");
     revalidatePath("/dashboard/users/[profileId]", "page");
@@ -244,12 +275,18 @@ export async function changeUserEmail(
     const description = describeOutcome({
       unlinkedProviders: clerk.unlinkedProviders,
       oldAddressesRemoved: clerk.oldAddressesRemoved,
+      passwordEnabled: clerk.passwordEnabled,
       notices,
     });
+    const needsFollowUp =
+      !clerk.oldAddressesRemoved || (notices != null && notices.new !== "sent");
     return {
       success: true,
-      message: "Correo actualizado.",
+      message: begun.resync
+        ? "La cuenta de acceso quedó sincronizada con ese correo."
+        : "Correo actualizado.",
       ...(description ? { description } : {}),
+      ...(needsFollowUp ? { needsFollowUp } : {}),
     };
   } catch (error) {
     if (isImpersonationReadOnlyError(error)) {

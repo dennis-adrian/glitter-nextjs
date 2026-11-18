@@ -32,6 +32,7 @@ import { forgetPushDevices } from "@/app/lib/notifications/push/devices";
 import { scrubNotificationsNamingUser } from "@/app/lib/notifications/scrub";
 import { anonymizeProgramPurchasesForUser } from "@/app/lib/programs/anonymization";
 import { deleteClerkUser } from "@/app/lib/users/clerk";
+import { scrubEmailChangesForUser } from "@/app/lib/users/email-changes";
 import {
   requireAdmin,
   requireAdminOrFestivalAdmin,
@@ -391,6 +392,8 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
 
         // Scrub outbox PII before the user row is removed; FK only nulls user_id.
         await scrubDisciplinaryNotificationJobsForUser(tx, profileId, now);
+        // The audit of their address changes stays, without the addresses.
+        await scrubEmailChangesForUser(tx, profileId);
         // Their own inbox goes with the row; other people's items name them.
         await scrubNotificationsNamingUser(tx, profileId);
 

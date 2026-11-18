@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { asc, eq, inArray, like, or } from "drizzle-orm";
+import { asc, eq, inArray, like, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import {
@@ -325,6 +325,7 @@ describeDatabase("changing the address a person signs in with", () => {
 
       expect(result).toEqual({
         status: "ok",
+        resync: false,
         changeId: expect.any(Number),
         clerkId: user.clerkId,
         // As stored, not normalized: it is where the old notice goes.
@@ -359,18 +360,141 @@ describeDatabase("changing the address a person signs in with", () => {
       ).resolves.toEqual({ status: "not_found" });
     });
 
-    it("refuses the address the profile already has, in any letter case", async () => {
+    it.each([
+      ["as stored", (email: string) => email],
+      ["in another letter case", (email: string) => email.toLowerCase()],
+    ])(
+      "takes the address the profile already has, %s, as a resync",
+      async (_label, typed) => {
+        const admin = await makeUser("admin", { role: "admin" });
+        const user = await makeUser("Ana.Mayus");
+        expect(user.email).not.toBe(user.email.toLowerCase());
+
+        const result = await begin(user.id, typed(user.email), admin.id);
+
+        expect(result).toMatchObject({
+          status: "ok",
+          resync: true,
+          clerkId: user.clerkId,
+          oldEmail: user.email,
+        });
+        // Audited like any change: old and new are the same address.
+        expect(await auditRowsFor(user.id)).toMatchObject([
+          {
+            oldEmail: user.email,
+            newEmail: user.email.toLowerCase(),
+            changedByUserId: admin.id,
+            completedAt: null,
+            lastError: null,
+          },
+        ]);
+      },
+    );
+
+    it("resyncs an address that is suppressed: it is already theirs", async () => {
       const admin = await makeUser("admin", { role: "admin" });
-      const user = await makeUser("Ana.Mayus");
-      expect(user.email).not.toBe(user.email.toLowerCase());
+      const user = await makeUser("ana");
+      await integrationDb!
+        .insert(emailSuppressions)
+        .values({ emailKey: user.email.toLowerCase(), reason: "bounce" });
+
+      await expect(begin(user.id, user.email, admin.id)).resolves.toMatchObject(
+        { status: "ok", resync: true },
+      );
+    });
+
+    it("does not resync onto an address another profile holds in another case", async () => {
+      const admin = await makeUser("admin", { role: "admin" });
+      const user = await makeUser("Gemela");
+      // The case-sensitive unique constraint lets the lowercase twin exist.
+      await makeUser("twin", { email: user.email.toLowerCase() });
 
       await expect(begin(user.id, user.email, admin.id)).resolves.toEqual({
-        status: "same_email",
+        status: "email_taken",
       });
-      await expect(
-        begin(user.id, user.email.toLowerCase(), admin.id),
-      ).resolves.toEqual({ status: "same_email" });
-      expect(await auditRowsFor(user.id)).toEqual([]);
+    });
+
+    describe("while another change for the same profile is in flight", () => {
+      it("refuses, and records nothing more", async () => {
+        const { admin, user, newEmail, changeId } = await begun();
+
+        await expect(begin(user.id, newEmail, admin.id)).resolves.toEqual({
+          status: "in_progress",
+        });
+        await expect(
+          begin(user.id, address("otra"), admin.id),
+        ).resolves.toEqual({ status: "in_progress" });
+        expect((await auditRowsFor(user.id)).map((row) => row.id)).toEqual([
+          changeId,
+        ]);
+      });
+
+      it("lets the second of two simultaneous starts wait and then refuses it", async () => {
+        const admin = await makeUser("admin", { role: "admin" });
+        const user = await makeUser("ana");
+
+        const results = await Promise.all([
+          begin(user.id, address("una"), admin.id),
+          begin(user.id, address("dos"), admin.id),
+        ]);
+
+        expect(results.map((result) => result.status).sort()).toEqual([
+          "in_progress",
+          "ok",
+        ]);
+        expect(await auditRowsFor(user.id)).toHaveLength(1);
+      });
+
+      it("does not hold back a change for someone else", async () => {
+        const { admin } = await begun();
+        const other = await makeUser("otra");
+
+        await expect(
+          begin(other.id, address("nueva"), admin.id),
+        ).resolves.toMatchObject({ status: "ok" });
+      });
+
+      it("goes ahead once the earlier one failed", async () => {
+        const { admin, user, newEmail, changeId } = await begun();
+        await emailChanges.markEmailChangeFailed(
+          changeId,
+          "clerk_failed: get_user:500",
+        );
+
+        await expect(begin(user.id, newEmail, admin.id)).resolves.toMatchObject(
+          { status: "ok" },
+        );
+      });
+
+      it("goes ahead once the earlier one completed", async () => {
+        const { admin, user, newEmail, changeId } = await begun();
+        await complete({ changeId, user, newEmail });
+
+        // The same address again is now a resync.
+        await expect(begin(user.id, newEmail, admin.id)).resolves.toMatchObject(
+          { status: "ok", resync: true },
+        );
+      });
+
+      it("goes ahead once the earlier one is older than any run can be", async () => {
+        const { admin, user, newEmail, changeId } = await begun();
+        const age = (interval: string) =>
+          integrationDb!
+            .update(userEmailChanges)
+            .set({ createdAt: sql`now() - ${interval}::interval` })
+            .where(eq(userEmailChanges.id, changeId));
+
+        // By the database's clock, on both sides of the two minutes.
+        await age("1 minute 50 seconds");
+        await expect(begin(user.id, newEmail, admin.id)).resolves.toEqual({
+          status: "in_progress",
+        });
+
+        await age("2 minutes 5 seconds");
+        await expect(begin(user.id, newEmail, admin.id)).resolves.toMatchObject(
+          { status: "ok" },
+        );
+      });
     });
 
     it("refuses an address another profile holds, in any letter case", async () => {
@@ -485,7 +609,7 @@ describeDatabase("changing the address a person signs in with", () => {
       expect((await auditRow(changeId)).clerkChangedAt).toEqual(noted);
     });
 
-    it("moves pending reservation mail and leaves the rest, keys included", async () => {
+    it("moves reservation mail not yet sent and leaves the rest, keys included", async () => {
       const { user, newEmail, changeId } = await begun();
       const other = await makeUser("otra");
       const job = (
@@ -530,8 +654,8 @@ describeDatabase("changing the address a person signs in with", () => {
         .orderBy(asc(reservationNotificationJobs.id));
       expect(after.map((row) => row.recipientEmail)).toEqual([
         newEmail,
-        // A worker holds the processing row and has already read it.
-        user.email,
+        // A worker holds it; if its send fails the row is pending again.
+        newEmail,
         user.email,
         user.email,
         other.email,
@@ -542,7 +666,7 @@ describeDatabase("changing the address a person signs in with", () => {
       );
     });
 
-    it("moves pending disciplinary mail in the column and in the payload it sends from", async () => {
+    it("moves unsent disciplinary mail in the column and in the payload it sends from", async () => {
       const { user, newEmail, changeId } = await begun();
       const profile = {
         id: user.id,
@@ -597,17 +721,19 @@ describeDatabase("changing the address a person signs in with", () => {
         recipientEmail: user.email,
         payload: { entityType: "infraction", profile, note: "se queda" },
       };
-      expect(after).toEqual([
-        {
-          recipientEmail: newEmail,
-          payload: {
-            entityType: "infraction",
-            profile: { ...profile, email: newEmail },
-            note: "se queda",
-          },
+      const moved = {
+        recipientEmail: newEmail,
+        payload: {
+          entityType: "infraction",
+          profile: { ...profile, email: newEmail },
+          note: "se queda",
         },
+      };
+      // pending, completed, processing, retry marker.
+      expect(after).toEqual([
+        moved,
         untouched,
-        untouched,
+        moved,
         {
           recipientEmail: "",
           payload: { entityType: "sanction_enqueue_retry", sanctionId: 1 },
@@ -615,7 +741,7 @@ describeDatabase("changing the address a person signs in with", () => {
       ]);
     });
 
-    it("moves pending transactional deliveries and no others", async () => {
+    it("moves unsent transactional deliveries and no others", async () => {
       const { user, newEmail, changeId } = await begun();
       const other = await makeUser("otra");
       const delivery = (
@@ -661,9 +787,10 @@ describeDatabase("changing the address a person signs in with", () => {
           ),
         )
         .orderBy(asc(notificationDeliveries.id));
+      // pending, processing, sent, failed, skipped, bulk, push, other.
       expect(after.map((row) => row.recipientEmail)).toEqual([
         newEmail,
-        user.email,
+        newEmail,
         user.email,
         user.email,
         user.email,
@@ -866,6 +993,23 @@ describeDatabase("changing the address a person signs in with", () => {
       expect(job.recipientEmail).toBe(user.email);
     });
 
+    it("closes a resync, normalizing the stored address", async () => {
+      const admin = await makeUser("admin", { role: "admin" });
+      const user = await makeUser("Ana.Mayus");
+      const newEmail = user.email.toLowerCase();
+      const started = await begin(user.id, user.email, admin.id);
+      if (started.status !== "ok") throw new Error(started.status);
+
+      await expect(
+        complete({ changeId: started.changeId, user, newEmail }),
+      ).resolves.toEqual({ status: "ok" });
+
+      expect(await emailOf(user.id)).toBe(newEmail);
+      expect((await auditRow(started.changeId)).completedAt).toBeInstanceOf(
+        Date,
+      );
+    });
+
     it("converges when the same change is run again after stopping halfway", async () => {
       const { admin, user, newEmail, changeId } = await begun();
       // Clerk changed and the second transaction never ran.
@@ -889,6 +1033,80 @@ describeDatabase("changing the address a person signs in with", () => {
       expect(rows[0].clerkChangedAt).toBeInstanceOf(Date);
       expect(rows[1].completedAt).toBeInstanceOf(Date);
       expect(rows[1].lastError).toBeNull();
+    });
+  });
+
+  describe("scrubEmailChangesForUser", () => {
+    const scrub = (userId: number) =>
+      app.db.transaction((tx) =>
+        emailChanges.scrubEmailChangesForUser(tx, userId),
+      );
+
+    it("blanks both addresses and keeps the rest, through the deletion", async () => {
+      const { admin, user, newEmail, changeId } = await begun();
+      await complete({
+        changeId,
+        user,
+        newEmail,
+        unlinkedProviders: ["oauth_google"],
+      });
+      await emailChanges.recordEmailChangeNotices(changeId, {
+        old: "resend:validation_error",
+        new: "sent",
+      });
+      const before = await auditRow(changeId);
+
+      // As both deletion paths do: scrub, then delete, in one transaction.
+      await app.db.transaction(async (tx) => {
+        await emailChanges.scrubEmailChangesForUser(tx, user.id);
+        await tx.delete(users).where(eq(users.id, user.id));
+      });
+
+      const after = await auditRow(changeId);
+      expect(after).toMatchObject({
+        id: changeId,
+        userId: null,
+        clerkId: user.clerkId,
+        oldEmail: "",
+        newEmail: "",
+        changedByUserId: admin.id,
+        unlinkedProviders: ["oauth_google"],
+        clerkChangedAt: before.clerkChangedAt,
+        completedAt: before.completedAt,
+        lastError: null,
+        oldNoticeStatus: "resend:validation_error",
+        newNoticeStatus: "sent",
+        createdAt: before.createdAt,
+      });
+      expect(JSON.stringify(after)).not.toContain("@");
+    });
+
+    it("blanks every change of theirs, failed ones included", async () => {
+      const { admin, user, newEmail, changeId } = await begun();
+      await emailChanges.markEmailChangeFailed(changeId, "clerk_email_taken");
+      const again = await begin(user.id, newEmail, admin.id);
+      if (again.status !== "ok") throw new Error(again.status);
+
+      await scrub(user.id);
+
+      expect(await auditRowsFor(user.id)).toMatchObject([
+        { oldEmail: "", newEmail: "", lastError: "clerk_email_taken" },
+        { oldEmail: "", newEmail: "" },
+      ]);
+    });
+
+    it("leaves other people's changes alone, the ones they made as admin too", async () => {
+      const { admin, user, newEmail, changeId } = await begun();
+
+      // The admin is the one going: the addresses are someone else's.
+      await scrub(admin.id);
+
+      expect(await auditRow(changeId)).toMatchObject({
+        userId: user.id,
+        oldEmail: user.email,
+        newEmail,
+        changedByUserId: admin.id,
+      });
     });
   });
 

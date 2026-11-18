@@ -24,6 +24,9 @@ export type EmailChangedOldAddressEmailProps = {
  * another one. Whoever reads this mailbox may not be the person who asked, so
  * the new address is masked: enough for its owner to recognise it, and no use
  * to anyone else.
+ *
+ * It does not say this address can no longer sign in: it may still be on the
+ * account for a moment, and sessions already open stay open.
  */
 export default function EmailChangedOldAddressEmail({
   name,
@@ -45,9 +48,8 @@ export default function EmailChangedOldAddressEmail({
               ingresás con{" "}
               <span style={{ ...styles.email, overflowWrap: "anywhere" }}>
                 {maskEmail(newEmail)}
-              </span>{" "}
-              y este correo ya no sirve para entrar ni va a recibir nuestros
-              avisos.
+              </span>
+              , y este correo deja de recibir nuestros avisos.
             </Text>
             <Text style={styles.text}>
               Si no pediste este cambio, escribinos cuanto antes a{" "}

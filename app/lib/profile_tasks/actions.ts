@@ -14,6 +14,7 @@ import { forgetPushDevices } from "@/app/lib/notifications/push/devices";
 import { scrubNotificationsNamingUser } from "@/app/lib/notifications/scrub";
 import { anonymizeProgramPurchasesForUser } from "@/app/lib/programs/anonymization";
 import { detachPostsForDeletedUser } from "@/app/lib/posts/anonymization";
+import { scrubEmailChangesForUser } from "@/app/lib/users/email-changes";
 import { db } from "@/db";
 import { pendingUserDeletions, scheduledTasks, users } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
@@ -375,6 +376,9 @@ export async function handleDeletionEmails(): Promise<
 
           // Their own inbox goes with the row; other people's items name them.
           await scrubNotificationsNamingUser(tx, task.profile.id);
+
+          // The audit of their address changes stays, without the addresses.
+          await scrubEmailChangesForUser(tx, task.profile.id);
 
           await tx.delete(users).where(eq(users.id, task.profile.id));
 

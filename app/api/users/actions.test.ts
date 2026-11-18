@@ -68,6 +68,9 @@ vi.mock("@/app/lib/programs/anonymization", () => ({
   anonymizeProgramPurchasesForUser: vi.fn(),
 }));
 vi.mock("@/app/lib/users/clerk", () => ({ deleteClerkUser: vi.fn() }));
+vi.mock("@/app/lib/users/email-changes", () => ({
+  scrubEmailChangesForUser: vi.fn(),
+}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import {

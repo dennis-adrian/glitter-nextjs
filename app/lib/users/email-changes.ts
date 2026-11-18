@@ -1,4 +1,4 @@
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import { isSuppressed } from "@/app/lib/emails/suppressions";
 import { isUniqueViolationOn } from "@/app/lib/errors/postgres";
@@ -37,14 +37,22 @@ const ACCOUNT_TOPICS = [
   "participant_invitations",
 ] as const;
 
+/** Mail not yet sent for good: queued, or held by a worker that may fail. */
+const IN_FLIGHT = ["pending", "processing"] as const;
+
 export type BeginEmailChangeResult =
   | { status: "not_found" }
   | { status: "deletion_pending" }
-  | { status: "same_email" }
+  | { status: "in_progress" }
   | { status: "email_taken" }
   | { status: "suppressed" }
   | {
       status: "ok";
+      /**
+       * The profile already has this address: only Clerk may have something
+       * left to tidy, and nobody is told.
+       */
+      resync: boolean;
       changeId: number;
       clerkId: string;
       /** As stored, read under the lock: where the old-address notice goes. */
@@ -108,13 +116,34 @@ export async function beginEmailChange(
   if (await hasPendingDeletion(user.id, tx)) {
     return { status: "deletion_pending" };
   }
-  if (normalizeEmail(user.email) === newEmail) return { status: "same_email" };
+  // Two runs at once would each read Clerk before the other wrote. A row that
+  // failed or is older than any run can be says nothing is in flight.
+  const [inFlight] = await tx
+    .select({ id: userEmailChanges.id })
+    .from(userEmailChanges)
+    .where(
+      and(
+        eq(userEmailChanges.userId, user.id),
+        isNull(userEmailChanges.completedAt),
+        isNull(userEmailChanges.lastError),
+        sql`${userEmailChanges.createdAt} > now() - interval '2 minutes'`,
+      ),
+    )
+    .limit(1);
+  if (inFlight) return { status: "in_progress" };
+
   if (await emailBelongsToAnother(tx, user.id, newEmail)) {
     return { status: "email_taken" };
   }
+  // Repeating the current address is how an admin clears what an earlier
+  // change left behind in Clerk.
+  const resync = normalizeEmail(user.email) === newEmail;
   // Every notify() email to a suppressed address is skipped, and Resend drops
   // the rest: the person would stop hearing from us, starting with the notice.
-  if (await isSuppressed(newEmail, tx)) return { status: "suppressed" };
+  // On a resync the address is already theirs, so there is nothing to protect.
+  if (!resync && (await isSuppressed(newEmail, tx))) {
+    return { status: "suppressed" };
+  }
 
   const [change] = await tx
     .insert(userEmailChanges)
@@ -129,6 +158,7 @@ export async function beginEmailChange(
 
   return {
     status: "ok",
+    resync,
     changeId: change.id,
     clerkId: user.clerkId,
     oldEmail: user.email,
@@ -206,9 +236,10 @@ export async function completeEmailChange(
     return { status: "email_taken" };
   }
 
-  // Each outbox froze the address when the mail was queued. Only rows nobody
-  // has picked up move: a worker holding a lease has already read its row, and
-  // sent rows are history. Keys stay as they are; they are only dedup tokens.
+  // Each outbox froze the address when the mail was queued. Rows a worker
+  // holds move too: it has already read its copy, but a send that fails puts
+  // the row back to pending with whatever address it carries. Finished rows
+  // are history. Keys stay as they are; they are only dedup tokens.
 
   // The drain tells the owner from an admin by comparing this address with the
   // profile's, so a stale one sends the wrong template or fails the job.
@@ -218,7 +249,7 @@ export async function completeEmailChange(
     .where(
       and(
         eq(reservationNotificationJobs.userId, userId),
-        eq(reservationNotificationJobs.status, "pending"),
+        inArray(reservationNotificationJobs.status, [...IN_FLIGHT]),
       ),
     );
 
@@ -234,7 +265,7 @@ export async function completeEmailChange(
     .where(
       and(
         eq(disciplinaryNotificationJobs.userId, userId),
-        eq(disciplinaryNotificationJobs.status, "pending"),
+        inArray(disciplinaryNotificationJobs.status, [...IN_FLIGHT]),
         sql`jsonb_typeof(${disciplinaryNotificationJobs.payload} -> 'profile') = 'object'`,
       ),
     );
@@ -249,7 +280,7 @@ export async function completeEmailChange(
         eq(notificationDeliveries.userId, userId),
         eq(notificationDeliveries.channel, "email"),
         eq(notificationDeliveries.lane, "transactional"),
-        eq(notificationDeliveries.status, "pending"),
+        inArray(notificationDeliveries.status, [...IN_FLIGHT]),
       ),
     );
 
@@ -335,6 +366,22 @@ export async function recordEmailChangeNotices(
       updatedAt: sql`now()`,
     })
     .where(eq(userEmailChanges.id, changeId));
+}
+
+/**
+ * For a profile about to be deleted: the audit keeps who, when and how it
+ * ended, and lets go of the addresses. Run before the delete, which nulls
+ * `user_id` and with it the way to find these rows.
+ */
+export async function scrubEmailChangesForUser(
+  tx: EmailChangeTx,
+  userId: number,
+) {
+  // Blank, not null: both columns are NOT NULL.
+  await tx
+    .update(userEmailChanges)
+    .set({ oldEmail: "", newEmail: "", updatedAt: sql`now()` })
+    .where(eq(userEmailChanges.userId, userId));
 }
 
 /**
