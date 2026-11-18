@@ -859,6 +859,22 @@ describeDatabase("deleting a profile", () => {
     ).toBe("unknown");
     // Not released at once: Clerk was read, and a minute is inside the window.
     expect(clerkLoginStatus).toHaveBeenCalled();
+    const [kept] = await activePending(f.oldAccount.clerkId);
+    // And now on record as a marker: the error that told it apart is replaced
+    // by the next write, which must not make it look like it never sent one.
+    expect(kept.clerkAttemptedAt?.getTime()).toBe(kept.updatedAt.getTime());
+    await integrationDb!
+      .update(pendingUserDeletions)
+      .set({ lastError: "blocked_login_unconfirmed: participations" })
+      .where(eq(pendingUserDeletions.id, pending.id));
+    expect(
+      await core.releaseRefusedDeletion({
+        profileId: f.oldAccount.id,
+        pendingId: pending.id,
+        clerkId: f.oldAccount.clerkId,
+        clerkBudgetMs: 1_000,
+      }),
+    ).toBe("unknown");
     expect(await activePending(f.oldAccount.clerkId)).toHaveLength(1);
   });
 
@@ -1197,6 +1213,128 @@ describeDatabase("deleting a profile", () => {
       expect(row.clerkAttemptedAt!.getTime()).toBeGreaterThanOrEqual(
         released - 50,
       );
+    });
+
+    /**
+     * Runs `between` after the deletion's first transaction commits and
+     * before its second opens, through the app's own `db`.
+     */
+    async function betweenTheTwoTransactions(between: () => Promise<void>) {
+      const { db } = await import("@/db");
+      const original = db.transaction.bind(db);
+      let calls = 0;
+      return vi
+        .spyOn(db, "transaction")
+        .mockImplementation(async (...args: Parameters<typeof original>) => {
+          calls += 1;
+          if (calls === 2) await between();
+          return original(...args);
+        });
+    }
+
+    it("keeps another attempt's unconfirmed request on record after a definite no to its own", async () => {
+      const f = await seed();
+      await transferAway(f);
+      const pendingId = await pendingFor(f);
+      const core = await import("@/app/lib/users/profile-deletion");
+      // Between the two transactions, another attempt sends its own request,
+      // which times out: its marker is on the row when this one goes on.
+      const theirs = new Date(Date.now() - 1_000);
+      const spy = await betweenTheTwoTransactions(async () => {
+        await pool!.query(
+          "UPDATE pending_user_deletions SET clerk_attempted_at = $1, last_error = 'clerk_delete_failed: timed out' WHERE id = $2",
+          [theirs, pendingId],
+        );
+      });
+      deleteClerkUser.mockResolvedValue({
+        success: false,
+        status: "request_failed",
+        message: "Clerk 429",
+        definite: true,
+      });
+      clerkLoginStatus.mockResolvedValue("exists");
+
+      try {
+        expect(
+          (
+            await core.finalizeProfileDeletion({
+              profileId: f.oldAccount.id,
+              pendingId,
+              clerkId: f.oldAccount.clerkId,
+              clerkBudgetMs: 1_000,
+            })
+          ).kind,
+        ).toBe("clerk_not_deleted");
+      } finally {
+        spy.mockRestore();
+      }
+      const [row] = await activePending(f.oldAccount.clerkId);
+      expect(row.clerkAttemptedAt?.getTime()).toBe(theirs.getTime());
+    });
+
+    it("puts back exactly the marker it replaced when it stops before sending", async () => {
+      const f = await seed();
+      await transferAway(f);
+      const core = await import("@/app/lib/users/profile-deletion");
+      // An unconfirmed request from ten minutes ago that no read has settled.
+      const unsettled = new Date(Date.now() - 10 * 60_000);
+      const [pending] = await integrationDb!
+        .insert(pendingUserDeletions)
+        .values({
+          userId: f.oldAccount.id,
+          clerkId: f.oldAccount.clerkId,
+          clerkAttemptedAt: unsettled,
+        })
+        .returning({ id: pendingUserDeletions.id });
+      // A participation lands between the two transactions: it stops.
+      const spy = await betweenTheTwoTransactions(async () => {
+        await integrationDb!
+          .insert(reservationParticipants)
+          .values({ userId: f.oldAccount.id, reservationId: f.reservation.id });
+      });
+
+      try {
+        expect(
+          (
+            await core.finalizeProfileDeletion({
+              profileId: f.oldAccount.id,
+              pendingId: pending.id,
+              clerkId: f.oldAccount.clerkId,
+              clerkBudgetMs: 1_000,
+            })
+          ).kind,
+        ).toBe("blocked");
+      } finally {
+        spy.mockRestore();
+      }
+      expect(deleteClerkUser).not.toHaveBeenCalled();
+      const [row] = await activePending(f.oldAccount.clerkId);
+      expect(row.clerkAttemptedAt?.getTime()).toBe(unsettled.getTime());
+    });
+
+    it("reports a failure of its first transaction instead of throwing", async () => {
+      const f = await seed();
+      await transferAway(f);
+      const pendingId = await pendingFor(f);
+      const core = await import("@/app/lib/users/profile-deletion");
+      const { db } = await import("@/db");
+      const spy = vi
+        .spyOn(db, "transaction")
+        .mockRejectedValueOnce(new Error("connection lost"));
+
+      try {
+        expect(
+          await core.finalizeProfileDeletion({
+            profileId: f.oldAccount.id,
+            pendingId,
+            clerkId: f.oldAccount.clerkId,
+            clerkBudgetMs: 1_000,
+          }),
+        ).toMatchObject({ kind: "local_failed", loginGone: false });
+      } finally {
+        spy.mockRestore();
+      }
+      expect(deleteClerkUser).not.toHaveBeenCalled();
     });
 
     it("decides whether an attempt has settled before reading the login, not after", async () => {

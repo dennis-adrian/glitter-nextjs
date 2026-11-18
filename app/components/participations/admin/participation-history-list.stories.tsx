@@ -220,6 +220,35 @@ export const TransferConfirmed: Story = {
   },
 };
 
+/**
+ * What would move changed between the preview and the confirm: the refusal
+ * must not leave the old plan on screen to be confirmed again.
+ */
+export const TransferPlanChanged: Story = {
+  play: async (context) => {
+    await TransferDialog.play!(context);
+    mocked(transferReservationParticipationAction).mockResolvedValueOnce({
+      success: false,
+      code: "TRANSFER_PLAN_CHANGED",
+      message:
+        "Lo que se iba a mover cambió desde que lo revisaste. Volvé a elegir la cuenta de destino para ver lo que se moverá ahora.",
+    } as never);
+    const dialog = within(await within(document.body).findByRole("dialog"));
+    await userEvent.click(
+      dialog.getByRole("button", { name: "Transferir participación" }),
+    );
+    // Read again for the same account, so what is confirmed next is current.
+    await waitFor(() =>
+      expect(previewParticipantTransferAction).toHaveBeenCalledTimes(2),
+    );
+    await expect(previewParticipantTransferAction).toHaveBeenLastCalledWith({
+      reservationId: 7,
+      fromUserId: 1,
+      toUserId: 42,
+    });
+  },
+};
+
 export const TransferRefused: Story = {
   play: async ({ canvasElement }) => {
     mocked(previewParticipantTransferAction).mockResolvedValueOnce({

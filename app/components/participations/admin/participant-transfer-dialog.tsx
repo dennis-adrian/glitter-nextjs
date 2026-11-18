@@ -175,6 +175,12 @@ export default function ParticipantTransferDialog({
 
       if (!result.success) {
         toast.error(result.message);
+        if ("code" in result && result.code === "TRANSFER_PLAN_CHANGED") {
+          // The plan on screen is out of date: read it again for the same
+          // account, so the admin confirms what would move now.
+          void choose(target);
+          return;
+        }
         setIdempotencyKey(crypto.randomUUID());
         return;
       }
