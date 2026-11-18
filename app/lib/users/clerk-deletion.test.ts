@@ -70,7 +70,7 @@ describe("deleteClerkLogin", () => {
     clerkLoginStatus.mockResolvedValue("exists");
     expect(await deleteClerkLogin("c1", 20)).toEqual({
       kind: "unknown",
-      message: "clerk_delete_timed_out",
+      message: "clerk_delete_failed: timed out",
     });
 
     clerkLoginStatus.mockResolvedValue("gone");

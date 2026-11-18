@@ -130,6 +130,13 @@ export const pendingUserDeletions = pgTable(
     }),
     clerkId: text("clerk_id").notNull(),
     clerkDeletedAt: timestamp("clerk_deleted_at"),
+    /**
+     * Set while a Clerk deletion was sent but its outcome is not known (a
+     * timeout, or an error Clerk could not resolve). Cleared on a definite
+     * answer. While set, the row is never released on a later "the login
+     * still exists": the earlier request may still land.
+     */
+    clerkAttemptedAt: timestamp("clerk_attempted_at"),
     localDeletedAt: timestamp("local_deleted_at"),
     lastError: text("last_error"),
     attempts: integer("attempts").default(0).notNull(),

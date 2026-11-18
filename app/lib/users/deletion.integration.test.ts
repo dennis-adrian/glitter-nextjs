@@ -22,6 +22,7 @@ import {
   invoices,
   payments,
   pendingUserDeletions,
+  pushSubscriptions,
   reservationFeatureActions,
   reservationParticipants,
   reservationRequestRegistry,
@@ -534,7 +535,8 @@ describeDatabase("deleting a profile", () => {
 
     expect(await userActions.deleteProfile(f.oldAccount.id, NO_STATE)).toEqual({
       success: false,
-      message: "Error al eliminar el perfil",
+      message:
+        "No se pudo eliminar la cuenta de acceso. El perfil quedó como estaba; volvé a intentar.",
     });
     expect(await userExists(f.oldAccount.id)).toBe(true);
     // Nothing keeps treating it as being deleted: credits, notices and push
@@ -594,46 +596,169 @@ describeDatabase("deleting a profile", () => {
   });
 
   describe("a retry refused for a blocker added since the last try", () => {
-    // The account still holds its participation; the earlier try's outcome at
-    // Clerk was never confirmed.
-    async function seedRetried() {
+    // The account still holds its participation. `attemptedAgoMs` puts an
+    // earlier Clerk request whose outcome was never confirmed on the row.
+    async function seedRetried(attemptedAgoMs: number | null) {
       const f = await seed();
       await integrationDb!.insert(pendingUserDeletions).values({
         userId: f.oldAccount.id,
         clerkId: f.oldAccount.clerkId,
-        lastError: "clerk_delete_timed_out",
+        clerkAttemptedAt:
+          attemptedAgoMs == null ? null : new Date(Date.now() - attemptedAgoMs),
+        lastError: "clerk_delete_failed: timed out",
       });
       return f;
     }
 
-    it("releases the account when its login is still there", async () => {
-      const f = await seedRetried();
+    const participations = () =>
+      blockers.PROFILE_DELETION_BLOCK_MESSAGES.participations;
+
+    it("releases the account at once when no Clerk request was ever sent", async () => {
+      const f = await seedRetried(null);
+
+      expect(
+        await userActions.deleteProfile(f.oldAccount.id, NO_STATE),
+      ).toEqual({ success: false, message: participations() });
+      expect(clerkLoginStatus).not.toHaveBeenCalled();
+      expect(deleteClerkUser).not.toHaveBeenCalled();
+      expect(await activePending(f.oldAccount.clerkId)).toEqual([]);
+    });
+
+    it("keeps it pending while a recent unconfirmed request could still land", async () => {
+      const f = await seedRetried(30_000);
+      // The login is still there now, but the request that timed out may
+      // reach Clerk afterwards: releasing would strand the profile unseen.
       clerkLoginStatus.mockResolvedValue("exists");
 
       expect(
         await userActions.deleteProfile(f.oldAccount.id, NO_STATE),
       ).toEqual({
         success: false,
-        message: blockers.PROFILE_DELETION_BLOCK_MESSAGES.participations,
+        message: `${participations()} No pudimos confirmar si su cuenta de acceso sigue activa: volvé a intentar en unos minutos.`,
       });
-      expect(deleteClerkUser).not.toHaveBeenCalled();
+      expect(await activePending(f.oldAccount.clerkId)).toHaveLength(1);
+    });
+
+    it("releases it once the unconfirmed request is too old to land", async () => {
+      const f = await seedRetried(10 * 60_000);
+      clerkLoginStatus.mockResolvedValue("exists");
+
+      expect(
+        await userActions.deleteProfile(f.oldAccount.id, NO_STATE),
+      ).toEqual({ success: false, message: participations() });
       expect(await activePending(f.oldAccount.clerkId)).toEqual([]);
     });
 
     it("says the profile has no login left when the earlier try had removed it", async () => {
-      const f = await seedRetried();
+      const f = await seedRetried(30_000);
       clerkLoginStatus.mockResolvedValue("gone");
 
       expect(
         await userActions.deleteProfile(f.oldAccount.id, NO_STATE),
       ).toEqual({
         success: false,
-        message: `${blockers.PROFILE_DELETION_BLOCK_MESSAGES.participations} Su cuenta de acceso ya fue eliminada, así que esta persona ya no puede iniciar sesión con ella.`,
+        message: `${participations()} Su cuenta de acceso ya fue eliminada, así que esta persona ya no puede iniciar sesión con ella.`,
       });
       expect(await userExists(f.oldAccount.id)).toBe(true);
       const [pending] = await activePending(f.oldAccount.clerkId);
       expect(pending.clerkDeletedAt).not.toBeNull();
     });
+  });
+
+  it("keeps the push devices of an account whose deletion does not go ahead", async () => {
+    const f = await seed();
+    await transferAway(f);
+    await integrationDb!.insert(pushSubscriptions).values({
+      userId: f.oldAccount.id,
+      endpoint: `https://push.example.test/${randomUUID()}`,
+      p256dh: "key",
+      auth: "auth",
+      applicationServerKey: "server-key",
+    });
+    // Past every check, then stopped at Clerk with the login still there:
+    // the devices used to go when the deletion was claimed.
+    deleteClerkUser.mockResolvedValue({
+      success: false,
+      status: "request_failed",
+      message: "Clerk 500",
+    });
+    clerkLoginStatus.mockResolvedValue("exists");
+
+    try {
+      expect(
+        (await userActions.deleteProfile(f.oldAccount.id, NO_STATE)).success,
+      ).toBe(false);
+      const devices = await integrationDb!
+        .select({ id: pushSubscriptions.id })
+        .from(pushSubscriptions)
+        .where(eq(pushSubscriptions.userId, f.oldAccount.id));
+      expect(devices).toHaveLength(1);
+    } finally {
+      await integrationDb!
+        .delete(pushSubscriptions)
+        .where(eq(pushSubscriptions.userId, f.oldAccount.id));
+    }
+  });
+
+  it("tells the admin the login is gone when the local delete fails after it", async () => {
+    const f = await seed();
+    await transferAway(f);
+    deleteClerkUser.mockResolvedValue({ success: true, status: "deleted" });
+    // A failure in the local delete after Clerk has removed the login.
+    const scrub = await import("@/app/lib/notifications/scrub");
+    const spy = vi
+      .spyOn(scrub, "scrubNotificationsNamingUser")
+      .mockRejectedValueOnce(new Error("scrub failed"));
+
+    try {
+      expect(
+        await userActions.deleteProfile(f.oldAccount.id, NO_STATE),
+      ).toEqual({
+        success: false,
+        message:
+          "La cuenta de acceso ya fue eliminada, pero el perfil no se pudo borrar. Volvé a intentar; si se repite, revisá el registro de errores.",
+      });
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await userExists(f.oldAccount.id)).toBe(true);
+    // Recorded although the transaction rolled back, so the retry finishes
+    // without asking Clerk again.
+    const [pending] = await activePending(f.oldAccount.clerkId);
+    expect(pending.clerkDeletedAt).not.toBeNull();
+
+    deleteClerkUser.mockClear();
+    expect(await userActions.deleteProfile(f.oldAccount.id, NO_STATE)).toEqual({
+      success: true,
+      message: "Perfil eliminado",
+    });
+    expect(deleteClerkUser).not.toHaveBeenCalled();
+  });
+
+  it("stops without calling Clerk when another attempt already released the pending row", async () => {
+    const db = integrationDb!;
+    const f = await seed();
+    await transferAway(f);
+    const [pending] = await db
+      .insert(pendingUserDeletions)
+      .values({ userId: f.oldAccount.id, clerkId: f.oldAccount.clerkId })
+      .returning({ id: pendingUserDeletions.id });
+    // Released by a concurrent refusal before this attempt took the lock.
+    await db
+      .delete(pendingUserDeletions)
+      .where(eq(pendingUserDeletions.id, pending.id));
+
+    const core = await import("@/app/lib/users/profile-deletion");
+    expect(
+      await core.finalizeProfileDeletion({
+        profileId: f.oldAccount.id,
+        pendingId: pending.id,
+        clerkId: f.oldAccount.clerkId,
+        clerkBudgetMs: 1_000,
+      }),
+    ).toEqual({ kind: "conflict" });
+    expect(deleteClerkUser).not.toHaveBeenCalled();
+    expect(await userExists(f.oldAccount.id)).toBe(true);
   });
 
   it("accounts for every reference to users that refuses a delete", async () => {

@@ -5,10 +5,11 @@ import type { ScheduledTaskWithProfile } from "@/app/lib/profile_tasks/definitio
 const transactionMock = vi.hoisted(() => vi.fn());
 const updateMock = vi.hoisted(() => vi.fn());
 const selectMock = vi.hoisted(() => vi.fn());
-const deleteClerkUserMock = vi.hoisted(() => vi.fn());
-const anonymizeMock = vi.hoisted(() => vi.fn());
+const finalizeMock = vi.hoisted(() => vi.fn());
+const releaseMock = vi.hoisted(() => vi.fn());
+const noteErrorMock = vi.hoisted(() => vi.fn());
+const blockerMock = vi.hoisted(() => vi.fn());
 const detachPostsMock = vi.hoisted(() => vi.fn());
-const scrubInboxNamesMock = vi.hoisted(() => vi.fn());
 const sendEmailMock = vi.hoisted(() => vi.fn());
 
 vi.mock("server-only", () => ({}));
@@ -21,20 +22,22 @@ vi.mock("@/db", () => ({
   },
 }));
 
-vi.mock("@/app/lib/users/clerk", () => ({
-  deleteClerkUser: deleteClerkUserMock,
+// The Clerk call and the local delete live in the shared core, tested against
+// a real database in app/lib/users/deletion.integration.test.ts. Here only the
+// cron's own decisions are under test: what it claims, how it reads each
+// outcome, its budget and its notices.
+vi.mock("@/app/lib/users/profile-deletion", () => ({
+  finalizeProfileDeletion: finalizeMock,
+  releaseRefusedDeletion: releaseMock,
+  noteDeletionError: noteErrorMock,
 }));
 
-vi.mock("@/app/lib/programs/anonymization", () => ({
-  anonymizeProgramPurchasesForUser: anonymizeMock,
+vi.mock("@/app/lib/users/deletion-blockers", () => ({
+  findProfileDeletionBlocker: blockerMock,
 }));
 
 vi.mock("@/app/lib/posts/anonymization", () => ({
   detachPostsForDeletedUser: detachPostsMock,
-}));
-
-vi.mock("@/app/lib/notifications/scrub", () => ({
-  scrubNotificationsNamingUser: scrubInboxNamesMock,
 }));
 
 // The payment reminder's in-app copy; these tests never reach it, and the
@@ -81,7 +84,7 @@ let owedEmails: {
   attempts?: number;
 }[];
 let eligibleOrdered: boolean;
-/** Rows locked FOR UPDATE, in call order. */
+/** Rows locked FOR UPDATE or inserted in the claim, in call order. */
 let lockedForUpdate: string[];
 
 function makeTask(overrides: {
@@ -110,9 +113,9 @@ function recordingUpdate() {
 }
 
 /**
- * First transaction: reads the bounded batch of overdue tasks, then per task
- * either finds an existing outbox row or inserts one. `lookups` is consumed in
- * task order.
+ * The claiming transaction: reads the bounded batch of overdue tasks, then per
+ * task either finds an existing outbox row or inserts one. `lookups` is
+ * consumed in task order.
  */
 function claimTx(
   overdueTasks: ScheduledTaskWithProfile[],
@@ -177,57 +180,30 @@ function claimTx(
     })),
     insert: vi.fn(() => ({
       values: vi.fn(() => ({
-        returning: vi.fn(async () => [{ id: pendingInserts.shift() ?? 0 }]),
+        returning: vi.fn(async () => {
+          lockedForUpdate.push("pending:insert");
+          return [{ id: pendingInserts.shift() ?? 0 }];
+        }),
       })),
     })),
-    // The profile's push devices go under the user lock.
-    delete: vi.fn(() => ({
-      where: vi.fn(async () => {
-        lockedForUpdate.push("push_subscriptions:delete");
-        return [];
-      }),
-    })),
-  };
-}
-
-/** Per-profile transaction whose delete blows up, to exercise the catch. */
-function failingDeleteTx(error: unknown) {
-  return {
-    delete: vi.fn(() => {
-      throw error;
-    }),
+    // Closing the task of a profile that has to stay.
     update: recordingUpdate(),
   };
 }
 
-/** Per-profile transaction: anonymize, delete the user, stamp the outbox. */
-function deleteTx(deletedRows: unknown[]) {
-  return {
-    delete: vi.fn(() => ({
-      where: vi.fn(() => ({
-        returning: vi.fn(async () => deletedRows),
-      })),
-    })),
-    update: recordingUpdate(),
-  };
-}
-
-function runTransactions(...txObjects: unknown[]) {
-  const queue = [...txObjects];
+/** The cron opens one transaction of its own: the claim. */
+function runClaim(claim: unknown) {
   transactionMock.mockImplementation(
     async (callback: (tx: unknown) => unknown) => {
-      const tx = queue.shift();
-      const label =
-        queue.length === txObjects.length - 1 ? "claim-tx" : "delete-tx";
-      timeline.push(`${label}:start`);
-      const result = await callback(tx);
-      timeline.push(`${label}:end`);
+      timeline.push("claim-tx:start");
+      const result = await callback(claim);
+      timeline.push("claim-tx:end");
       return result;
     },
   );
 }
 
-const deletedOk = { success: true, status: "deleted", message: "ok" };
+const closedTask = { ranAfterDueDate: true, updatedAt: expect.any(Date) };
 
 describe("handleDeletionEmails", () => {
   beforeEach(() => {
@@ -239,15 +215,24 @@ describe("handleDeletionEmails", () => {
     owedEmails = [];
     transactionMock.mockReset();
     updateMock.mockReset();
-    deleteClerkUserMock.mockReset();
-    anonymizeMock.mockReset();
+    finalizeMock.mockReset();
+    releaseMock.mockReset();
+    noteErrorMock.mockReset();
+    blockerMock.mockReset();
     detachPostsMock.mockReset();
-    scrubInboxNamesMock.mockReset();
     sendEmailMock.mockReset();
 
-    anonymizeMock.mockResolvedValue(undefined);
+    finalizeMock.mockImplementation(async () => {
+      timeline.push("finalize");
+      return { kind: "deleted" };
+    });
+    blockerMock.mockResolvedValue(null);
+    noteErrorMock.mockImplementation(
+      async (pendingId: number, lastError: string, extra = {}) => {
+        writes.push({ pendingId, lastError, ...extra });
+      },
+    );
     detachPostsMock.mockResolvedValue({ deleted: 0, detached: 0 });
-    scrubInboxNamesMock.mockResolvedValue(0);
     sendEmailMock.mockResolvedValue({ data: { id: "email_1" }, error: null });
     updateMock.mockImplementation(recordingUpdate());
     // db.select(...)...limit() drives the deletion-email drain.
@@ -269,36 +254,351 @@ describe("handleDeletionEmails", () => {
     vi.restoreAllMocks();
   });
 
-  it("deletes the profile and reports the task once Clerk confirms", async () => {
+  it("deletes the profile through the shared core and reports the task", async () => {
     const task = makeTask({ taskId: 7, profileId: 12, clerkId: "user_abc" });
-    deleteClerkUserMock.mockResolvedValue(deletedOk);
     owedEmails = [{ pendingId: 55, recipientEmail: "user12@example.com" }];
-    runTransactions(claimTx([task], [undefined], [55]), deleteTx([{ id: 12 }]));
+    runClaim(claimTx([task], [undefined], [55]));
 
     const result = await handleDeletionEmails();
 
-    expect(deleteClerkUserMock).toHaveBeenCalledWith("user_abc");
-    expect(anonymizeMock).toHaveBeenCalledTimes(1);
-    // Posts are settled on the same path, before the user row goes.
-    expect(detachPostsMock).toHaveBeenCalledTimes(1);
-    // So is their name in other people's inbox items.
-    expect(scrubInboxNamesMock).toHaveBeenCalledWith(expect.anything(), 12);
+    expect(finalizeMock).toHaveBeenCalledTimes(1);
+    const input = finalizeMock.mock.calls[0][0];
+    expect(input).toMatchObject({
+      profileId: 12,
+      pendingId: 55,
+      clerkId: "user_abc",
+    });
+    // Bounded by the cron's own Clerk timeout.
+    expect(input.clerkBudgetMs).toBeGreaterThan(0);
+    expect(input.clerkBudgetMs).toBeLessThanOrEqual(10_000);
+    // The address is carried over because the profile it came from is gone,
+    // and the notice phase starts from a clean retry budget.
+    const now = new Date();
+    expect(input.deletedPendingValues(now)).toEqual({
+      recipientEmail: "user12@example.com",
+      attempts: 0,
+      nextAttemptAt: now,
+    });
+    // Posts are settled on the same path, inside the delete.
+    await input.beforeUserDelete("tx", now);
+    expect(detachPostsMock).toHaveBeenCalledWith("tx", 12);
     expect(result).toEqual([task]);
-    // The task row itself is removed by the ON DELETE CASCADE on profile_id;
-    // closing the outbox entry is what marks the work done. The address is
-    // carried over because the profile it came from is gone.
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts the delete only after the claiming transaction has committed", async () => {
+    const task = makeTask({ taskId: 10, profileId: 15, clerkId: "user_order" });
+    runClaim(claimTx([task], [undefined], [58]));
+
+    await handleDeletionEmails();
+
+    expect(timeline).toEqual(["claim-tx:start", "claim-tx:end", "finalize"]);
+  });
+
+  it("keeps the profile and records the error when Clerk keeps the login", async () => {
+    const task = makeTask({ taskId: 9, profileId: 14, clerkId: "user_bad" });
+    finalizeMock.mockResolvedValue({
+      kind: "clerk_not_deleted",
+      message: "clerk_delete_failed: Error al eliminar la cuenta.",
+    });
+    runClaim(claimTx([task], [undefined], [57]));
+
+    const result = await handleDeletionEmails();
+
+    expect(result).toEqual([]);
+    expect(sendEmailMock).not.toHaveBeenCalled();
     expect(writes).toContainEqual(
       expect.objectContaining({
-        localDeletedAt: expect.any(Date),
-        recipientEmail: "user12@example.com",
+        attempts: 1,
+        lastError: "clerk_delete_failed: Error al eliminar la cuenta.",
       }),
     );
-    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries an unconfirmed Clerk outcome on a later run", async () => {
+    const task = makeTask({ taskId: 12, profileId: 17, clerkId: "user_unk" });
+    finalizeMock.mockResolvedValue({
+      kind: "clerk_unknown",
+      message: "clerk_delete_failed: timed out",
+    });
+    runClaim(claimTx([task], [{ id: 62, clerkDeletedAt: null, attempts: 2 }]));
+
+    const result = await handleDeletionEmails();
+
+    expect(result).toEqual([]);
+    expect(writes).toContainEqual(
+      expect.objectContaining({
+        attempts: 3,
+        lastError: "clerk_delete_failed: timed out",
+      }),
+    );
+  });
+
+  it("leaves a deletion another attempt has taken over alone", async () => {
+    const task = makeTask({ taskId: 13, profileId: 18, clerkId: "user_race" });
+    finalizeMock.mockResolvedValue({ kind: "conflict" });
+    runClaim(claimTx([task], [undefined], [63]));
+
+    const result = await handleDeletionEmails();
+
+    expect(result).toEqual([]);
+    expect(writes).toEqual([]);
+  });
+
+  it("increments attempts and backs off when Clerk fails", async () => {
+    const task = makeTask({ taskId: 50, profileId: 60, clerkId: "user_retry" });
+    finalizeMock.mockResolvedValue({
+      kind: "clerk_not_deleted",
+      message: "clerk_delete_failed: boom",
+    });
+    // Second attempt on a row that already failed once.
+    runClaim(claimTx([task], [{ id: 90, clerkDeletedAt: null, attempts: 1 }]));
+
+    const before = Date.now();
+    await handleDeletionEmails();
+
+    const failure = writes.find((write) => "attempts" in write);
+    expect(failure).toBeDefined();
+    expect(failure!.attempts).toBe(2);
+    expect(failure!.lastError).toBe("clerk_delete_failed: boom");
+    // 60s * 2^(2-1) = 120s of backoff before this row is eligible again.
+    expect((failure!.nextAttemptAt as Date).getTime()).toBeGreaterThanOrEqual(
+      before + 120_000,
+    );
+  });
+
+  it("keeps counting up to the cap so an unfixable profile stops being claimed", async () => {
+    const task = makeTask({ taskId: 51, profileId: 61, clerkId: "user_stuck" });
+    finalizeMock.mockResolvedValue({
+      kind: "clerk_not_deleted",
+      message: "clerk_delete_failed: still broken",
+    });
+    // One short of MAX_DELETION_ATTEMPTS (5).
+    runClaim(claimTx([task], [{ id: 91, clerkDeletedAt: null, attempts: 4 }]));
+
+    await handleDeletionEmails();
+
+    const failure = writes.find((write) => "attempts" in write);
+    // At 5 the claim query stops selecting the row, and lastError survives for
+    // an operator to read.
+    expect(failure!.attempts).toBe(5);
+    expect(failure!.lastError).toBe("clerk_delete_failed: still broken");
+  });
+
+  describe("a profile something keeps (an infraction, credits, a reservation)", () => {
+    it("is never queued, so Clerk is never asked, and its task is closed", async () => {
+      const task = makeTask({ taskId: 14, profileId: 19, clerkId: "user_k" });
+      blockerMock.mockResolvedValue("infractions");
+      runClaim(claimTx([task], [undefined], [64]));
+
+      const result = await handleDeletionEmails();
+
+      expect(blockerMock).toHaveBeenCalledWith(expect.anything(), 19);
+      expect(finalizeMock).not.toHaveBeenCalled();
+      expect(releaseMock).not.toHaveBeenCalled();
+      // No outbox row was created for it, and the task stops being claimed.
+      expect(lockedForUpdate).toEqual(["users:update", "pending:update"]);
+      expect(writes).toEqual([closedTask]);
+      expect(result).toEqual([]);
+    });
+
+    it("on a retry, gives the account back when its login is certainly intact", async () => {
+      const task = makeTask({ taskId: 15, profileId: 20, clerkId: "user_r" });
+      blockerMock.mockResolvedValue("credit_history");
+      releaseMock.mockResolvedValue("intact");
+      runClaim(
+        claimTx([task], [{ id: 65, clerkDeletedAt: null, attempts: 1 }]),
+      );
+
+      await handleDeletionEmails();
+
+      expect(finalizeMock).not.toHaveBeenCalled();
+      expect(releaseMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          profileId: 20,
+          pendingId: 65,
+          clerkId: "user_r",
+        }),
+      );
+      expect(writes).toEqual([closedTask]);
+    });
+
+    it("on a retry, retries later when Clerk cannot confirm the login", async () => {
+      const task = makeTask({ taskId: 18, profileId: 23, clerkId: "user_q" });
+      blockerMock.mockResolvedValue("participations");
+      releaseMock.mockResolvedValue("unknown");
+      runClaim(
+        claimTx([task], [{ id: 68, clerkDeletedAt: null, attempts: 1 }]),
+      );
+
+      await handleDeletionEmails();
+
+      expect(writes).toEqual([
+        expect.objectContaining({
+          attempts: 2,
+          lastError: "blocked_login_unconfirmed: participations",
+        }),
+      ]);
+    });
+
+    it("is parked for an operator when its login is already gone", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      const task = makeTask({ taskId: 16, profileId: 21, clerkId: "user_g" });
+      finalizeMock.mockResolvedValue({
+        kind: "blocked",
+        blocker: "sanctions",
+        loginAlreadyGone: true,
+      });
+      runClaim(
+        claimTx([task], [{ id: 66, clerkDeletedAt: new Date(), attempts: 0 }]),
+      );
+
+      await handleDeletionEmails();
+
+      // The claim leaves this case to the delete step, which holds the lock.
+      expect(blockerMock).not.toHaveBeenCalled();
+      // Not asked again: the login is known to be gone.
+      expect(releaseMock).not.toHaveBeenCalled();
+      expect(writes).toEqual([
+        {
+          pendingId: 66,
+          lastError: "blocked_after_login_removed: sanctions",
+          attempts: 5,
+        },
+      ]);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "Profile kept without a login: deletion blocked",
+        { profileId: 21, blocker: "sanctions" },
+      );
+    });
+
+    it("settles a blocker that appeared after the claim through the release", async () => {
+      const task = makeTask({ taskId: 17, profileId: 22, clerkId: "user_u" });
+      finalizeMock.mockResolvedValue({
+        kind: "blocked",
+        blocker: "participations",
+        loginAlreadyGone: false,
+      });
+      releaseMock.mockResolvedValue("intact");
+      runClaim(claimTx([task], [undefined], [67]));
+
+      await handleDeletionEmails();
+
+      expect(releaseMock).toHaveBeenCalledWith(
+        expect.objectContaining({ profileId: 22, pendingId: 67 }),
+      );
+      expect(writes).toEqual([closedTask]);
+    });
+  });
+
+  it("persists only schema identifiers when a local delete fails", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const task = makeTask({ taskId: 70, profileId: 80, clerkId: "user_pg" });
+    // A driver error of the shape node-postgres actually throws: the message
+    // quotes the offending row.
+    const pgError = Object.assign(
+      new Error(
+        "update or delete violates foreign key constraint Key (email)=(leak@example.com) is still referenced",
+      ),
+      { code: "23503", constraint: "invoices_user_id_users_id_fk" },
+    );
+    finalizeMock.mockResolvedValue({
+      kind: "local_failed",
+      error: pgError,
+      loginGone: true,
+    });
+    runClaim(claimTx([task], [undefined], [95]));
+
+    await handleDeletionEmails();
+
+    const failure = writes.find((write) => typeof write.lastError === "string");
+    const persisted = failure!.lastError as string;
+    expect(persisted).toContain("local_delete_failed");
+    expect(persisted).toContain("sqlstate=23503");
+    expect(persisted).toContain("constraint=invoices_user_id_users_id_fk");
+    expect(persisted).not.toContain("leak@example.com");
+    expect(persisted.length).toBeLessThanOrEqual(120);
+    // The unredacted error still reaches the logs.
+    expect(consoleSpy).toHaveBeenCalledWith(
+      "Error deleting profile locally",
+      pgError,
+    );
+  });
+
+  it("truncates an oversized detail to the persisted bound", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const task = makeTask({ taskId: 72, profileId: 82, clerkId: "user_long" });
+    finalizeMock.mockResolvedValue({
+      kind: "local_failed",
+      error: Object.assign(new Error("boom"), {
+        code: "23503",
+        constraint: `c_${"x".repeat(300)}`,
+      }),
+      loginGone: true,
+    });
+    runClaim(claimTx([task], [undefined], [97]));
+
+    await handleDeletionEmails();
+
+    const failure = writes.find((write) => typeof write.lastError === "string");
+    expect((failure!.lastError as string).length).toBe(120);
+  });
+
+  it("falls back to the error type when there is no driver code", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const task = makeTask({ taskId: 71, profileId: 81, clerkId: "user_plain" });
+    finalizeMock.mockResolvedValue({
+      kind: "local_failed",
+      error: new TypeError("cannot read property of undefined at row 42"),
+      loginGone: true,
+    });
+    runClaim(claimTx([task], [undefined], [96]));
+
+    await handleDeletionEmails();
+
+    const failure = writes.find((write) => typeof write.lastError === "string");
+    expect(failure!.lastError).toBe("local_delete_failed type=TypeError");
+  });
+
+  it("restarts the retry count when the local delete fails after the login went", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const task = makeTask({ taskId: 60, profileId: 70, clerkId: "user_reset" });
+    finalizeMock.mockResolvedValue({
+      kind: "local_failed",
+      error: new Error("nope"),
+      loginGone: true,
+    });
+    runClaim(claimTx([task], [{ id: 99, clerkDeletedAt: null, attempts: 3 }]));
+
+    await handleDeletionEmails();
+
+    const failure = writes.find((write) => typeof write.lastError === "string");
+    // The Clerk step is done, so this is the first failure of the local
+    // delete, not the fourth try: the claimed count would burn the budget.
+    expect(failure!.attempts).toBe(1);
+  });
+
+  it("keeps counting from the claimed attempts when the login is still there", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const task = makeTask({ taskId: 61, profileId: 71, clerkId: "user_keep" });
+    finalizeMock.mockResolvedValue({
+      kind: "local_failed",
+      error: new Error("before clerk"),
+      loginGone: false,
+    });
+    runClaim(claimTx([task], [{ id: 98, clerkDeletedAt: null, attempts: 2 }]));
+
+    await handleDeletionEmails();
+
+    const failure = writes.find((write) => typeof write.lastError === "string");
+    expect(failure!.attempts).toBe(3);
   });
 
   it("stamps emailSentAt and clears the address once the notice sends", async () => {
     owedEmails = [{ pendingId: 55, recipientEmail: "gone@example.com" }];
-    runTransactions(claimTx([]));
+    runClaim(claimTx([]));
 
     await handleDeletionEmails();
 
@@ -317,7 +617,7 @@ describe("handleDeletionEmails", () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     owedEmails = [{ pendingId: 56, recipientEmail: "retry@example.com" }];
     sendEmailMock.mockResolvedValue({ data: null, error: { message: "550" } });
-    runTransactions(claimTx([]));
+    runClaim(claimTx([]));
 
     await handleDeletionEmails();
 
@@ -331,7 +631,7 @@ describe("handleDeletionEmails", () => {
       { pendingId: 57, recipientEmail: "old1@example.com" },
       { pendingId: 58, recipientEmail: "old2@example.com" },
     ];
-    runTransactions(claimTx([]));
+    runClaim(claimTx([]));
 
     const result = await handleDeletionEmails();
 
@@ -343,7 +643,7 @@ describe("handleDeletionEmails", () => {
 
   it("skips the email drain once the run budget is spent", async () => {
     owedEmails = [{ pendingId: 59, recipientEmail: "late@example.com" }];
-    runTransactions(claimTx([]));
+    runClaim(claimTx([]));
     let claimDone = false;
     transactionMock.mockImplementation(
       async (callback: (tx: unknown) => unknown) => {
@@ -361,294 +661,6 @@ describe("handleDeletionEmails", () => {
     expect(sendEmailMock).not.toHaveBeenCalled();
   });
 
-  it("treats already_deleted as success and still removes the profile", async () => {
-    const task = makeTask({ taskId: 8, profileId: 13, clerkId: "user_gone" });
-    deleteClerkUserMock.mockResolvedValue({
-      success: true,
-      status: "already_deleted",
-      message: "Usuario no encontrado",
-    });
-    runTransactions(claimTx([task], [undefined], [56]), deleteTx([{ id: 13 }]));
-
-    const result = await handleDeletionEmails();
-
-    expect(result).toEqual([task]);
-    expect(writes).toContainEqual(
-      expect.objectContaining({ localDeletedAt: expect.any(Date) }),
-    );
-  });
-
-  it("keeps the profile and records the error when Clerk rejects the delete", async () => {
-    const task = makeTask({ taskId: 9, profileId: 14, clerkId: "user_bad" });
-    deleteClerkUserMock.mockResolvedValue({
-      success: false,
-      status: "request_failed",
-      message: "Error al eliminar la cuenta.",
-    });
-    runTransactions(claimTx([task], [undefined], [57]));
-
-    const result = await handleDeletionEmails();
-
-    // Only the claim transaction ran, so the profile row was never deleted.
-    expect(transactionMock).toHaveBeenCalledTimes(1);
-    expect(anonymizeMock).not.toHaveBeenCalled();
-    expect(scrubInboxNamesMock).not.toHaveBeenCalled();
-    expect(result).toEqual([]);
-    expect(sendEmailMock).not.toHaveBeenCalled();
-    expect(writes).toContainEqual(
-      expect.objectContaining({
-        lastError: "clerk_delete_failed: Error al eliminar la cuenta.",
-      }),
-    );
-    // Nothing closed the outbox entry, so the next run retries this profile.
-    expect(writes.some((write) => "localDeletedAt" in write)).toBe(false);
-  });
-
-  it("calls Clerk only after the claiming transaction has committed", async () => {
-    const task = makeTask({ taskId: 10, profileId: 15, clerkId: "user_order" });
-    deleteClerkUserMock.mockImplementation(async () => {
-      timeline.push("clerk");
-      return deletedOk;
-    });
-    runTransactions(claimTx([task], [undefined], [58]), deleteTx([{ id: 15 }]));
-
-    await handleDeletionEmails();
-
-    expect(timeline).toEqual([
-      "claim-tx:start",
-      "claim-tx:end",
-      "clerk",
-      "delete-tx:start",
-      "delete-tx:end",
-    ]);
-  });
-
-  it("skips the Clerk call when the outbox already recorded the deletion", async () => {
-    const task = makeTask({
-      taskId: 11,
-      profileId: 16,
-      clerkId: "user_resume",
-    });
-    runTransactions(
-      claimTx(
-        [task],
-        [{ id: 59, clerkDeletedAt: new Date("2026-08-01"), attempts: 0 }],
-      ),
-      deleteTx([{ id: 16 }]),
-    );
-
-    const result = await handleDeletionEmails();
-
-    expect(deleteClerkUserMock).not.toHaveBeenCalled();
-    expect(result).toEqual([task]);
-  });
-
-  it("does nothing when no task is overdue", async () => {
-    runTransactions(claimTx([]));
-
-    const result = await handleDeletionEmails();
-
-    expect(result).toEqual([]);
-    expect(deleteClerkUserMock).not.toHaveBeenCalled();
-    expect(transactionMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("claims a bounded batch, oldest first, so one run cannot outgrow its budget", async () => {
-    runTransactions(claimTx([]));
-
-    await handleDeletionEmails();
-
-    expect(claimLimit).toBe(25);
-    expect(eligibleOrdered).toBe(true);
-  });
-
-  it("stops at the time budget and leaves the rest queued for the next run", async () => {
-    const first = makeTask({
-      taskId: 20,
-      profileId: 30,
-      clerkId: "user_first",
-    });
-    const second = makeTask({
-      taskId: 21,
-      profileId: 31,
-      clerkId: "user_second",
-    });
-
-    // Hold the clock still until one deletion is done, then jump past the
-    // deadline so the second iteration bails out.
-    let clerkCalls = 0;
-    deleteClerkUserMock.mockImplementation(async () => {
-      clerkCalls += 1;
-      return deletedOk;
-    });
-    vi.spyOn(Date, "now").mockImplementation(() =>
-      clerkCalls >= 1 ? 10_000_000 : 0,
-    );
-
-    runTransactions(
-      claimTx([first, second], [undefined, undefined], [60, 61]),
-      deleteTx([{ id: 30 }]),
-    );
-
-    const result = await handleDeletionEmails();
-
-    expect(result).toEqual([first]);
-    expect(deleteClerkUserMock).toHaveBeenCalledTimes(1);
-    expect(deleteClerkUserMock).toHaveBeenCalledWith("user_first");
-  });
-
-  it("increments attempts and backs off when Clerk fails", async () => {
-    const task = makeTask({ taskId: 50, profileId: 60, clerkId: "user_retry" });
-    deleteClerkUserMock.mockResolvedValue({
-      success: false,
-      status: "request_failed",
-      message: "boom",
-    });
-    // Second attempt on a row that already failed once.
-    runTransactions(
-      claimTx([task], [{ id: 90, clerkDeletedAt: null, attempts: 1 }]),
-    );
-
-    const before = Date.now();
-    await handleDeletionEmails();
-
-    const failure = writes.find((write) => "attempts" in write);
-    expect(failure).toBeDefined();
-    expect(failure!.attempts).toBe(2);
-    expect(failure!.lastError).toBe("clerk_delete_failed: boom");
-    // 60s * 2^(2-1) = 120s of backoff before this row is eligible again.
-    expect((failure!.nextAttemptAt as Date).getTime()).toBeGreaterThanOrEqual(
-      before + 120_000,
-    );
-  });
-
-  it("keeps counting up to the cap so an unfixable profile stops being claimed", async () => {
-    const task = makeTask({ taskId: 51, profileId: 61, clerkId: "user_stuck" });
-    deleteClerkUserMock.mockResolvedValue({
-      success: false,
-      status: "request_failed",
-      message: "still broken",
-    });
-    // One short of MAX_DELETION_ATTEMPTS (5).
-    runTransactions(
-      claimTx([task], [{ id: 91, clerkDeletedAt: null, attempts: 4 }]),
-    );
-
-    await handleDeletionEmails();
-
-    const failure = writes.find((write) => "attempts" in write);
-    // At 5 the claim query stops selecting the row, and lastError survives for
-    // an operator to read.
-    expect(failure!.attempts).toBe(5);
-    expect(failure!.lastError).toBe("clerk_delete_failed: still broken");
-  });
-
-  it("resets the retry counter once Clerk confirms the deletion", async () => {
-    const task = makeTask({ taskId: 52, profileId: 62, clerkId: "user_ok" });
-    deleteClerkUserMock.mockResolvedValue(deletedOk);
-    runTransactions(
-      claimTx([task], [{ id: 92, clerkDeletedAt: null, attempts: 3 }]),
-      deleteTx([{ id: 62 }]),
-    );
-
-    await handleDeletionEmails();
-
-    expect(writes).toContainEqual(
-      expect.objectContaining({
-        attempts: 0,
-        clerkDeletedAt: expect.any(Date),
-      }),
-    );
-  });
-
-  it("persists only schema identifiers when a local delete fails", async () => {
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const task = makeTask({ taskId: 70, profileId: 80, clerkId: "user_pg" });
-    // A driver error of the shape node-postgres actually throws: the message
-    // quotes the offending row.
-    const pgError = Object.assign(
-      new Error(
-        "update or delete violates foreign key constraint Key (email)=(leak@example.com) is still referenced",
-      ),
-      { code: "23503", constraint: "invoices_user_id_users_id_fk" },
-    );
-    deleteClerkUserMock.mockResolvedValue(deletedOk);
-    runTransactions(
-      claimTx([task], [undefined], [95]),
-      failingDeleteTx(pgError),
-    );
-
-    await handleDeletionEmails();
-
-    // The successful Clerk update also carries attempts, so match on the
-    // failure's non-null lastError.
-    const failure = writes.find((write) => typeof write.lastError === "string");
-    const persisted = failure!.lastError as string;
-    expect(persisted).toContain("local_delete_failed");
-    expect(persisted).toContain("sqlstate=23503");
-    expect(persisted).toContain("constraint=invoices_user_id_users_id_fk");
-    expect(persisted).not.toContain("leak@example.com");
-    expect(persisted.length).toBeLessThanOrEqual(120);
-    // The unredacted error still reaches the logs.
-    expect(consoleSpy).toHaveBeenCalledWith(
-      "Error deleting profile locally",
-      pgError,
-    );
-  });
-
-  it("truncates an oversized detail to the persisted bound", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    const task = makeTask({ taskId: 72, profileId: 82, clerkId: "user_long" });
-    const pgError = Object.assign(new Error("boom"), {
-      code: "23503",
-      constraint: `c_${"x".repeat(300)}`,
-    });
-    deleteClerkUserMock.mockResolvedValue(deletedOk);
-    runTransactions(
-      claimTx([task], [undefined], [97]),
-      failingDeleteTx(pgError),
-    );
-
-    await handleDeletionEmails();
-
-    const failure = writes.find((write) => typeof write.lastError === "string");
-    expect((failure!.lastError as string).length).toBe(120);
-  });
-
-  it("falls back to the error type when there is no driver code", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    const task = makeTask({ taskId: 71, profileId: 81, clerkId: "user_plain" });
-    deleteClerkUserMock.mockResolvedValue(deletedOk);
-    runTransactions(
-      claimTx([task], [undefined], [96]),
-      failingDeleteTx(
-        new TypeError("cannot read property of undefined at row 42"),
-      ),
-    );
-
-    await handleDeletionEmails();
-
-    const failure = writes.find((write) => typeof write.lastError === "string");
-    expect(failure!.lastError).toBe("local_delete_failed type=TypeError");
-  });
-
-  it("restarts the retry count after Clerk succeeds and the local delete fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    const task = makeTask({ taskId: 60, profileId: 70, clerkId: "user_reset" });
-    deleteClerkUserMock.mockResolvedValue(deletedOk);
-    runTransactions(
-      claimTx([task], [{ id: 99, clerkDeletedAt: null, attempts: 3 }]),
-      failingDeleteTx(new Error("nope")),
-    );
-
-    await handleDeletionEmails();
-
-    const failure = writes.find((write) => typeof write.lastError === "string");
-    // The Clerk step reset the row to 0, so this is the first failure since,
-    // not the fourth: using the claimed count would burn the budget early.
-    expect(failure!.attempts).toBe(1);
-  });
-
   it("increments attempts and backs off when the notice fails to send", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     owedEmails = [
@@ -658,7 +670,7 @@ describe("handleDeletionEmails", () => {
       data: null,
       error: { name: "validation_error", statusCode: 422 },
     });
-    runTransactions(claimTx([]));
+    runClaim(claimTx([]));
 
     const before = Date.now();
     await handleDeletionEmails();
@@ -685,7 +697,7 @@ describe("handleDeletionEmails", () => {
       data: null,
       error: { name: "server_error", statusCode: 500 },
     });
-    runTransactions(claimTx([]));
+    runClaim(claimTx([]));
 
     await handleDeletionEmails();
 
@@ -695,41 +707,85 @@ describe("handleDeletionEmails", () => {
     expect(failure!.recipientEmail).toBeNull();
   });
 
-  it("locks the profile row before reading or inserting its outbox entry", async () => {
-    const task = makeTask({ taskId: 80, profileId: 90, clerkId: "user_lock" });
-    deleteClerkUserMock.mockResolvedValue(deletedOk);
-    runTransactions(
-      claimTx([task], [undefined], [100]),
-      deleteTx([{ id: 90 }]),
+  it("claims a bounded batch, oldest first, so one run cannot outgrow its budget", async () => {
+    runClaim(claimTx([]));
+
+    await handleDeletionEmails();
+
+    expect(claimLimit).toBe(25);
+    expect(eligibleOrdered).toBe(true);
+  });
+
+  it("does nothing when no task is overdue", async () => {
+    runClaim(claimTx([]));
+
+    const result = await handleDeletionEmails();
+
+    expect(result).toEqual([]);
+    expect(finalizeMock).not.toHaveBeenCalled();
+    expect(transactionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops at the time budget and leaves the rest queued for the next run", async () => {
+    const first = makeTask({
+      taskId: 20,
+      profileId: 30,
+      clerkId: "user_first",
+    });
+    const second = makeTask({
+      taskId: 21,
+      profileId: 31,
+      clerkId: "user_second",
+    });
+
+    // Hold the clock still until one deletion is done, then jump past the
+    // deadline so the second iteration bails out.
+    let deletions = 0;
+    finalizeMock.mockImplementation(async () => {
+      deletions += 1;
+      return { kind: "deleted" };
+    });
+    vi.spyOn(Date, "now").mockImplementation(() =>
+      deletions >= 1 ? 10_000_000 : 0,
+    );
+
+    runClaim(claimTx([first, second], [undefined, undefined], [60, 61]));
+
+    const result = await handleDeletionEmails();
+
+    expect(result).toEqual([first]);
+    expect(finalizeMock).toHaveBeenCalledTimes(1);
+    expect(finalizeMock).toHaveBeenCalledWith(
+      expect.objectContaining({ clerkId: "user_first" }),
+    );
+  });
+
+  it("cuts the Clerk step short near the run deadline", async () => {
+    const task = makeTask({ taskId: 30, profileId: 40, clerkId: "user_late" });
+    // 3s of the 60s run left when the profile comes up: the Clerk step may not
+    // take its full 10s, or the run would overshoot the function limit.
+    let claimCommitted = false;
+    vi.spyOn(Date, "now").mockImplementation(() =>
+      claimCommitted ? 57_000 : 0,
+    );
+    const tx = claimTx([task], [undefined], [70]);
+    transactionMock.mockImplementation(
+      async (callback: (tx: unknown) => unknown) => {
+        const result = await callback(tx);
+        claimCommitted = true;
+        return result;
+      },
     );
 
     await handleDeletionEmails();
 
-    // Both rows are locked, and the user row goes first: that is what stops a
-    // concurrent run from inserting a second active outbox entry. The push
-    // devices go under that lock, before Clerk is called.
-    expect(lockedForUpdate).toEqual([
-      "users:update",
-      "push_subscriptions:delete",
-      "pending:update",
-    ]);
-  });
-
-  it("skips a profile whose row disappeared while waiting for the lock", async () => {
-    const task = makeTask({ taskId: 81, profileId: 91, clerkId: "user_raced" });
-    runTransactions(claimTx([task], [undefined], [101], [false]));
-
-    const result = await handleDeletionEmails();
-
-    // Never looked at the outbox, never inserted, never called Clerk.
-    expect(lockedForUpdate).toEqual(["users:update"]);
-    expect(deleteClerkUserMock).not.toHaveBeenCalled();
-    expect(result).toEqual([]);
+    expect(finalizeMock).toHaveBeenCalledWith(
+      expect.objectContaining({ clerkBudgetMs: 3_000 }),
+    );
   });
 
   it("counts the claiming transaction against the run budget", async () => {
     const task = makeTask({ taskId: 40, profileId: 50, clerkId: "user_slow" });
-    deleteClerkUserMock.mockResolvedValue(deletedOk);
 
     // A claim that burns more than the whole budget must leave nothing for the
     // Clerk phase; a deadline started after the claim would happily proceed.
@@ -748,28 +804,36 @@ describe("handleDeletionEmails", () => {
 
     const result = await handleDeletionEmails();
 
-    expect(deleteClerkUserMock).not.toHaveBeenCalled();
+    expect(finalizeMock).not.toHaveBeenCalled();
     expect(result).toEqual([]);
   });
 
-  it("gives up on a hung Clerk call and records it as a failure", async () => {
-    vi.useFakeTimers();
-    const task = makeTask({ taskId: 30, profileId: 40, clerkId: "user_hang" });
-    // Never settles: only the timeout can resolve the race.
-    deleteClerkUserMock.mockImplementation(() => new Promise(() => {}));
-    runTransactions(claimTx([task], [undefined], [70]));
+  it("locks the profile row before reading or inserting its outbox entry", async () => {
+    const task = makeTask({ taskId: 80, profileId: 90, clerkId: "user_lock" });
+    runClaim(claimTx([task], [undefined], [100]));
 
-    const pending = handleDeletionEmails();
-    await vi.advanceTimersByTimeAsync(10_000);
-    const result = await pending;
+    await handleDeletionEmails();
 
+    // The user row goes first: that is what stops a concurrent run from
+    // inserting a second active outbox entry. Push devices are not touched
+    // here any more; they go in the delete itself, so a profile that is kept
+    // keeps them.
+    expect(lockedForUpdate).toEqual([
+      "users:update",
+      "pending:update",
+      "pending:insert",
+    ]);
+  });
+
+  it("skips a profile whose row disappeared while waiting for the lock", async () => {
+    const task = makeTask({ taskId: 81, profileId: 91, clerkId: "user_raced" });
+    runClaim(claimTx([task], [undefined], [101], [false]));
+
+    const result = await handleDeletionEmails();
+
+    // Never looked at the outbox, never inserted, never deleted anything.
+    expect(lockedForUpdate).toEqual(["users:update"]);
+    expect(finalizeMock).not.toHaveBeenCalled();
     expect(result).toEqual([]);
-    // Never reached the delete transaction, so the profile survives.
-    expect(transactionMock).toHaveBeenCalledTimes(1);
-    expect(writes).toContainEqual(
-      expect.objectContaining({
-        lastError: expect.stringContaining("timed out"),
-      }),
-    );
   });
 });
