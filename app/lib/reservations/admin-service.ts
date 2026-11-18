@@ -818,6 +818,10 @@ export async function extendReservationPaymentDeadline(
         await tx
           .update(scheduledTasks)
           .set({
+            // The same recipient a new reminder would get: a task left on a
+            // companion (legacy data, or an older holder rule) follows the
+            // payer instead of keeping the wrong person.
+            profileId: creatorId,
             dueDate: dueAt,
             reminderTime: new Date(dueAt.getTime() - 24 * 60 * 60 * 1000),
             reminderSentAt: null,

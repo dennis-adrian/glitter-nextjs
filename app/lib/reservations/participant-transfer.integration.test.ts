@@ -1176,6 +1176,32 @@ describeDatabase("admin participation transfer", () => {
       ]);
     });
 
+    it("moves an existing reminder left on a companion to the live cobro's payer", async () => {
+      const db = integrationDb!;
+      const { festival, accounts, standRows } = await seed({
+        festivalStatus: "active",
+      });
+      const [companion, payer] = accounts;
+      const reservation = await seedOwnerless({
+        festivalId: festival.id,
+        standId: standRows[0].id,
+        participantUserIds: [companion.id, payer.id],
+        payerUserId: payer.id,
+      });
+      // An active reminder that went to the wrong person.
+      await db.insert(scheduledTasks).values({
+        dueDate: new Date(Date.now() + 2 * 86_400_000),
+        reminderTime: new Date(Date.now() + 86_400_000),
+        profileId: companion.id,
+        reservationId: reservation.id,
+        taskType: "stand_reservation",
+      });
+
+      expect(await extendAndReadReminder(reservation.id)).toEqual([
+        { profileId: payer.id },
+      ]);
+    });
+
     it("stays with the holder after a companion's participation moves to an account with a lower id", async () => {
       const db = integrationDb!;
       // Created in order: the target has the lowest user id.
