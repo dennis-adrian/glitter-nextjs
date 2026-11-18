@@ -1,6 +1,6 @@
 "use server";
 
-import { and, asc, eq, ilike, ne, or } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -12,6 +12,7 @@ import {
 import { canMutateAdminReservations } from "@/app/lib/reservations/policy";
 import { positiveIntSchema, uuidSchema } from "@/app/lib/reservations/schemas";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { userSearchCondition } from "@/app/lib/users/search-condition";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 
@@ -54,7 +55,6 @@ export async function searchTransferCandidatesAction(
   const parsed = searchSchema.safeParse(input);
   if (!parsed.success) return [];
 
-  const pattern = `%${parsed.data.query}%`;
   const rows = await db
     .select({
       id: users.id,
@@ -69,12 +69,8 @@ export async function searchTransferCandidatesAction(
       and(
         eq(users.role, "user"),
         ne(users.id, parsed.data.excludeUserId),
-        or(
-          ilike(users.displayName, pattern),
-          ilike(users.firstName, pattern),
-          ilike(users.lastName, pattern),
-          ilike(users.email, pattern),
-        ),
+        // The dashboard's own lookup: full name and #id included.
+        userSearchCondition(parsed.data.query),
       ),
     )
     .orderBy(asc(users.displayName), asc(users.id))

@@ -21,6 +21,7 @@ import { formatDisplayDate } from "@/app/lib/formatters";
 import {
   groupParticipationHistoryByFestival,
   participationHistorySummary,
+  plural,
   type AdminFestivalParticipation,
   type AdminParticipationRow,
 } from "@/app/lib/participations/admin-history";
@@ -78,7 +79,7 @@ function ReservationEntry({
                   {index > 0 ? ", " : null}
                   <Link
                     href={`/dashboard/users/${companion.id}`}
-                    className="text-foreground underline-offset-4 hover:underline"
+                    className="wrap-anywhere text-foreground underline-offset-4 hover:underline"
                   >
                     {companion.name}
                   </Link>
@@ -106,10 +107,6 @@ function ReservationEntry({
       </div>
     </div>
   );
-}
-
-function plural(count: number, one: string, many: string) {
-  return `${count} ${count === 1 ? one : many}`;
 }
 
 /**

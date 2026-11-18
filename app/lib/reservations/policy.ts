@@ -35,12 +35,6 @@ export type SelfServiceEligibilityInput = {
   sanctionBlocked: boolean;
   hasLiveSelfServiceReservation: boolean;
   hasRejectedFestivalReservation: boolean;
-  /**
-   * A live reservation in this festival from any source, admin-assigned and
-   * transferred ones included. Only picks which denial is reported; it never
-   * lifts one.
-   */
-  hasLiveFestivalReservation?: boolean;
 };
 
 export type SelfServiceEligibilityResult =
@@ -163,17 +157,12 @@ export function evaluateSelfServiceEligibility(
     return { allowed: false, code: "SANCTION_BLOCKED" };
   }
 
+  // Refused whatever else the account holds here. Several commands let
+  // `ALREADY_RESERVED` through (releasing a stand, a late partner, credits),
+  // so reporting that instead would lift this refusal, not just reword it.
+  // The pages pick their message with `displayedDenialCode`.
   if (input.hasRejectedFestivalReservation) {
-    // Still refused, but an account that also holds a live stand here — a
-    // participation transferred onto an account whose own attempt was turned
-    // down, or an admin assignment — is told about the stand it has, not
-    // that it can no longer take part.
-    return {
-      allowed: false,
-      code: input.hasLiveFestivalReservation
-        ? "ALREADY_RESERVED"
-        : "RESERVATION_REJECTED",
-    };
+    return { allowed: false, code: "RESERVATION_REJECTED" };
   }
 
   if (input.hasLiveSelfServiceReservation) {
@@ -181,6 +170,22 @@ export function evaluateSelfServiceEligibility(
   }
 
   return { allowed: true };
+}
+
+/**
+ * The denial a new-reservation page shows, which is not always the one that
+ * refuses. An account turned down in a festival that also holds a live stand
+ * there (a participation transferred onto it, or an admin assignment) is told
+ * about the stand it has, not that it can no longer take part. Only for
+ * display: commands keep the code `evaluateSelfServiceEligibility` returned.
+ */
+export function displayedDenialCode(
+  code: ReservationErrorCode,
+  hasLiveFestivalReservation: boolean,
+): ReservationErrorCode {
+  return code === "RESERVATION_REJECTED" && hasLiveFestivalReservation
+    ? "ALREADY_RESERVED"
+    : code;
 }
 
 export function evaluatePartnerSearchDenial(input: {

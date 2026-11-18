@@ -25,7 +25,7 @@ import {
 } from "@/app/lib/users/profile-deletion";
 import {
   findProfileDeletionBlocker,
-  isProfileDeletionBlockMessage,
+  isPermanentProfileDeletionBlocker,
   PROFILE_DELETION_BLOCK_MESSAGES,
   type ProfileDeletionBlocker,
 } from "@/app/lib/users/deletion-blockers";
@@ -93,12 +93,7 @@ const PERMANENT_ERROR_PREFIX = "PERMANENT:";
 
 function isPermanentDeletionBlocker(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  if (
-    isProfileDeletionBlockMessage(message) ||
-    message.startsWith(PERMANENT_ERROR_PREFIX)
-  ) {
-    return true;
-  }
+  if (message.startsWith(PERMANENT_ERROR_PREFIX)) return true;
 
   // Postgres foreign_key_violation
   return hasPgErrorCode(error, "23503");
@@ -275,9 +270,13 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
           return { success: false, message: CONFLICT_MESSAGE };
         }
         if (login === "gone") {
+          // Marked permanent only when it is: a participation or a cobro is
+          // fixed by a transfer or a review, and the retry then finishes.
           await noteDeletionError(
             preparation.pendingId,
-            `${PERMANENT_ERROR_PREFIX} ${PROFILE_DELETION_BLOCK_MESSAGES[outcome.blocker]}`,
+            isPermanentProfileDeletionBlocker(outcome.blocker)
+              ? `${PERMANENT_ERROR_PREFIX} ${PROFILE_DELETION_BLOCK_MESSAGES[outcome.blocker]}`
+              : `blocked_after_login_removed: ${outcome.blocker}`,
           );
         }
         return {

@@ -80,8 +80,9 @@ export type TransferPreview = {
 };
 
 /**
- * The rows and decisions a transfer would act on: the cobros and reminders
- * it moves, whether the holding goes and what happens to the enrollment.
+ * The rows and decisions a transfer would act on (the cobros and reminders
+ * it moves, whether the holding goes, what happens to the enrollment) and
+ * every line the admin read: what moves and each warning.
  */
 function transferPlanKey(
   state: { sourceInvoiceIds: number[]; scheduledTaskIds: number[] },
@@ -92,6 +93,8 @@ function transferPlanKey(
     tasks: [...state.scheduledTaskIds].sort((a, b) => a - b),
     holding: plan.movesHolding,
     enrollment: plan.enrollment,
+    moves: plan.moves,
+    warnings: plan.warnings,
   });
 }
 

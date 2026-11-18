@@ -128,7 +128,6 @@ export async function denySelfServiceMutation(
     hasLiveSelfServiceReservation: participation.hasLiveSelfServiceReservation,
     hasRejectedFestivalReservation:
       participation.hasRejectedFestivalReservation,
-    hasLiveFestivalReservation: participation.hasLiveFestivalReservation,
   });
 
   if (result.allowed) return null;

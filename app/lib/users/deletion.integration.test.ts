@@ -1460,6 +1460,12 @@ describeDatabase("deleting a profile", () => {
       });
       expect(deleteClerkUser).not.toHaveBeenCalled();
       expect(await userExists(f.oldAccount.id)).toBe(true);
+      // Noted for an operator as fixable: a transfer of the participation
+      // lets the retry finish. Not "PERMANENT:", which says nothing can.
+      const [noted] = await activePending(f.oldAccount.clerkId);
+      expect(noted.lastError).toBe(
+        "blocked_after_login_removed: participations",
+      );
     });
 
     it("takes a repeated delivery as already known", async () => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   blocksFestivalParticipation,
+  displayedDenialCode,
   evaluatePartnerSearchDenial,
   evaluateSelfServiceEligibility,
   mapPartnerEligibilityCode,
@@ -397,20 +398,26 @@ describe("a live stand next to a rejected attempt", () => {
     },
   );
 
-  it("still refuses a new reservation, but names the stand it has", () => {
-    expect(
-      evaluateSelfServiceEligibility(
-        allowedInput({
-          hasRejectedFestivalReservation: true,
-          hasLiveFestivalReservation: true,
-        }),
-      ),
-    ).toEqual({ allowed: false, code: "ALREADY_RESERVED" });
+  it("refuses with the rejection whatever else the account holds", () => {
+    // Commands that let ALREADY_RESERVED through (releasing a stand, a late
+    // partner, credits) must keep refusing an account turned down here.
     expect(
       evaluateSelfServiceEligibility(
         allowedInput({ hasRejectedFestivalReservation: true }),
       ),
     ).toEqual({ allowed: false, code: "RESERVATION_REJECTED" });
+  });
+
+  it("only on the page, names the stand it has instead", () => {
+    expect(displayedDenialCode("RESERVATION_REJECTED", true)).toBe(
+      "ALREADY_RESERVED",
+    );
+    expect(displayedDenialCode("RESERVATION_REJECTED", false)).toBe(
+      "RESERVATION_REJECTED",
+    );
+    expect(displayedDenialCode("SANCTION_BLOCKED", true)).toBe(
+      "SANCTION_BLOCKED",
+    );
   });
 });
 

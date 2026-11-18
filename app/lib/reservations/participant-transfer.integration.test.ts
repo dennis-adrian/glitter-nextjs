@@ -463,6 +463,71 @@ describeDatabase("admin participation transfer", () => {
     });
   });
 
+  it("refuses a transfer when what moves changed in any line the admin read", async () => {
+    const db = integrationDb!;
+    const { festival, accounts, standRows } = await seed({});
+    const [oldAccount, newAccount] = accounts;
+    await enroll(oldAccount.id, festival.id);
+    const { reservation, participations } = await seedReservation({
+      festivalId: festival.id,
+      standId: standRows[0].id,
+      ownerUserId: oldAccount.id,
+    });
+    const input = {
+      reservationId: reservation.id,
+      fromUserId: oldAccount.id,
+      toUserId: newAccount.id,
+    };
+    const reviewed = await service.previewParticipantTransfer(input);
+    if (!reviewed.success) throw new Error(reviewed.message);
+
+    // Not a cobro, a reminder, the holding or the enrollment: a product sent
+    // after the review, which the list of what moves now counts.
+    await db.insert(participantProducts).values({
+      userId: oldAccount.id,
+      participationId: participations[0].id,
+      imageUrl: "https://example.test/late.png",
+      name: "Late print",
+    });
+
+    expect(
+      await service.transferReservationParticipation({
+        ...input,
+        idempotencyKey: randomUUID(),
+        planKey: reviewed.data.planKey,
+      }),
+    ).toMatchObject({ success: false, code: "TRANSFER_PLAN_CHANGED" });
+  });
+
+  it("finds the destination account by full name or #id, as the dashboard does", async () => {
+    const db = integrationDb!;
+    const { accounts } = await seed({});
+    const [oldAccount, target] = accounts;
+    const unique = randomUUID().slice(0, 8);
+    // A brand as the display name: no single column holds the person's name.
+    await db
+      .update(users)
+      .set({
+        displayName: `Estudio ${unique}`,
+        firstName: "Ana",
+        lastName: `Pérez ${unique}`,
+      })
+      .where(eq(users.id, target.id));
+    const actions =
+      await import("@/app/lib/reservations/participant-transfer-actions");
+
+    const byName = await actions.searchTransferCandidatesAction({
+      query: `Ana Pérez ${unique}`,
+      excludeUserId: oldAccount.id,
+    });
+    expect(byName.map((row) => row.id)).toEqual([target.id]);
+    const byId = await actions.searchTransferCandidatesAction({
+      query: `#${target.id}`,
+      excludeUserId: oldAccount.id,
+    });
+    expect(byId.map((row) => row.id)).toContain(target.id);
+  });
+
   it("refuses a transfer whose cobros changed after the admin reviewed them", async () => {
     const db = integrationDb!;
     const { festival, accounts, standRows } = await seed({});
@@ -904,8 +969,9 @@ describeDatabase("admin participation transfer", () => {
     });
 
     // What the participant's own pages read, the way the new-reservation
-    // pages read it: the live stand is there next to the refused attempts,
-    // and a new reservation is still refused, but for the stand they have.
+    // pages read it: the live stand is there next to the refused attempts.
+    // A new reservation, and every other self-service command, is still
+    // refused for the rejection; only the page names the stand they have.
     const memberships = await db.query.reservationParticipants.findMany({
       where: eq(reservationParticipants.userId, newAccount.id),
       with: {
@@ -920,8 +986,11 @@ describeDatabase("admin participation transfer", () => {
         ["pending", "verification_payment", "accepted"].includes(row.status),
       );
     expect(live.map((row) => row.id)).toEqual([reservation.id]);
-    const { evaluateSelfServiceEligibility, summarizeFestivalParticipations } =
-      await import("@/app/lib/reservations/policy");
+    const {
+      displayedDenialCode,
+      evaluateSelfServiceEligibility,
+      summarizeFestivalParticipations,
+    } = await import("@/app/lib/reservations/policy");
     const summary = summarizeFestivalParticipations(
       memberships.map((row) => row.reservation),
       festival.id,
@@ -952,7 +1021,13 @@ describeDatabase("admin participation transfer", () => {
         sanctionBlocked: false,
         ...summary,
       }),
-    ).toEqual({ allowed: false, code: "ALREADY_RESERVED" });
+    ).toEqual({ allowed: false, code: "RESERVATION_REJECTED" });
+    expect(
+      displayedDenialCode(
+        "RESERVATION_REJECTED",
+        summary.hasLiveFestivalReservation,
+      ),
+    ).toBe("ALREADY_RESERVED");
   });
 
   it("leaves an ownerless reservation's holder in place when a companion's participation moves", async () => {

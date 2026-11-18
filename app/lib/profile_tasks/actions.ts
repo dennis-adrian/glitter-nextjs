@@ -314,7 +314,6 @@ export async function handleDeletionEmails(): Promise<
       const entries: {
         task: ScheduledTaskWithProfile;
         pendingId: number;
-        clerkAlreadyDeleted: boolean;
         attempts: number;
       }[] = [];
       // Blocked retries: their earlier attempt may have reached Clerk, so they
@@ -388,7 +387,6 @@ export async function handleDeletionEmails(): Promise<
           entries.push({
             task,
             pendingId: existing.id,
-            clerkAlreadyDeleted: existing.clerkDeletedAt !== null,
             attempts: existing.attempts,
           });
           continue;
@@ -402,7 +400,6 @@ export async function handleDeletionEmails(): Promise<
         entries.push({
           task,
           pendingId: pending.id,
-          clerkAlreadyDeleted: false,
           attempts: 0,
         });
       }

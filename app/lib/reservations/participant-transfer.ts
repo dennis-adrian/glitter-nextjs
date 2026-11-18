@@ -1,3 +1,4 @@
+import { plural } from "@/app/lib/participations/admin-history";
 import type { ReservationErrorCode } from "@/app/lib/reservations/errors";
 import {
   blocksFestivalParticipation,
@@ -118,10 +119,6 @@ export function isLiveTransfer(reservation: {
     reservation.festivalStatus !== "archived" &&
     occupiesStandCapacity(reservation.status)
   );
-}
-
-function plural(count: number, one: string, many: string) {
-  return `${count} ${count === 1 ? one : many}`;
 }
 
 export function planEnrollment(

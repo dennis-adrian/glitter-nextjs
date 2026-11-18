@@ -62,10 +62,15 @@ export const PROFILE_DELETION_BLOCK_MESSAGES = {
 export type ProfileDeletionBlocker =
   keyof typeof PROFILE_DELETION_BLOCK_MESSAGES;
 
-export function isProfileDeletionBlockMessage(message: string): boolean {
-  return (Object.values(PROFILE_DELETION_BLOCK_MESSAGES) as string[]).includes(
-    message,
-  );
+/**
+ * Blockers nothing an admin does can lift. The others have a fix: a transfer
+ * for `participations`, a review of the cobros or titularity for
+ * `reservation_records`.
+ */
+export function isPermanentProfileDeletionBlocker(
+  blocker: ProfileDeletionBlocker,
+): boolean {
+  return blocker !== "participations" && blocker !== "reservation_records";
 }
 
 async function exists(query: Promise<{ id: number }[]>): Promise<boolean> {
@@ -74,7 +79,7 @@ async function exists(query: Promise<{ id: number }[]>): Promise<boolean> {
 
 /**
  * Every reference to `users` that refuses a delete, and how this module
- * accounts for it. `deletion-blockers.integration.test.ts` compares it with
+ * accounts for it. `app/lib/users/deletion.integration.test.ts` compares it with
  * the database, so a new RESTRICT reference cannot reach production without a
  * decision here: either a blocker checked before Clerk is touched, or a step
  * that clears the row in the delete itself.

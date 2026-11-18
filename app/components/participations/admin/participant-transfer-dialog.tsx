@@ -218,9 +218,11 @@ export default function ParticipantTransferDialog({
           <DialogHeader className="text-left">
             <DialogTitle>Transferir participación</DialogTitle>
             <DialogDescription className="break-words">
-              Mové la participación de {fromUserName} en {festivalName} a otra
-              cuenta, por ejemplo la cuenta nueva de la misma persona. El
-              espacio, el precio y el estado de la reserva no cambian.
+              Mové la participación de{" "}
+              <span className="wrap-anywhere">{fromUserName}</span> en{" "}
+              {festivalName} a otra cuenta, por ejemplo la cuenta nueva de la
+              misma persona. El espacio, el precio y el estado de la reserva no
+              cambian.
             </DialogDescription>
           </DialogHeader>
 
@@ -231,7 +233,9 @@ export default function ParticipantTransferDialog({
                   <span className="text-xs text-muted-foreground">
                     Cuenta de destino
                   </span>
-                  <span className="break-words font-medium">{target.name}</span>
+                  <span className="wrap-anywhere font-medium">
+                    {target.name}
+                  </span>
                   <span className="wrap-anywhere text-muted-foreground">
                     {target.email}
                   </span>
@@ -367,7 +371,7 @@ function CandidateList({
             className="flex w-full flex-col rounded-md border px-3 py-2 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => onChoose(candidate)}
           >
-            <span className="break-words font-medium">{candidate.name}</span>
+            <span className="wrap-anywhere font-medium">{candidate.name}</span>
             <span className="wrap-anywhere text-xs text-muted-foreground">
               {candidate.email} ·{" "}
               {getProfileStatusLabel(

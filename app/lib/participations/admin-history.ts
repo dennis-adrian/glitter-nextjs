@@ -200,7 +200,8 @@ export function groupParticipationHistoryByFestival(
   }));
 }
 
-function plural(count: number, one: string, many: string) {
+/** "1 cobro", "2 cobros": the count with the word that fits it. */
+export function plural(count: number, one: string, many: string) {
   return `${count} ${count === 1 ? one : many}`;
 }
 
