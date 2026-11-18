@@ -431,6 +431,61 @@ describeDatabase("the profile-deletion cron", () => {
     expect(await userRow(profile.id)).toEqual([]);
   });
 
+  it("does not park a row the webhook took back while the run was writing its failure", async () => {
+    const { profile, task } = await seedOverdue();
+    sendEmail.mockResolvedValue({ data: { id: "e1" }, error: null });
+    // One short of the cap, with an earlier request still unconfirmed.
+    await integrationDb!.insert(pendingUserDeletions).values({
+      userId: profile.id,
+      clerkId: profile.clerkId,
+      attempts: 4,
+      clerkAttemptedAt: new Date(Date.now() - 30_000),
+      lastError: "clerk_delete_failed: timed out",
+      nextAttemptAt: new Date(Date.now() - 1000),
+    });
+    // This run's request is refused and the login is still there...
+    deleteClerkUser.mockResolvedValue({
+      success: false,
+      status: "request_failed",
+      message: "Clerk 429",
+      definite: true,
+    });
+    clerkLoginStatus.mockResolvedValue("exists");
+    // ...then the earlier request lands, and Clerk's event is applied in the
+    // gap before the run writes its failure.
+    const core = await import("@/app/lib/users/profile-deletion");
+    const { recordClerkLoginDeleted } =
+      await import("@/app/lib/users/clerk-login-deleted");
+    const original = core.finalizeProfileDeletion;
+    const spy = vi
+      .spyOn(core, "finalizeProfileDeletion")
+      .mockImplementationOnce(async (input) => {
+        const outcome = await original(input);
+        expect(await recordClerkLoginDeleted(profile.clerkId)).toMatchObject({
+          kind: "queued",
+        });
+        return outcome;
+      });
+
+    try {
+      await cron.handleDeletionEmails();
+    } finally {
+      spy.mockRestore();
+    }
+
+    // Still claimable: the failure assumed a login that is no longer there.
+    const [pending] = await pendingFor(profile.clerkId);
+    expect(pending.attempts).toBe(0);
+    expect(pending.clerkDeletedAt).not.toBeNull();
+
+    // The next run finishes it without asking Clerk again.
+    deleteClerkUser.mockClear();
+    const done = await cron.handleDeletionEmails();
+    expect(done.map((t) => t.id)).toContain(task.id);
+    expect(deleteClerkUser).not.toHaveBeenCalled();
+    expect(await userRow(profile.id)).toEqual([]);
+  });
+
   it("never asks Clerk about a profile that has to stay, and closes its task", async () => {
     const { profile, task } = await seedOverdue();
     await giveParticipation(profile.id);

@@ -108,16 +108,31 @@ function unfinishedDeletion(pendingId: number) {
 }
 
 /**
+ * A deletion whose login is still not known to be gone. A failure about the
+ * Clerk step is written only to a row still in that state: once the login is
+ * recorded as gone (by the user.deleted webhook, which also makes a parked
+ * row claimable again), a count read before that would park it for nothing.
+ */
+function loginNotYetGone(pendingId: number) {
+  return and(
+    unfinishedDeletion(pendingId),
+    isNull(pendingUserDeletions.clerkDeletedAt),
+  );
+}
+
+/**
  * Records a failed deletion attempt on its outbox row. Once the attempt cap is
  * reached the row keeps its lastError and stops being claimed, so a profile
  * that can never be deleted does not consume a slot on every run. A row
  * another attempt finished meanwhile is left alone: its attempts and address
- * now belong to the notice.
+ * now belong to the notice. `whileLoginNotGone` limits the write to a row
+ * whose login is still not known to be gone, for a failure that assumed so.
  */
 async function recordDeletionFailure(
   pendingId: number,
   attempts: number,
   lastError: string,
+  { whileLoginNotGone = false }: { whileLoginNotGone?: boolean } = {},
 ) {
   const now = new Date();
   const nextAttempt = attempts + 1;
@@ -130,7 +145,11 @@ async function recordDeletionFailure(
       nextAttemptAt: computeNextAttemptAt(nextAttempt, now),
       updatedAt: now,
     })
-    .where(unfinishedDeletion(pendingId));
+    .where(
+      whileLoginNotGone
+        ? loginNotYetGone(pendingId)
+        : unfinishedDeletion(pendingId),
+    );
 }
 
 /**
@@ -151,7 +170,7 @@ async function reconcileLoginLater(pendingId: number, lastError: string) {
       ),
       updatedAt: now,
     })
-    .where(unfinishedDeletion(pendingId));
+    .where(loginNotYetGone(pendingId));
 }
 
 /**
@@ -474,7 +493,9 @@ export async function handleDeletionEmails(): Promise<
         case "clerk_not_deleted":
           // Clerk refused and the login is there: retried on a later run,
           // up to the cap.
-          await recordDeletionFailure(pendingId, attempts, outcome.message);
+          await recordDeletionFailure(pendingId, attempts, outcome.message, {
+            whileLoginNotGone: true,
+          });
           break;
         case "clerk_unknown":
           // Retried on a later run with its backoff, but never parked: Clerk
@@ -485,6 +506,7 @@ export async function handleDeletionEmails(): Promise<
             pendingId,
             Math.min(attempts, MAX_DELETION_ATTEMPTS - 2),
             outcome.message,
+            { whileLoginNotGone: true },
           );
           break;
         case "local_failed":
@@ -506,6 +528,7 @@ export async function handleDeletionEmails(): Promise<
                 ? current
                 : Math.min(current, MAX_DELETION_ATTEMPTS - 2),
             toLocalDeleteError(outcome.error),
+            { whileLoginNotGone: !outcome.loginGone },
           );
           break;
       }

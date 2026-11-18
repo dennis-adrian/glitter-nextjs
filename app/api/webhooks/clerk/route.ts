@@ -48,8 +48,9 @@ export async function POST(request: NextRequest) {
   try {
     const result = await recordClerkLoginDeleted(clerkId);
     if (result.kind === "flagged") {
-      // For an operator: the profile stays, its login does not.
-      console.error("Clerk login deleted for a profile the app kept", {
+      // For an operator: the profile stays, its login does not, and no cron
+      // will finish it (kept by the app, or an admin's deletion under way).
+      console.error("Clerk login deleted outside a deletion the app finishes", {
         profileId: result.profileId,
       });
     }

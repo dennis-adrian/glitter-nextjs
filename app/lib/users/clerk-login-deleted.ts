@@ -24,7 +24,10 @@ export type ClerkLoginDeletedResult =
    * finishes it when its task is due, without asking Clerk.
    */
   | { kind: "queued"; profileId: number }
-  /** The profile was being kept: it is now on record, parked for review. */
+  /**
+   * For an operator: a profile the app was keeping, or an admin's deletion
+   * under way, which only an admin retries. The login is recorded as gone.
+   */
   | { kind: "flagged"; profileId: number };
 
 /**
@@ -64,7 +67,6 @@ export async function recordClerkLoginDeleted(
       .select({
         id: pendingUserDeletions.id,
         clerkDeletedAt: pendingUserDeletions.clerkDeletedAt,
-        attempts: pendingUserDeletions.attempts,
       })
       .from(pendingUserDeletions)
       .where(

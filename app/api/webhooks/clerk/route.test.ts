@@ -76,7 +76,7 @@ describe("Clerk webhook", () => {
 
     expect((await POST(delivery(userDeleted("user_abc")))).status).toBe(200);
     expect(console.error).toHaveBeenCalledWith(
-      "Clerk login deleted for a profile the app kept",
+      "Clerk login deleted outside a deletion the app finishes",
       { profileId: 42 },
     );
   });
