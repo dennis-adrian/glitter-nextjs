@@ -485,8 +485,9 @@ describeDatabase("deleting a profile", () => {
     // cobro is billed to it: the two writes the participations check guards.
     const writers = [await pool!.connect(), await pool!.connect()];
     const settled = [false, false];
+    let writes: Promise<unknown>[] = [];
     try {
-      const writes = [
+      writes = [
         writers[0].query(
           "INSERT INTO participations (user_id, reservation_id) VALUES ($1, $2)",
           [f.oldAccount.id, f.reservation.id],
@@ -514,6 +515,13 @@ describeDatabase("deleting a profile", () => {
         await expect(write).rejects.toMatchObject({ code: "23503" });
       }
     } finally {
+      // Even when an assertion above fails: answer Clerk (a second answer is
+      // ignored) so the deletion ends and drops its lock, and let both writes
+      // settle, before their clients go back to the pool. Otherwise the
+      // deletion holds the row forever and cleanup blocks on it.
+      answerClerk({ status: "deleted" });
+      await deletion.catch(() => {});
+      await Promise.allSettled(writes);
       writers.forEach((writer) => writer.release());
     }
     expect(await userExists(f.oldAccount.id)).toBe(false);
