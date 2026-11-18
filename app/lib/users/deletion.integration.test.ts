@@ -56,10 +56,27 @@ vi.mock("@/app/lib/users/helpers", () => ({
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
+/**
+ * Only a disposable, locally hosted database: these suites delete users, and
+ * the cron's claim takes every overdue profile in the database. A test-like
+ * name alone does not make a remote endpoint safe.
+ */
+const ALLOWED_TEST_HOSTS = new Set([
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "[::1]",
+  "host.docker.internal",
+]);
+
 function isSafeTestDatabase(url: string): boolean {
   try {
-    const databaseName = decodeURIComponent(new URL(url).pathname.slice(1));
-    return /(^|[_-])(test|ci)([_-]|$)/i.test(databaseName);
+    const parsed = new URL(url);
+    const databaseName = decodeURIComponent(parsed.pathname.slice(1));
+    return (
+      ALLOWED_TEST_HOSTS.has(parsed.hostname.toLowerCase()) &&
+      /(^|[_-])(test|ci)([_-]|$)/i.test(databaseName)
+    );
   } catch {
     return false;
   }
@@ -67,7 +84,7 @@ function isSafeTestDatabase(url: string): boolean {
 
 if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
   throw new Error(
-    "TEST_DATABASE_URL must target a database whose name contains 'test' or 'ci'.",
+    "TEST_DATABASE_URL must target a local database whose name contains 'test' or 'ci'.",
   );
 }
 
