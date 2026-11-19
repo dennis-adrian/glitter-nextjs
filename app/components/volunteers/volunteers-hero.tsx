@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Fragment } from "react";
 
 import {
   ArrowRightIcon,
@@ -15,7 +16,10 @@ import {
 
 type Props = {
   festivalName: string;
-  /** "19–20" over "dic 2026"; null when the festival has no dates. */
+  /**
+   * "19–20" over "dic 2026", or "18–20, 27" with a gap; null when the
+   * festival has no dates.
+   */
   dateTile: { days: string; monthYear: string } | null;
   venue: string | null;
   /** "viernes 18 de diciembre"; null without shifts. */
@@ -85,18 +89,30 @@ export default function VolunteersHero({
         </div>
 
         <div className="min-w-0 rounded-[20px] border border-brand-border bg-brand-card p-6">
-          <div className="flex items-center gap-4">
+          {/* Days with gaps make a wider tile ("28 nov, 5–6, 12"): the row
+              wraps and the name moves under it rather than being squeezed. */}
+          <div className="flex flex-wrap items-center gap-4">
             {dateTile ? (
-              <div className="flex-none rounded-[18px] bg-brand-deep px-5 py-3.5 text-center font-display text-white">
+              <div className="max-w-full flex-none rounded-[18px] bg-brand-deep px-5 py-3.5 text-center font-display text-white">
                 <div className="text-2xl leading-8 font-extrabold">
-                  {dateTile.days}
+                  {dateTile.days.split(", ").map((run, index, runs) => (
+                    // A run ("5–6", "28 nov") never breaks; the line breaks
+                    // between runs only.
+                    <Fragment key={index}>
+                      {index > 0 ? " " : null}
+                      <span className="whitespace-nowrap">
+                        {run}
+                        {index < runs.length - 1 ? "," : null}
+                      </span>
+                    </Fragment>
+                  ))}
                 </div>
                 <div className="text-sm leading-5 font-semibold">
                   {dateTile.monthYear}
                 </div>
               </div>
             ) : null}
-            <div className="min-w-0">
+            <div className="min-w-24 flex-1">
               <div className="font-display text-xl leading-7 font-bold break-words text-brand-ink">
                 {festivalName}
               </div>

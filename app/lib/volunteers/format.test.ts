@@ -61,4 +61,64 @@ describe("volunteer formatting", () => {
     ).toBe("19 y 20 de diciembre de 2026");
     expect(formatFestivalDays([])).toBeNull();
   });
+
+  it("lists the festival's days without bridging a gap", () => {
+    expect(
+      formatFestivalDays([
+        new Date("2026-12-12T14:00:00Z"),
+        new Date("2026-12-13T14:00:00Z"),
+        new Date("2026-12-19T14:00:00Z"),
+      ]),
+    ).toBe("12, 13 y 19 de diciembre de 2026");
+    expect(
+      formatFestivalDays([
+        new Date("2026-12-18T14:00:00Z"),
+        new Date("2026-12-19T14:00:00Z"),
+        new Date("2026-12-20T14:00:00Z"),
+        new Date("2026-12-27T14:00:00Z"),
+      ]),
+    ).toBe("18 al 20 y 27 de diciembre de 2026");
+    expect(
+      formatFestivalDays([
+        new Date("2026-11-30T14:00:00Z"),
+        new Date("2026-12-01T14:00:00Z"),
+        new Date("2026-12-02T14:00:00Z"),
+      ]),
+    ).toBe("30 de noviembre al 2 de diciembre de 2026");
+  });
+});
+
+describe("formatFestivalDateTile", () => {
+  const tile = (...isos: string[]) =>
+    formatFestivalDateTile(isos.map((iso) => new Date(`${iso}T14:00:00Z`)));
+
+  it("keeps one dash for consecutive days", () => {
+    expect(tile("2026-12-19")).toEqual({ days: "19", monthYear: "dic 2026" });
+    expect(tile("2026-12-18", "2026-12-19", "2026-12-20")).toEqual({
+      days: "18–20",
+      monthYear: "dic 2026",
+    });
+    expect(tile("2026-11-30", "2026-12-01")).toEqual({
+      days: "30 nov–1",
+      monthYear: "dic 2026",
+    });
+    expect(tile()).toBeNull();
+  });
+
+  it("separates runs with a comma", () => {
+    expect(tile("2026-12-19", "2026-12-21")).toEqual({
+      days: "19, 21",
+      monthYear: "dic 2026",
+    });
+    expect(
+      tile("2026-12-27", "2026-12-18", "2026-12-19", "2026-12-20"),
+    ).toEqual({
+      days: "18–20, 27",
+      monthYear: "dic 2026",
+    });
+    expect(tile("2026-11-28", "2026-12-05", "2026-12-06")).toEqual({
+      days: "28 nov, 5–6",
+      monthYear: "dic 2026",
+    });
+  });
 });
