@@ -85,6 +85,21 @@ export const POSTHOG_EVENTS = {
    * `link_kind`, `link_label`, `link_href`). The dashboard's own count comes from `site_links`.
    */
   SITE_LINK_CLICKED: "site_link_clicked",
+  /**
+   * Volunteer form on `/voluntarios/postular`. `$pageview` already covers
+   * the pages.
+   * Started: the first interaction with any field, once per page load.
+   * Submitted: the server answered "received" (a duplicate email and a
+   * honeypot answer the same). Properties are counts and ids only, never
+   * names, emails, phones or free text (app/lib/volunteers/analytics.ts).
+   */
+  VOLUNTEER_FORM_STARTED: "volunteer_form_started",
+  /**
+   * A step of /voluntarios/postular came on screen (`step_number` 1–4,
+   * `step_name`), so drop-off shows per step.
+   */
+  VOLUNTEER_FORM_STEP_VIEWED: "volunteer_form_step_viewed",
+  VOLUNTEER_FORM_SUBMITTED: "volunteer_form_submitted",
 } as const;
 
 export type PostHogEvent = (typeof POSTHOG_EVENTS)[keyof typeof POSTHOG_EVENTS];
