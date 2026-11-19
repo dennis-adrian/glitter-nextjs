@@ -282,12 +282,15 @@ function Wizard({
   async function handleSubmit() {
     fullValidationRef.current = true;
     let parsed: VolunteerApplicationValues | null = null;
+    // The fields that failed, from this run: formState is a render snapshot.
+    let invalidFields: string[] = [];
     try {
       await form.handleSubmit(
         (values) => {
           parsed = values as unknown as VolunteerApplicationValues;
         },
         (errors) => {
+          invalidFields = Object.keys(errors);
           if (errors.root) setStepError(errors.root.message ?? null);
         },
       )();
@@ -297,7 +300,7 @@ function Wizard({
 
     if (!parsed) {
       // Something on an earlier step no longer passes: go back to it.
-      const firstInvalid = Object.keys(form.formState.errors)
+      const firstInvalid = invalidFields
         .map((field) => fieldSteps.get(field))
         .filter((index): index is number => index !== undefined)
         .sort((a, b) => a - b)[0];
