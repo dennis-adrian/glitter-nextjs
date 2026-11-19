@@ -116,7 +116,7 @@ export const VOLUNTEER_COPY = {
   heroTitleLead: "Sé voluntario/a en",
   heroTitleAccent: "Glitter",
   heroLead:
-    "Sumate al equipo que arma el festival de ilustración y creatividad más grande de Bolivia. Elegí tus turnos, contanos en qué te gustaría ayudar y te escribimos por WhatsApp.",
+    "Sumate al equipo que arma el festival de ilustración y creatividad más grande de Bolivia. Elegí tus turnos, contanos en qué te gustaría ayudar y te contactaremos por WhatsApp.",
   applyNow: "Postular ahora",
   seeShifts: "Ver turnos",
   rolesTitle: "En qué podés ayudar",
@@ -140,7 +140,7 @@ export const VOLUNTEER_COPY = {
   faqTitle: "Preguntas frecuentes",
   applyTitle: "Postulá como voluntario/a",
   applyFootnote:
-    "Son 4 pasos cortos. Postular no asegura un lugar en el equipo: te escribimos por WhatsApp.",
+    "Son 4 pasos cortos. Postular no asegura un lugar en el equipo: te contactaremos por WhatsApp.",
   notGuaranteed: "Postular no asegura un lugar en el equipo.",
   thankYouTitle: "Recibimos tu postulación",
   thankYouMessage: "Te contactaremos por WhatsApp.",
@@ -148,7 +148,7 @@ export const VOLUNTEER_COPY = {
   backHome: "Volver al inicio",
   closedTitle: "Convocatoria cerrada",
   closedFollowUp:
-    "Si ya postulaste, te vamos a escribir por WhatsApp. Para enterarte de la próxima convocatoria, seguinos en Instagram.",
+    "Si ya postulaste, te contactaremos por WhatsApp. Para enterarte de la próxima convocatoria, seguinos en Instagram.",
   closedFollow: "Seguir a @glitter.bo",
   noCallTitle: "No hay convocatoria abierta",
   noCallMessage:
@@ -185,7 +185,7 @@ export const VOLUNTEER_FAQ = [
   {
     question: "¿Cómo eligen al equipo?",
     answer:
-      "Cuando cierra la convocatoria revisamos todas las postulaciones y armamos el equipo según los turnos y los roles que hacen falta. Te escribimos por WhatsApp con la respuesta.",
+      "Cuando cierra la convocatoria revisamos todas las postulaciones y armamos el equipo según los turnos y los roles que hacen falta. Te contactaremos por WhatsApp con la respuesta.",
   },
 ] as const;
 
@@ -208,7 +208,7 @@ export const VOLUNTEER_STEPS = [
     section: "personal",
     title: "Tus datos",
     navLabel: "Tus datos",
-    lead: "Te vamos a contactar por WhatsApp, así que revisá bien tu número.",
+    lead: "Te contactaremos por WhatsApp, así que revisá bien tu número.",
   },
   {
     section: "shiftsAndRoles",
