@@ -25,7 +25,7 @@ export const VOLUNTEER_EXPERIENCE_OPTIONS = [
   { value: "photography", label: "Fotografía" },
   { value: "social_media", label: "Redes sociales" },
   // Key kept from the first wording; stored in volunteer_applications.experience.
-  { value: "own_camera", label: "Tengo cámara o un celular con buena cámara" },
+  { value: "own_camera", label: "Tengo cámara propia o un iPhone" },
 ] as const;
 
 export type VolunteerExperience =
