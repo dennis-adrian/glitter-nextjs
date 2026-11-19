@@ -29,6 +29,7 @@ import {
   SITE_LINK_LABEL_MAX,
   SITE_LINK_LAYOUTS,
   SOCIAL_POSITIONS,
+  canManageLinks,
   isFeaturedIcon,
   isSocialNetwork,
   parseLibraryIcon,
@@ -43,11 +44,6 @@ import {
 } from "./definitions";
 
 type ActionResult = { success: true } | { success: false; message: string };
-
-/** The same staff who manage the home carousel and the landing content. */
-function canManageLinks(role: string | null | undefined) {
-  return role === "admin" || role === "festival_admin";
-}
 
 function invalidateLinks() {
   revalidatePath(LINKS_PATH, "page");

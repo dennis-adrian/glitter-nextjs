@@ -1088,7 +1088,7 @@ function LinksSection({
             <AlertDialogTitle>{copy.deleteTitle}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleting
-                ? `"${deleting.label}" se quitará de la página y se perderá su conteo de clics. Si solo quieres dejar de mostrarlo, ocúltalo.`
+                ? `"${deleting.label}" se quitará de la página y se perderá su total histórico de clics; sus clics por día seguirán en las estadísticas como enlaces eliminados. Si solo quieres dejar de mostrarlo, ocúltalo.`
                 : null}
             </AlertDialogDescription>
           </AlertDialogHeader>

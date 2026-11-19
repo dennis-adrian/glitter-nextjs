@@ -6,6 +6,7 @@ import Link from "next/link";
 import SiteLinkIcon, {
   SiteLinkThumb,
 } from "@/app/components/links/site-link-icon";
+import { sendLinksBeacon } from "@/app/components/links/visit-source";
 import {
   isExternalLink,
   isFeaturedCard,
@@ -28,15 +29,12 @@ const CARD_CLASS = `flex min-h-16 w-full items-center gap-3 rounded-xl px-4 py-3
 const FEATURED_CARD_CLASS = `flex w-full flex-col gap-2 rounded-xl p-2 ${CARD_SURFACE_CLASS}`;
 
 /**
- * Counts the tap without holding up the visitor: a beacon outlives the page
- * they are leaving, and nothing waits for its answer.
+ * Counts the tap, with where the visit came from, without holding up the
+ * visitor: a beacon outlives the page they are leaving, and nothing waits for
+ * its answer.
  */
 function recordClick(link: PublicSiteLink) {
-  try {
-    navigator.sendBeacon(`/api/links/${link.id}/click`);
-  } catch {
-    // Counting is best-effort; the link still opens.
-  }
+  sendLinksBeacon(`/api/links/${link.id}/click`);
   captureClientEvent(POSTHOG_EVENTS.SITE_LINK_CLICKED, {
     link_id: link.id,
     link_kind: link.kind,
