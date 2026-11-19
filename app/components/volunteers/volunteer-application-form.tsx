@@ -335,6 +335,10 @@ export default function VolunteerApplicationForm({
           <TextInput
             label={VOLUNTEER_COPY.portfolioLabel}
             name="portfolio"
+            type="url"
+            inputMode="url"
+            autoComplete="url"
+            placeholder={VOLUNTEER_COPY.portfolioPlaceholder}
             description={VOLUNTEER_COPY.portfolioHint}
           />
 

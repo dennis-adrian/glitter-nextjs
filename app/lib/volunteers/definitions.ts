@@ -129,7 +129,11 @@ export const VOLUNTEER_COPY = {
   imageConsentNote: "Podés postular igual si no lo marcás.",
   portfolioLabel: "Portafolio o enlace a tu trabajo",
   portfolioHint:
-    "Opcional. Solo si elegís Fotografía y redes sociales y querés mostrarnos tus fotos o videos. No influye en los demás roles.",
+    "Opcional. Pegá el enlace completo (Instagram, TikTok, Behance o tu sitio). Solo si elegís Fotografía y redes sociales y querés mostrarnos tus fotos o videos. No influye en los demás roles.",
+  portfolioPlaceholder: "https://instagram.com/tuusuario",
+  /** A bare "@usuario" or anything else that is not an http(s) link. */
+  portfolioInvalid:
+    "Escribe el enlace completo, empezando con https:// (por ejemplo, https://instagram.com/tuusuario).",
   tooManyRequests:
     "Recibimos demasiados intentos desde tu red. Espera unos minutos e intenta de nuevo.",
   genericError: "No pudimos enviar tu postulación. Intenta de nuevo.",

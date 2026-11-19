@@ -57,6 +57,19 @@ export function formatCutoffDate(isoDate: string): string {
     .toFormat("d 'de' LLLL 'de' yyyy");
 }
 
+/** A full http(s) link with a host: "https://instagram.com/x", not "@x". */
+export function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === "https:" || url.protocol === "http:") &&
+      url.hostname.includes(".")
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** Applications are accepted up to and including the closing instant. */
 export function isVolunteerCallOpen(
   applicationsCloseAt: Date,
@@ -193,7 +206,10 @@ function sectionDefinitions(ctx: VolunteerSchemaContext) {
           .default([])
           .transform((values) => [...new Set(values)]),
         experienceNotes: optionalText(500),
-        portfolio: optionalText(300),
+        portfolio: optionalText(300).refine(
+          (value) => value === null || isHttpUrl(value),
+          { error: VOLUNTEER_COPY.portfolioInvalid },
+        ),
         motivation: requiredText(
           "Cuéntanos por qué quieres ser voluntario/a",
           VOLUNTEER_MOTIVATION_MAX_LENGTH,

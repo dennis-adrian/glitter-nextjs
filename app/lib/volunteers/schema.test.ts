@@ -333,6 +333,44 @@ describe("buildVolunteerApplicationSchema", () => {
     });
   });
 
+  describe("portfolio", () => {
+    it.each([
+      "https://instagram.com/camila.dibuja",
+      "https://www.behance.net/camila",
+      "http://camila.com",
+    ])("accepts a full link (%s)", (portfolio) => {
+      const result = buildVolunteerApplicationSchema(context()).safeParse(
+        validInput({ portfolio }),
+      );
+      expect(result.data?.portfolio).toBe(portfolio);
+    });
+
+    it.each([
+      "@camila.dibuja",
+      "instagram.com/camila",
+      "ftp://camila.com",
+      "https://localhost",
+    ])("asks for the full link instead of %s", (portfolio) => {
+      const result = buildVolunteerApplicationSchema(context()).safeParse(
+        validInput({ portfolio }),
+      );
+      expect(messages(result)).toEqual([
+        {
+          path: "portfolio",
+          message:
+            "Escribe el enlace completo, empezando con https:// (por ejemplo, https://instagram.com/tuusuario).",
+        },
+      ]);
+    });
+
+    it("stays optional", () => {
+      const result = buildVolunteerApplicationSchema(context()).safeParse(
+        validInput({ portfolio: "  " }),
+      );
+      expect(result.data?.portfolio).toBeNull();
+    });
+  });
+
   it("caps the motivation at 300 characters", () => {
     const schema = buildVolunteerApplicationSchema(context());
     expect(
