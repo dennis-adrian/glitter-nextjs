@@ -139,10 +139,19 @@ async function sendJobEmail(
 async function deliverJob(
   kind: string,
   recipientEmail: string,
+  recipientUserId: number | null,
   reservationId: number,
   payload: unknown,
   idempotencyKey: string,
 ) {
+  // Who the job is for, by the account it was queued for when it has one. An
+  // email change moves the address on a job a worker may already hold, so
+  // comparing addresses could mistake the owner for an admin, or miss them.
+  const isRecipient = (user: { id: number; email: string | null }) =>
+    recipientUserId != null
+      ? user.id === recipientUserId
+      : user.email?.toLowerCase() === recipientEmail.toLowerCase();
+
   const reservation = await db.query.standReservations.findFirst({
     where: eq(standReservations.id, reservationId),
     with: {
@@ -199,8 +208,7 @@ async function deliverJob(
       ...invoice,
       reservation,
     } as InvoiceWithPaymentsAndStandAndProfile;
-    const isOwner =
-      owner?.email?.toLowerCase() === recipientEmail.toLowerCase();
+    const isOwner = owner != null && isRecipient(owner);
     if (isOwner) {
       await sendJobEmail(idempotencyKey, {
         to: [recipientEmail],
@@ -233,7 +241,7 @@ async function deliverJob(
     // Admins are only enqueued for this kind by `applyInvoiceCredits`, where
     // credits confirmed the reservation without anyone approving it. They get
     // a notice about the participant, not the participant's own confirmation.
-    const isOwner = owner.email?.toLowerCase() === recipientEmail.toLowerCase();
+    const isOwner = isRecipient(owner);
     if (!isOwner) {
       await sendJobEmail(idempotencyKey, {
         to: [recipientEmail],
@@ -266,9 +274,8 @@ async function deliverJob(
 
   if (kind === "reservation_rejected") {
     // Every participant gets one, so each is greeted by their own name.
-    const recipient = reservation.participants.find(
-      (participant) =>
-        participant.user.email?.toLowerCase() === recipientEmail.toLowerCase(),
+    const recipient = reservation.participants.find((participant) =>
+      isRecipient(participant.user),
     )?.user;
     // Same reasoning as the late-partner branch below: a silent return would
     // mark the job completed and lose the reason.
@@ -320,9 +327,8 @@ async function deliverJob(
     const partnerUser = reservation.participants.find(
       (participant) => participant.userId === partnerUserId,
     )?.user;
-    const recipient = reservation.participants.find(
-      (participant) =>
-        participant.user.email?.toLowerCase() === recipientEmail.toLowerCase(),
+    const recipient = reservation.participants.find((participant) =>
+      isRecipient(participant.user),
     )?.user;
     // Thrown, not returned. Returning here reaches the caller's success path,
     // which stamps the job `completed` with a null `lastError` — an email
@@ -365,9 +371,8 @@ async function deliverJob(
       reservation.participants.find(
         (participant) => participant.userId === reservation.ownerUserId,
       )?.user ?? owner;
-    const recipient = reservation.participants.find(
-      (participant) =>
-        participant.user.email?.toLowerCase() === recipientEmail.toLowerCase(),
+    const recipient = reservation.participants.find((participant) =>
+      isRecipient(participant.user),
     )?.user;
     // Same reasoning as the late-partner branch above: a silent return would
     // mark the job completed and lose the reason.
@@ -413,9 +418,8 @@ async function deliverJob(
 
   if (kind === "deadline_extended" && owner) {
     // Sent to every participant, but only the payer can upload the voucher.
-    const recipient = reservation.participants.find(
-      (participant) =>
-        participant.user.email?.toLowerCase() === recipientEmail.toLowerCase(),
+    const recipient = reservation.participants.find((participant) =>
+      isRecipient(participant.user),
     )?.user;
     // Same reasoning as the late-partner branch above.
     if (!recipient) throw new Error("extension_recipient_missing");
@@ -659,6 +663,7 @@ export async function attemptReservationNotificationJob(jobId: number) {
       await deliverJob(
         job.notificationKind,
         job.recipientEmail,
+        job.userId ?? null,
         job.reservationId,
         job.payload,
         idempotencyKey,
