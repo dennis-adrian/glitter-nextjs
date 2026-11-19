@@ -4,6 +4,7 @@ import { and, asc, eq, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { expireSharedCache, SHARED_CACHE_TAGS } from "@/app/lib/cache/shared";
 import { libraryIconSvg } from "@/app/lib/links/icon-library";
 import {
   importLinkImage,
@@ -49,7 +50,12 @@ function canManageLinks(role: string | null | undefined) {
   return role === "admin" || role === "festival_admin";
 }
 
+/**
+ * Puts a change on `/links` at once: expires the cached rows the page is
+ * built from, then the page itself. Called after the write has committed.
+ */
 function invalidateLinks() {
+  expireSharedCache(SHARED_CACHE_TAGS.siteLinks);
   revalidatePath(LINKS_PATH, "page");
   revalidatePath(LINKS_ADMIN_PATH, "page");
 }
