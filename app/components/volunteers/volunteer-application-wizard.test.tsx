@@ -174,6 +174,16 @@ describe("VolunteerApplicationWizard", () => {
     );
   });
 
+  it("announces the two commitments as required, not image consent", () => {
+    storeDraft(3, validPersonal);
+    render(<VolunteerApplicationWizard {...props} />);
+
+    const required = screen
+      .getAllByRole("checkbox")
+      .map((box) => box.getAttribute("aria-required"));
+    expect(required).toEqual(["true", "true", null]);
+  });
+
   it("keeps the answers when going back, and in sessionStorage", async () => {
     storeDraft(1, validPersonal);
     render(<VolunteerApplicationWizard {...props} />);

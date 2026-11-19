@@ -254,6 +254,7 @@ export function ChoiceRow({
   invalid,
   describedBy,
   id,
+  required,
 }: {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
@@ -262,6 +263,8 @@ export function ChoiceRow({
   invalid?: boolean;
   describedBy?: string;
   id?: string;
+  /** Announced as required; the visual mark sits on the group's legend. */
+  required?: boolean;
 }) {
   return (
     <label
@@ -277,6 +280,7 @@ export function ChoiceRow({
         onBlur={onBlur}
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
+        aria-required={required || undefined}
         className="mt-0.5"
       />
       <span className="min-w-0 break-words">{children}</span>

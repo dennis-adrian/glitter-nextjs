@@ -17,6 +17,7 @@ import {
 import * as schema from "@/db/schema";
 import {
   festivals,
+  volunteerApplicationAssignedShifts,
   volunteerApplicationAvailableShifts,
   volunteerApplications,
   volunteerCallSettings,
@@ -355,6 +356,68 @@ describeDatabase("submitVolunteerApplication", () => {
       message: "Ese rol ya no está disponible. Recargá la página.",
     });
     expect(await applicationsFor(call.festivalId)).toHaveLength(0);
+  });
+
+  it("refuses, in the database, roles and shifts of another festival", async () => {
+    const call = await createCall();
+    const other = await createCall();
+    const db = integrationDb!;
+    const row = {
+      festivalId: call.festivalId,
+      fullName: "Camila Rojas",
+      birthdate: "2000-05-10",
+      phone: "+59151234567",
+      email: `camila-${suffix()}@example.test`,
+      firstChoiceRoleId: call.roleIds[0]!,
+      secondChoiceRoleId: call.roleIds[1]!,
+      motivation: "Quiero ayudar.",
+      emergencyContactName: "Ana Rojas",
+      emergencyContactPhone: "+59171234567",
+      referralSource: "university" as const,
+      consentedAt: new Date(),
+      privacyNoticeVersion: "test",
+    };
+
+    await expect(
+      db
+        .insert(volunteerApplications)
+        .values({ ...row, secondChoiceRoleId: other.roleIds[1]! }),
+    ).rejects.toMatchObject({ cause: { code: "23503" } });
+
+    const [stored] = await db
+      .insert(volunteerApplications)
+      .values(row)
+      .returning({ id: volunteerApplications.id });
+    await expect(
+      db
+        .update(volunteerApplications)
+        .set({ assignedRoleId: other.roleIds[0]! })
+        .where(eq(volunteerApplications.id, stored!.id)),
+    ).rejects.toMatchObject({ cause: { code: "23503" } });
+    for (const table of [
+      volunteerApplicationAvailableShifts,
+      volunteerApplicationAssignedShifts,
+    ]) {
+      await expect(
+        db.insert(table).values({
+          applicationId: stored!.id,
+          shiftId: other.shiftIds[0]!,
+          festivalId: call.festivalId,
+        }),
+      ).rejects.toMatchObject({ cause: { code: "23503" } });
+      await expect(
+        db.insert(table).values({
+          applicationId: stored!.id,
+          shiftId: other.shiftIds[0]!,
+          festivalId: other.festivalId,
+        }),
+      ).rejects.toMatchObject({ cause: { code: "23503" } });
+      await db.insert(table).values({
+        applicationId: stored!.id,
+        shiftId: call.shiftIds[0]!,
+        festivalId: call.festivalId,
+      });
+    }
   });
 
   it("refuses applications after the closing date", async () => {

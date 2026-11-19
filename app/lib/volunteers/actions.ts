@@ -139,6 +139,7 @@ export async function submitVolunteerApplication(
       values.shiftIds.map((shiftId) => ({
         applicationId: inserted.id,
         shiftId,
+        festivalId: festival.data,
       })),
     );
     return inserted.id;

@@ -8530,6 +8530,7 @@ export const volunteerRoles = pgTable(
       t.name,
     ),
     index("volunteer_roles_festival_idx").on(t.festivalId, t.sortOrder),
+    unique("volunteer_roles_id_festival_id_unique").on(t.id, t.festivalId),
   ],
 );
 
@@ -8553,6 +8554,7 @@ export const volunteerShifts = pgTable(
   },
   (t) => [
     index("volunteer_shifts_festival_idx").on(t.festivalId, t.sortOrder),
+    unique("volunteer_shifts_id_festival_id_unique").on(t.id, t.festivalId),
     check(
       "volunteer_shifts_ends_after_start",
       sql`${t.endsAt} > ${t.startsAt}`,
@@ -8600,12 +8602,8 @@ export const volunteerApplications = pgTable(
     /** Trimmed and lowercased; one application per email and festival. */
     email: text("email").notNull(),
     zone: text("zone"),
-    firstChoiceRoleId: integer("first_choice_role_id")
-      .notNull()
-      .references(() => volunteerRoles.id),
-    secondChoiceRoleId: integer("second_choice_role_id")
-      .notNull()
-      .references(() => volunteerRoles.id),
+    firstChoiceRoleId: integer("first_choice_role_id").notNull(),
+    secondChoiceRoleId: integer("second_choice_role_id").notNull(),
     /** Keys from VOLUNTEER_EXPERIENCE_OPTIONS (app/lib/volunteers). */
     experience: text("experience")
       .array()
@@ -8632,9 +8630,7 @@ export const volunteerApplications = pgTable(
     status: volunteerApplicationStatusEnum("status")
       .default("pending")
       .notNull(),
-    assignedRoleId: integer("assigned_role_id").references(
-      () => volunteerRoles.id,
-    ),
+    assignedRoleId: integer("assigned_role_id"),
     adminNotes: text("admin_notes"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -8648,6 +8644,26 @@ export const volunteerApplications = pgTable(
       t.festivalId,
       t.status,
     ),
+    unique("volunteer_applications_id_festival_id_unique").on(
+      t.id,
+      t.festivalId,
+    ),
+    // Every role an application names belongs to the application's festival.
+    foreignKey({
+      name: "volunteer_applications_first_choice_role_festival_fk",
+      columns: [t.firstChoiceRoleId, t.festivalId],
+      foreignColumns: [volunteerRoles.id, volunteerRoles.festivalId],
+    }),
+    foreignKey({
+      name: "volunteer_applications_second_choice_role_festival_fk",
+      columns: [t.secondChoiceRoleId, t.festivalId],
+      foreignColumns: [volunteerRoles.id, volunteerRoles.festivalId],
+    }),
+    foreignKey({
+      name: "volunteer_applications_assigned_role_festival_fk",
+      columns: [t.assignedRoleId, t.festivalId],
+      foreignColumns: [volunteerRoles.id, volunteerRoles.festivalId],
+    }),
     check(
       "volunteer_applications_distinct_role_choices",
       sql`${t.firstChoiceRoleId} <> ${t.secondChoiceRoleId}`,
@@ -8667,16 +8683,27 @@ export const volunteerApplications = pgTable(
 export const volunteerApplicationAvailableShifts = pgTable(
   "volunteer_application_available_shifts",
   {
-    applicationId: integer("application_id")
-      .notNull()
-      .references(() => volunteerApplications.id, { onDelete: "cascade" }),
-    shiftId: integer("shift_id")
-      .notNull()
-      .references(() => volunteerShifts.id),
+    applicationId: integer("application_id").notNull(),
+    shiftId: integer("shift_id").notNull(),
+    /** The application's festival; the shift must belong to it too. */
+    festivalId: integer("festival_id").notNull(),
   },
   (t) => [
     primaryKey({ columns: [t.applicationId, t.shiftId] }),
     index("volunteer_application_available_shifts_shift_idx").on(t.shiftId),
+    foreignKey({
+      name: "volunteer_application_available_shifts_application_fk",
+      columns: [t.applicationId, t.festivalId],
+      foreignColumns: [
+        volunteerApplications.id,
+        volunteerApplications.festivalId,
+      ],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "volunteer_application_available_shifts_shift_fk",
+      columns: [t.shiftId, t.festivalId],
+      foreignColumns: [volunteerShifts.id, volunteerShifts.festivalId],
+    }),
   ],
 );
 
@@ -8684,16 +8711,27 @@ export const volunteerApplicationAvailableShifts = pgTable(
 export const volunteerApplicationAssignedShifts = pgTable(
   "volunteer_application_assigned_shifts",
   {
-    applicationId: integer("application_id")
-      .notNull()
-      .references(() => volunteerApplications.id, { onDelete: "cascade" }),
-    shiftId: integer("shift_id")
-      .notNull()
-      .references(() => volunteerShifts.id),
+    applicationId: integer("application_id").notNull(),
+    shiftId: integer("shift_id").notNull(),
+    /** The application's festival; the shift must belong to it too. */
+    festivalId: integer("festival_id").notNull(),
   },
   (t) => [
     primaryKey({ columns: [t.applicationId, t.shiftId] }),
     index("volunteer_application_assigned_shifts_shift_idx").on(t.shiftId),
+    foreignKey({
+      name: "volunteer_application_assigned_shifts_application_fk",
+      columns: [t.applicationId, t.festivalId],
+      foreignColumns: [
+        volunteerApplications.id,
+        volunteerApplications.festivalId,
+      ],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "volunteer_application_assigned_shifts_shift_fk",
+      columns: [t.shiftId, t.festivalId],
+      foreignColumns: [volunteerShifts.id, volunteerShifts.festivalId],
+    }),
   ],
 );
 
