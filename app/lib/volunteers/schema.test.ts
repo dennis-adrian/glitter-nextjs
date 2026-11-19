@@ -356,8 +356,7 @@ describe("buildVolunteerApplicationSchema", () => {
       expect(messages(result)).toEqual([
         {
           path: "portfolio",
-          message:
-            "Pegá el enlace completo, empezando con https://",
+          message: "Pegá el enlace completo, empezando con https://",
         },
       ]);
     });
