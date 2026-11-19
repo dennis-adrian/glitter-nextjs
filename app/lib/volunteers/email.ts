@@ -3,6 +3,7 @@ import "server-only";
 import VolunteerApplicationReceivedEmailTemplate from "@/app/emails/volunteer-application-received";
 import {
   VOLUNTEER_COPY,
+  VOLUNTEERS_EMAIL,
   type VolunteerCall,
   type VolunteerRole,
   type VolunteerShift,
@@ -17,7 +18,7 @@ import { sendEmail } from "@/app/vendors/resend";
 import { assertSent, sendFailureType } from "@/app/vendors/resend-result";
 
 /** Replies reach the team's inbox, which the email invites for corrections. */
-const VOLUNTEERS_FROM = "Productora Glitter <info@productoraglitter.com>";
+const VOLUNTEERS_FROM = `Productora Glitter <${VOLUNTEERS_EMAIL}>`;
 const SUBJECT = "Recibimos tu postulación al voluntariado de Glitter";
 
 /** "Camila Andrea Rojas" → "Camila". */

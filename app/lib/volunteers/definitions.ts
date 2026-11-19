@@ -9,6 +9,12 @@
 
 export const VOLUNTEERS_PATH = "/voluntarios";
 
+/**
+ * The volunteer team's address: it sends the confirmation email (replies
+ * land there) and is the contact on the page and in the privacy note.
+ */
+export const VOLUNTEERS_EMAIL = "voluntarios@productoraglitter.com";
+
 /** Bumped whenever the privacy note beside the data consent changes. */
 export const VOLUNTEER_PRIVACY_NOTICE_VERSION = "2026-11-v2";
 

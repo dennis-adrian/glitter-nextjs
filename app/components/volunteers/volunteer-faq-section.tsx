@@ -4,10 +4,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/app/components/ui/accordion";
-import { SITE_CONTACT_EMAIL, SOCIAL_LINKS } from "@/app/lib/site-contact";
+import { SOCIAL_LINKS } from "@/app/lib/site-contact";
 import {
   VOLUNTEER_COPY,
   VOLUNTEER_FAQ,
+  VOLUNTEERS_EMAIL,
 } from "@/app/lib/volunteers/definitions";
 
 const INSTAGRAM_URL =
@@ -44,10 +45,10 @@ export default function VolunteerFaqSection() {
             <AccordionContent className="text-base leading-7 text-brand-neutral">
               Escribinos a{" "}
               <a
-                href={`mailto:${SITE_CONTACT_EMAIL}`}
+                href={`mailto:${VOLUNTEERS_EMAIL}`}
                 className="font-semibold text-brand-primary wrap-anywhere hover:underline"
               >
-                {SITE_CONTACT_EMAIL}
+                {VOLUNTEERS_EMAIL}
               </a>{" "}
               o por Instagram a{" "}
               <a

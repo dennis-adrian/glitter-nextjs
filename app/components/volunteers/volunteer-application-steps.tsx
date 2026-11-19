@@ -10,7 +10,6 @@ import {
   TextField,
 } from "@/app/components/volunteers/volunteer-form-fields";
 import { FormField, FormItem } from "@/app/components/ui/form";
-import { SITE_CONTACT_EMAIL } from "@/app/lib/site-contact";
 import {
   VOLUNTEER_COPY,
   VOLUNTEER_EXPERIENCE_OPTIONS,
@@ -20,6 +19,7 @@ import {
   VOLUNTEER_REFERRAL_OPTIONS,
   type VolunteerRole,
   type VolunteerShift,
+  VOLUNTEERS_EMAIL,
 } from "@/app/lib/volunteers/definitions";
 import type { VolunteerDraftValues } from "@/app/lib/volunteers/draft";
 import {
@@ -344,7 +344,7 @@ export function LastStep({
         <p className="mt-2 text-xs leading-4 wrap-anywhere text-muted-foreground">
           {VOLUNTEER_PRIVACY_NOTICE.replace("{festival}", festivalName).replace(
             "{email}",
-            SITE_CONTACT_EMAIL,
+            VOLUNTEERS_EMAIL,
           )}
         </p>
       </fieldset>
