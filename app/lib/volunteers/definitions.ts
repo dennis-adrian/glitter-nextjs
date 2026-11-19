@@ -121,6 +121,15 @@ export const VOLUNTEER_COPY = {
   noCallMessage:
     "Por ahora no estamos buscando voluntarios. Síguenos en redes para enterarte de la próxima convocatoria.",
   inductionToBeConfirmed: "fecha por confirmar",
+  /** Error on either required consent (commitment, data processing). */
+  requiredCommitments: "Para postular, marca los dos compromisos.",
+  imageConsentTitle: "Fotos y videos (opcional)",
+  imageConsentLabel:
+    "Autorizo el uso de mi imagen en las fotos y videos del festival.",
+  imageConsentNote: "Podés postular igual si no lo marcás.",
+  portfolioLabel: "Portafolio o enlace a tu trabajo",
+  portfolioHint:
+    "Opcional. Solo si elegís Fotografía y redes sociales y querés mostrarnos tus fotos o videos. No influye en los demás roles.",
   tooManyRequests:
     "Recibimos demasiados intentos desde tu red. Espera unos minutos e intenta de nuevo.",
   genericError: "No pudimos enviar tu postulación. Intenta de nuevo.",

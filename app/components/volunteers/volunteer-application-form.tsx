@@ -333,9 +333,9 @@ export default function VolunteerApplicationForm({
             name="experienceNotes"
           />
           <TextInput
-            label="Instagram o portafolio"
+            label={VOLUNTEER_COPY.portfolioLabel}
             name="portfolio"
-            description="Nos sirve sobre todo si te interesa la fotografía o las redes sociales."
+            description={VOLUNTEER_COPY.portfolioHint}
           />
 
           <FormField
@@ -411,10 +411,6 @@ export default function VolunteerApplicationForm({
             label="Me comprometo a cumplir completos los turnos que me asignen y a asistir a la inducción previa."
           />
           <ConsentField
-            name="imageConsent"
-            label="Autorizo el uso de mi imagen en las fotos y videos del festival."
-          />
-          <ConsentField
             name="dataConsent"
             label="Autorizo el uso de mis datos para coordinar el voluntariado."
             note={VOLUNTEER_PRIVACY_NOTICE.replace(
@@ -422,6 +418,18 @@ export default function VolunteerApplicationForm({
               SITE_CONTACT_EMAIL,
             )}
           />
+
+          <fieldset className="grid gap-2 rounded-md border p-3">
+            <legend className="px-1 font-semibold">
+              {VOLUNTEER_COPY.imageConsentTitle}
+            </legend>
+            <ConsentField
+              name="imageConsent"
+              label={VOLUNTEER_COPY.imageConsentLabel}
+              note={VOLUNTEER_COPY.imageConsentNote}
+              optional
+            />
+          </fieldset>
 
           {rootError ? (
             <p role="alert" className="text-sm text-destructive break-words">
@@ -442,10 +450,13 @@ function ConsentField({
   name,
   label,
   note,
+  optional = false,
 }: {
   name: "commitmentConsent" | "imageConsent" | "dataConsent";
   label: string;
   note?: string;
+  /** Optional preferences carry no required mark. */
+  optional?: boolean;
 }) {
   return (
     <FormField
@@ -462,7 +473,9 @@ function ConsentField({
             </FormControl>
             <span className="min-w-0 text-sm break-words">
               {label}
-              <span className="text-destructive ml-0.5">*</span>
+              {optional ? null : (
+                <span className="text-destructive ml-0.5">*</span>
+              )}
             </span>
           </label>
           {note ? (

@@ -153,7 +153,7 @@ function application(
     emergencyContactPhone: "+59171234567",
     referralSource: "university",
     commitmentConsent: true,
-    imageConsent: true,
+    imageConsent: false,
     dataConsent: true,
     website: "",
     ...overrides,
@@ -244,6 +244,7 @@ describeDatabase("submitVolunteerApplication", () => {
       secondChoiceRoleId: call.roleIds[1],
       assignedRoleId: null,
       privacyNoticeVersion: expect.any(String),
+      imageConsent: false,
     });
     const shifts = await integrationDb!
       .select({ shiftId: volunteerApplicationAvailableShifts.shiftId })
@@ -364,6 +365,20 @@ describeDatabase("submitVolunteerApplication", () => {
 
     expect(result).toMatchObject({ success: false, closed: true });
     expect(await applicationsFor(call.festivalId)).toHaveLength(0);
+  });
+
+  it("stores the optional image authorization when given", async () => {
+    const call = await createCall();
+
+    await expect(
+      actions.submitVolunteerApplication(
+        call.festivalId,
+        application(call, { imageConsent: true }),
+      ),
+    ).resolves.toEqual({ success: true });
+
+    const [stored] = await applicationsFor(call.festivalId);
+    expect(stored!.imageConsent).toBe(true);
   });
 
   it("answers a filled honeypot with the normal success and stores nothing", async () => {

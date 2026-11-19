@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildVolunteerApplicationSchema,
+  buildVolunteerSectionSchema,
+  VOLUNTEER_FORM_SECTIONS,
   isOldEnoughOn,
   isVolunteerCallOpen,
   volunteerAgeCutoffDate,
@@ -275,19 +277,60 @@ describe("buildVolunteerApplicationSchema", () => {
     });
   });
 
-  it("requires every consent", () => {
+  it("requires the two commitments", () => {
     const result = buildVolunteerApplicationSchema(context()).safeParse(
-      validInput({
-        commitmentConsent: false,
-        imageConsent: false,
-        dataConsent: false,
-      }),
+      validInput({ commitmentConsent: false, dataConsent: false }),
     );
-    expect(messages(result).map((issue) => issue.path)).toEqual([
-      "commitmentConsent",
-      "imageConsent",
-      "dataConsent",
+    expect(messages(result)).toEqual([
+      {
+        path: "commitmentConsent",
+        message: "Para postular, marca los dos compromisos.",
+      },
+      {
+        path: "dataConsent",
+        message: "Para postular, marca los dos compromisos.",
+      },
     ]);
+  });
+
+  it("treats the image authorization as an optional preference", () => {
+    const schema = buildVolunteerApplicationSchema(context());
+    const declined = schema.safeParse(validInput({ imageConsent: false }));
+    const omitted = schema.safeParse(validInput({ imageConsent: undefined }));
+    const given = schema.safeParse(validInput({ imageConsent: true }));
+    expect(declined.data?.imageConsent).toBe(false);
+    expect(omitted.data?.imageConsent).toBe(false);
+    expect(given.data?.imageConsent).toBe(true);
+  });
+
+  describe("sections, for a step-by-step form", () => {
+    it("cover every field of the full schema exactly once", () => {
+      const fields = VOLUNTEER_FORM_SECTIONS.flatMap((section) =>
+        Object.keys(buildVolunteerSectionSchema(context(), section).shape),
+      );
+      expect(new Set(fields).size).toBe(fields.length);
+      expect(fields.sort()).toEqual(Object.keys(validInput()).sort());
+    });
+
+    it("validate one step on its own, cross-field checks included", () => {
+      const step = buildVolunteerSectionSchema(context(), "shiftsAndRoles");
+      expect(
+        step.safeParse({
+          shiftIds: [21],
+          firstChoiceRoleId: "11",
+          secondChoiceRoleId: "12",
+        }).success,
+      ).toBe(true);
+      expect(
+        messages(
+          step.safeParse({
+            shiftIds: [21],
+            firstChoiceRoleId: "11",
+            secondChoiceRoleId: "11",
+          }),
+        ).map((issue) => issue.path),
+      ).toEqual(["secondChoiceRoleId"]);
+    });
   });
 
   it("caps the motivation at 300 characters", () => {

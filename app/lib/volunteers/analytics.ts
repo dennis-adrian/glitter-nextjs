@@ -24,6 +24,7 @@ export function volunteerFormSubmittedProperties(
     | "zone"
     | "portfolio"
     | "experienceNotes"
+    | "imageConsent"
   >,
 ) {
   return {
@@ -37,5 +38,6 @@ export function volunteerFormSubmittedProperties(
     has_zone: Boolean(values.zone),
     has_portfolio: Boolean(values.portfolio),
     has_experience_notes: Boolean(values.experienceNotes),
+    image_consent: values.imageConsent,
   };
 }

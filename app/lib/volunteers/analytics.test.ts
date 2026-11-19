@@ -15,6 +15,7 @@ describe("volunteerFormSubmittedProperties", () => {
       zone: "Equipetrol",
       portfolio: "@camila.dibuja",
       experienceNotes: "Trabajé en la feria del libro",
+      imageConsent: false,
     });
     expect(properties).toEqual({
       festival_id: 7,
@@ -27,6 +28,7 @@ describe("volunteerFormSubmittedProperties", () => {
       has_zone: true,
       has_portfolio: true,
       has_experience_notes: true,
+      image_consent: false,
     });
     expect(JSON.stringify(properties)).not.toMatch(/Equipetrol|camila|feria/i);
   });

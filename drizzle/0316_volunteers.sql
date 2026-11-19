@@ -31,6 +31,7 @@ CREATE TABLE "volunteer_applications" (
 	"referral_source" "volunteer_referral_source" NOT NULL,
 	"consented_at" timestamp NOT NULL,
 	"privacy_notice_version" text NOT NULL,
+	"image_consent" boolean DEFAULT false NOT NULL,
 	"status" "volunteer_application_status" DEFAULT 'pending' NOT NULL,
 	"assigned_role_id" integer,
 	"admin_notes" text,

@@ -8618,12 +8618,17 @@ export const volunteerApplications = pgTable(
     emergencyContactPhone: text("emergency_contact_phone").notNull(),
     referralSource: volunteerReferralSourceEnum("referral_source").notNull(),
     /**
-     * The three required consents (shift commitment and induction, image use,
-     * data processing) are given together; this is when, and which privacy
-     * note the applicant was shown.
+     * The two required consents (shift commitment and induction, data
+     * processing) are given together; this is when, and which privacy note
+     * the applicant was shown.
      */
     consentedAt: timestamp("consented_at").notNull(),
     privacyNoticeVersion: text("privacy_notice_version").notNull(),
+    /**
+     * Optional: whether they authorised use of their image in festival photos
+     * and videos ("Autorizó" / "No autorizó"). Never required to apply.
+     */
+    imageConsent: boolean("image_consent").default(false).notNull(),
     status: volunteerApplicationStatusEnum("status")
       .default("pending")
       .notNull(),

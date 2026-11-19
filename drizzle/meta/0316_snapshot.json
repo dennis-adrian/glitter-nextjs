@@ -1,5 +1,5 @@
 {
-  "id": "fdd016b7-1dd3-47cc-91ca-3bfaa702b38c",
+  "id": "f21c18b3-31ce-4fce-a7ef-600ab9ccb534",
   "prevId": "b8bf6e18-5912-4e34-b680-15b565b3aa19",
   "version": "7",
   "dialect": "postgresql",
@@ -22604,6 +22604,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "image_consent": {
+          "name": "image_consent",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "status": {
           "name": "status",

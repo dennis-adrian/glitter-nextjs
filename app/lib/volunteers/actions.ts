@@ -127,6 +127,7 @@ export async function submitVolunteerApplication(
         referralSource: values.referralSource,
         consentedAt: now,
         privacyNoticeVersion: VOLUNTEER_PRIVACY_NOTICE_VERSION,
+        imageConsent: values.imageConsent,
       })
       .onConflictDoNothing({
         target: [volunteerApplications.festivalId, volunteerApplications.email],
