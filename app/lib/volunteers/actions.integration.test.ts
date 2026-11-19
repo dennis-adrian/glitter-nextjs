@@ -257,7 +257,7 @@ describeDatabase("submitVolunteerApplication", () => {
     expect(sendEmail).toHaveBeenCalledTimes(1);
     expect(sendEmail.mock.calls[0]![0]).toMatchObject({
       to: ["camila.rojas+v@example.test"],
-      from: "Productora Glitter <voluntarios@glitter.com.bo>",
+      from: "Productora Glitter <voluntarios@productoraglitter.com>",
     });
     expect(sendEmail.mock.calls[0]![0].subject).not.toMatch(
       /aceptad|confirmad/i,
