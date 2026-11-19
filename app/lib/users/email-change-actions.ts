@@ -14,6 +14,7 @@ import {
 import {
   beginEmailChange,
   completeEmailChange,
+  EMAIL_CHANGE_CLERK_BUDGET_MS,
   emailChangeErrorCode,
   markEmailChangeClerkDone,
   markEmailChangeFailed,
@@ -58,10 +59,14 @@ const HALFWAY: Record<
     "El correo de acceso ya cambió, pero el perfil entró en proceso de eliminación y no lo actualizamos.",
   email_taken:
     "El correo de acceso ya cambió, pero otro perfil tiene ese correo en nuestra base de datos y no pudimos actualizar este. Avisá al equipo técnico.",
+  // The one case where Clerk may not hold this address: the newer run writes
+  // there too.
+  superseded:
+    "Mientras tanto empezó otro cambio de correo para este perfil, así que no actualizamos el perfil con este. Puede que el correo de acceso haya cambiado en este intento: revisá el correo del perfil y, si hace falta, repetí el cambio.",
 };
 
 const HALFWAY_RETRY =
-  "El correo de acceso ya cambió, pero no pudimos terminar de actualizar el perfil. Volvé a hacer el cambio con el mismo correo para completarlo.";
+  "El correo de acceso ya cambió, pero no pudimos terminar de actualizar el perfil. Volvé a hacer el cambio con el mismo correo para completarlo; si te responde que ya hay un cambio en curso, esperá un par de minutos y repetilo.";
 
 /** The audit row is a courtesy here: failing to write it changes no answer. */
 async function noteFailure(changeId: number, code: string) {
@@ -152,6 +157,7 @@ function describeOutcome(input: {
   unlinkedProviders: string[];
   oldAddressesRemoved: boolean;
   passwordEnabled: boolean;
+  googleOnNewAddress: boolean;
   /** Null on a resync, which writes to nobody. */
   notices: { old: string; new: string } | null;
 }) {
@@ -162,11 +168,14 @@ function describeOutcome(input: {
     input.unlinkedProviders.some((p) => p === "oauth_google" || p === "google")
   ) {
     lines.push(
-      input.passwordEnabled
+      input.googleOnNewAddress
         ? "Desvinculamos su cuenta de Google anterior; ya puede entrar con Google usando el correo nuevo."
-        : // Google was likely their only way in, and nothing here can tell
-          // whether a Google account exists for the new address.
-          "Desvinculamos su cuenta de Google anterior. No tiene contraseña: para entrar necesita una cuenta de Google del correo nuevo o el código que le llega a ese correo. Confirmá con la persona que pudo entrar.",
+        : input.passwordEnabled
+          ? // A password says nothing about Google: only an account of the
+            // new address, seen on the Clerk account, does.
+            "Desvinculamos su cuenta de Google anterior. Para entrar con Google necesita una cuenta de Google del correo nuevo."
+          : // Google was likely their only way in.
+            "Desvinculamos su cuenta de Google anterior. No tiene contraseña: para entrar necesita una cuenta de Google del correo nuevo o el código que le llega a ese correo. Confirmá con la persona que pudo entrar.",
     );
   } else if (input.unlinkedProviders.length > 0) {
     lines.push(
@@ -175,7 +184,8 @@ function describeOutcome(input: {
   }
   if (!input.oldAddressesRemoved) {
     lines.push(
-      "El correo anterior todavía sirve para entrar: volvé a hacer el cambio con el mismo correo para quitarlo.",
+      // Unknown, not known bad: the read that would confirm it may have failed.
+      "No pudimos confirmar que el correo anterior haya quedado fuera de la cuenta de acceso: volvé a hacer el cambio con el mismo correo para terminar de quitarlo.",
     );
   }
   if (input.notices && input.notices.new !== "sent") {
@@ -226,7 +236,11 @@ export async function changeUserEmail(
     changeId = begun.changeId;
 
     // Outside any transaction: a network call must not hold the user lock.
-    const clerk = await changeClerkUserEmail(begun.clerkId, newEmail);
+    // The reservation is not renewed, so Clerk stops being written to while
+    // it still keeps a second attempt out.
+    const clerk = await changeClerkUserEmail(begun.clerkId, newEmail, {
+      deadline: Date.now() + EMAIL_CHANGE_CLERK_BUDGET_MS,
+    });
     if (clerk.status === "email_taken") {
       await noteFailure(changeId, "clerk_email_taken");
       return { success: false, message: REFUSALS.email_taken };
@@ -276,6 +290,7 @@ export async function changeUserEmail(
       unlinkedProviders: clerk.unlinkedProviders,
       oldAddressesRemoved: clerk.oldAddressesRemoved,
       passwordEnabled: clerk.passwordEnabled,
+      googleOnNewAddress: clerk.googleOnNewAddress,
       notices,
     });
     const needsFollowUp =

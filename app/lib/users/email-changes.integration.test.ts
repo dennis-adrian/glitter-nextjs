@@ -66,8 +66,12 @@ type AppDb = typeof import("@/db");
 let emailChanges: EmailChanges;
 let app: AppDb;
 
-/** Every address, Clerk id and key a test makes carries this, for cleanup. */
-const MARK = "mailchg-it";
+/**
+ * Every address, Clerk id and key a test makes carries this, for cleanup.
+ * Its own for each run of the file, so two runs on one database do not delete
+ * each other's rows. Lowercase, with nothing LIKE reads as a wildcard.
+ */
+const MARK = `mailchg-it-${Math.random().toString(36).slice(2, 10)}`;
 const PATTERN = `%${MARK}%`;
 const created = { users: [] as number[] };
 
@@ -176,13 +180,16 @@ async function makeOccurrence() {
   return { sessionId: session.id, occurrenceId: occurrence.id };
 }
 
-async function makeTicket(input: {
-  occurrence: { sessionId: number; occurrenceId: number };
-  userId: number | null;
-  email: string;
-  status?: "valid" | "cancelled";
-}) {
-  const db = integrationDb!;
+async function makeTicket(
+  input: {
+    occurrence: { sessionId: number; occurrenceId: number };
+    userId: number | null;
+    email: string;
+    status?: "valid" | "cancelled";
+  },
+  // A rival's own connection, for a checkout that has not committed.
+  db: Pick<NonNullable<typeof integrationDb>, "insert"> = integrationDb!,
+) {
   const now = new Date();
   const [purchase] = await db
     .insert(sessionPurchases)
@@ -236,6 +243,62 @@ async function makeTicket(input: {
     })
     .returning({ id: sessionTickets.id });
   return ticket.id;
+}
+
+/** As if the change had started `interval` ago, by the database's clock. */
+function ageChange(changeId: number, interval: string) {
+  return integrationDb!
+    .update(userEmailChanges)
+    .set({ createdAt: sql`clock_timestamp() - ${interval}::interval` })
+    .where(eq(userEmailChanges.id, changeId));
+}
+
+/**
+ * A second connection with a transaction open, to hold a lock or a row that
+ * has not committed. `release` rolls back whatever `commit` did not.
+ */
+async function openRival() {
+  const client = await pool!.connect();
+  const { rows } = await client.query<{ pid: number }>(
+    "select pg_backend_pid() as pid",
+  );
+  await client.query("begin");
+  let open = true;
+  return {
+    client,
+    db: drizzle(client, { schema }),
+    /**
+     * Resolves, with the waiter's pid, once PostgreSQL says another session
+     * waits on this one.
+     */
+    async blocksSomeone() {
+      const until = Date.now() + 10_000;
+      while (Date.now() < until) {
+        const waiting = await pool!.query<{ pid: number }>(
+          `select pid from pg_stat_activity
+           where wait_event_type = 'Lock'
+             and $1::int = any(pg_blocking_pids(pid))`,
+          [rows[0].pid],
+        );
+        if (waiting.rowCount) return waiting.rows[0].pid;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      throw new Error(
+        "no session was waiting on the rival's lock after 10 s: the statement under test did not reach it",
+      );
+    },
+    async commit() {
+      await client.query("commit");
+      open = false;
+    },
+    async release() {
+      try {
+        if (open) await client.query("rollback");
+      } finally {
+        client.release();
+      }
+    },
+  };
 }
 
 async function ticketEmail(ticketId: number) {
@@ -478,11 +541,7 @@ describeDatabase("changing the address a person signs in with", () => {
 
       it("goes ahead once the earlier one is older than any run can be", async () => {
         const { admin, user, newEmail, changeId } = await begun();
-        const age = (interval: string) =>
-          integrationDb!
-            .update(userEmailChanges)
-            .set({ createdAt: sql`now() - ${interval}::interval` })
-            .where(eq(userEmailChanges.id, changeId));
+        const age = (interval: string) => ageChange(changeId, interval);
 
         // By the database's clock, on both sides of the two minutes.
         await age("1 minute 50 seconds");
@@ -494,6 +553,64 @@ describeDatabase("changing the address a person signs in with", () => {
         await expect(begin(user.id, newEmail, admin.id)).resolves.toMatchObject(
           { status: "ok" },
         );
+      });
+
+      it("counts the window from when the row is written, not from when it began waiting", async () => {
+        const admin = await makeUser("admin", { role: "admin" });
+        const user = await makeUser("ana");
+        const rival = await openRival();
+        let starting: ReturnType<typeof begin>;
+        let lockReleasedAt: string;
+        try {
+          await rival.client.query(
+            "select id from users where id = $1 for update",
+            [user.id],
+          );
+          // Its transaction, and with it now(), starts here.
+          starting = begin(user.id, address("nueva"), admin.id);
+          await rival.blocksSomeone();
+          const clock = await pool!.query<{ at: string }>(
+            "select clock_timestamp()::timestamp::text as at",
+          );
+          lockReleasedAt = clock.rows[0].at;
+          await rival.commit();
+        } finally {
+          await rival.release();
+        }
+
+        const result = await starting;
+        if (result.status !== "ok") throw new Error(result.status);
+        const fresh = await pool!.query<{ fresh: boolean }>(
+          "select created_at >= $1::timestamp as fresh from user_email_changes where id = $2",
+          [lockReleasedAt, result.changeId],
+        );
+        expect(fresh.rows[0].fresh).toBe(true);
+      });
+
+      it("holds a retry back while a run that changed Clerk left its row open, and lets it finish after the window", async () => {
+        const { admin, user, newEmail, changeId } = await begun();
+        // Clerk changed, then the database went away: nothing completed the
+        // row and nothing could note the failure on it.
+        await emailChanges.markEmailChangeClerkDone(changeId, ["oauth_google"]);
+
+        await expect(begin(user.id, newEmail, admin.id)).resolves.toEqual({
+          status: "in_progress",
+        });
+
+        await ageChange(changeId, "2 minutes 5 seconds");
+        const retry = await begin(user.id, newEmail, admin.id);
+        if (retry.status !== "ok") throw new Error(retry.status);
+        await expect(
+          complete({ changeId: retry.changeId, user, newEmail }),
+        ).resolves.toEqual({ status: "ok" });
+
+        expect(await emailOf(user.id)).toBe(newEmail);
+        const rows = await auditRowsFor(user.id);
+        expect(rows.map((row) => row.id)).toEqual([changeId, retry.changeId]);
+        // The first stays as it stopped: history, not a change still owed.
+        expect(rows[0]).toMatchObject({ completedAt: null, lastError: null });
+        expect(rows[0].clerkChangedAt).toBeInstanceOf(Date);
+        expect(rows[1].completedAt).toBeInstanceOf(Date);
       });
     });
 
@@ -895,6 +1012,186 @@ describeDatabase("changing the address a person signs in with", () => {
       expect(await ticketEmail(cancelled)).toBe(user.email);
     });
 
+    it("leaves the tickets behind, and still completes, when a checkout it could not see takes the address", async () => {
+      const { user, newEmail, changeId } = await begun();
+      const occurrence = await makeOccurrence();
+      const elsewhere = await makeOccurrence();
+      const contested = await makeTicket({
+        occurrence,
+        userId: user.id,
+        email: user.email,
+      });
+      const other = await makeTicket({
+        occurrence: elsewhere,
+        userId: user.id,
+        email: user.email,
+      });
+      await integrationDb!.insert(reservationNotificationJobs).values({
+        deduplicationKey: key("job"),
+        userId: user.id,
+        notificationKind: "reservation_confirmed",
+        recipientEmail: user.email,
+        payload: {},
+      });
+
+      // A guest is buying the same occurrence under the new address and has
+      // not committed: the check cannot see the ticket, the index can.
+      const rival = await openRival();
+      let completing: ReturnType<typeof complete>;
+      let guest: number;
+      try {
+        guest = await makeTicket(
+          { occurrence, userId: null, email: newEmail },
+          rival.db,
+        );
+        completing = complete({ changeId, user, newEmail });
+        await rival.blocksSomeone();
+        await rival.commit();
+      } finally {
+        await rival.release();
+      }
+
+      await expect(completing).resolves.toEqual({ status: "ok" });
+
+      // Clerk already has the address: everything but the tickets follows.
+      expect(await emailOf(user.id)).toBe(newEmail);
+      const [job] = await integrationDb!
+        .select({ recipientEmail: reservationNotificationJobs.recipientEmail })
+        .from(reservationNotificationJobs)
+        .where(eq(reservationNotificationJobs.userId, user.id));
+      expect(job.recipientEmail).toBe(newEmail);
+      const row = await auditRow(changeId);
+      expect(row.lastError).toBeNull();
+      expect(row.completedAt).toBeInstanceOf(Date);
+      // One statement, one savepoint: the ticket nobody contested stays too.
+      expect(await ticketEmail(contested)).toBe(user.email);
+      expect(await ticketEmail(other)).toBe(user.email);
+      expect(await ticketEmail(guest)).toBe(newEmail);
+    });
+
+    it("does not take any other failure of the ticket update for that one", async () => {
+      const { user, newEmail, changeId } = await begun();
+      const ticket = await makeTicket({
+        occurrence: await makeOccurrence(),
+        userId: user.id,
+        email: user.email,
+      });
+
+      // The update waits on a row lock and is cancelled there: a failure of
+      // the same statement that is not the index speaking.
+      const rival = await openRival();
+      let completing: Promise<unknown>;
+      try {
+        await rival.client.query(
+          "select id from session_tickets where id = $1 for update",
+          [ticket],
+        );
+        completing = complete({ changeId, user, newEmail }).then(
+          (result) => result,
+          (error: unknown) => ({
+            threw: emailChanges.emailChangeErrorCode(error),
+          }),
+        );
+        const waiter = await rival.blocksSomeone();
+        await pool!.query("select pg_cancel_backend($1)", [waiter]);
+        await completing;
+      } finally {
+        await rival.release();
+      }
+
+      await expect(completing).resolves.toEqual({ threw: "sqlstate=57014" });
+      // Nothing half-applied: the whole completion went back.
+      expect(await emailOf(user.id)).toBe(user.email);
+      expect(await ticketEmail(ticket)).toBe(user.email);
+      expect((await auditRow(changeId)).completedAt).toBeNull();
+    });
+
+    describe("when a newer change for the same profile started meanwhile", () => {
+      /** An older run whose window ran out, and the one that took its place. */
+      async function overtaken() {
+        const older = await begun();
+        await integrationDb!.insert(reservationNotificationJobs).values({
+          deduplicationKey: key("job"),
+          userId: older.user.id,
+          notificationKind: "reservation_confirmed",
+          recipientEmail: older.user.email,
+          payload: {},
+        });
+        await ageChange(older.changeId, "2 minutes 5 seconds");
+        const newerEmail = address("otra-nueva").toLowerCase();
+        const newer = await begin(older.user.id, newerEmail, older.admin.id);
+        if (newer.status !== "ok") throw new Error(newer.status);
+        return { older, newerEmail, newerId: newer.changeId };
+      }
+
+      async function queuedFor(userId: number) {
+        const [job] = await integrationDb!
+          .select({
+            recipientEmail: reservationNotificationJobs.recipientEmail,
+          })
+          .from(reservationNotificationJobs)
+          .where(eq(reservationNotificationJobs.userId, userId));
+        return job.recipientEmail;
+      }
+
+      it("keeps what the newer one committed", async () => {
+        const { older, newerEmail, newerId } = await overtaken();
+        const { user } = older;
+        await complete({ changeId: newerId, user, newEmail: newerEmail });
+
+        await expect(
+          complete({
+            changeId: older.changeId,
+            user,
+            newEmail: older.newEmail,
+            unlinkedProviders: ["oauth_google"],
+          }),
+        ).resolves.toEqual({ status: "superseded" });
+
+        expect(await emailOf(user.id)).toBe(newerEmail);
+        expect(await queuedFor(user.id)).toBe(newerEmail);
+        const row = await auditRow(older.changeId);
+        expect(row).toMatchObject({
+          lastError: "superseded",
+          completedAt: null,
+          // What it did to Clerk is still on record.
+          unlinkedProviders: ["oauth_google"],
+        });
+        expect(row.clerkChangedAt).toBeInstanceOf(Date);
+        expect((await auditRow(newerId)).completedAt).toBeInstanceOf(Date);
+      });
+
+      it("writes nothing ahead of the newer one, which then completes", async () => {
+        const { older, newerEmail, newerId } = await overtaken();
+        const { user } = older;
+
+        await expect(
+          complete({
+            changeId: older.changeId,
+            user,
+            newEmail: older.newEmail,
+          }),
+        ).resolves.toEqual({ status: "superseded" });
+        expect(await emailOf(user.id)).toBe(user.email);
+        expect(await queuedFor(user.id)).toBe(user.email);
+
+        await expect(
+          complete({ changeId: newerId, user, newEmail: newerEmail }),
+        ).resolves.toEqual({ status: "ok" });
+        expect(await emailOf(user.id)).toBe(newerEmail);
+      });
+
+      it("does not take another person's change for a newer one", async () => {
+        const { user, newEmail, changeId } = await begun();
+        // A higher id, for someone else.
+        await begun("otra");
+
+        await expect(complete({ changeId, user, newEmail })).resolves.toEqual({
+          status: "ok",
+        });
+      });
+    });
+
     it("records, without throwing, that the profile is gone", async () => {
       const { user, newEmail, changeId } = await begun();
       await integrationDb!.delete(users).where(eq(users.id, user.id));
@@ -960,22 +1257,19 @@ describeDatabase("changing the address a person signs in with", () => {
 
       // Another connection inserts the address and has not committed: the
       // check cannot see it, and the update waits on the index for it.
-      const rival = await pool!.connect();
+      const rival = await openRival();
       let completing: ReturnType<typeof complete>;
       try {
-        await rival.query("begin");
-        await rival.query(
+        await rival.client.query(
           "insert into users (clerk_id, email) values ($1, $2)",
           [key("clerk-rival"), newEmail],
         );
         completing = complete({ changeId, user, newEmail });
-        await new Promise((resolve) => setTimeout(resolve, 400));
-        await rival.query("commit");
-      } catch (error) {
-        await rival.query("rollback");
-        throw error;
+        // Committed only once the update is known to be waiting on it.
+        await rival.blocksSomeone();
+        await rival.commit();
       } finally {
-        rival.release();
+        await rival.release();
       }
 
       await expect(completing).resolves.toEqual({ status: "email_taken" });

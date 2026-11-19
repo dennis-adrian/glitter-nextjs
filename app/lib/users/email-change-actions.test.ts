@@ -41,6 +41,8 @@ vi.mock("@/app/lib/users/email-changes", async (importOriginal) => {
   return {
     // Real: what it lets through is what reaches the log and the audit row.
     emailChangeErrorCode: actual.emailChangeErrorCode,
+    EMAIL_CHANGE_WINDOW_MS: actual.EMAIL_CHANGE_WINDOW_MS,
+    EMAIL_CHANGE_CLERK_BUDGET_MS: actual.EMAIL_CHANGE_CLERK_BUDGET_MS,
     beginEmailChange: beginMock,
     completeEmailChange: completeMock,
     markEmailChangeClerkDone: clerkDoneMock,
@@ -61,7 +63,11 @@ vi.mock("@/app/emails/email-changed-new-address", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 
 import { changeUserEmail } from "@/app/lib/users/email-change-actions";
-import { emailChangeErrorCode } from "@/app/lib/users/email-changes";
+import {
+  EMAIL_CHANGE_CLERK_BUDGET_MS,
+  EMAIL_CHANGE_WINDOW_MS,
+  emailChangeErrorCode,
+} from "@/app/lib/users/email-changes";
 
 const ADMIN = { id: 1, role: "admin" };
 const FESTIVAL_ADMIN = { id: 2, role: "festival_admin" };
@@ -87,6 +93,7 @@ const CHANGED = {
   unlinkedProviders: [] as string[],
   oldAddressesRemoved: true,
   passwordEnabled: true,
+  googleOnNewAddress: false,
 };
 
 const REJECTED_SEND = {
@@ -208,7 +215,38 @@ describe("changeUserEmail", () => {
       newEmail: NEW_EMAIL,
       actorId: ADMIN.id,
     });
-    expect(changeClerkEmailMock).toHaveBeenCalledWith("user_ana", NEW_EMAIL);
+    expect(changeClerkEmailMock).toHaveBeenCalledWith("user_ana", NEW_EMAIL, {
+      deadline: expect.any(Number),
+    });
+  });
+
+  it("gives Clerk a deadline inside the window that keeps a second attempt out", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2031-01-01T00:00:00Z"));
+      // The reservation exists from here on.
+      const reservedAt = Date.now();
+      beginMock.mockImplementation(async () => {
+        vi.setSystemTime(reservedAt + 250);
+        return BEGUN;
+      });
+
+      await changeUserEmail(INPUT);
+
+      const [, , options] = changeClerkEmailMock.mock.calls[0];
+      expect(options.deadline).toBe(
+        reservedAt + 250 + EMAIL_CHANGE_CLERK_BUDGET_MS,
+      );
+      // Room for a request already on its way when the deadline passes.
+      expect(EMAIL_CHANGE_WINDOW_MS - EMAIL_CHANGE_CLERK_BUDGET_MS).toBe(
+        30_000,
+      );
+      expect(options.deadline).toBeLessThan(
+        reservedAt + EMAIL_CHANGE_WINDOW_MS,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it.each([
@@ -256,6 +294,20 @@ describe("changeUserEmail", () => {
       expect(markFailedMock).toHaveBeenCalledWith(31, "clerk_email_taken");
       expect(completeMock).not.toHaveBeenCalled();
       expect(sendEmailMock).not.toHaveBeenCalled();
+    });
+
+    it("notes a deadline that passed before Clerk changed as any failed request", async () => {
+      changeClerkEmailMock.mockResolvedValue({
+        status: "request_failed",
+        detail: "deadline",
+      });
+
+      const result = await changeUserEmail(INPUT);
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("Intentá de nuevo");
+      expect(markFailedMock).toHaveBeenCalledWith(31, "clerk_failed: deadline");
+      expect(completeMock).not.toHaveBeenCalled();
     });
 
     it("says the Clerk account is gone", async () => {
@@ -363,7 +415,14 @@ describe("changeUserEmail", () => {
 
       expect(result.success).toBe(false);
       expect(result.message).toContain("El correo de acceso ya cambió");
-      expect(result.message).toContain("Volvé a hacer el cambio");
+      expect(result.message).toContain(
+        "Volvé a hacer el cambio con el mismo correo para completarlo",
+      );
+      // The failure may not have been written down, and then the open row
+      // keeps the retry out until the window passes.
+      expect(result.message).toContain(
+        "si te responde que ya hay un cambio en curso, esperá un par de minutos y repetilo",
+      );
       expect(markFailedMock).toHaveBeenCalledWith(
         31,
         "complete_failed: sqlstate=40P01",
@@ -389,6 +448,37 @@ describe("changeUserEmail", () => {
       expect(result.message).toContain("El correo de acceso ya cambió");
       expect(result.message).toContain(fragment);
       expect(sendEmailMock).not.toHaveBeenCalled();
+    });
+
+    it("says another change started meanwhile, without claiming Clerk changed", async () => {
+      completeMock.mockResolvedValue({ status: "superseded" });
+
+      const result = await changeUserEmail(INPUT);
+
+      expect(result).toEqual({
+        success: false,
+        message:
+          "Mientras tanto empezó otro cambio de correo para este perfil, así que no actualizamos el perfil con este. Puede que el correo de acceso haya cambiado en este intento: revisá el correo del perfil y, si hace falta, repetí el cambio.",
+      });
+      // The newer run tells the person; this one has nothing true to say.
+      expect(sendEmailMock).not.toHaveBeenCalled();
+      expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/users");
+    });
+
+    it("gives the same advice when not even the failure could be written down", async () => {
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      clerkDoneMock.mockRejectedValue(new Error("db down"));
+      markFailedMock.mockRejectedValue(new Error("db down"));
+
+      const result = await changeUserEmail(INPUT);
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("El correo de acceso ya cambió");
+      expect(result.message).toContain("esperá un par de minutos");
+      expect(completeMock).not.toHaveBeenCalled();
+      consoleError.mockRestore();
     });
 
     it("converges on a second run after the first stopped halfway", async () => {
@@ -535,8 +625,13 @@ describe("changeUserEmail", () => {
       });
     });
 
+    const NEEDS_GOOGLE_ACCOUNT =
+      "Desvinculamos su cuenta de Google anterior. Para entrar con Google necesita una cuenta de Google del correo nuevo.";
+    const CAN_USE_GOOGLE =
+      "Desvinculamos su cuenta de Google anterior; ya puede entrar con Google usando el correo nuevo.";
+
     it.each(["oauth_google", "google"])(
-      "says the old Google account was unlinked (%s)",
+      "says the old Google account was unlinked (%s), and what Google needs now",
       async (provider) => {
         changeClerkEmailMock.mockResolvedValue({
           ...CHANGED,
@@ -545,9 +640,30 @@ describe("changeUserEmail", () => {
 
         const result = await changeUserEmail(INPUT);
 
-        expect(result.description).toBe(
-          "Desvinculamos su cuenta de Google anterior; ya puede entrar con Google usando el correo nuevo.",
-        );
+        // A password is no evidence that Google works with the new address.
+        expect(result.description).toBe(NEEDS_GOOGLE_ACCOUNT);
+        expect(result.description).not.toContain("ya puede entrar con Google");
+      },
+    );
+
+    it.each([true, false])(
+      "says Google works only when a Google account of the new address is connected (password %s)",
+      async (passwordEnabled) => {
+        changeClerkEmailMock.mockResolvedValue({
+          ...CHANGED,
+          unlinkedProviders: ["oauth_google"],
+          passwordEnabled,
+          googleOnNewAddress: true,
+        });
+
+        const result = await changeUserEmail(INPUT);
+
+        // With that account they have a way in: no warning, password or not.
+        expect(result).toEqual({
+          success: true,
+          message: "Correo actualizado.",
+          description: CAN_USE_GOOGLE,
+        });
       },
     );
 
@@ -565,6 +681,18 @@ describe("changeUserEmail", () => {
         message: "Correo actualizado.",
         description:
           "Desvinculamos su cuenta de Google anterior. No tiene contraseña: para entrar necesita una cuenta de Google del correo nuevo o el código que le llega a ese correo. Confirmá con la persona que pudo entrar.",
+      });
+    });
+
+    it("says nothing about Google when none was unlinked, connected or not", async () => {
+      changeClerkEmailMock.mockResolvedValue({
+        ...CHANGED,
+        googleOnNewAddress: true,
+      });
+
+      await expect(changeUserEmail(INPUT)).resolves.toEqual({
+        success: true,
+        message: "Correo actualizado.",
       });
     });
 
@@ -593,7 +721,7 @@ describe("changeUserEmail", () => {
       );
     });
 
-    it("says how to finish when the old address can still sign in", async () => {
+    it("says the cleanup could not be confirmed, and how to finish it", async () => {
       changeClerkEmailMock.mockResolvedValue({
         ...CHANGED,
         unlinkedProviders: ["oauth_google"],
@@ -606,8 +734,10 @@ describe("changeUserEmail", () => {
       expect(result.needsFollowUp).toBe(true);
       expect(result.description).toContain("Desvinculamos su cuenta de Google");
       expect(result.description).toContain(
-        "El correo anterior todavía sirve para entrar: volvé a hacer el cambio con el mismo correo para quitarlo.",
+        "No pudimos confirmar que el correo anterior haya quedado fuera de la cuenta de acceso: volvé a hacer el cambio con el mismo correo para terminar de quitarlo.",
       );
+      // Unknown is not "still works": the read that confirms it may have failed.
+      expect(result.description).not.toContain("todavía sirve");
       // The way out is this same dialog, never Clerk's own panel.
       expect(JSON.stringify(result)).not.toMatch(/clerk/i);
     });
@@ -636,7 +766,11 @@ describe("changeUserEmail", () => {
       });
 
       const normalized = OLD_EMAIL.toLowerCase();
-      expect(changeClerkEmailMock).toHaveBeenCalledWith("user_ana", normalized);
+      expect(changeClerkEmailMock).toHaveBeenCalledWith(
+        "user_ana",
+        normalized,
+        { deadline: expect.any(Number) },
+      );
       expect(clerkDoneMock).toHaveBeenCalledWith(31, []);
       expect(completeMock).toHaveBeenCalledWith(
         TX,
@@ -671,7 +805,7 @@ describe("changeUserEmail", () => {
         success: true,
         message: RESYNCED,
         description:
-          "El correo anterior todavía sirve para entrar: volvé a hacer el cambio con el mismo correo para quitarlo.",
+          "No pudimos confirmar que el correo anterior haya quedado fuera de la cuenta de acceso: volvé a hacer el cambio con el mismo correo para terminar de quitarlo.",
         needsFollowUp: true,
       });
       expect(sendEmailMock).not.toHaveBeenCalled();

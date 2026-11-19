@@ -51,6 +51,7 @@ export type ChangeUserEmailResult = {
  * What the Clerk side of a change reports. `changed` covers a retry that found
  * the work already done. Once the primary address has moved, the result is
  * `changed` even when tidying up failed, so the database can follow Clerk.
+ * `not_found` can also come after that, when the account was deleted meanwhile.
  */
 export type ChangeClerkEmailResult =
   | {
@@ -64,6 +65,11 @@ export type ChangeClerkEmailResult =
       oldAddressesRemoved: boolean;
       /** Without one, a connected account or an emailed code is the way in. */
       passwordEnabled: boolean;
+      /**
+       * A verified Google account of the new address is connected, so Google
+       * sign-in is known to work. False says nothing either way.
+       */
+      googleOnNewAddress: boolean;
     }
   | { status: "email_taken" }
   | { status: "not_found" }

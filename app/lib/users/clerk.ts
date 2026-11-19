@@ -115,13 +115,20 @@ function requestFailed(step: string, error: unknown): ChangeClerkEmailResult {
  * with. Safe to run again: each step looks at what is on the account now, so
  * a retry after a half-done attempt picks up where it stopped, and a retry
  * after a finished one writes nothing.
+ *
+ * `deadline` (epoch ms) is when the caller's reservation stops being safe: a
+ * newer attempt may be writing to the same account after it, so no write
+ * starts past it.
  */
 export async function changeClerkUserEmail(
   clerkId: string,
   newEmail: string,
+  options: { deadline?: number } = {},
 ): Promise<ChangeClerkEmailResult> {
   await refuseDuringView();
   const clerk = await clerkClient();
+  const outOfTime = () =>
+    options.deadline != null && Date.now() >= options.deadline;
 
   let user;
   try {
@@ -147,6 +154,14 @@ export async function changeClerkUserEmail(
   // An account already on the new address stays.
   const isStaleAccount = (account: { emailAddress?: string | null }) =>
     normalizeEmail(account.emailAddress ?? "") !== newEmail;
+  // Clerk names the provider "oauth_google" in some payloads and "google" in
+  // others.
+  const isGoogleOnNewAddress = (
+    account: (typeof user.externalAccounts)[number],
+  ) =>
+    (account.provider === "oauth_google" || account.provider === "google") &&
+    !isStaleAccount(account) &&
+    account.verification?.status === "verified";
 
   const current = user.emailAddresses.find(
     (address) => !isStaleAddress(address),
@@ -158,15 +173,24 @@ export async function changeClerkUserEmail(
   const staleAddresses = user.emailAddresses.filter(isStaleAddress);
   const staleAccounts = user.externalAccounts.filter(isStaleAccount);
 
+  // The newest read of the account: what the result says is on it.
+  let latest = user;
   const done = (unlinked: Iterable<string>, oldAddressesRemoved: boolean) => ({
     status: "changed" as const,
     unlinkedProviders: [...unlinked],
     oldAddressesRemoved,
     passwordEnabled: user.passwordEnabled === true,
+    googleOnNewAddress: latest.externalAccounts.some(isGoogleOnNewAddress),
   });
 
   if (settled && staleAddresses.length === 0 && staleAccounts.length === 0) {
     return done([], true);
+  }
+
+  // Nothing written yet, so the account is as it was and a retry starts clean.
+  if (!settled && outOfTime()) {
+    console.error("Error changing clerk user email", "deadline");
+    return { status: "request_failed", detail: "deadline" };
   }
 
   // The new address goes first. Clerk wants a connected account unlinked
@@ -175,14 +199,12 @@ export async function changeClerkUserEmail(
   // be linked for the new one: Clerk attaches an OAuth sign-in to this user
   // when the provider's verified email matches a verified address on the
   // account.
-  let wrote = false;
   if (current && !settled) {
     try {
       await clerk.emailAddresses.updateEmailAddress(current.id, {
         verified: true,
         primary: true,
       });
-      wrote = true;
     } catch (error) {
       if (hasClerkCode(error, "form_identifier_exists")) {
         return { status: "email_taken" };
@@ -197,7 +219,6 @@ export async function changeClerkUserEmail(
         verified: true,
         primary: true,
       });
-      wrote = true;
     } catch (error) {
       if (hasClerkCode(error, "form_identifier_exists")) {
         return { status: "email_taken" };
@@ -208,18 +229,22 @@ export async function changeClerkUserEmail(
 
   // The primary has moved, so from here a failure is reported as leftovers
   // and not as a failed change: the database has to follow Clerk either way.
-  let failed = false;
+  let cutShort = false;
   const unlinkedProviders = new Set<string>();
 
   // A 404 is someone else's removal: nothing written, nothing left.
   const remove = async (step: string, call: () => Promise<unknown>) => {
+    if (outOfTime()) {
+      if (!cutShort)
+        console.error("Error removing old clerk sign-in", "deadline");
+      cutShort = true;
+      return "failed";
+    }
     try {
       await call();
-      wrote = true;
       return "removed";
     } catch (error) {
       if (isNotFound(error)) return "absent";
-      failed = true;
       console.error(
         "Error removing old clerk sign-in",
         `${step}:${clerkErrorCode(error)}`,
@@ -243,27 +268,36 @@ export async function changeClerkUserEmail(
     remove("delete_email_address", () =>
       clerk.emailAddresses.deleteEmailAddress(address.id),
     );
+  // "gone" only on Clerk's own word; null when it could not say.
+  const readBack = async () => {
+    try {
+      return (await clerk.users.getUser(clerkId)) ?? ("gone" as const);
+    } catch (error) {
+      if (isNotFound(error)) return "gone" as const;
+      console.error(
+        "Error confirming clerk email change",
+        `get_user:${clerkErrorCode(error)}`,
+      );
+      return null;
+    }
+  };
 
   // Connected accounts before addresses: Clerk refuses to drop an address
   // that one is linked to.
   for (const account of staleAccounts) await unlink(account);
   for (const address of staleAddresses) await dropAddress(address);
+  // Past the deadline even a read only delays the caller's own completion.
+  if (cutShort) return done(unlinkedProviders, false);
 
-  if (!wrote && !failed) return done(unlinkedProviders, true);
-
-  // What is left is read back and not inferred from the calls: Clerk can
-  // answer a delete with success and keep the address, and one may have been
-  // added since the first read.
-  let fresh;
-  try {
-    fresh = await clerk.users.getUser(clerkId);
-  } catch (error) {
-    console.error(
-      "Error confirming clerk email change",
-      `get_user:${clerkErrorCode(error)}`,
-    );
-  }
+  // What is left is read back and not inferred from the calls, 404s included:
+  // Clerk can answer a delete with success and keep the address, and one may
+  // have been added since the first read.
+  const fresh = await readBack();
+  // The account went while this ran: there is nothing for the database to
+  // follow and nobody to tell.
+  if (fresh === "gone") return { status: "not_found" };
   if (!fresh) return done(unlinkedProviders, false);
+  latest = fresh;
 
   // One more pass, for what the first read did not have. What it did have was
   // already tried; a second attempt is the admin's to ask for.
@@ -272,18 +306,35 @@ export async function changeClerkUserEmail(
     ...staleAccounts.map((account) => account.id),
   ]);
   let leftovers = 0;
+  let late = 0;
   for (const account of fresh.externalAccounts.filter(isStaleAccount)) {
-    if (seen.has(account.id) || (await unlink(account)) === "failed") {
-      leftovers += 1;
+    if (seen.has(account.id)) leftovers += 1;
+    else {
+      late += 1;
+      if ((await unlink(account)) === "failed") leftovers += 1;
     }
   }
   for (const address of fresh.emailAddresses.filter(isStaleAddress)) {
-    if (seen.has(address.id) || (await dropAddress(address)) === "failed") {
-      leftovers += 1;
+    if (seen.has(address.id)) leftovers += 1;
+    else {
+      late += 1;
+      if ((await dropAddress(address)) === "failed") leftovers += 1;
     }
   }
+  if (leftovers > 0) return done(unlinkedProviders, false);
+  if (late === 0) return done(unlinkedProviders, true);
 
-  return done(unlinkedProviders, leftovers === 0);
+  // The extra pass is held to the same standard as the first: one last read,
+  // and no pass after it.
+  const last = await readBack();
+  if (last === "gone") return { status: "not_found" };
+  if (!last) return done(unlinkedProviders, false);
+  latest = last;
+  return done(
+    unlinkedProviders,
+    !last.emailAddresses.some(isStaleAddress) &&
+      !last.externalAccounts.some(isStaleAccount),
+  );
 }
 
 /**

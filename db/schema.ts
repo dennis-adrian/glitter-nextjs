@@ -198,9 +198,11 @@ export const userStatusEventsRelations = relations(
 /**
  * One row per time an admin changed the address a person signs in with. It is
  * the audit of who moved whom from which address to which, and the durable
- * record of a change in flight: Clerk changes outside any transaction, so a
- * row with `clerk_changed_at` set and `completed_at` null is a change the
- * database has not caught up with, and running the action again finishes it.
+ * record of a change in flight. Clerk changes outside any transaction, so a
+ * row with `clerk_changed_at` set and `completed_at` null is a run that
+ * stopped before the database followed. Running the action again finishes
+ * the change on a NEW row and leaves that one as history, so only the latest
+ * row for a user says whether the database is still behind.
  * Deleting the profile blanks both addresses and keeps the rest.
  */
 export const userEmailChanges = pgTable(

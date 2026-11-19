@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import { isSuppressed } from "@/app/lib/emails/suppressions";
 import { isUniqueViolationOn } from "@/app/lib/errors/postgres";
@@ -24,6 +24,7 @@ import {
 type EmailChangeTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 const USERS_EMAIL_UNIQUE = "users_email_unique";
+const TICKET_EMAIL_UNIQUE = "session_tickets_occurrence_attendee_email_idx";
 export const EMAIL_TAKEN_ERROR = `sqlstate=23505 constraint=${USERS_EMAIL_UNIQUE}`;
 
 /**
@@ -36,6 +37,14 @@ const ACCOUNT_TOPICS = [
   "announcements",
   "participant_invitations",
 ] as const;
+
+/**
+ * How long an unfinished change keeps another from starting. Nothing renews
+ * it, so the Clerk half has to be done writing before it runs out.
+ */
+export const EMAIL_CHANGE_WINDOW_MS = 2 * 60_000;
+/** The Clerk half's share of the window; the rest is margin for a slow call. */
+export const EMAIL_CHANGE_CLERK_BUDGET_MS = EMAIL_CHANGE_WINDOW_MS - 30_000;
 
 /** Mail not yet sent for good: queued, or held by a worker that may fail. */
 const IN_FLIGHT = ["pending", "processing"] as const;
@@ -66,7 +75,9 @@ export type CompleteEmailChangeResult =
   | { status: "ok" }
   | { status: "user_gone" }
   | { status: "deletion_pending" }
-  | { status: "email_taken" };
+  | { status: "email_taken" }
+  /** A newer change for the same profile started: this one writes nothing. */
+  | { status: "superseded" };
 
 /** Another profile already holds `email`, in any letter case. */
 async function emailBelongsToAnother(
@@ -117,7 +128,9 @@ export async function beginEmailChange(
     return { status: "deletion_pending" };
   }
   // Two runs at once would each read Clerk before the other wrote. A row that
-  // failed or is older than any run can be says nothing is in flight.
+  // failed or is older than any run can be says nothing is in flight. The wall
+  // clock on both sides: now() is when the transaction began, and a wait for
+  // the lock above would age the reservation before it existed.
   const [inFlight] = await tx
     .select({ id: userEmailChanges.id })
     .from(userEmailChanges)
@@ -126,7 +139,7 @@ export async function beginEmailChange(
         eq(userEmailChanges.userId, user.id),
         isNull(userEmailChanges.completedAt),
         isNull(userEmailChanges.lastError),
-        sql`${userEmailChanges.createdAt} > now() - interval '2 minutes'`,
+        sql`${userEmailChanges.createdAt} > clock_timestamp() - ${EMAIL_CHANGE_WINDOW_MS} * interval '1 millisecond'`,
       ),
     )
     .limit(1);
@@ -153,6 +166,7 @@ export async function beginEmailChange(
       oldEmail: user.email,
       newEmail,
       changedByUserId: input.actorId,
+      createdAt: sql`clock_timestamp()`,
     })
     .returning({ id: userEmailChanges.id });
 
@@ -208,6 +222,22 @@ export async function completeEmailChange(
   if (!user) {
     await stamp({ lastError: "user_gone", completed: false });
     return { status: "user_gone" };
+  }
+  // The reservation ran out and a newer change began: the profile and the
+  // queues are that one's to write, and this address may no longer be Clerk's.
+  const [newer] = await tx
+    .select({ id: userEmailChanges.id })
+    .from(userEmailChanges)
+    .where(
+      and(
+        eq(userEmailChanges.userId, userId),
+        gt(userEmailChanges.id, changeId),
+      ),
+    )
+    .limit(1);
+  if (newer) {
+    await stamp({ lastError: "superseded", completed: false });
+    return { status: "superseded" };
   }
   // A deletion that started while Clerk was being changed owns the row now.
   if (await hasPendingDeletion(userId, tx)) {
@@ -309,19 +339,30 @@ export async function completeEmailChange(
   // The day-of reminder goes to the ticket's own copy of the address. A guest
   // ticket for the same occurrence may already hold the new one; that ticket
   // keeps the old address rather than break the one-seat-per-address index.
-  await tx.execute(sql`
-    update session_tickets as ticket
-    set attendee_email = ${newEmail}, updated_at = now()
-    where ticket.attendee_user_id = ${userId}
-      and ticket.status = 'valid'
-      and not exists (
-        select 1 from session_tickets as other
-        where other.occurrence_id = ticket.occurrence_id
-          and other.id <> ticket.id
-          and other.status = 'valid'
-          and lower(other.attendee_email) = ${newEmail}
-      )
-  `);
+  try {
+    // A savepoint: the check cannot see a guest checkout that has not
+    // committed, and its violation must not undo the change Clerk already has.
+    await tx.transaction((savepoint) =>
+      savepoint.execute(sql`
+        update session_tickets as ticket
+        set attendee_email = ${newEmail}, updated_at = now()
+        where ticket.attendee_user_id = ${userId}
+          and ticket.status = 'valid'
+          and not exists (
+            select 1 from session_tickets as other
+            where other.occurrence_id = ticket.occurrence_id
+              and other.id <> ticket.id
+              and other.status = 'valid'
+              and lower(other.attendee_email) = ${newEmail}
+          )
+      `),
+    );
+  } catch (error) {
+    if (!isUniqueViolationOn(error, (name) => name === TICKET_EMAIL_UNIQUE)) {
+      throw error;
+    }
+    // The tickets keep the old address, like the one the check skips.
+  }
 
   await stamp({ lastError: null, completed: true });
   return { status: "ok" };
@@ -329,7 +370,7 @@ export async function completeEmailChange(
 
 /**
  * Clerk has the new address. Recorded on its own, before the database follows,
- * so a row with this set and no `completedAt` says where a change stopped.
+ * so a row with this set and no `completedAt` says where that run stopped.
  */
 export async function markEmailChangeClerkDone(
   changeId: number,

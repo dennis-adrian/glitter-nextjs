@@ -28,13 +28,18 @@ describe("EmailChangedOldAddressEmail", () => {
   });
 
   /**
-   * The old address can still be on the account for a moment, and sessions
-   * already open stay open, so the notice does not promise otherwise.
+   * The old address can still be on the account for a moment, sessions
+   * already open stay open, and mail a worker already picked up still comes
+   * here, so the notice promises none of the three.
    */
-  it("says this mailbox stops getting our notices, not that it cannot sign in", () => {
+  it("says where notices go from now on, not that this mailbox is cut off", () => {
     const html = render();
 
-    expect(html).toContain("este correo deja de recibir nuestros avisos");
+    expect(html).toContain(
+      "nuestros avisos van a ese correo de ahora en adelante",
+    );
+    expect(html).toContain("alguno que ya estaba en camino");
+    expect(html).not.toContain("deja de recibir");
     expect(html).not.toContain("ya no sirve");
     expect(html).not.toMatch(/no (vas a poder|podés|puede) (entrar|ingresar)/);
   });
