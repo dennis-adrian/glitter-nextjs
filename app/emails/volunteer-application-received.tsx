@@ -24,6 +24,9 @@ export type VolunteerApplicationReceivedEmailProps = {
 /**
  * Sent once, to a new applicant. It confirms receipt only: nothing here may
  * read as being accepted or confirmed as a volunteer.
+ *
+ * Worded so it reads the same in tú and voseo ("tu", "te", "elegiste"), while
+ * the owner settles which one the volunteer copy uses (voseo.test.ts).
  */
 export default function VolunteerApplicationReceivedEmailTemplate({
   firstName,
@@ -55,7 +58,7 @@ export default function VolunteerApplicationReceivedEmailTemplate({
 
             <Section style={styles.detailBox}>
               <Text style={{ ...styles.detailLine, fontWeight: "bold" }}>
-                Turnos en los que tienes disponibilidad
+                Turnos disponibles que marcaste
               </Text>
               {shifts.map((shift) => (
                 <Text key={shift} style={styles.detailLine}>
@@ -80,7 +83,7 @@ export default function VolunteerApplicationReceivedEmailTemplate({
             </Section>
 
             <Text style={{ ...styles.text, fontSize: "12px" }}>
-              Si no enviaste esta postulación, puedes ignorar este correo.
+              Si no enviaste esta postulación, no hace falta hacer nada.
             </Text>
           </Section>
           <EmailFooter />
