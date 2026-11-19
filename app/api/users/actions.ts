@@ -5,18 +5,7 @@ import { z } from "zod";
 
 import { hasPgErrorCode } from "@/app/lib/errors/postgres";
 import { db } from "@/db";
-import {
-  comunicadoResends,
-  comunicados,
-  creditLedgerEntries,
-  infractionEvidence,
-  infractionNotes,
-  infractions,
-  pendingUserDeletions,
-  rentalReturnLogs,
-  userRequests,
-  users,
-} from "@/db/schema";
+import { pendingUserDeletions, userRequests, users } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { BaseProfile, ProfileType, UserCategory } from "./definitions";
 import { sendEmail } from "@/app/vendors/resend";
@@ -27,11 +16,19 @@ import {
   getFestivalCategories,
 } from "@/app/lib/festivals/utils";
 import ProfileRejectionEmailTemplate from "@/app/emails/profile-rejection";
-import { scrubDisciplinaryNotificationJobsForUser } from "@/app/lib/infractions/notifications";
-import { forgetPushDevices } from "@/app/lib/notifications/push/devices";
-import { scrubNotificationsNamingUser } from "@/app/lib/notifications/scrub";
-import { anonymizeProgramPurchasesForUser } from "@/app/lib/programs/anonymization";
-import { deleteClerkUser } from "@/app/lib/users/clerk";
+import { CLERK_CALL_TIMEOUT_MS } from "@/app/lib/users/clerk-deletion";
+import {
+  finalizeProfileDeletion,
+  noteDeletionError,
+  releaseRefusedDeletion,
+  type LoginState,
+} from "@/app/lib/users/profile-deletion";
+import {
+  findProfileDeletionBlocker,
+  isPermanentProfileDeletionBlocker,
+  PROFILE_DELETION_BLOCK_MESSAGES,
+  type ProfileDeletionBlocker,
+} from "@/app/lib/users/deletion-blockers";
 import {
   requireAdmin,
   requireAdminOrFestivalAdmin,
@@ -92,84 +89,11 @@ type FormState = {
   message: string;
 };
 
-const INFRACTION_BLOCK_MESSAGE =
-  "No se puede eliminar un perfil con historial de infracciones.";
-
-const RESTRICT_ACTOR_BLOCK_MESSAGE =
-  "No se puede eliminar un perfil con registros administrativos vinculados.";
-
-const CREDIT_LEDGER_RETENTION_BLOCK_MESSAGE =
-  "No se puede eliminar un perfil con historial de créditos.";
-
 const PERMANENT_ERROR_PREFIX = "PERMANENT:";
-
-type DeletionTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-
-async function hasRestrictActorReferences(
-  tx: DeletionTx,
-  profileId: number,
-): Promise<boolean> {
-  const [note] = await tx
-    .select({ id: infractionNotes.id })
-    .from(infractionNotes)
-    .where(eq(infractionNotes.authorUserId, profileId))
-    .limit(1);
-  if (note) return true;
-
-  const [evidence] = await tx
-    .select({ id: infractionEvidence.id })
-    .from(infractionEvidence)
-    .where(eq(infractionEvidence.addedByUserId, profileId))
-    .limit(1);
-  if (evidence) return true;
-
-  const [returnLog] = await tx
-    .select({ id: rentalReturnLogs.id })
-    .from(rentalReturnLogs)
-    .where(eq(rentalReturnLogs.processedByUserId, profileId))
-    .limit(1);
-  if (returnLog) return true;
-
-  // Who confirmed an essential comunicado stays on record for good.
-  const [essential] = await tx
-    .select({ id: comunicados.id })
-    .from(comunicados)
-    .where(eq(comunicados.essentialConfirmedByUserId, profileId))
-    .limit(1);
-  if (essential) return true;
-
-  // So does who confirmed an essential "Enviar a más personas".
-  const [essentialResend] = await tx
-    .select({ id: comunicadoResends.id })
-    .from(comunicadoResends)
-    .where(eq(comunicadoResends.essentialConfirmedByUserId, profileId))
-    .limit(1);
-
-  return Boolean(essentialResend);
-}
-
-async function hasCreditLedgerEntries(
-  tx: DeletionTx,
-  profileId: number,
-): Promise<boolean> {
-  const [entry] = await tx
-    .select({ id: creditLedgerEntries.id })
-    .from(creditLedgerEntries)
-    .where(eq(creditLedgerEntries.userId, profileId))
-    .limit(1);
-
-  return Boolean(entry);
-}
 
 function isPermanentDeletionBlocker(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  if (
-    message === INFRACTION_BLOCK_MESSAGE ||
-    message === RESTRICT_ACTOR_BLOCK_MESSAGE ||
-    message.startsWith(PERMANENT_ERROR_PREFIX)
-  ) {
-    return true;
-  }
+  if (message.startsWith(PERMANENT_ERROR_PREFIX)) return true;
 
   // Postgres foreign_key_violation
   return hasPgErrorCode(error, "23503");
@@ -185,6 +109,33 @@ function toPendingDeletionError(error: unknown): string {
   }
   return message;
 }
+
+/** The refusal, with what is known about the account's login. */
+function refusalMessage(
+  blocker: ProfileDeletionBlocker,
+  login: LoginState,
+): string {
+  const reason = PROFILE_DELETION_BLOCK_MESSAGES[blocker];
+  if (login === "gone") {
+    return `${reason} Su cuenta de acceso ya fue eliminada, así que esta persona ya no puede iniciar sesión con ella.`;
+  }
+  if (login === "unknown") {
+    return `${reason} No pudimos confirmar si su cuenta de acceso sigue activa: volvé a intentar en unos minutos.`;
+  }
+  return reason;
+}
+
+const LOGIN_REMOVED_RETRY_MESSAGE =
+  "La cuenta de acceso ya fue eliminada, pero el perfil sigue. Volvé a intentar para terminar de borrarlo.";
+
+const CLERK_OUTCOME_UNKNOWN_MESSAGE =
+  "No pudimos confirmar si se eliminó la cuenta de acceso. Volvé a intentar en unos minutos.";
+const CLERK_NOT_DELETED_MESSAGE =
+  "No se pudo eliminar la cuenta de acceso. El perfil quedó como estaba; volvé a intentar.";
+const LOCAL_FAILED_AFTER_LOGIN_MESSAGE =
+  "La cuenta de acceso ya fue eliminada, pero el perfil no se pudo borrar. Volvé a intentar; si se repite, revisá el registro de errores.";
+const CONFLICT_MESSAGE =
+  "Otro cambio ocurrió al mismo tiempo. Actualizá la página e intentá de nuevo.";
 
 export async function deleteProfile(profileId: number, prevState: FormState) {
   const actor = await requireAdmin();
@@ -222,72 +173,35 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
         .limit(1)
         .for("update");
 
-      // A null clerkDeletedAt is a durable unknown/in-progress state. Retrying
-      // the idempotent Clerk step reconciles it without creating another row.
       if (existingPending) {
-        // Before Clerk goes, the retry checks what would block the local
+        // A retry. Before Clerk goes, it checks what would block the local
         // delete: a reference added since the first try keeps the account.
+        // An earlier try may have reached Clerk, so a refusal here is settled
+        // by `releaseRefusedDeletion` rather than reported as is.
         if (existingPending.clerkDeletedAt === null) {
-          const existingInfraction = await tx.query.infractions.findFirst({
-            where: eq(infractions.userId, profileId),
-            columns: { id: true },
-          });
-          if (existingInfraction) {
-            return { ok: false as const, reason: "has_infractions" as const };
+          const blocker = await findProfileDeletionBlocker(tx, profileId);
+          if (blocker) {
+            return {
+              ok: false as const,
+              blocker,
+              pendingId: existingPending.id,
+              clerkId: existingPending.clerkId,
+            };
           }
         }
-        if (
-          existingPending.clerkDeletedAt === null &&
-          (await hasRestrictActorReferences(tx, profileId))
-        ) {
-          return {
-            ok: false as const,
-            reason: "has_restrict_references" as const,
-          };
-        }
-        if (
-          existingPending.clerkDeletedAt === null &&
-          (await hasCreditLedgerEntries(tx, profileId))
-        ) {
-          return {
-            ok: false as const,
-            reason: "has_credit_ledger_entries" as const,
-          };
-        }
-
-        await forgetPushDevices(tx, lockedUser.id);
         return {
           ok: true as const,
           pendingId: existingPending.id,
           clerkId: existingPending.clerkId,
-          clerkAlreadyDeleted: existingPending.clerkDeletedAt !== null,
         };
       }
 
-      const existingInfraction = await tx.query.infractions.findFirst({
-        where: eq(infractions.userId, profileId),
-        columns: { id: true },
-      });
-      if (existingInfraction) {
-        return { ok: false as const, reason: "has_infractions" as const };
-      }
-
-      if (await hasRestrictActorReferences(tx, profileId)) {
-        return {
-          ok: false as const,
-          reason: "has_restrict_references" as const,
-        };
-      }
-
-      // This is the final retention check before Clerk deletion. The user lock
-      // serializes existing credit writes; the pending row makes later writes
-      // reject this user until local deletion finishes.
-      if (await hasCreditLedgerEntries(tx, profileId)) {
-        return {
-          ok: false as const,
-          reason: "has_credit_ledger_entries" as const,
-        };
-      }
+      // Every reason the local delete would refuse, checked while the Clerk
+      // login certainly still exists. The user lock serializes existing credit
+      // writes; the pending row makes later writes reject this user until
+      // local deletion finishes.
+      const blocker = await findProfileDeletionBlocker(tx, profileId);
+      if (blocker) return { ok: false as const, blocker };
 
       const [pending] = await tx
         .insert(pendingUserDeletions)
@@ -296,135 +210,123 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
           clerkId: lockedUser.clerkId,
         })
         .returning({ id: pendingUserDeletions.id });
-      await forgetPushDevices(tx, lockedUser.id);
 
       return {
         ok: true as const,
         pendingId: pending.id,
         clerkId: lockedUser.clerkId,
-        clerkAlreadyDeleted: false as const,
       };
     });
 
     if (!preparation.ok) {
-      if (preparation.reason === "has_infractions") {
-        return {
-          success: false,
-          message: INFRACTION_BLOCK_MESSAGE,
-        };
-      }
-      if (preparation.reason === "has_restrict_references") {
-        return {
-          success: false,
-          message: RESTRICT_ACTOR_BLOCK_MESSAGE,
-        };
-      }
-      if (preparation.reason === "has_credit_ledger_entries") {
-        return {
-          success: false,
-          message: CREDIT_LEDGER_RETENTION_BLOCK_MESSAGE,
-        };
-      }
-      return { success: false, message: "Error al eliminar el perfil" };
-    }
-
-    if (!preparation.clerkAlreadyDeleted) {
-      const clerkResult = await deleteClerkUser(preparation.clerkId);
-      if (clerkResult.status === "request_failed") {
-        const failedAt = new Date();
-        await db
-          .update(pendingUserDeletions)
-          .set({
-            lastError: `clerk_delete_failed: ${clerkResult.message}`,
-            updatedAt: failedAt,
-          })
-          .where(
-            and(
-              eq(pendingUserDeletions.id, preparation.pendingId),
-              isNull(pendingUserDeletions.clerkDeletedAt),
-              isNull(pendingUserDeletions.localDeletedAt),
-            ),
-          );
+      if (!preparation.blocker) {
         return { success: false, message: "Error al eliminar el perfil" };
       }
-
-      const clerkDeletedAt = new Date();
-      await db
-        .update(pendingUserDeletions)
-        .set({
-          clerkDeletedAt,
-          lastError: null,
-          updatedAt: clerkDeletedAt,
-        })
-        .where(eq(pendingUserDeletions.id, preparation.pendingId));
+      if ("pendingId" in preparation && preparation.pendingId != null) {
+        const login = await releaseRefusedDeletion({
+          profileId,
+          pendingId: preparation.pendingId,
+          clerkId: preparation.clerkId,
+          clerkBudgetMs: CLERK_CALL_TIMEOUT_MS,
+        });
+        if (login === "deleted") {
+          return { success: false, message: CONFLICT_MESSAGE };
+        }
+        return {
+          success: false,
+          message: refusalMessage(preparation.blocker, login),
+        };
+      }
+      return {
+        success: false,
+        message: PROFILE_DELETION_BLOCK_MESSAGES[preparation.blocker],
+      };
     }
 
-    const now = new Date();
-    try {
-      await db.transaction(async (tx) => {
-        const [lockedUser] = await tx
-          .select({ id: users.id })
-          .from(users)
-          .where(eq(users.id, profileId))
-          .limit(1)
-          .for("update");
+    const outcome = await finalizeProfileDeletion({
+      profileId,
+      pendingId: preparation.pendingId,
+      clerkId: preparation.clerkId,
+      clerkBudgetMs: CLERK_CALL_TIMEOUT_MS,
+    });
 
-        if (!lockedUser) {
-          await tx
-            .update(pendingUserDeletions)
-            .set({ localDeletedAt: now, lastError: null, updatedAt: now })
-            .where(eq(pendingUserDeletions.id, preparation.pendingId));
-          return;
+    switch (outcome.kind) {
+      case "deleted":
+        break;
+      case "conflict":
+      // Not given a deadline here, so not expected; handled all the same.
+      case "out_of_time":
+        return { success: false, message: CONFLICT_MESSAGE };
+      case "blocked": {
+        const login = outcome.loginAlreadyGone
+          ? ("gone" as const)
+          : await releaseRefusedDeletion({
+              profileId,
+              pendingId: preparation.pendingId,
+              clerkId: preparation.clerkId,
+              clerkBudgetMs: CLERK_CALL_TIMEOUT_MS,
+            });
+        if (login === "deleted") {
+          return { success: false, message: CONFLICT_MESSAGE };
         }
-
-        const existingInfraction = await tx.query.infractions.findFirst({
-          where: eq(infractions.userId, profileId),
-          columns: { id: true },
-        });
-        if (existingInfraction) {
-          throw new Error(INFRACTION_BLOCK_MESSAGE);
+        if (login === "gone") {
+          // Marked permanent only when it is: a participation or a cobro is
+          // fixed by a transfer or a review, and the retry then finishes.
+          await noteDeletionError(
+            preparation.pendingId,
+            isPermanentProfileDeletionBlocker(outcome.blocker)
+              ? `${PERMANENT_ERROR_PREFIX} ${PROFILE_DELETION_BLOCK_MESSAGES[outcome.blocker]}`
+              : `blocked_after_login_removed: ${outcome.blocker}`,
+          );
         }
-
-        if (await hasRestrictActorReferences(tx, profileId)) {
-          throw new Error(RESTRICT_ACTOR_BLOCK_MESSAGE);
-        }
-
-        // Scrub outbox PII before the user row is removed; FK only nulls user_id.
-        await scrubDisciplinaryNotificationJobsForUser(tx, profileId, now);
-        // Their own inbox goes with the row; other people's items name them.
-        await scrubNotificationsNamingUser(tx, profileId);
-
-        // Program purchases are kept but anonymized, so attendance history and
-        // seat counts survive. Required before the delete: their FK is
-        // RESTRICT, so skipping this would abort the transaction.
-        await anonymizeProgramPurchasesForUser(tx, profileId, now);
-
-        await tx.delete(users).where(eq(users.id, profileId));
-        await tx
-          .update(pendingUserDeletions)
-          .set({ localDeletedAt: now, lastError: null, updatedAt: now })
-          .where(eq(pendingUserDeletions.id, preparation.pendingId));
-      });
-    } catch (error) {
-      console.error(error);
-      const lastError = toPendingDeletionError(error);
-      await db
-        .update(pendingUserDeletions)
-        .set({
-          lastError,
-          updatedAt: new Date(),
-        })
-        .where(eq(pendingUserDeletions.id, preparation.pendingId));
-
-      const blockerMessage = error instanceof Error ? error.message : undefined;
-      if (
-        blockerMessage === INFRACTION_BLOCK_MESSAGE ||
-        blockerMessage === RESTRICT_ACTOR_BLOCK_MESSAGE
-      ) {
-        return { success: false, message: blockerMessage };
+        return {
+          success: false,
+          message: refusalMessage(outcome.blocker, login),
+        };
       }
-
-      return { success: false, message: "Error al eliminar el perfil" };
+      case "clerk_not_deleted": {
+        // Clerk confirmed the login is there and this attempt's request is
+        // settled: the account goes back to normal, ready for another try,
+        // unless an earlier unconfirmed request could still land.
+        console.error("Clerk login not deleted", {
+          profileId,
+          reason: outcome.message,
+        });
+        const login = await releaseRefusedDeletion({
+          profileId,
+          pendingId: preparation.pendingId,
+          clerkId: preparation.clerkId,
+          clerkBudgetMs: CLERK_CALL_TIMEOUT_MS,
+        });
+        if (login === "unknown") {
+          return { success: false, message: CLERK_OUTCOME_UNKNOWN_MESSAGE };
+        }
+        if (login === "gone") {
+          // The earlier request landed after all: the next try finishes the
+          // local delete without asking Clerk again.
+          return { success: false, message: LOGIN_REMOVED_RETRY_MESSAGE };
+        }
+        if (login === "deleted") {
+          return { success: false, message: CONFLICT_MESSAGE };
+        }
+        return { success: false, message: CLERK_NOT_DELETED_MESSAGE };
+      }
+      case "clerk_unknown":
+        // Kept pending with the attempt on record: the next try asks Clerk
+        // again and settles it.
+        return { success: false, message: CLERK_OUTCOME_UNKNOWN_MESSAGE };
+      case "local_failed":
+        console.error(outcome.error);
+        await noteDeletionError(
+          preparation.pendingId,
+          toPendingDeletionError(outcome.error),
+        );
+        return {
+          success: false,
+          message: outcome.loginGone
+            ? LOCAL_FAILED_AFTER_LOGIN_MESSAGE
+            : "Error al eliminar el perfil",
+        };
     }
   } catch (error) {
     console.error(error);

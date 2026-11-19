@@ -1,5 +1,6 @@
 import { fetchUserProfileById } from "@/app/lib/users/queries";
 import CreditAccountPanel from "@/app/components/credits/admin/credit-account-panel";
+import ParticipationHistoryCard from "@/app/components/participations/admin/participation-history-card";
 import { notFound } from "next/navigation";
 import PrivateProfile from "@/app/components/user_profile/private_profile/overview";
 import PublicProfile from "@/app/components/user_profile/public_profile/profile";
@@ -101,6 +102,10 @@ export default async function DashboardUserPage(props: DashboardUserPageProps) {
           />
         </div>
         <PublicProfile profile={forProfile} title="Perfil de Usuario" />
+        <ParticipationHistoryCard
+          userId={forProfile.id}
+          userName={displayName}
+        />
         {/* Only participants hold credits, so only they get an account panel. */}
         {isParticipantStatus(forProfile.status) && (
           <CreditAccountPanel

@@ -22,6 +22,8 @@ import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import ActivityDateCell from "@/app/components/users/cells/activity-date-cell";
 import ProfileStatusCell from "@/app/components/users/cells/profile-status";
 import ProfileCategoryBadge from "@/app/components/user_profile/category-badge";
+import ParticipationHistoryTrigger from "@/app/components/participations/admin/participation-history-trigger";
+import { getUserName } from "@/app/lib/users/utils";
 import {
   participantEligibleSurfaceClass,
   PauseEligibilityNotice,
@@ -205,9 +207,13 @@ export default function ParticipantMobileCard({ participant }: Props) {
                   <p className="mb-0.5 text-xs font-medium text-muted-foreground">
                     Participaciones
                   </p>
-                  <p>
-                    {participant.activitySummary.acceptedParticipationsCount}
-                  </p>
+                  <ParticipationHistoryTrigger
+                    userId={participant.id}
+                    userName={getUserName(participant) || participant.email}
+                    count={
+                      participant.activitySummary.acceptedParticipationsCount
+                    }
+                  />
                 </div>
               </div>
             </div>

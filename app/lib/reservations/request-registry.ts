@@ -28,6 +28,7 @@ export const RESERVATION_REQUEST_OPERATIONS = [
   "changeReservationStand",
   "settleInvoiceShortfall",
   "upgradeFullTableReservation",
+  "transferReservationParticipation",
 ] as const;
 
 export type ReservationRequestOperation =

@@ -138,12 +138,25 @@ function installDeleteTx(rows: Record<string, unknown>[]) {
 function installSelectQueue(results: unknown[][]) {
   const inserted: unknown[] = [];
   const wheres: SQL[] = [];
-  dbState.impl = {
+  // The row lock each select took, in order (`null` for none).
+  const locks: (string | null)[] = [];
+  const queries = {
     select: () => ({
       from: () => ({
         where: (where: SQL) => {
           wheres.push(where);
-          return { limit: async () => results.shift() ?? [] };
+          return {
+            limit: () => {
+              const rows = results.shift() ?? [];
+              const index = locks.push(null) - 1;
+              return Object.assign(Promise.resolve(rows), {
+                for: async (strength: string) => {
+                  locks[index] = strength;
+                  return rows;
+                },
+              });
+            },
+          };
         },
       }),
     }),
@@ -153,7 +166,11 @@ function installSelectQueue(results: unknown[][]) {
       },
     }),
   };
-  return { inserted, wheres };
+  dbState.impl = {
+    ...queries,
+    transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(queries),
+  };
+  return { inserted, wheres, locks };
 }
 
 const params = (where: SQL) => new PgDialect().sqlToQuery(where).params;
@@ -438,5 +455,16 @@ describe("createParticipantProduct", () => {
 
     expect(result).toMatchObject({ success: true });
     expect(inserted).toEqual([{ ...productFields, userId: participant.id }]);
+  });
+
+  it("holds the participation it checked until the product is written", async () => {
+    // A transfer moving the participation to another account waits on this
+    // lock, or the check runs after it and refuses.
+    const { locks } = installSelectQueue([[{ id: 3 }], []]);
+
+    expect(await createParticipantProduct(newProduct())).toMatchObject({
+      success: true,
+    });
+    expect(locks[0]).toBe("share");
   });
 });

@@ -36,6 +36,7 @@ export type ParticipantActivitySummary = {
   lastParticipationFestivalName: string | null;
   lastTermsAcceptedAt: Date | null;
   lastTermsAcceptedFestivalName: string | null;
+  /** Festivals with an accepted reservation, however many stands each took. */
   acceptedParticipationsCount: number;
   acceptedTermsCount: number;
   isPauseEligible: boolean;

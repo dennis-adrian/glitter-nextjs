@@ -67,7 +67,13 @@ const resend = vi.hoisted(() => ({
 }));
 vi.mock("@/app/vendors/resend", () => resend);
 const deleteClerkUser = vi.hoisted(() => vi.fn());
-vi.mock("@/app/lib/users/clerk", () => ({ deleteClerkUser }));
+// A refused deletion asks Clerk whether the login is still there before it
+// releases the account; in these tests it always is.
+const clerkLoginStatus = vi.hoisted(() => vi.fn(async () => "exists"));
+vi.mock("@/app/lib/users/clerk", () => ({
+  deleteClerkUser,
+  clerkLoginStatus,
+}));
 
 type Viewer = { id: number; role: "admin" | "festival_admin" | "user" };
 const state = vi.hoisted(() => ({
