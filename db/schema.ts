@@ -130,6 +130,13 @@ export const pendingUserDeletions = pgTable(
     }),
     clerkId: text("clerk_id").notNull(),
     clerkDeletedAt: timestamp("clerk_deleted_at"),
+    /**
+     * Set while a Clerk deletion was sent but its outcome is not known (a
+     * timeout, or an error Clerk could not resolve). Cleared on a definite
+     * answer. While set, the row is never released on a later "the login
+     * still exists": the earlier request may still land.
+     */
+    clerkAttemptedAt: timestamp("clerk_attempted_at"),
     localDeletedAt: timestamp("local_deleted_at"),
     lastError: text("last_error"),
     attempts: integer("attempts").default(0).notNull(),
@@ -188,6 +195,66 @@ export const userStatusEventsRelations = relations(
   }),
 );
 
+/**
+ * One row per time an admin changed the address a person signs in with. It is
+ * the audit of who moved whom from which address to which, and the durable
+ * record of a change in flight. Clerk changes outside any transaction, so a
+ * row with `clerk_changed_at` set and `completed_at` null is a run that
+ * stopped before the database followed. Running the action again finishes
+ * the change on a NEW row and leaves that one as history, so only the latest
+ * row for a user says whether the database is still behind.
+ * Deleting the profile blanks both addresses and keeps the rest.
+ */
+export const userEmailChanges = pgTable(
+  "user_email_changes",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    /** Kept as text so the audit still names the account once a row is gone. */
+    clerkId: text("clerk_id").notNull(),
+    /** Equal to `newEmail`, case aside, on a resync. Blank once deleted. */
+    oldEmail: text("old_email").notNull(),
+    newEmail: text("new_email").notNull(),
+    changedByUserId: integer("changed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    /** Connected accounts removed in Clerk, e.g. `oauth_google`. */
+    unlinkedProviders: text("unlinked_providers")
+      .array()
+      .default(sql`'{}'::text[]`)
+      .notNull(),
+    clerkChangedAt: timestamp("clerk_changed_at"),
+    completedAt: timestamp("completed_at"),
+    /** A code, never a Clerk or driver message: those can quote an address. */
+    lastError: text("last_error"),
+    /** `sent`, or a log-safe failure type such as `resend:validation_error`. */
+    oldNoticeStatus: text("old_notice_status"),
+    newNoticeStatus: text("new_notice_status"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("user_email_changes_user_created_idx").on(t.userId, t.createdAt),
+  ],
+);
+export const userEmailChangesRelations = relations(
+  userEmailChanges,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [userEmailChanges.userId],
+      references: [users.id],
+      relationName: "emailChanges",
+    }),
+    changedBy: one(users, {
+      fields: [userEmailChanges.changedByUserId],
+      references: [users.id],
+      relationName: "emailChangesMade",
+    }),
+  }),
+);
+
 export const usersRelations = relations(users, ({ many, one }) => ({
   userRequests: many(userRequests),
   userSocials: many(userSocials),
@@ -228,6 +295,10 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   }),
   createdStatusEvents: many(userStatusEvents, {
     relationName: "createdUserStatusEvents",
+  }),
+  emailChanges: many(userEmailChanges, { relationName: "emailChanges" }),
+  emailChangesMade: many(userEmailChanges, {
+    relationName: "emailChangesMade",
   }),
   impersonationsAsAdmin: many(impersonationSessions, {
     relationName: "impersonationsAsAdmin",
@@ -2414,7 +2485,8 @@ export const reservationRequestRegistry = pgTable(
         'addLatePartner',
         'changeReservationStand',
         'settleInvoiceShortfall',
-        'upgradeFullTableReservation'
+        'upgradeFullTableReservation',
+        'transferReservationParticipation'
       )`,
     ),
   ],

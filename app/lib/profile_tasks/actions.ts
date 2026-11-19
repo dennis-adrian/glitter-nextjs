@@ -10,10 +10,6 @@ import {
   ScheduledTaskWithProfile,
   ScheduledTaskWithProfileAndReservation,
 } from "@/app/lib/profile_tasks/definitions";
-import { forgetPushDevices } from "@/app/lib/notifications/push/devices";
-import { scrubNotificationsNamingUser } from "@/app/lib/notifications/scrub";
-import { anonymizeProgramPurchasesForUser } from "@/app/lib/programs/anonymization";
-import { detachPostsForDeletedUser } from "@/app/lib/posts/anonymization";
 import { db } from "@/db";
 import { pendingUserDeletions, scheduledTasks, users } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
@@ -40,7 +36,19 @@ import ReservationReminderTemplate from "@/app/emails/reservation-reminder";
 import { scheduleNotificationDeliveries } from "@/app/lib/notifications/deliveries";
 import { notify, type NotifyTx } from "@/app/lib/notifications/notify";
 import { reservationStandLabel } from "@/app/lib/reservations/member-stands";
-import { deleteClerkUser } from "@/app/lib/users/clerk";
+import {
+  findProfileDeletionBlocker,
+  type ProfileDeletionBlocker,
+} from "@/app/lib/users/deletion-blockers";
+import { MAX_DELETION_ATTEMPTS } from "@/app/lib/users/deletion-limits";
+import { keepLegacyClerkAttempt } from "@/app/lib/users/legacy-clerk-attempt";
+import { utcTimestamp } from "@/app/lib/sql-time";
+import {
+  finalizeProfileDeletion,
+  noteDeletionError,
+  releaseRefusedDeletion,
+  UNCONFIRMED_ATTEMPT_SETTLES_AFTER_MS,
+} from "@/app/lib/users/profile-deletion";
 
 // Leaves headroom under the 100s function limit set in vercel.json so a large
 // backlog is drained across runs instead of being killed mid-flight.
@@ -54,9 +62,8 @@ const MAX_DELETIONS_PER_RUN = 25;
 // run deadline; the loop guard only runs between iterations.
 const CLERK_CALL_TIMEOUT_MS = 10_000;
 
-// Matches the disciplinary notification outbox: five tries, exponential backoff
-// capped at a day, then the row stops retrying and waits for an operator.
-const MAX_DELETION_ATTEMPTS = 5;
+// Exponential backoff capped at a day; at MAX_DELETION_ATTEMPTS the row stops
+// retrying and waits for an operator.
 const MAX_DELETION_BACKOFF_MS = 24 * 60 * 60 * 1000;
 
 const MAX_PERSISTED_ERROR_LENGTH = 120;
@@ -93,15 +100,40 @@ function computeNextAttemptAt(attemptCount: number, now = new Date()) {
   return new Date(now.getTime() + delayMs);
 }
 
+/** Only a deletion still under way: a finished one is in its notice phase. */
+function unfinishedDeletion(pendingId: number) {
+  return and(
+    eq(pendingUserDeletions.id, pendingId),
+    isNull(pendingUserDeletions.localDeletedAt),
+  );
+}
+
+/**
+ * A deletion whose login is still not known to be gone. A failure about the
+ * Clerk step is written only to a row still in that state: once the login is
+ * recorded as gone (by the user.deleted webhook, which also makes a parked
+ * row claimable again), a count read before that would park it for nothing.
+ */
+function loginNotYetGone(pendingId: number) {
+  return and(
+    unfinishedDeletion(pendingId),
+    isNull(pendingUserDeletions.clerkDeletedAt),
+  );
+}
+
 /**
  * Records a failed deletion attempt on its outbox row. Once the attempt cap is
  * reached the row keeps its lastError and stops being claimed, so a profile
- * that can never be deleted does not consume a slot on every run.
+ * that can never be deleted does not consume a slot on every run. A row
+ * another attempt finished meanwhile is left alone: its attempts and address
+ * now belong to the notice. `whileLoginNotGone` limits the write to a row
+ * whose login is still not known to be gone, for a failure that assumed so.
  */
 async function recordDeletionFailure(
   pendingId: number,
   attempts: number,
   lastError: string,
+  { whileLoginNotGone = false }: { whileLoginNotGone?: boolean } = {},
 ) {
   const now = new Date();
   const nextAttempt = attempts + 1;
@@ -110,52 +142,90 @@ async function recordDeletionFailure(
     .set({
       attempts: nextAttempt,
       lastError,
+      clerkAttemptedAt: keepLegacyClerkAttempt(),
       nextAttemptAt: computeNextAttemptAt(nextAttempt, now),
       updatedAt: now,
     })
-    .where(eq(pendingUserDeletions.id, pendingId));
+    .where(
+      whileLoginNotGone
+        ? loginNotYetGone(pendingId)
+        : unfinishedDeletion(pendingId),
+    );
 }
 
-type ClerkDeletionOutcome = Awaited<ReturnType<typeof deleteClerkUser>>;
+/**
+ * A failed attempt counted from the row itself, for a failure that came
+ * before the row could be read: the count claimed with the task may be stale
+ * (the user.deleted webhook resets it). Never parks the row, since its login
+ * state is unknown too.
+ */
+async function recordDeletionFailureFromRow(
+  pendingId: number,
+  lastError: string,
+) {
+  const now = new Date();
+  // Postgres reads every column on the right as it was before this write,
+  // so both expressions use the same previous count.
+  const next = sql`least(${pendingUserDeletions.attempts}, ${MAX_DELETION_ATTEMPTS - 2}) + 1`;
+  await db
+    .update(pendingUserDeletions)
+    .set({
+      attempts: next,
+      lastError,
+      clerkAttemptedAt: keepLegacyClerkAttempt(),
+      // computeNextAttemptAt in SQL: a minute, doubled per attempt, at most
+      // a day.
+      // utcTimestamp: a Date bound as is lands off by the process's UTC
+      // offset in a timestamp column (see app/lib/sql-time.ts).
+      nextAttemptAt: sql`${utcTimestamp(now)} + least(
+        interval '1 minute' * power(2, least(${pendingUserDeletions.attempts}, ${MAX_DELETION_ATTEMPTS - 2})),
+        interval '1 day'
+      )`,
+      updatedAt: now,
+    })
+    .where(unfinishedDeletion(pendingId));
+}
 
 /**
- * Bounds a Clerk deletion by both its own timeout and the run deadline. A
- * timeout is reported as request_failed so the caller records it and retries on
- * a later run; the abandoned request cannot reject, since deleteClerkUser
- * resolves every path.
+ * A kept profile whose login Clerk could not confirm yet. Not a failed
+ * deletion, so it does not spend the deletion's attempts, and it never
+ * reaches the cap and drops out of the claim while still pending: it is
+ * checked again once an unconfirmed request can no longer land.
  */
-async function deleteClerkUserWithinDeadline(
-  clerkId: string,
-  deadline: number,
-): Promise<ClerkDeletionOutcome> {
-  const budgetMs = Math.min(CLERK_CALL_TIMEOUT_MS, deadline - Date.now());
-  if (budgetMs <= 0) {
-    return {
-      success: false,
-      status: "request_failed",
-      message: "run deadline reached before the Clerk call started",
-    };
-  }
+async function reconcileLoginLater(pendingId: number, lastError: string) {
+  const now = new Date();
+  await db
+    .update(pendingUserDeletions)
+    .set({
+      lastError,
+      clerkAttemptedAt: keepLegacyClerkAttempt(),
+      nextAttemptAt: new Date(
+        now.getTime() + UNCONFIRMED_ATTEMPT_SETTLES_AFTER_MS,
+      ),
+      updatedAt: now,
+    })
+    .where(loginNotYetGone(pendingId));
+}
 
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      deleteClerkUser(clerkId),
-      new Promise<ClerkDeletionOutcome>((resolve) => {
-        timer = setTimeout(
-          () =>
-            resolve({
-              success: false,
-              status: "request_failed",
-              message: `Clerk call timed out after ${budgetMs}ms`,
-            }),
-          budgetMs,
-        );
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
+/**
+ * Stops retrying a deletion that can never complete on its own, keeping its
+ * lastError for an operator: at the attempt cap the claim no longer selects it.
+ */
+async function parkDeletion(pendingId: number, lastError: string) {
+  await noteDeletionError(pendingId, lastError, {
+    attempts: MAX_DELETION_ATTEMPTS,
+  });
+}
+
+/**
+ * The profile stays: its overdue task is closed so the next runs stop picking
+ * it up. Only the deletion cron reads `ranAfterDueDate` on a profile task.
+ */
+async function keepProfile(taskId: number) {
+  await db
+    .update(scheduledTasks)
+    .set({ ranAfterDueDate: true, updatedAt: new Date() })
+    .where(eq(scheduledTasks.id, taskId));
 }
 
 export async function handleReminderEmails(): Promise<
@@ -191,6 +261,52 @@ export async function handleReminderEmails(): Promise<
     console.error("Error sending reminder emails", error);
     return [] as ScheduledTaskWithProfile[];
   }
+}
+
+/**
+ * A profile the cron cannot delete, because something keeps it (an
+ * infraction, credits, a reservation, admin records). It keeps its login when
+ * that is certain, and the task is closed; otherwise the case is left for an
+ * operator or a later run, never as a silent profile without a login.
+ */
+async function settleBlockedDeletion(input: {
+  task: ScheduledTaskWithProfile;
+  pendingId: number;
+  blocker: ProfileDeletionBlocker;
+  loginAlreadyGone: boolean;
+  deadline: number;
+}) {
+  const login = input.loginAlreadyGone
+    ? ("gone" as const)
+    : await releaseRefusedDeletion({
+        profileId: input.task.profile.id,
+        pendingId: input.pendingId,
+        clerkId: input.task.profile.clerkId,
+        clerkBudgetMs: CLERK_CALL_TIMEOUT_MS,
+        deadline: input.deadline,
+      });
+
+  // Finished meanwhile by another run or an admin, notice and all.
+  if (login === "deleted") return;
+  if (login === "intact") {
+    await keepProfile(input.task.id);
+    return;
+  }
+  if (login === "gone") {
+    console.error("Profile kept without a login: deletion blocked", {
+      profileId: input.task.profile.id,
+      blocker: input.blocker,
+    });
+    await parkDeletion(
+      input.pendingId,
+      `blocked_after_login_removed: ${input.blocker}`,
+    );
+    return;
+  }
+  await reconcileLoginLater(
+    input.pendingId,
+    `blocked_login_unconfirmed: ${input.blocker}`,
+  );
 }
 
 export async function handleDeletionEmails(): Promise<
@@ -238,7 +354,7 @@ export async function handleDeletionEmails(): Promise<
         .orderBy(asc(scheduledTasks.dueDate))
         .limit(MAX_DELETIONS_PER_RUN);
 
-      if (eligible.length === 0) return [];
+      if (eligible.length === 0) return { entries: [], blockedRetries: [] };
 
       const overdueTasks = await tx.query.scheduledTasks.findMany({
         where: inArray(
@@ -254,8 +370,14 @@ export async function handleDeletionEmails(): Promise<
       const entries: {
         task: ScheduledTaskWithProfile;
         pendingId: number;
-        clerkAlreadyDeleted: boolean;
         attempts: number;
+      }[] = [];
+      // Blocked retries: their earlier attempt may have reached Clerk, so they
+      // are settled after this transaction, where Clerk can be asked.
+      const blockedRetries: {
+        task: ScheduledTaskWithProfile;
+        pendingId: number;
+        blocker: ProfileDeletionBlocker;
       }[] = [];
 
       for (const task of overdueTasks) {
@@ -273,7 +395,8 @@ export async function handleDeletionEmails(): Promise<
 
         // The profile went away while we waited for the lock.
         if (!lockedUser) continue;
-        await forgetPushDevices(tx, lockedUser.id);
+        // Its push devices go with the profile, in the delete itself: a
+        // deletion that does not go ahead leaves them subscribed.
 
         // A row left over from an earlier run is resumed rather than
         // duplicated; a null clerkDeletedAt just means "not confirmed yet".
@@ -294,11 +417,32 @@ export async function handleDeletionEmails(): Promise<
           .limit(1)
           .for("update");
 
+        // Checked before Clerk is ever asked, so an account that has to stay
+        // (an infraction, credits, a reservation) keeps its login. Not needed
+        // once the login is gone: the delete step reports that case.
+        if (!existing || existing.clerkDeletedAt === null) {
+          const blocker = await findProfileDeletionBlocker(tx, task.profile.id);
+          if (blocker) {
+            if (existing) {
+              blockedRetries.push({
+                task,
+                pendingId: existing.id,
+                blocker,
+              });
+            } else {
+              await tx
+                .update(scheduledTasks)
+                .set({ ranAfterDueDate: true, updatedAt: new Date() })
+                .where(eq(scheduledTasks.id, task.id));
+            }
+            continue;
+          }
+        }
+
         if (existing) {
           entries.push({
             task,
             pendingId: existing.id,
-            clerkAlreadyDeleted: existing.clerkDeletedAt !== null,
             attempts: existing.attempts,
           });
           continue;
@@ -312,100 +456,129 @@ export async function handleDeletionEmails(): Promise<
         entries.push({
           task,
           pendingId: pending.id,
-          clerkAlreadyDeleted: false,
           attempts: 0,
         });
       }
 
-      return entries;
+      return { entries, blockedRetries };
     });
 
     // No early return on an empty claim: notices owed by earlier runs still
     // need draining even when there is nothing new to delete.
     const completedTasks: ScheduledTaskWithProfile[] = [];
 
-    for (const { task, pendingId, clerkAlreadyDeleted, attempts } of claimed) {
+    for (const { task, pendingId, blocker } of claimed.blockedRetries) {
+      if (Date.now() >= deadline) break;
+      await settleBlockedDeletion({
+        task,
+        pendingId,
+        blocker,
+        loginAlreadyGone: false,
+        deadline,
+      });
+    }
+
+    for (const { task, pendingId, attempts } of claimed.entries) {
       // Whatever is left stays queued for the next run instead of overrunning
       // the cron's function timeout.
       if (Date.now() >= deadline) break;
 
-      // Tracks what the row actually holds, which the Clerk step below resets.
-      let currentAttempts = attempts;
+      // Clerk goes first, inside the same transaction as the local delete
+      // (`finalizeProfileDeletion`): a live credential with no local profile
+      // would be recreated as a brand new profile on the next sign in.
+      const outcome = await finalizeProfileDeletion({
+        profileId: task.profile.id,
+        pendingId,
+        clerkId: task.profile.clerkId,
+        // Checked once the row lock is held: waiting for it counts against
+        // the run, and no Clerk call starts past the deadline.
+        clerkBudgetMs: CLERK_CALL_TIMEOUT_MS,
+        deadline,
+        // scheduled_tasks.profile_id is ON DELETE CASCADE, so the delete
+        // removes this task's row; no flag to set. The address is carried on
+        // the outbox row because the profile it came from is gone. The email
+        // phase gets a clean budget: a row resumed from an earlier failure
+        // would otherwise inherit a future nextAttemptAt.
+        deletedPendingValues: (now) => ({
+          recipientEmail: task.profile.email,
+          attempts: 0,
+          nextAttemptAt: now,
+        }),
+      });
 
-      // Clerk goes first: a live credential with no local profile would be
-      // recreated as a brand new profile on the next sign in.
-      if (!clerkAlreadyDeleted) {
-        const result = await deleteClerkUserWithinDeadline(
-          task.profile.clerkId,
-          deadline,
-        );
-        if (result.status === "request_failed") {
+      switch (outcome.kind) {
+        case "deleted":
+          completedTasks.push(task);
+          break;
+        case "conflict":
+        // The run ran out while waiting for the lock: nothing was asked or
+        // written, and the row stays queued for the next run.
+        case "out_of_time":
+          break;
+        case "blocked":
+          await settleBlockedDeletion({
+            task,
+            pendingId,
+            blocker: outcome.blocker,
+            loginAlreadyGone: outcome.loginAlreadyGone,
+            deadline,
+          });
+          break;
+        case "clerk_not_deleted":
+          // Clerk refused and the login is there: retried on a later run,
+          // up to the cap. Not parked while an earlier request may still
+          // land, as with `clerk_unknown`: once it is too old to, a refusal
+          // clears it and the cap applies again.
           await recordDeletionFailure(
             pendingId,
-            currentAttempts,
-            `clerk_delete_failed: ${result.message}`,
+            outcome.earlierAttemptPending
+              ? Math.min(attempts, MAX_DELETION_ATTEMPTS - 2)
+              : attempts,
+            outcome.message,
+            { whileLoginNotGone: true },
           );
-          continue;
-        }
-
-        const clerkDeletedAt = new Date();
-        await db
-          .update(pendingUserDeletions)
-          .set({
-            clerkDeletedAt,
-            lastError: null,
-            attempts: 0,
-            nextAttemptAt: clerkDeletedAt,
-            updatedAt: clerkDeletedAt,
-          })
-          .where(eq(pendingUserDeletions.id, pendingId));
-        currentAttempts = 0;
-      }
-
-      try {
-        const now = new Date();
-        await db.transaction(async (tx) => {
-          // Keep program purchases but strip their personal data. Their FK is
-          // RESTRICT, so the delete below would abort without this.
-          await anonymizeProgramPurchasesForUser(tx, task.profile.id);
-
-          // Published articles stay under "Equipo Glitter"; drafts and other
-          // never-public posts go with their author.
-          await detachPostsForDeletedUser(tx, task.profile.id);
-
-          // Their own inbox goes with the row; other people's items name them.
-          await scrubNotificationsNamingUser(tx, task.profile.id);
-
-          await tx.delete(users).where(eq(users.id, task.profile.id));
-
-          // scheduled_tasks.profile_id is ON DELETE CASCADE, so the delete
-          // above already removed this task's row; no flag to set.
-          // The address is carried on the outbox row because the profile it
-          // came from no longer exists once this transaction commits.
-          await tx
-            .update(pendingUserDeletions)
-            .set({
-              localDeletedAt: now,
-              lastError: null,
-              recipientEmail: task.profile.email,
-              // Hand the email phase a clean budget: a row resumed from an
-              // earlier failure would otherwise inherit a future nextAttemptAt
-              // and have its notice held back for no reason.
-              attempts: 0,
-              nextAttemptAt: now,
-              updatedAt: now,
-            })
-            .where(eq(pendingUserDeletions.id, pendingId));
-        });
-
-        completedTasks.push(task);
-      } catch (error) {
-        console.error("Error deleting profile locally", error);
-        await recordDeletionFailure(
-          pendingId,
-          currentAttempts,
-          toLocalDeleteError(error),
-        );
+          break;
+        case "clerk_unknown":
+          // Retried on a later run with its backoff, but never parked: Clerk
+          // may still apply that request, and only a later run, asking again,
+          // can find the login gone and finish the delete. Parked, the
+          // profile would stay with no login and no one coming back to it.
+          await recordDeletionFailure(
+            pendingId,
+            Math.min(attempts, MAX_DELETION_ATTEMPTS - 2),
+            outcome.message,
+            { whileLoginNotGone: true },
+          );
+          break;
+        case "local_failed":
+          console.error("Error deleting profile locally", outcome.error);
+          // When this attempt removed the login the Clerk step is done:
+          // count failures of the local delete from there, not from the
+          // earlier Clerk tries. A row resumed with the login already gone
+          // keeps counting, so a delete that always fails reaches the cap.
+          // While the login is not known to be gone, the row may hold an
+          // unconfirmed Clerk request: like `clerk_unknown`, never parked.
+          // Counted from the row as the delete last read it, not as claimed:
+          // the webhook may have made a parked row claimable in between.
+          if (outcome.attempts === undefined) {
+            // Failed before the row was read: count from the row as it is.
+            await recordDeletionFailureFromRow(
+              pendingId,
+              toLocalDeleteError(outcome.error),
+            );
+            break;
+          }
+          await recordDeletionFailure(
+            pendingId,
+            outcome.loginRemovedNow
+              ? 0
+              : outcome.loginGone
+                ? outcome.attempts
+                : Math.min(outcome.attempts, MAX_DELETION_ATTEMPTS - 2),
+            toLocalDeleteError(outcome.error),
+            { whileLoginNotGone: !outcome.loginGone },
+          );
+          break;
       }
     }
 

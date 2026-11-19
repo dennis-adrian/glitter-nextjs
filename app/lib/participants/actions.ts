@@ -148,7 +148,9 @@ async function fetchParticipantRows(
       select
         p.user_id,
         max(${participationOccurredAtSql}) filter (where sr.status = 'accepted') as last_participation_at,
-        count(*) filter (where sr.status = 'accepted') as accepted_participations_count,
+        -- Festivals, not reservations: two stands in one edition used to take
+        -- two reservations, and they are still one participation.
+        count(distinct sr.festival_id) filter (where sr.status = 'accepted') as accepted_participations_count,
         bool_or(
           sr.festival_id in (select id from latest_festivals)
           and sr.status = 'accepted'
@@ -643,7 +645,9 @@ export async function fetchParticipantActivitySummary(
       select
         p.user_id,
         max(${participationOccurredAtSql}) filter (where sr.status = 'accepted') as last_participation_at,
-        count(*) filter (where sr.status = 'accepted') as accepted_participations_count,
+        -- Festivals, not reservations: two stands in one edition used to take
+        -- two reservations, and they are still one participation.
+        count(distinct sr.festival_id) filter (where sr.status = 'accepted') as accepted_participations_count,
         bool_or(
           sr.festival_id in (select id from latest_festivals)
           and sr.status = 'accepted'

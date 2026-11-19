@@ -6,6 +6,7 @@ import {
   CircleCheckBigIcon,
   CircleCheckIcon,
   CogIcon,
+  MailIcon,
   PauseCircleIcon,
   PenBoxIcon,
   ReceiptIcon,
@@ -29,6 +30,7 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { type ReactNode, useState } from "react";
 import { useCanManageProfiles } from "@/app/components/dashboard/dashboard-viewer-provider";
+import { ChangeEmailModal } from "@/app/components/users/form/change-email-modal";
 import { DeleteProfileModal } from "@/app/components/users/form/delete-profile-modal";
 import { VerifyProfileModal } from "@/app/components/users/form/verify-user-modal";
 import { DisableProfileModal } from "@/app/components/users/form/disable-profile-modal";
@@ -64,6 +66,7 @@ export default function ProfileQuickActions({
   const [openRejectModal, setOpenRejectModal] = useState(false);
   const [openPauseModal, setOpenPauseModal] = useState(false);
   const [openUnpauseModal, setOpenUnpauseModal] = useState(false);
+  const [openChangeEmailModal, setOpenChangeEmailModal] = useState(false);
   // The lifecycle actions behind these entries are admin-only on the server.
   // Festival admins reach this menu through the dashboard, so the entries are
   // shown disabled with the reason instead of silently failing on click.
@@ -206,6 +209,14 @@ export default function ProfileQuickActions({
             </DropdownMenuItem>
           )}
           <DropdownMenuItem
+            disabled={!canManageProfiles}
+            title={adminOnlyTitle}
+            onClick={() => setOpenChangeEmailModal(true)}
+          >
+            <MailIcon className="h-4 w-4 mr-1" />
+            Cambiar correo
+          </DropdownMenuItem>
+          <DropdownMenuItem
             className="text-destructive hover:text-destructive-foreground hover:bg-destructive"
             disabled={!canManageProfiles}
             title={adminOnlyTitle}
@@ -216,6 +227,11 @@ export default function ProfileQuickActions({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <ChangeEmailModal
+        open={openChangeEmailModal}
+        profile={profile}
+        setOpen={setOpenChangeEmailModal}
+      />
       <DeleteProfileModal
         open={openDeleteModal}
         profile={profile}

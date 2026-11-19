@@ -921,6 +921,61 @@ describeDatabase("disciplinary outbox → inbox mirror", () => {
       expect((await itemsOf(ana.id)).map((item) => item.id)).toEqual([row!.id]);
     });
 
+    it("hydrates with the address an email change committed while it ran", async () => {
+      const { ana, sanctionId } = await expiredBan();
+      const { jobId } = await recordRetry(sanctionId);
+      const moved = `disc-mirror-moved-${randomUUID()}@example.test`;
+
+      // An email change holds the profile row while it moves the queued mail,
+      // and skips this job: it has no profile in its payload yet.
+      const rival = await pool!.connect();
+      let attempt: ReturnType<
+        typeof disciplinary.attemptDisciplinaryNotificationJob
+      >;
+      try {
+        const {
+          rows: [{ pid }],
+        } = await rival.query<{ pid: number }>(
+          "select pg_backend_pid() as pid",
+        );
+        await rival.query("begin");
+        await rival.query("update users set email = $1 where id = $2", [
+          moved,
+          ana.id,
+        ]);
+        // The snapshot reads the old address; the hydration then waits.
+        attempt = disciplinary.attemptDisciplinaryNotificationJob(jobId);
+        const until = Date.now() + 10_000;
+        for (;;) {
+          const waiting = await pool!.query(
+            `select 1 from pg_stat_activity
+             where wait_event_type = 'Lock' and $1::int = any(pg_blocking_pids(pid))`,
+            [pid],
+          );
+          if (waiting.rowCount) break;
+          if (Date.now() > until) {
+            throw new Error("the hydration never waited on the profile lock");
+          }
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+        await rival.query("commit");
+      } catch (error) {
+        await rival.query("rollback");
+        throw error;
+      } finally {
+        rival.release();
+      }
+
+      await expect(attempt).resolves.toEqual({
+        success: true,
+        outcome: "completed",
+      });
+      expect(sendEmailMock.mock.calls[0]![0]).toMatchObject({ to: [moved] });
+      const hydrated = await jobById(jobId);
+      expect(hydrated.recipientEmail).toBe(moved);
+      expect(hydrated.payload).toMatchObject({ profile: { email: moved } });
+    });
+
     it("keeps the one copy when a hydrated retry's send fails and is retried", async () => {
       const { ana, sanctionId } = await expiredBan();
       const { jobId, deduplicationKey } = await recordRetry(sanctionId);

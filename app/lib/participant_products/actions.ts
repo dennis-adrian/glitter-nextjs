@@ -69,53 +69,55 @@ export async function createParticipantProduct(
       };
     }
 
-    const [participation] = await db
-      .select({ id: reservationParticipants.id })
-      .from(reservationParticipants)
-      .where(
-        and(
-          eq(reservationParticipants.id, participationId),
-          eq(reservationParticipants.userId, profile.id),
-        ),
-      )
-      .limit(1);
+    // The ownership check and the insert under one lock on the
+    // participation: an admin transfer moving it to another account waits,
+    // or is waited for and then fails this check, so no product is written
+    // under the account it left.
+    const refusal = await db.transaction(async (tx) => {
+      const [participation] = await tx
+        .select({ id: reservationParticipants.id })
+        .from(reservationParticipants)
+        .where(
+          and(
+            eq(reservationParticipants.id, participationId),
+            eq(reservationParticipants.userId, profile.id),
+          ),
+        )
+        .limit(1)
+        .for("share");
 
-    if (!participation) {
-      return {
-        success: false,
-        message:
-          "No tienes permiso para agregar productos a esta participación.",
-      };
-    }
+      if (!participation) {
+        return "No tienes permiso para agregar productos a esta participación.";
+      }
 
-    // Two rows sharing a file would let deleting one take the other's image.
-    // Compared by key, since the same file has more than one URL (utfs.io and
-    // ufs.sh hosts).
-    const [imageInUse] = await db
-      .select({ id: participantProducts.id })
-      .from(participantProducts)
-      .where(
-        sql`split_part(${participantProducts.imageUrl}, '/f/', 2) = ${fileKey}`,
-      )
-      .limit(1);
+      // Two rows sharing a file would let deleting one take the other's
+      // image. Compared by key, since the same file has more than one URL
+      // (utfs.io and ufs.sh hosts).
+      const [imageInUse] = await tx
+        .select({ id: participantProducts.id })
+        .from(participantProducts)
+        .where(
+          sql`split_part(${participantProducts.imageUrl}, '/f/', 2) = ${fileKey}`,
+        )
+        .limit(1);
 
-    if (imageInUse) {
-      return {
-        success: false,
-        message:
-          "Esta imagen ya está asociada a otro producto. Subí una imagen nueva.",
-      };
-    }
+      if (imageInUse) {
+        return "Esta imagen ya está asociada a otro producto. Subí una imagen nueva.";
+      }
 
-    // Only the fields a participant may set. Review status and feedback stay
-    // at their defaults until staff review the product.
-    await db.insert(participantProducts).values({
-      name,
-      description,
-      imageUrl,
-      participationId: participation.id,
-      userId: profile.id,
+      // Only the fields a participant may set. Review status and feedback
+      // stay at their defaults until staff review the product.
+      await tx.insert(participantProducts).values({
+        name,
+        description,
+        imageUrl,
+        participationId: participation.id,
+        userId: profile.id,
+      });
+      return null;
     });
+
+    if (refusal) return { success: false, message: refusal };
   } catch (error) {
     console.error("Error creating participant product", error);
     return {

@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { fetchPublishedFestivalTermsVersion } from "@/app/lib/festival-terms/queries";
 import type { ReservationErrorCode } from "@/app/lib/reservations/errors";
 import {
+  displayedDenialCode,
   evaluateSelfServiceEligibility,
   summarizeFestivalParticipations,
   type ReservationActor,
@@ -157,7 +158,11 @@ export async function getSelfServicePageDenial(input: {
   }
 
   return {
-    code: result.code,
+    // What the page says, not what refuses: see `displayedDenialCode`.
+    code: displayedDenialCode(
+      result.code,
+      participation?.hasLiveFestivalReservation ?? false,
+    ),
     ...(result.code === "SANCTION_BLOCKED" && sanctionBlock
       ? { sanctionBlock }
       : {}),
