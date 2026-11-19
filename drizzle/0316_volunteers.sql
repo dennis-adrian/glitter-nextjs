@@ -101,12 +101,13 @@ CREATE INDEX "volunteer_shifts_festival_idx" ON "volunteer_shifts" USING btree (
 --
 -- The v11 festival is found, not assumed: the one festival of type `glitter`
 -- with a day on 19 Dec 2026, La Paz time, in `festival_dates` or in
--- `festivals.start_date` (both hold UTC wall-clock). Zero or several matches
--- stop the migration with the candidates listed.
+-- `festivals.start_date` (both hold UTC wall-clock). Several matches always
+-- stop the migration, with the candidates listed.
 --
--- A database with no festivals at all (a fresh CI/test database, or a new
--- development database before `pnpm seed`), or one whose name marks it as a
--- test/CI database, has no v11 to find: the block skips with a NOTICE there.
+-- No match stops it only where `glitter.require_volunteer_seed` is on, which
+-- scripts/migrate.ts sets for production (VERCEL_ENV=production). Preview and
+-- development databases, which may hold no v11, skip the seed with a NOTICE,
+-- as do databases with no festivals at all or named as test/CI databases.
 --
 -- Shift times are written on La Paz's clock and stored as UTC wall-clock.
 -- Every insert skips what is already there, so a re-run adds nothing.
@@ -135,7 +136,10 @@ BEGIN
 			)
 		);
 
-	IF match_count = 0 THEN
+	IF match_count = 0 AND coalesce(current_setting('glitter.require_volunteer_seed', true), '') <> 'on' THEN
+		RAISE NOTICE 'volunteers: no Glitter v11 festival in database %, skipping the v11 roles, shifts and settings (required only in production)', current_database();
+		RETURN;
+	ELSIF match_count = 0 THEN
 		RAISE EXCEPTION 'volunteers: Glitter v11 not found. Expected one festival with festival_type = ''glitter'' and a day on 2026-12-19 (America/La_Paz) in festival_dates or festivals.start_date. Create or fix that festival, then run the migration again.';
 	ELSIF match_count > 1 THEN
 		RAISE EXCEPTION 'volunteers: % festivals look like Glitter v11 (%); expected exactly one.', match_count, match_list;
