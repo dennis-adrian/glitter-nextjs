@@ -65,4 +65,13 @@ describe("volunteerPageView", () => {
       ).open,
     ).toBe(false);
   });
+
+  it("stays closed without an active shift", () => {
+    expect(
+      volunteerPageView(
+        { ...call, shifts: [], ageCutoffDate: null },
+        new Date("2026-11-20T12:00:00Z"),
+      ).open,
+    ).toBe(false);
+  });
 });

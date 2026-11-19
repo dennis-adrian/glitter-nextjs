@@ -249,6 +249,7 @@ function PhoneControl({
 export function ChoiceRow({
   checked,
   onCheckedChange,
+  onBlur,
   children,
   invalid,
   describedBy,
@@ -256,6 +257,7 @@ export function ChoiceRow({
 }: {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
+  onBlur?: () => void;
   children: ReactNode;
   invalid?: boolean;
   describedBy?: string;
@@ -272,6 +274,7 @@ export function ChoiceRow({
         id={id}
         checked={checked}
         onCheckedChange={(value) => onCheckedChange(value === true)}
+        onBlur={onBlur}
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
         className="mt-0.5"

@@ -157,6 +157,23 @@ describe("VolunteerApplicationWizard", () => {
     expect(stepTitle()).toBe("Turnos y roles");
   });
 
+  it("clears the shift error as soon as a shift is picked", async () => {
+    storeDraft(1, validPersonal);
+    render(<VolunteerApplicationWizard {...props} />);
+    expect(stepTitle()).toBe("Turnos y roles");
+
+    clickPrimary("Continuar");
+    await waitFor(() =>
+      expect(screen.getByText("Elegí al menos un turno.")).toBeTruthy(),
+    );
+
+    fireEvent.click(screen.getAllByRole("checkbox")[0]!);
+
+    await waitFor(() =>
+      expect(screen.queryByText("Elegí al menos un turno.")).toBeNull(),
+    );
+  });
+
   it("keeps the answers when going back, and in sessionStorage", async () => {
     storeDraft(1, validPersonal);
     render(<VolunteerApplicationWizard {...props} />);

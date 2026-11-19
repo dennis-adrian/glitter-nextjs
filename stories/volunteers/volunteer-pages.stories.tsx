@@ -145,6 +145,15 @@ function Wizard({ step }: { step: number }) {
                 secondChoiceRoleId: "2",
                 experience: ["photography", "own_camera"],
                 commitmentConsent: true,
+                // Step 4 starts from a draft that already passed "Sobre vos",
+                // so the full check on submit flags only this step's fields.
+                ...(step === 3
+                  ? {
+                      motivation:
+                        "Me encanta la fotografía y quiero que más gente conozca el festival. Ya registré eventos culturales con mi cámara y quiero sumar esa experiencia al equipo de Glitter.",
+                      referralSource: "instagram",
+                    }
+                  : {}),
               },
       }),
     );

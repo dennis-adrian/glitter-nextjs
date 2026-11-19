@@ -122,13 +122,18 @@ export function ShiftsAndRolesStep({
                       checked={selected.includes(shift.id)}
                       invalid={Boolean(fieldState.error)}
                       describedBy={fieldState.error ? errorId : undefined}
-                      onCheckedChange={(checked) =>
+                      onBlur={field.onBlur}
+                      onCheckedChange={(checked) => {
                         field.onChange(
                           checked
                             ? [...selected, shift.id]
                             : selected.filter((id) => id !== shift.id),
-                        )
-                      }
+                        );
+                        // A click doesn't reliably blur a checkbox (Safari), so
+                        // mark the field touched here: the "elegí al menos un
+                        // turno" error then clears as soon as one is picked.
+                        field.onBlur();
+                      }}
                     >
                       <strong className="font-semibold">
                         {formatShiftWhen(shift)}
