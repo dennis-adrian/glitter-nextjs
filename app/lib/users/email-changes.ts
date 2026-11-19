@@ -54,13 +54,15 @@ const ACCOUNT_TOPICS = [
  * How long an unfinished change keeps another from starting. Nothing renews
  * it, so the Clerk half has to be done writing before it runs out.
  *
- * Clerk has no conditional writes, so a request still on its way at the
- * Clerk deadline is not fenced off by anything here. The platform does it:
- * vercel.json stops every function at maxDuration (100 s), with whatever
- * request it still had open, and this window is longer by a margin, so a
- * newer attempt only begins once the older one cannot write any more.
- * email-changes.test.ts holds the two to that. A run that stopped with a
- * failure frees the window at once only when nothing it sent can still land.
+ * Clerk has no conditional writes or ordering guarantee, so nothing here can
+ * fence off a request Clerk already accepted. What the window does ensure:
+ * vercel.json stops every function at maxDuration (100 s) and this window is
+ * longer, so a newer attempt only begins once the older run can send nothing
+ * more. A request Clerk accepted before that and applies more than the 20 s
+ * margin later is the case left open; repeating the change repairs it.
+ * email-changes.test.ts holds the two numbers to that. A run that stopped
+ * with a failure frees the window at once only when nothing it sent can
+ * still land.
  */
 export const EMAIL_CHANGE_WINDOW_MS = 2 * 60_000;
 /** The Clerk half's share of the window; the rest is margin for a slow call. */
