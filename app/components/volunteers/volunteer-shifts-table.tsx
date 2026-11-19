@@ -13,9 +13,8 @@ export default function VolunteerShiftsTable({
       <h2 className="text-2xl font-semibold">Turnos</h2>
       <p className="break-words">
         Cada turno dura 4 horas. El viernes es el día de montaje: armamos las
-        mesas y la decoración. Algunos turnos se cruzan 30 minutos a propósito,
-        para que quien entra pueda prepararse antes de que se vaya quien estaba.
-        Asignamos como máximo {VOLUNTEER_MAX_SHIFTS_PER_DAY} turnos por día.
+        mesas y la decoración. Asignamos como máximo{" "}
+        {VOLUNTEER_MAX_SHIFTS_PER_DAY} turnos por día.
       </p>
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full min-w-[28rem] text-left text-sm">

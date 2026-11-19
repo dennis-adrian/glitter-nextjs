@@ -98,5 +98,5 @@ VolunteerApplicationReceivedEmailTemplate.PreviewProps = {
     "Sáb 19 dic, 13:30–17:30 — Festival (turno A)",
   ],
   firstChoiceRole: "Orientación al público",
-  secondChoiceRole: "Redes y foto",
+  secondChoiceRole: "Fotografía y redes sociales",
 } as VolunteerApplicationReceivedEmailProps;

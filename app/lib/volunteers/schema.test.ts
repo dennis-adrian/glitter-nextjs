@@ -12,7 +12,7 @@ import {
 
 /** 15:00 on 18 Dec 2026 in La Paz (UTC-4) — v11's setup shift. */
 const SETUP_SHIFT_START = new Date("2026-12-18T19:00:00Z");
-const CLOSES_AT = new Date("2026-12-08T03:59:00Z"); // 7 Dec 23:59 La Paz
+const CLOSES_AT = new Date("2026-12-01T03:59:00Z"); // 30 Nov 23:59 La Paz
 
 function context(
   overrides: Partial<VolunteerSchemaContext> = {},
@@ -118,14 +118,14 @@ describe("isOldEnoughOn", () => {
 describe("isVolunteerCallOpen", () => {
   it("is open up to and including the closing instant", () => {
     expect(
-      isVolunteerCallOpen(CLOSES_AT, new Date("2026-12-08T03:58:59Z")),
+      isVolunteerCallOpen(CLOSES_AT, new Date("2026-12-01T03:58:59Z")),
     ).toBe(true);
     expect(isVolunteerCallOpen(CLOSES_AT, CLOSES_AT)).toBe(true);
   });
 
   it("is closed after it", () => {
     expect(
-      isVolunteerCallOpen(CLOSES_AT, new Date("2026-12-08T03:59:01Z")),
+      isVolunteerCallOpen(CLOSES_AT, new Date("2026-12-01T03:59:01Z")),
     ).toBe(false);
   });
 });
@@ -260,14 +260,14 @@ describe("buildVolunteerApplicationSchema", () => {
   describe("closing date", () => {
     it("accepts an application just before closing", () => {
       const result = buildVolunteerApplicationSchema(
-        context({ now: () => new Date("2026-12-08T03:58:00Z") }),
+        context({ now: () => new Date("2026-12-01T03:58:00Z") }),
       ).safeParse(validInput());
       expect(result.success).toBe(true);
     });
 
     it("rejects an application after closing", () => {
       const result = buildVolunteerApplicationSchema(
-        context({ now: () => new Date("2026-12-08T04:00:00Z") }),
+        context({ now: () => new Date("2026-12-01T04:00:00Z") }),
       ).safeParse(validInput());
       expect(messages(result)).toEqual([
         { path: "root", message: "Convocatoria cerrada" },

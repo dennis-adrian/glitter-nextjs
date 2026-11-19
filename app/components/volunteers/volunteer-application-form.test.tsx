@@ -32,7 +32,7 @@ function renderForm() {
       festivalId={9}
       roles={[
         { id: 1, name: "Orientación al público", description: "" },
-        { id: 2, name: "Redes y foto", description: "" },
+        { id: 2, name: "Fotografía y redes sociales", description: "" },
       ]}
       shifts={[
         {

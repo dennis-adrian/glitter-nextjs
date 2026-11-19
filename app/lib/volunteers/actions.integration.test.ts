@@ -99,14 +99,16 @@ async function createCall(options: { closesAt?: Date } = {}): Promise<{
   const roles = await db
     .insert(volunteerRoles)
     .values(
-      ["Acreditación", "Orientación al público", "Redes y foto"].map(
-        (name, index) => ({
-          festivalId: festival!.id,
-          name,
-          description: `${name}: una línea`,
-          sortOrder: index,
-        }),
-      ),
+      [
+        "Acreditación",
+        "Orientación al público",
+        "Fotografía y redes sociales",
+      ].map((name, index) => ({
+        festivalId: festival!.id,
+        name,
+        description: `${name}: una línea`,
+        sortOrder: index,
+      })),
     )
     .returning({ id: volunteerRoles.id });
   const firstShift = Date.now() + 30 * DAY;

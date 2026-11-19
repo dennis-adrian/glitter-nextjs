@@ -98,6 +98,9 @@ export type SubmitVolunteerApplicationResult =
   | { success: false; message: string; closed?: boolean };
 
 export const VOLUNTEER_COPY = {
+  heroTitle: "Sé voluntario/a en Glitter",
+  heroLead:
+    "Sumate al equipo que arma el festival de ilustración y creatividad más grande de Bolivia.",
   thankYouTitle: "¡Gracias por postularte!",
   thankYouMessage: "Recibimos tu postulación, te contactaremos por WhatsApp.",
   closedTitle: "Convocatoria cerrada",

@@ -142,16 +142,16 @@ BEGIN
 	RAISE NOTICE 'volunteers: seeding the v11 volunteer call for festival %', match_list;
 
 	INSERT INTO "volunteer_call_settings" ("festival_id", "applications_close_at", "induction_at")
-	VALUES (v11_id, (TIMESTAMP '2026-12-07 23:59' AT TIME ZONE 'America/La_Paz') AT TIME ZONE 'UTC', NULL)
+	VALUES (v11_id, (TIMESTAMP '2026-11-30 23:59' AT TIME ZONE 'America/La_Paz') AT TIME ZONE 'UTC', NULL)
 	ON CONFLICT ("festival_id") DO NOTHING;
 
 	INSERT INTO "volunteer_roles" ("festival_id", "name", "description", "sort_order")
 	VALUES
-		(v11_id, 'Acreditación / check-in del pre-registro', 'Recibes al público en la puerta y validas su pre-registro para que pase rápido.', 1),
+		(v11_id, 'Acreditación y check-in de los visitantes y participantes', 'Recibís en el ingreso al público y a los expositores del festival, y verificás su registro.', 1),
 		(v11_id, 'Orientación al público', 'Ayudas a los visitantes a encontrar stands, actividades y servicios del festival.', 2),
 		(v11_id, 'Apoyo a expositores', 'Acompañas a los expositores en su llegada, el armado de su mesa y lo que necesiten durante el día.', 3),
 		(v11_id, 'Montaje y desmontaje', 'Armas y desarmas mesas, decoración y señalética antes y después del festival.', 4),
-		(v11_id, 'Redes y foto', 'Registras el festival en fotos y videos para nuestras redes sociales.', 5),
+		(v11_id, 'Fotografía y redes sociales', 'Registras el festival en fotos y videos para nuestras redes sociales.', 5),
 		(v11_id, 'Actividades y talleres', 'Apoyas en talleres y actividades: inscripciones, materiales y tiempos.', 6)
 	ON CONFLICT ("festival_id", "name") DO NOTHING;
 

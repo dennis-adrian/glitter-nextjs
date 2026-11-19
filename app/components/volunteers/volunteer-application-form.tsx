@@ -335,7 +335,7 @@ export default function VolunteerApplicationForm({
           <TextInput
             label="Instagram o portafolio"
             name="portfolio"
-            description="Nos sirve sobre todo si te interesa el rol de Redes y foto."
+            description="Nos sirve sobre todo si te interesa la fotografía o las redes sociales."
           />
 
           <FormField
