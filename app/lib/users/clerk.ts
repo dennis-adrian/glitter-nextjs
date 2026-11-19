@@ -119,11 +119,16 @@ function requestFailed(step: string, error: unknown): ChangeClerkEmailResult {
  * `deadline` (epoch ms) is when the caller's reservation stops being safe: a
  * newer attempt may be writing to the same account after it, so no write
  * starts past it.
+ *
+ * `removedEmails` are addresses the caller knows an earlier attempt was taking
+ * off the account. An attempt that deleted the address and failed to unlink
+ * its connected account leaves nothing on the account to tie the two, so
+ * without them a retry would keep that account and call the work done.
  */
 export async function changeClerkUserEmail(
   clerkId: string,
   newEmail: string,
-  options: { deadline?: number } = {},
+  options: { deadline?: number; removedEmails?: (string | null)[] } = {},
 ): Promise<ChangeClerkEmailResult> {
   await refuseDuringView();
   const clerk = await clerkClient();
@@ -139,6 +144,7 @@ export async function changeClerkUserEmail(
   }
   if (!user) return { status: "not_found" };
   const userId = user.id;
+  type Snapshot = Pick<typeof user, "emailAddresses" | "externalAccounts">;
 
   try {
     const holders = await clerk.users.getUserList({ emailAddress: [newEmail] });
@@ -151,16 +157,50 @@ export async function changeClerkUserEmail(
 
   const isStaleAddress = (address: { emailAddress: string }) =>
     normalizeEmail(address.emailAddress) !== newEmail;
-  // An account already on the new address stays.
-  const isStaleAccount = (account: { emailAddress?: string | null }) =>
-    normalizeEmail(account.emailAddress ?? "") !== newEmail;
+  const onNewAddress = (account: { emailAddress?: string | null }) =>
+    normalizeEmail(account.emailAddress ?? "") === newEmail;
+  // What going stale stuck to: an address or account that was ever found
+  // stale stays so on later reads, since the address that tied an account to
+  // the change is gone from them once its delete worked.
+  const staleEmails = new Set<string>();
+  for (const removed of options.removedEmails ?? []) {
+    const email = normalizeEmail(removed ?? "");
+    if (email !== "" && email !== newEmail) staleEmails.add(email);
+  }
+  const staleAccountIds = new Set<string>();
+  // Only what is tied to an address being removed goes: a connected account
+  // of some other mailbox, or of none, is the person's and stays. One already
+  // on the new address stays too.
+  const staleIn = (snapshot: Snapshot) => {
+    const addresses = snapshot.emailAddresses.filter(isStaleAddress);
+    const linked = new Set<string>();
+    for (const address of addresses) {
+      staleEmails.add(normalizeEmail(address.emailAddress));
+      for (const link of address.linkedTo ?? []) linked.add(link.id);
+    }
+    const accounts = snapshot.externalAccounts.filter((account) => {
+      if (onNewAddress(account)) return false;
+      const email = normalizeEmail(account.emailAddress ?? "");
+      return (
+        staleAccountIds.has(account.id) ||
+        (email !== "" && staleEmails.has(email)) ||
+        // Clerk's link names the account by its identification id; which
+        // field carries it differs by provider.
+        [account.id, account.identificationId, account.externalAccountId].some(
+          (id) => id != null && linked.has(id),
+        )
+      );
+    });
+    for (const account of accounts) staleAccountIds.add(account.id);
+    return { addresses, accounts };
+  };
   // Clerk names the provider "oauth_google" in some payloads and "google" in
   // others.
   const isGoogleOnNewAddress = (
     account: (typeof user.externalAccounts)[number],
   ) =>
     (account.provider === "oauth_google" || account.provider === "google") &&
-    !isStaleAccount(account) &&
+    onNewAddress(account) &&
     account.verification?.status === "verified";
 
   const current = user.emailAddresses.find(
@@ -170,8 +210,7 @@ export async function changeClerkUserEmail(
     current != null &&
     current.verification?.status === "verified" &&
     user.primaryEmailAddressId === current.id;
-  const staleAddresses = user.emailAddresses.filter(isStaleAddress);
-  const staleAccounts = user.externalAccounts.filter(isStaleAccount);
+  const { addresses: staleAddresses, accounts: staleAccounts } = staleIn(user);
 
   // The newest read of the account: what the result says is on it.
   let latest = user;
@@ -307,14 +346,15 @@ export async function changeClerkUserEmail(
   ]);
   let leftovers = 0;
   let late = 0;
-  for (const account of fresh.externalAccounts.filter(isStaleAccount)) {
+  const stillStale = staleIn(fresh);
+  for (const account of stillStale.accounts) {
     if (seen.has(account.id)) leftovers += 1;
     else {
       late += 1;
       if ((await unlink(account)) === "failed") leftovers += 1;
     }
   }
-  for (const address of fresh.emailAddresses.filter(isStaleAddress)) {
+  for (const address of stillStale.addresses) {
     if (seen.has(address.id)) leftovers += 1;
     else {
       late += 1;
@@ -330,10 +370,10 @@ export async function changeClerkUserEmail(
   if (last === "gone") return { status: "not_found" };
   if (!last) return done(unlinkedProviders, false);
   latest = last;
+  const remaining = staleIn(last);
   return done(
     unlinkedProviders,
-    !last.emailAddresses.some(isStaleAddress) &&
-      !last.externalAccounts.some(isStaleAccount),
+    remaining.addresses.length === 0 && remaining.accounts.length === 0,
   );
 }
 

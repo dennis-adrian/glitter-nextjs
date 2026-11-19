@@ -213,11 +213,7 @@ describe("changeClerkUserEmail", () => {
     });
     seeUser(
       clerkUser({
-        externalAccounts: [
-          kept,
-          google(OLD, { id: "idn_a", eac: "eac_a" }),
-          google("otra@example.com", { id: "idn_b", eac: "eac_b" }),
-        ],
+        externalAccounts: [kept, google(OLD, { id: "idn_a", eac: "eac_a" })],
       }),
       settledUser({ externalAccounts: [kept] }),
     );
@@ -231,7 +227,235 @@ describe("changeClerkUserEmail", () => {
       googleOnNewAddress: true,
     });
 
-    expect(unlinkedIds()).toEqual(["eac_a", "eac_b"]);
+    expect(unlinkedIds()).toEqual(["eac_a"]);
+  });
+
+  describe("which connected accounts go with the old address", () => {
+    const THIRD = "otra@example.com";
+
+    it.each([
+      ["of a mailbox that is not on the account", THIRD],
+      ["with no address at all", ""],
+    ])("keeps one %s", async (_label, email) => {
+      const unrelated = google(email, { id: "idn_x", eac: "eac_x" });
+      seeUser(
+        clerkUser({ externalAccounts: [unrelated] }),
+        settledUser({ externalAccounts: [unrelated] }),
+      );
+
+      await expect(changeClerkUserEmail("user_ana", NEW)).resolves.toEqual({
+        status: "changed",
+        unlinkedProviders: [],
+        // Kept on purpose: it is not a leftover.
+        oldAddressesRemoved: true,
+        passwordEnabled: true,
+        googleOnNewAddress: false,
+      });
+
+      expect(users.deleteUserExternalAccount).not.toHaveBeenCalled();
+      expect(deletedIds()).toEqual(["idn_old"]);
+    });
+
+    it("writes nothing when one of another mailbox is all that is left", async () => {
+      users.getUser.mockResolvedValueOnce(
+        settledUser({
+          externalAccounts: [google(THIRD, { id: "idn_x", eac: "eac_x" })],
+        }),
+      );
+
+      await expect(
+        changeClerkUserEmail("user_ana", NEW),
+      ).resolves.toMatchObject({
+        status: "changed",
+        oldAddressesRemoved: true,
+      });
+      expect(calls).toEqual([]);
+      expect(users.getUser).toHaveBeenCalledTimes(1);
+    });
+
+    it("unlinks one on another of the account's addresses, which is removed too", async () => {
+      seeUser(
+        clerkUser({
+          emailAddresses: [
+            address("idn_old", OLD),
+            address("idn_third", " Otra@Example.com "),
+          ],
+          externalAccounts: [google(THIRD, { id: "idn_t", eac: "eac_t" })],
+        }),
+      );
+
+      await expect(
+        changeClerkUserEmail("user_ana", NEW),
+      ).resolves.toMatchObject({
+        status: "changed",
+        unlinkedProviders: ["oauth_google"],
+        oldAddressesRemoved: true,
+      });
+
+      expect(unlinkedIds()).toEqual(["eac_t"]);
+      expect(deletedIds()).toEqual(["idn_old", "idn_third"]);
+    });
+
+    it.each([
+      ["id", { id: "idn_l", externalAccountId: "eac_l" }],
+      ["identificationId", { id: "eac_l", identificationId: "idn_l" }],
+    ])(
+      "unlinks one the old address only links to, by its %s",
+      async (_label, ids) => {
+        seeUser(
+          clerkUser({
+            emailAddresses: [
+              {
+                ...address("idn_old", OLD),
+                linkedTo: [{ id: "idn_l", type: "oauth_google" }],
+              },
+            ],
+            // No address of its own to match on.
+            externalAccounts: [
+              { provider: "oauth_google", emailAddress: "", ...ids },
+            ],
+          }),
+        );
+
+        await expect(
+          changeClerkUserEmail("user_ana", NEW),
+        ).resolves.toMatchObject({
+          status: "changed",
+          unlinkedProviders: ["oauth_google"],
+          oldAddressesRemoved: true,
+        });
+        expect(unlinkedIds()).toEqual(["eac_l"]);
+      },
+    );
+
+    it("still counts as a leftover one that outlived the address it was tied to", async () => {
+      const linked = {
+        provider: "oauth_google",
+        emailAddress: "",
+        id: "idn_l",
+      };
+      seeUser(
+        clerkUser({
+          emailAddresses: [
+            {
+              ...address("idn_old", OLD),
+              linkedTo: [{ id: "idn_l", type: "oauth_google" }],
+            },
+          ],
+          externalAccounts: [linked],
+        }),
+        // The address is gone, and with it the link that named the account.
+        settledUser({ externalAccounts: [linked] }),
+      );
+
+      await expect(
+        changeClerkUserEmail("user_ana", NEW),
+      ).resolves.toMatchObject({
+        status: "changed",
+        oldAddressesRemoved: false,
+      });
+      // Tried once, in the first pass.
+      expect(unlinkedIds()).toEqual(["idn_l"]);
+    });
+
+    describe("on a retry, once the old address is already off the account", () => {
+      const survivor = google(` ${OLD.toUpperCase()} `, {
+        id: "idn_a",
+        eac: "eac_a",
+      });
+
+      it("keeps the survivor of an address nobody named", async () => {
+        users.getUser.mockResolvedValueOnce(
+          settledUser({ externalAccounts: [survivor] }),
+        );
+
+        await changeClerkUserEmail("user_ana", NEW);
+
+        expect(calls).toEqual([]);
+      });
+
+      it("unlinks the survivor of an address the caller says was removed", async () => {
+        seeUser(settledUser({ externalAccounts: [survivor] }));
+
+        await expect(
+          changeClerkUserEmail("user_ana", NEW, { removedEmails: [OLD, null] }),
+        ).resolves.toMatchObject({
+          status: "changed",
+          unlinkedProviders: ["oauth_google"],
+          oldAddressesRemoved: true,
+        });
+
+        expect(calls).toEqual(["unlink"]);
+        expect(unlinkedIds()).toEqual(["eac_a"]);
+      });
+
+      it("reports it as a leftover when it will not go", async () => {
+        seeUser(
+          settledUser({ externalAccounts: [survivor] }),
+          settledUser({ externalAccounts: [survivor] }),
+        );
+        users.deleteUserExternalAccount.mockRejectedValueOnce(
+          clerkError(500, "internal_error"),
+        );
+
+        await expect(
+          changeClerkUserEmail("user_ana", NEW, { removedEmails: [OLD] }),
+        ).resolves.toMatchObject({
+          status: "changed",
+          unlinkedProviders: [],
+          oldAddressesRemoved: false,
+        });
+        expectNoAddressLogged();
+      });
+
+      it("still writes nothing when no account of that address is left", async () => {
+        users.getUser.mockResolvedValueOnce(
+          settledUser({
+            externalAccounts: [
+              google("otra@example.com", { id: "idn_x", eac: "eac_x" }),
+            ],
+          }),
+        );
+
+        await expect(
+          changeClerkUserEmail("user_ana", NEW, {
+            // The new address among them is not something to remove.
+            removedEmails: [OLD, NEW, "", null],
+          }),
+        ).resolves.toMatchObject({
+          status: "changed",
+          oldAddressesRemoved: true,
+        });
+        expect(calls).toEqual([]);
+        expect(users.getUser).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it("never unlinks one on the new address, even when the old address links to it", async () => {
+      const onNew = google(NEW, { id: "idn_n", eac: "eac_n" });
+      seeUser(
+        clerkUser({
+          emailAddresses: [
+            {
+              ...address("idn_old", OLD),
+              linkedTo: [{ id: "idn_n", type: "oauth_google" }],
+            },
+          ],
+          externalAccounts: [onNew],
+        }),
+        settledUser({ externalAccounts: [onNew] }),
+      );
+
+      await expect(
+        changeClerkUserEmail("user_ana", NEW, { removedEmails: [NEW] }),
+      ).resolves.toMatchObject({
+        status: "changed",
+        unlinkedProviders: [],
+        oldAddressesRemoved: true,
+        googleOnNewAddress: true,
+      });
+      expect(users.deleteUserExternalAccount).not.toHaveBeenCalled();
+    });
   });
 
   it("reports an address that another account holds, before any write", async () => {

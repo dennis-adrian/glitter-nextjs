@@ -389,6 +389,8 @@ describeDatabase("changing the address a person signs in with", () => {
       expect(result).toEqual({
         status: "ok",
         resync: false,
+        owedNotices: null,
+        arrivedFrom: null,
         changeId: expect.any(Number),
         clerkId: user.clerkId,
         // As stored, not normalized: it is where the old notice goes.
@@ -682,6 +684,269 @@ describeDatabase("changing the address a person signs in with", () => {
 
       await expect(begin(user.id, unblocked, admin.id)).resolves.toMatchObject({
         status: "ok",
+      });
+    });
+
+    describe("when the new address was suppressed after Clerk moved to it", () => {
+      async function halfDoneThenSuppressed() {
+        const started = await begun();
+        await emailChanges.markEmailChangeClerkDone(started.changeId, []);
+        await emailChanges.markEmailChangeFailed(
+          started.changeId,
+          "complete_failed: sqlstate=08006",
+        );
+        await integrationDb!
+          .insert(emailSuppressions)
+          .values({ emailKey: started.newEmail, reason: "bounce" });
+        return started;
+      }
+
+      it("lets the change be finished: the person already signs in with it", async () => {
+        const { admin, user, newEmail } = await halfDoneThenSuppressed();
+
+        const retry = await begin(user.id, newEmail, admin.id);
+
+        expect(retry).toMatchObject({ status: "ok", resync: false });
+        if (retry.status !== "ok") return;
+        await expect(
+          complete({ changeId: retry.changeId, user, newEmail }),
+        ).resolves.toEqual({ status: "ok" });
+        expect(await emailOf(user.id)).toBe(newEmail);
+      });
+
+      it("still refuses another suppressed address", async () => {
+        const { admin, user } = await halfDoneThenSuppressed();
+        const blocked = address("rebota");
+        await integrationDb!
+          .insert(emailSuppressions)
+          .values({ emailKey: blocked, reason: "bounce" });
+
+        await expect(begin(user.id, blocked, admin.id)).resolves.toEqual({
+          status: "suppressed",
+        });
+      });
+
+      it("still refuses once a later run moved Clerk back off that address", async () => {
+        const { admin, user, newEmail } = await halfDoneThenSuppressed();
+        // A resync at the profile's address: Clerk signs them in with it again.
+        const back = await begin(user.id, user.email, admin.id);
+        if (back.status !== "ok") throw new Error(back.status);
+        await emailChanges.markEmailChangeClerkDone(back.changeId, []);
+        await complete({
+          changeId: back.changeId,
+          user,
+          newEmail: user.email,
+        });
+        expect(await emailOf(user.id)).toBe(user.email);
+
+        await expect(begin(user.id, newEmail, admin.id)).resolves.toEqual({
+          status: "suppressed",
+        });
+      });
+
+      it("still refuses when that run finished and the profile was put back since", async () => {
+        const { admin, user, newEmail, changeId } = await begun();
+        await complete({ changeId, user, newEmail });
+        // Not through this action, so no later row says so.
+        await integrationDb!
+          .update(users)
+          .set({ email: user.email })
+          .where(eq(users.id, user.id));
+        await integrationDb!
+          .insert(emailSuppressions)
+          .values({ emailKey: newEmail, reason: "bounce" });
+
+        await expect(begin(user.id, newEmail, admin.id)).resolves.toEqual({
+          status: "suppressed",
+        });
+      });
+
+      it("still refuses when the earlier run never reached Clerk", async () => {
+        const { admin, user, newEmail, changeId } = await begun();
+        await emailChanges.markEmailChangeFailed(
+          changeId,
+          "clerk_failed: get_user:500",
+        );
+        await integrationDb!
+          .insert(emailSuppressions)
+          .values({ emailKey: newEmail, reason: "bounce" });
+
+        await expect(begin(user.id, newEmail, admin.id)).resolves.toEqual({
+          status: "suppressed",
+        });
+      });
+
+      it("still refuses when the earlier run completed and the profile has moved on", async () => {
+        const { admin, user, newEmail, changeId } = await begun();
+        await complete({ changeId, user, newEmail });
+        const elsewhere = address("otra").toLowerCase();
+        const away = await begin(user.id, elsewhere, admin.id);
+        if (away.status !== "ok") throw new Error(away.status);
+        await complete({
+          changeId: away.changeId,
+          user: { id: user.id, email: newEmail },
+          newEmail: elsewhere,
+        });
+        await integrationDb!
+          .insert(emailSuppressions)
+          .values({ emailKey: newEmail, reason: "bounce" });
+
+        await expect(begin(user.id, newEmail, admin.id)).resolves.toEqual({
+          status: "suppressed",
+        });
+      });
+    });
+
+    describe("notices a finished change never sent", () => {
+      /** A change that committed and then died before telling anyone. */
+      async function completedUntold() {
+        const started = await begun("Ana.Mayus");
+        await complete(started);
+        return started;
+      }
+
+      it("are owed on the next resync, for that change and its old address", async () => {
+        const { admin, user, newEmail, changeId } = await completedUntold();
+
+        const resync = await begin(user.id, newEmail, admin.id);
+
+        expect(resync).toMatchObject({
+          status: "ok",
+          resync: true,
+          // As stored on that row, not normalized: it is where the notice goes.
+          owedNotices: { changeId, oldEmail: user.email },
+          arrivedFrom: user.email,
+        });
+      });
+
+      it("names where the person came from even when nothing is owed", async () => {
+        const { admin, user, newEmail, changeId } = await completedUntold();
+        await emailChanges.recordEmailChangeNotices(changeId, {
+          old: "sent",
+          new: "sent",
+        });
+
+        await expect(begin(user.id, newEmail, admin.id)).resolves.toMatchObject(
+          { resync: true, owedNotices: null, arrivedFrom: user.email },
+        );
+      });
+
+      it("names nothing for a profile that was never moved", async () => {
+        const admin = await makeUser("admin", { role: "admin" });
+        const user = await makeUser("quieta");
+
+        await expect(
+          begin(user.id, user.email, admin.id),
+        ).resolves.toMatchObject({
+          resync: true,
+          owedNotices: null,
+          arrivedFrom: null,
+        });
+      });
+
+      it("are owed once: not after their outcome is on the row, sent or failed", async () => {
+        const { admin, user, newEmail, changeId } = await completedUntold();
+        await emailChanges.recordEmailChangeNotices(changeId, {
+          old: "sent",
+          new: "resend:validation_error",
+        });
+
+        await expect(begin(user.id, newEmail, admin.id)).resolves.toMatchObject(
+          {
+            status: "ok",
+            resync: true,
+            owedNotices: null,
+          },
+        );
+      });
+
+      it("are still owed after a resync that could not send them either", async () => {
+        const { admin, user, newEmail, changeId } = await completedUntold();
+        // A resync completes with old and new the same and no notices of its
+        // own: it must not hide the row before it.
+        const first = await begin(user.id, newEmail, admin.id);
+        if (first.status !== "ok") throw new Error(first.status);
+        await complete({
+          changeId: first.changeId,
+          user: { id: user.id, email: newEmail },
+          newEmail,
+        });
+
+        await expect(begin(user.id, newEmail, admin.id)).resolves.toMatchObject(
+          {
+            status: "ok",
+            owedNotices: { changeId, oldEmail: user.email },
+          },
+        );
+      });
+
+      it("are not owed for a change that never completed", async () => {
+        const { admin, user, newEmail, changeId } = await begun();
+        await emailChanges.markEmailChangeClerkDone(changeId, []);
+        await emailChanges.markEmailChangeFailed(changeId, "complete_failed");
+        // The profile got there some other way.
+        await integrationDb!
+          .update(users)
+          .set({ email: newEmail })
+          .where(eq(users.id, user.id));
+
+        await expect(begin(user.id, newEmail, admin.id)).resolves.toMatchObject(
+          { status: "ok", resync: true, owedNotices: null },
+        );
+      });
+
+      it("are not owed for an older move to the address once a later one told them", async () => {
+        const { admin, user, newEmail } = await completedUntold();
+        const elsewhere = address("otra").toLowerCase();
+        const away = await begin(user.id, elsewhere, admin.id);
+        if (away.status !== "ok") throw new Error(away.status);
+        await complete({
+          changeId: away.changeId,
+          user: { id: user.id, email: newEmail },
+          newEmail: elsewhere,
+        });
+        const back = await begin(user.id, newEmail, admin.id);
+        if (back.status !== "ok") throw new Error(back.status);
+        await complete({
+          changeId: back.changeId,
+          user: { id: user.id, email: elsewhere },
+          newEmail,
+        });
+        await emailChanges.recordEmailChangeNotices(back.changeId, {
+          old: "sent",
+          new: "sent",
+        });
+
+        await expect(begin(user.id, newEmail, admin.id)).resolves.toMatchObject(
+          { status: "ok", resync: true, owedNotices: null },
+        );
+      });
+
+      it("are not another person's", async () => {
+        const { newEmail } = await completedUntold();
+        const admin = await makeUser("admin", { role: "admin" });
+        const other = await makeUser("otra");
+
+        await expect(
+          begin(other.id, other.email, admin.id),
+        ).resolves.toMatchObject({
+          status: "ok",
+          resync: true,
+          owedNotices: null,
+        });
+        expect(newEmail).not.toBe(other.email);
+      });
+
+      it("are not looked for on a change to another address", async () => {
+        const { admin, user } = await completedUntold();
+
+        await expect(
+          begin(user.id, address("otra"), admin.id),
+        ).resolves.toMatchObject({
+          status: "ok",
+          resync: false,
+          owedNotices: null,
+        });
       });
     });
   });

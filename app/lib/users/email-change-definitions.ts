@@ -60,7 +60,7 @@ export type ChangeClerkEmailResult =
       unlinkedProviders: string[];
       /**
        * False when an address other than the new one, or a connected account
-       * off the new one, is still on the account, or when that is unknown.
+       * tied to one, is still on the account, or when that is unknown.
        */
       oldAddressesRemoved: boolean;
       /** Without one, a connected account or an emailed code is the way in. */

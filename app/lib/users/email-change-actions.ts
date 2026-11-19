@@ -158,10 +158,16 @@ function describeOutcome(input: {
   oldAddressesRemoved: boolean;
   passwordEnabled: boolean;
   googleOnNewAddress: boolean;
-  /** Null on a resync, which writes to nobody. */
+  /** Null when nobody was written to: a resync with no notice owed. */
   notices: { old: string; new: string } | null;
 }) {
   const lines: string[] = [];
+  // A way in was removed and neither a password nor a Google account of the
+  // new address is known to replace it.
+  const mayBeLockedOut =
+    input.unlinkedProviders.length > 0 &&
+    !input.passwordEnabled &&
+    !input.googleOnNewAddress;
   // Clerk names the provider "oauth_google" in some payloads and "google" in
   // others.
   if (
@@ -179,7 +185,9 @@ function describeOutcome(input: {
     );
   } else if (input.unlinkedProviders.length > 0) {
     lines.push(
-      "Desvinculamos las cuentas conectadas al correo anterior; puede volver a conectarlas con el correo nuevo.",
+      mayBeLockedOut
+        ? "Desvinculamos las cuentas conectadas al correo anterior. No tiene contraseña: para entrar necesita el código que le llega al correo nuevo o conectar una cuenta de ese correo. Confirmá con la persona que pudo entrar."
+        : "Desvinculamos las cuentas conectadas al correo anterior; puede volver a conectarlas con el correo nuevo.",
     );
   }
   if (!input.oldAddressesRemoved) {
@@ -191,7 +199,14 @@ function describeOutcome(input: {
   if (input.notices && input.notices.new !== "sent") {
     lines.push("No pudimos enviar el aviso al correo nuevo; avisale vos.");
   }
-  return lines.length > 0 ? lines.join(" ") : undefined;
+  return {
+    description: lines.length > 0 ? lines.join(" ") : undefined,
+    // Something only the admin can do next, so it must not scroll away.
+    needsFollowUp:
+      mayBeLockedOut ||
+      !input.oldAddressesRemoved ||
+      (input.notices != null && input.notices.new !== "sent"),
+  };
 }
 
 /**
@@ -204,8 +219,9 @@ function describeOutcome(input: {
  * finishes it: the Clerk half answers `changed` when it is already done.
  *
  * Asking for the address the profile already has is a resync: the same steps
- * clear whatever an earlier change left on the Clerk account, and nobody is
- * written to.
+ * clear whatever an earlier change left on the Clerk account. Nobody is
+ * written to, unless the change that brought the profile here never got to
+ * send its notices: then they go out now.
  */
 export async function changeUserEmail(
   input: ChangeUserEmailInput,
@@ -240,6 +256,9 @@ export async function changeUserEmail(
     // it still keeps a second attempt out.
     const clerk = await changeClerkUserEmail(begun.clerkId, newEmail, {
       deadline: Date.now() + EMAIL_CHANGE_CLERK_BUDGET_MS,
+      // A connected account of the address they are leaving goes even when
+      // an earlier attempt already took the address itself off the account.
+      removedEmails: [begun.oldEmail, begun.arrivedFrom],
     });
     if (clerk.status === "email_taken") {
       await noteFailure(changeId, "clerk_email_taken");
@@ -274,27 +293,28 @@ export async function changeUserEmail(
       return { success: false, message: HALFWAY[completed.status] };
     }
 
-    const notices = begun.resync
-      ? null
-      : await sendNotices({
-          changeId,
-          oldEmail: begun.oldEmail,
+    // On a resync, the notices belong to the earlier row that made the move.
+    const noticesFor = begun.resync
+      ? begun.owedNotices
+      : { changeId, oldEmail: begun.oldEmail };
+    const notices = noticesFor
+      ? await sendNotices({
+          ...noticesFor,
           newEmail,
           name: getUserName(begun) || null,
-        });
+        })
+      : null;
 
     revalidatePath("/dashboard/users");
     revalidatePath("/dashboard/users/[profileId]", "page");
 
-    const description = describeOutcome({
+    const { description, needsFollowUp } = describeOutcome({
       unlinkedProviders: clerk.unlinkedProviders,
       oldAddressesRemoved: clerk.oldAddressesRemoved,
       passwordEnabled: clerk.passwordEnabled,
       googleOnNewAddress: clerk.googleOnNewAddress,
       notices,
     });
-    const needsFollowUp =
-      !clerk.oldAddressesRemoved || (notices != null && notices.new !== "sent");
     return {
       success: true,
       message: begun.resync

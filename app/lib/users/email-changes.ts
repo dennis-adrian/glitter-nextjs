@@ -1,4 +1,14 @@
-import { and, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  sql,
+} from "drizzle-orm";
 
 import { isSuppressed } from "@/app/lib/emails/suppressions";
 import { isUniqueViolationOn } from "@/app/lib/errors/postgres";
@@ -59,9 +69,20 @@ export type BeginEmailChangeResult =
       status: "ok";
       /**
        * The profile already has this address: only Clerk may have something
-       * left to tidy, and nobody is told.
+       * left to tidy, and nobody is told unless `owedNotices` says otherwise.
        */
       resync: boolean;
+      /**
+       * On a resync, the change that brought the profile to this address when
+       * its notices were never attempted: that run died after its commit.
+       * They are sent for that row, to the address it moved the person from.
+       */
+      owedNotices: { changeId: number; oldEmail: string } | null;
+      /**
+       * On a resync, the address that change moved the person from. Clerk may
+       * still hold a connected account of it that nothing else names.
+       */
+      arrivedFrom: string | null;
       changeId: number;
       clerkId: string;
       /** As stored, read under the lock: where the old-address notice goes. */
@@ -155,7 +176,64 @@ export async function beginEmailChange(
   // the rest: the person would stop hearing from us, starting with the notice.
   // On a resync the address is already theirs, so there is nothing to protect.
   if (!resync && (await isSuppressed(newEmail, tx))) {
-    return { status: "suppressed" };
+    // Unless Clerk already signs them in with it: an earlier run stopped
+    // before the profile followed, and refusing would leave it behind for as
+    // long as the suppression stands. Only the last run that wrote to Clerk
+    // says what Clerk holds: a later one moved it somewhere else.
+    const [lastInClerk] = await tx
+      .select({
+        oldEmail: userEmailChanges.oldEmail,
+        newEmail: userEmailChanges.newEmail,
+        completedAt: userEmailChanges.completedAt,
+      })
+      .from(userEmailChanges)
+      .where(
+        and(
+          eq(userEmailChanges.userId, user.id),
+          isNotNull(userEmailChanges.clerkChangedAt),
+        ),
+      )
+      .orderBy(desc(userEmailChanges.id))
+      .limit(1);
+    const halfDone =
+      lastInClerk != null &&
+      lastInClerk.completedAt == null &&
+      lastInClerk.newEmail === newEmail &&
+      lastInClerk.oldEmail === user.email;
+    if (!halfDone) return { status: "suppressed" };
+  }
+
+  let owedNotices: { changeId: number; oldEmail: string } | null = null;
+  let arrivedFrom: string | null = null;
+  if (resync) {
+    // The change that last brought the profile here, resyncs aside. Only that
+    // one: an older move to the same address is not news any more.
+    const [arrival] = await tx
+      .select({
+        id: userEmailChanges.id,
+        oldEmail: userEmailChanges.oldEmail,
+        oldNoticeStatus: userEmailChanges.oldNoticeStatus,
+        newNoticeStatus: userEmailChanges.newNoticeStatus,
+      })
+      .from(userEmailChanges)
+      .where(
+        and(
+          eq(userEmailChanges.userId, user.id),
+          eq(userEmailChanges.newEmail, newEmail),
+          sql`lower(trim(${userEmailChanges.oldEmail})) <> ${newEmail}`,
+          isNotNull(userEmailChanges.completedAt),
+        ),
+      )
+      .orderBy(desc(userEmailChanges.id))
+      .limit(1);
+    arrivedFrom = arrival?.oldEmail ?? null;
+    if (
+      arrival &&
+      arrival.oldNoticeStatus == null &&
+      arrival.newNoticeStatus == null
+    ) {
+      owedNotices = { changeId: arrival.id, oldEmail: arrival.oldEmail };
+    }
   }
 
   const [change] = await tx
@@ -173,6 +251,8 @@ export async function beginEmailChange(
   return {
     status: "ok",
     resync,
+    owedNotices,
+    arrivedFrom,
     changeId: change.id,
     clerkId: user.clerkId,
     oldEmail: user.email,
@@ -269,7 +349,13 @@ export async function completeEmailChange(
   // Each outbox froze the address when the mail was queued. Rows a worker
   // holds move too: it has already read its copy, but a send that fails puts
   // the row back to pending with whatever address it carries. Finished rows
-  // are history. Keys stay as they are; they are only dedup tokens.
+  // are history.
+
+  // Deduplication keys are left alone, though the default reservation key
+  // carries the address: rewriting one could collide with a key already
+  // there, and would not cover rows already sent, which keep the old address
+  // too. So a notification enqueued again after the change is not
+  // deduplicated against one queued before it.
 
   // The drain tells the owner from an admin by comparing this address with the
   // profile's, so a stale one sends the wrong template or fails the job.
