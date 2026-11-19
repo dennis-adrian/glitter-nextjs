@@ -149,7 +149,7 @@ type BulkEmail = typeof import("@/app/lib/notifications/bulk-email");
 type Inbox = typeof import("@/app/lib/notifications/queries");
 type InboxActions = typeof import("@/app/lib/notifications/actions");
 type OpenRoute =
-  typeof import("@/app/(routes)/my_notifications/[notificationId]/open/route");
+  typeof import("@/app/(site)/(routes)/my_notifications/[notificationId]/open/route");
 type AppDb = (typeof import("@/db"))["db"];
 let retractMod: Retract;
 let retractActions: RetractActions;
@@ -569,7 +569,7 @@ describeDatabase("retracting a sent comunicado", () => {
     inbox = await import("@/app/lib/notifications/queries");
     inboxActions = await import("@/app/lib/notifications/actions");
     openRoute =
-      await import("@/app/(routes)/my_notifications/[notificationId]/open/route");
+      await import("@/app/(site)/(routes)/my_notifications/[notificationId]/open/route");
     appDb = (await import("@/db")).db;
 
     // Everything under test writes through the app's pool: it must be this

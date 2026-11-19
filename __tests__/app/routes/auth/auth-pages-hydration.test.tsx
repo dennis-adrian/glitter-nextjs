@@ -40,8 +40,8 @@ vi.mock("@clerk/nextjs", () => {
   return { SignIn: clerkComponent("SignIn"), SignUp: clerkComponent("SignUp") };
 });
 
-import SignInPage from "@/app/sign_in/[[...sign_in]]/page";
-import SignUpPage from "@/app/sign_up/[[...sign_up]]/page";
+import SignInPage from "@/app/(site)/sign_in/[[...sign_in]]/page";
+import SignUpPage from "@/app/(site)/sign_up/[[...sign_up]]/page";
 
 let root: Root | undefined;
 let serverHtmlHost: HTMLElement | undefined;
