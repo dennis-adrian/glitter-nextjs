@@ -15,6 +15,7 @@ import {
   VOLUNTEER_COPY,
   VOLUNTEER_EXPERIENCE_OPTIONS,
   VOLUNTEER_MOTIVATION_MAX_LENGTH,
+  VOLUNTEER_MOTIVATION_MIN_LENGTH,
   VOLUNTEER_PRIVACY_NOTICE,
   VOLUNTEER_REFERRAL_OPTIONS,
   type VolunteerRole,
@@ -181,6 +182,7 @@ export function AboutYouStep() {
       <TextAreaField
         name="motivation"
         label="¿Por qué querés ser voluntario/a?"
+        minLength={VOLUNTEER_MOTIVATION_MIN_LENGTH}
         maxLength={VOLUNTEER_MOTIVATION_MAX_LENGTH}
         required
       />

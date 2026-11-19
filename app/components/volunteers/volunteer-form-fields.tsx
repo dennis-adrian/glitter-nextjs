@@ -77,11 +77,14 @@ export function TextField({
 export function TextAreaField({
   name,
   label,
+  minLength,
   maxLength,
   required,
 }: {
   name: string;
   label: string;
+  /** Shown as a hint beside the counter; the schema enforces it. */
+  minLength?: number;
   maxLength: number;
   required?: boolean;
 }) {
@@ -100,14 +103,20 @@ export function TextAreaField({
               <textarea
                 {...field}
                 value={field.value ?? ""}
+                minLength={minLength}
                 maxLength={maxLength}
                 rows={4}
                 aria-required={required || undefined}
                 className="min-h-28 w-full resize-none rounded-md border border-input bg-card px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none md:text-sm"
               />
             </FormControl>
-            <FormDescription className="text-right tabular-nums">
-              {length} / {maxLength}
+            <FormDescription className="flex justify-between gap-3">
+              <span>
+                {minLength ? `Mínimo ${minLength} caracteres.` : null}
+              </span>
+              <span className="tabular-nums">
+                {length} / {maxLength}
+              </span>
             </FormDescription>
             <FormMessage />
           </FormItem>

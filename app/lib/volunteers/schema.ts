@@ -8,6 +8,7 @@ import {
   VOLUNTEER_EXPERIENCE_VALUES,
   VOLUNTEER_MIN_AGE,
   VOLUNTEER_MOTIVATION_MAX_LENGTH,
+  VOLUNTEER_MOTIVATION_MIN_LENGTH,
   VOLUNTEER_REFERRAL_VALUES,
 } from "@/app/lib/volunteers/definitions";
 
@@ -213,6 +214,13 @@ function sectionDefinitions(ctx: VolunteerSchemaContext) {
         motivation: requiredText(
           "Contanos en pocas palabras por qué querés sumarte.",
           VOLUNTEER_MOTIVATION_MAX_LENGTH,
+        ).pipe(
+          z
+            .string()
+            .min(
+              VOLUNTEER_MOTIVATION_MIN_LENGTH,
+              `Contanos un poco más: escribí al menos ${VOLUNTEER_MOTIVATION_MIN_LENGTH} caracteres.`,
+            ),
         ),
         referralSource: z.enum(VOLUNTEER_REFERRAL_VALUES, {
           error: "Elegí una opción.",

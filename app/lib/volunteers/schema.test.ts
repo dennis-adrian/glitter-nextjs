@@ -370,6 +370,29 @@ describe("buildVolunteerApplicationSchema", () => {
     });
   });
 
+  it("asks for at least 30 characters of motivation, not counting edge spaces", () => {
+    const schema = buildVolunteerApplicationSchema(context());
+    expect(
+      schema.safeParse(validInput({ motivation: "a".repeat(30) })).success,
+    ).toBe(true);
+    expect(
+      messages(
+        schema.safeParse(validInput({ motivation: `  ${"a".repeat(29)}   ` })),
+      ),
+    ).toEqual([
+      {
+        path: "motivation",
+        message: "Contanos un poco más: escribí al menos 30 caracteres.",
+      },
+    ]);
+    expect(messages(schema.safeParse(validInput({ motivation: "" })))).toEqual([
+      {
+        path: "motivation",
+        message: "Contanos en pocas palabras por qué querés sumarte.",
+      },
+    ]);
+  });
+
   it("caps the motivation at 300 characters", () => {
     const schema = buildVolunteerApplicationSchema(context());
     expect(
