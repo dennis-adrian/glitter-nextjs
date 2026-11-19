@@ -1,4 +1,5 @@
 import GlitterLogo from "@/app/components/landing/glitter-logo";
+import LinksViewCounter from "@/app/components/links/links-view-counter";
 import SiteLinkCard, {
   SiteSocialLink,
 } from "@/app/components/links/site-link-card";
@@ -15,8 +16,8 @@ import { cn } from "@/app/lib/utils";
 /**
  * What `/links` shows, from the logo to the copyright line. The public page
  * renders it as the whole screen; `/dashboard/links` renders it again as the
- * preview (`preview`), where a tap opens the link without counting as a click
- * and the title is not a second `h1` of the dashboard page.
+ * preview (`preview`), where neither the showing nor a tap is counted and the
+ * title is not a second `h1` of the dashboard page.
  */
 export default function LinksPageView({
   links: all,
@@ -61,6 +62,7 @@ export default function LinksPageView({
         className,
       )}
     >
+      {preview ? null : <LinksViewCounter />}
       {header.avatarUrl ? (
         <Image
           src={header.avatarUrl}

@@ -2,7 +2,7 @@
 
 import { asc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import {
   afterAll,
   afterEach,
@@ -14,7 +14,10 @@ import {
   vi,
 } from "vitest";
 
-import { disposableDatabaseProblem } from "@/app/lib/links/disposable-test-database";
+import {
+  LINKS_SUITE_LOCK,
+  disposableDatabaseProblem,
+} from "@/app/lib/links/disposable-test-database";
 import * as schema from "@/db/schema";
 import { siteLinks, siteLinksSettings } from "@/db/schema";
 
@@ -82,6 +85,8 @@ let savedSettings: (typeof siteLinksSettings.$inferSelect)[] = [];
  * and put back a copy that was never taken.
  */
 let backedUp = false;
+/** Holds the links suites' lock (see `LINKS_SUITE_LOCK`) while this runs. */
+let lockClient: PoolClient | null = null;
 
 function signInAs(role: string | null) {
   currentProfileMock.mockResolvedValue(role ? { id: 1, role } : null);
@@ -118,6 +123,9 @@ describeDatabase("site links dashboard actions", () => {
         "TEST_DATABASE_URL is safe but unmigrated; apply Drizzle migrations first.",
       );
     }
+
+    lockClient = await pool!.connect();
+    await lockClient.query("select pg_advisory_lock($1)", [LINKS_SUITE_LOCK]);
 
     savedLinks = await integrationDb!.select().from(siteLinks);
     savedSettings = await integrationDb!.select().from(siteLinksSettings);
@@ -156,6 +164,12 @@ describeDatabase("site links dashboard actions", () => {
         );
       }
     } finally {
+      if (lockClient) {
+        await lockClient
+          .query("select pg_advisory_unlock($1)", [LINKS_SUITE_LOCK])
+          .catch(() => {});
+        lockClient.release();
+      }
       // Closed whatever happened above, or the run hangs on open connections.
       await pool?.end();
       // The app's own pool exists only once the actions were imported.
@@ -292,7 +306,7 @@ describeDatabase("site links dashboard actions", () => {
     it("updates a link and leaves its place and clicks alone", async () => {
       await addLink("Primero");
       const link = await addLink("Segundo");
-      await queries.recordSiteLinkClick(link.id);
+      await queries.recordSiteLinkClick(link.id, "direct");
 
       const result = await actions.updateSiteLink(link.id, {
         label: "Sitio web",
@@ -335,8 +349,8 @@ describeDatabase("site links dashboard actions", () => {
       expect(await actions.setSiteLinkVisible(hidden.id, false)).toEqual({
         success: true,
       });
-      await queries.recordSiteLinkClick(hidden.id);
-      await queries.recordSiteLinkClick(shown.id);
+      await queries.recordSiteLinkClick(hidden.id, "direct");
+      await queries.recordSiteLinkClick(shown.id, "direct");
 
       const visible = await queries.fetchVisibleSiteLinks();
       expect(visible.map((row) => row.id)).toEqual([shown.id]);
@@ -778,8 +792,8 @@ describeDatabase("site links dashboard actions", () => {
       await actions.createSiteLink({ ...base, visibleUntil: fromNow(60) });
       const [upcoming, running] = await rowsOf("link");
 
-      await queries.recordSiteLinkClick(upcoming.id);
-      await queries.recordSiteLinkClick(running.id);
+      await queries.recordSiteLinkClick(upcoming.id, "direct");
+      await queries.recordSiteLinkClick(running.id, "direct");
       expect((await rowsOf("link")).map((row) => row.clickCount)).toEqual([
         0, 1,
       ]);

@@ -10,6 +10,14 @@ export const LINKS_ADMIN_PATH = "/dashboard/links";
 
 export type SiteLinkRow = typeof siteLinks.$inferSelect;
 
+/**
+ * Who manages `/links` and reads its statistics: the same staff who manage
+ * the home carousel and the landing content.
+ */
+export function canManageLinks(role: string | null | undefined) {
+  return role === "admin" || role === "festival_admin";
+}
+
 /** What the public page needs of a link, and nothing else. */
 export type PublicSiteLink = Pick<
   SiteLinkRow,

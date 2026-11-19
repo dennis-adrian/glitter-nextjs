@@ -70,3 +70,10 @@ export function disposableDatabaseProblem(
   }
   return null;
 }
+
+/**
+ * The advisory lock the links integration suites hold while they run: one
+ * empties `site_links` before every test, the other adds links of its own,
+ * and the two must never run at once.
+ */
+export const LINKS_SUITE_LOCK = 731_400_313;
