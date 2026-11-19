@@ -57,6 +57,9 @@ export default function VolunteerApplyCallout({
               </ol>
               <Link
                 href={VOLUNTEER_APPLY_PATH}
+                // The form is a dynamic page: prefetch all of it, not just
+                // its loading state, so the click renders without a wait.
+                prefetch
                 className={buttonVariants({
                   variant: "cta",
                   size: "lg",
