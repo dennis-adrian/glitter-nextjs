@@ -60,6 +60,14 @@ function describePayload(event: ConsoleEvent): string | null {
     }
     case "invoice_credits_released":
       return `Devolvió los créditos aplicados${suffix}`;
+    case "participant_transferred": {
+      const from =
+        typeof record.fromUserId === "number" ? record.fromUserId : null;
+      const to = typeof record.toUserId === "number" ? record.toUserId : null;
+      return from != null && to != null
+        ? `Transfirió la participación de la cuenta #${from} a la cuenta #${to}${suffix}`
+        : `Transfirió una participación a otra cuenta${suffix}`;
+    }
     case "invoice_shortfall_written_off": {
       const writtenOff = money(record.writtenOffAmount);
       return writtenOff

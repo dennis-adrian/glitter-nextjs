@@ -117,9 +117,7 @@ export async function denySelfServiceMutation(
 
   const result = evaluateSelfServiceEligibility({
     now,
-    actor: input.asPartner
-      ? { id: input.userId, role: "user" }
-      : input.actor,
+    actor: input.asPartner ? { id: input.userId, role: "user" } : input.actor,
     targetProfileId: input.userId,
     intent: "mutate",
     profile: profile ?? null,
@@ -128,7 +126,8 @@ export async function denySelfServiceMutation(
     enrollment: enrollment ?? null,
     sanctionBlocked: !eligibility.eligible,
     hasLiveSelfServiceReservation: participation.hasLiveSelfServiceReservation,
-    hasRejectedFestivalReservation: participation.hasRejectedFestivalReservation,
+    hasRejectedFestivalReservation:
+      participation.hasRejectedFestivalReservation,
   });
 
   if (result.allowed) return null;

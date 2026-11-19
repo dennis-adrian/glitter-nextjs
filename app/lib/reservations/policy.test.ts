@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   blocksFestivalParticipation,
+  displayedDenialCode,
   evaluatePartnerSearchDenial,
   evaluateSelfServiceEligibility,
   mapPartnerEligibilityCode,
@@ -340,6 +341,7 @@ describe("summarizeFestivalParticipations", () => {
       hasLiveSelfServiceReservation: false,
       hasRejectedFestivalReservation: true,
       hasAnyFestivalReservation: true,
+      hasLiveFestivalReservation: false,
     });
   });
 
@@ -353,6 +355,7 @@ describe("summarizeFestivalParticipations", () => {
       hasLiveSelfServiceReservation: true,
       hasRejectedFestivalReservation: false,
       hasAnyFestivalReservation: true,
+      hasLiveFestivalReservation: true,
     });
   });
 
@@ -369,7 +372,52 @@ describe("summarizeFestivalParticipations", () => {
       hasLiveSelfServiceReservation: false,
       hasRejectedFestivalReservation: true,
       hasAnyFestivalReservation: true,
+      hasLiveFestivalReservation: false,
     });
+  });
+});
+
+describe("a live stand next to a rejected attempt", () => {
+  // A participation transferred onto an account whose own attempt in the
+  // festival was turned down, or an admin assignment to one.
+  it.each(["user_reservation", "admin_assignment"])(
+    "sees a live %s reservation even beside a rejected one",
+    (source) => {
+      expect(
+        summarizeFestivalParticipations(
+          [
+            { festivalId: 10, status: "rejected", source: "user_reservation" },
+            { festivalId: 10, status: "pending", source },
+          ],
+          10,
+        ),
+      ).toMatchObject({
+        hasRejectedFestivalReservation: true,
+        hasLiveFestivalReservation: true,
+      });
+    },
+  );
+
+  it("refuses with the rejection whatever else the account holds", () => {
+    // Commands that let ALREADY_RESERVED through (releasing a stand, a late
+    // partner, credits) must keep refusing an account turned down here.
+    expect(
+      evaluateSelfServiceEligibility(
+        allowedInput({ hasRejectedFestivalReservation: true }),
+      ),
+    ).toEqual({ allowed: false, code: "RESERVATION_REJECTED" });
+  });
+
+  it("only on the page, names the stand it has instead", () => {
+    expect(displayedDenialCode("RESERVATION_REJECTED", true)).toBe(
+      "ALREADY_RESERVED",
+    );
+    expect(displayedDenialCode("RESERVATION_REJECTED", false)).toBe(
+      "RESERVATION_REJECTED",
+    );
+    expect(displayedDenialCode("SANCTION_BLOCKED", true)).toBe(
+      "SANCTION_BLOCKED",
+    );
   });
 });
 

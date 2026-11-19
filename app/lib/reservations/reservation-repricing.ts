@@ -7,6 +7,7 @@ import { recordedWriteOffAmount } from "@/app/lib/reservations/invoice-write-off
 import { loadInvoiceTenders } from "@/app/lib/payments/tender-queries";
 import { latePartnerPrepaidAmount } from "@/app/lib/reservations/late-partner-prepaid";
 import { roundMoney } from "@/app/lib/reservations/money";
+import { taskHolderForOwnerlessReservation } from "@/app/lib/reservations/reservation-holder";
 import { applyAcceptedReservation } from "@/app/lib/reservations/payment-service";
 import { LATE_PARTNER_REFUND_AMOUNT_KEY } from "@/app/lib/reservations/repricing-refund-ledger";
 import { STAND_CHANGE_REFUND_RESERVATION_KEY } from "@/app/lib/reservations/repricing-refunds";
@@ -21,7 +22,6 @@ import {
   invoiceSettlementSubmissions,
   invoices,
   payments,
-  reservationParticipants,
   scheduledTasks,
   standHoldMembers,
   standHolds,
@@ -392,31 +392,6 @@ export async function reopenReservationForBalance(
     reservationId: reservation.reservationId,
     taskType: "stand_reservation",
   });
-}
-
-async function taskHolderForOwnerlessReservation(
-  tx: DbTx,
-  reservationId: number,
-): Promise<number | null> {
-  const [invoice] = await tx
-    .select({ userId: invoices.userId })
-    .from(invoices)
-    .where(
-      and(
-        eq(invoices.reservationId, reservationId),
-        ne(invoices.status, "cancelled"),
-      ),
-    )
-    .orderBy(asc(invoices.id))
-    .limit(1);
-  if (invoice) return invoice.userId;
-  const [participant] = await tx
-    .select({ userId: reservationParticipants.userId })
-    .from(reservationParticipants)
-    .where(eq(reservationParticipants.reservationId, reservationId))
-    .orderBy(asc(reservationParticipants.id))
-    .limit(1);
-  return participant?.userId ?? null;
 }
 
 /**

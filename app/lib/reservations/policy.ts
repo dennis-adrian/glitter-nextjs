@@ -157,6 +157,10 @@ export function evaluateSelfServiceEligibility(
     return { allowed: false, code: "SANCTION_BLOCKED" };
   }
 
+  // Refused whatever else the account holds here. Several commands let
+  // `ALREADY_RESERVED` through (releasing a stand, a late partner, credits),
+  // so reporting that instead would lift this refusal, not just reword it.
+  // The pages pick their message with `displayedDenialCode`.
   if (input.hasRejectedFestivalReservation) {
     return { allowed: false, code: "RESERVATION_REJECTED" };
   }
@@ -166,6 +170,22 @@ export function evaluateSelfServiceEligibility(
   }
 
   return { allowed: true };
+}
+
+/**
+ * The denial a new-reservation page shows, which is not always the one that
+ * refuses. An account turned down in a festival that also holds a live stand
+ * there (a participation transferred onto it, or an admin assignment) is told
+ * about the stand it has, not that it can no longer take part. Only for
+ * display: commands keep the code `evaluateSelfServiceEligibility` returned.
+ */
+export function displayedDenialCode(
+  code: ReservationErrorCode,
+  hasLiveFestivalReservation: boolean,
+): ReservationErrorCode {
+  return code === "RESERVATION_REJECTED" && hasLiveFestivalReservation
+    ? "ALREADY_RESERVED"
+    : code;
 }
 
 export function evaluatePartnerSearchDenial(input: {
@@ -269,21 +289,24 @@ export function summarizeFestivalParticipations(
   hasLiveSelfServiceReservation: boolean;
   hasRejectedFestivalReservation: boolean;
   hasAnyFestivalReservation: boolean;
+  /** Any source, unlike `hasLiveSelfServiceReservation`. */
+  hasLiveFestivalReservation: boolean;
 } {
   let hasLiveSelfServiceReservation = false;
   let hasRejectedFestivalReservation = false;
   let hasAnyFestivalReservation = false;
+  let hasLiveFestivalReservation = false;
 
   for (const row of rows) {
     if (row.festivalId !== festivalId) continue;
     hasAnyFestivalReservation = true;
     if (blocksFestivalParticipation(row.status)) {
       hasRejectedFestivalReservation = true;
-    } else if (
-      occupiesStandCapacity(row.status) &&
-      isLiveSelfServiceSource(row.source)
-    ) {
-      hasLiveSelfServiceReservation = true;
+    } else if (occupiesStandCapacity(row.status)) {
+      hasLiveFestivalReservation = true;
+      if (isLiveSelfServiceSource(row.source)) {
+        hasLiveSelfServiceReservation = true;
+      }
     }
   }
 
@@ -291,5 +314,6 @@ export function summarizeFestivalParticipations(
     hasLiveSelfServiceReservation,
     hasRejectedFestivalReservation,
     hasAnyFestivalReservation,
+    hasLiveFestivalReservation,
   };
 }

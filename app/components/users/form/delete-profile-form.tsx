@@ -31,7 +31,7 @@ export function DeleteProfileForm({
         variant="destructive"
         size="sm"
       >
-        Eliminar Reserva
+        Eliminar usuario
       </SubmitButton>
     </form>
   );
