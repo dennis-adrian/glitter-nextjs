@@ -1,7 +1,10 @@
 import { DateTime } from "luxon";
 
 import { STORE_TIMEZONE } from "@/app/lib/formatters";
-import type { VolunteerShift } from "@/app/lib/volunteers/definitions";
+import type {
+  VolunteerInduction,
+  VolunteerShift,
+} from "@/app/lib/volunteers/definitions";
 
 /**
  * How shifts, dates and the induction read in Spanish, on La Paz's clock.
@@ -36,9 +39,16 @@ export function formatShiftSummary(shift: VolunteerShift): string {
   return `${formatShiftDay(shift.startsAt)}, ${formatShiftHours(shift)} — ${shift.label}`;
 }
 
-/** "sábado 19 de diciembre de 2026, 18:00" */
-export function formatLongDateTime(date: Date): string {
-  return laPaz(date).toFormat("cccc d 'de' LLLL 'de' yyyy, HH:mm");
+/**
+ * "sábado 5 de diciembre", or "sábado 5 de diciembre, 18:00" once the time
+ * is set. The date is already La Paz's, so no zone conversion applies.
+ */
+export function formatInduction(induction: VolunteerInduction): string {
+  const day = DateTime.fromISO(induction.date)
+    .setLocale("es")
+    .toFormat("cccc d 'de' LLLL");
+  const time = induction.time?.slice(0, 5);
+  return time ? `${day}, ${time}` : day;
 }
 
 /** The festival's days: "19 de diciembre", "19 y 20 de diciembre", "30 de noviembre al 1 de diciembre". */

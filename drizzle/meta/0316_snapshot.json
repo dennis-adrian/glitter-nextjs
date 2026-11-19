@@ -1,5 +1,5 @@
 {
-  "id": "e88bf0d8-8bed-4b2c-9c64-e54510ab1d51",
+  "id": "fdd016b7-1dd3-47cc-91ca-3bfaa702b38c",
   "prevId": "b8bf6e18-5912-4e34-b680-15b565b3aa19",
   "version": "7",
   "dialect": "postgresql",
@@ -22779,9 +22779,15 @@
           "primaryKey": false,
           "notNull": true
         },
-        "induction_at": {
-          "name": "induction_at",
-          "type": "timestamp",
+        "induction_date": {
+          "name": "induction_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "induction_time": {
+          "name": "induction_time",
+          "type": "time",
           "primaryKey": false,
           "notNull": false
         },

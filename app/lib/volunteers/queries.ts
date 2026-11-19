@@ -95,7 +95,9 @@ async function loadCall(
   return {
     festival: { ...festival, days: days.map((day) => day.startDate) },
     applicationsCloseAt: settings.applicationsCloseAt,
-    inductionAt: settings.inductionAt,
+    induction: settings.inductionDate
+      ? { date: settings.inductionDate, time: settings.inductionTime }
+      : null,
     roles,
     shifts,
     ageCutoffDate: volunteerAgeCutoffDate(shifts),

@@ -45,7 +45,8 @@ CREATE TABLE "volunteer_call_settings" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"festival_id" integer NOT NULL,
 	"applications_close_at" timestamp NOT NULL,
-	"induction_at" timestamp,
+	"induction_date" date,
+	"induction_time" time,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "volunteer_call_settings_festival_id_unique" UNIQUE("festival_id")
@@ -141,8 +142,9 @@ BEGIN
 
 	RAISE NOTICE 'volunteers: seeding the v11 volunteer call for festival %', match_list;
 
-	INSERT INTO "volunteer_call_settings" ("festival_id", "applications_close_at", "induction_at")
-	VALUES (v11_id, (TIMESTAMP '2026-11-30 23:59' AT TIME ZONE 'America/La_Paz') AT TIME ZONE 'UTC', NULL)
+	-- Induction: Saturday 5 Dec 2026; no time of day decided yet.
+	INSERT INTO "volunteer_call_settings" ("festival_id", "applications_close_at", "induction_date", "induction_time")
+	VALUES (v11_id, (TIMESTAMP '2026-11-30 23:59' AT TIME ZONE 'America/La_Paz') AT TIME ZONE 'UTC', DATE '2026-12-05', NULL)
 	ON CONFLICT ("festival_id") DO NOTHING;
 
 	INSERT INTO "volunteer_roles" ("festival_id", "name", "description", "sort_order")

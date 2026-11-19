@@ -15,7 +15,7 @@ import {
 } from "@/app/lib/volunteers/definitions";
 import {
   formatFestivalDays,
-  formatLongDateTime,
+  formatInduction,
 } from "@/app/lib/volunteers/format";
 import { fetchCurrentVolunteerCall } from "@/app/lib/volunteers/queries";
 import { isVolunteerCallOpen } from "@/app/lib/volunteers/schema";
@@ -81,8 +81,8 @@ export default async function VolunteersPage() {
       <VolunteerBenefitsList />
       <VolunteerRequirements
         inductionLabel={
-          call.inductionAt
-            ? formatLongDateTime(call.inductionAt)
+          call.induction
+            ? formatInduction(call.induction)
             : VOLUNTEER_COPY.inductionToBeConfirmed
         }
       />

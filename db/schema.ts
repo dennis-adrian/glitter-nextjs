@@ -16,6 +16,7 @@ import {
   serial,
   smallint,
   text,
+  time,
   timestamp,
   unique,
   uniqueIndex,
@@ -8575,8 +8576,13 @@ export const volunteerCallSettings = pgTable("volunteer_call_settings", {
     .unique()
     .references(() => festivals.id, { onDelete: "cascade" }),
   applicationsCloseAt: timestamp("applications_close_at").notNull(),
-  /** The induction every volunteer attends; null until it is scheduled. */
-  inductionAt: timestamp("induction_at"),
+  /**
+   * The induction every volunteer attends, as a La Paz calendar date; null
+   * until it is scheduled ("fecha por confirmar").
+   */
+  inductionDate: date("induction_date"),
+  /** Its start on La Paz's clock ("18:00"); null when only the day is known. */
+  inductionTime: time("induction_time"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

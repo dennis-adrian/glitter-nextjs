@@ -69,6 +69,17 @@ export type VolunteerShift = {
   endsAt: Date;
 };
 
+/**
+ * The induction: a La Paz calendar date, with a start time only once one is
+ * decided, so the page can say "sábado 5 de diciembre" without an hour.
+ */
+export type VolunteerInduction = {
+  /** yyyy-MM-dd */
+  date: string;
+  /** "HH:mm" or "HH:mm:ss"; null while only the day is known. */
+  time: string | null;
+};
+
 /** Everything the public page needs about the current call. */
 export type VolunteerCall = {
   festival: {
@@ -81,7 +92,7 @@ export type VolunteerCall = {
   };
   applicationsCloseAt: Date;
   /** Null until the induction is scheduled ("fecha por confirmar"). */
-  inductionAt: Date | null;
+  induction: VolunteerInduction | null;
   roles: VolunteerRole[];
   shifts: VolunteerShift[];
   /** La Paz date (yyyy-MM-dd) the applicant must be 18 on; null without shifts. */
