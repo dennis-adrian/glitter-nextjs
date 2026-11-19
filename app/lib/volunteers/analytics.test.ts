@@ -2,7 +2,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import { volunteerFormSubmittedProperties } from "@/app/lib/volunteers/analytics";
+import {
+  volunteerFormStepViewedProperties,
+  volunteerFormSubmittedProperties,
+} from "@/app/lib/volunteers/analytics";
 
 describe("volunteerFormSubmittedProperties", () => {
   it("carries ids, counts and option keys, never what the applicant typed", () => {
@@ -31,5 +34,20 @@ describe("volunteerFormSubmittedProperties", () => {
       image_consent: false,
     });
     expect(JSON.stringify(properties)).not.toMatch(/Equipetrol|camila|feria/i);
+  });
+});
+
+describe("volunteerFormStepViewedProperties", () => {
+  it("names the step by number and section", () => {
+    expect(volunteerFormStepViewedProperties(7, 0)).toEqual({
+      festival_id: 7,
+      step_number: 1,
+      step_name: "personal",
+    });
+    expect(volunteerFormStepViewedProperties(7, 3)).toEqual({
+      festival_id: 7,
+      step_number: 4,
+      step_name: "emergencyAndCommitments",
+    });
   });
 });

@@ -1,19 +1,38 @@
 import "server-only";
 
 import VolunteerApplicationReceivedEmailTemplate from "@/app/emails/volunteer-application-received";
-import type {
-  VolunteerRole,
-  VolunteerShift,
+import {
+  VOLUNTEER_COPY,
+  type VolunteerCall,
+  type VolunteerRole,
+  type VolunteerShift,
 } from "@/app/lib/volunteers/definitions";
-import { formatShiftSummary } from "@/app/lib/volunteers/format";
+import {
+  formatCloseDate,
+  formatFestivalDays,
+  formatInduction,
+  formatShiftWhen,
+} from "@/app/lib/volunteers/format";
 import { sendEmail } from "@/app/vendors/resend";
 import { assertSent, sendFailureType } from "@/app/vendors/resend-result";
 
-const VOLUNTEERS_FROM = "Equipo Glitter <equipo@productoraglitter.com>";
+/** Replies reach the team's inbox, which the email invites for corrections. */
+const VOLUNTEERS_FROM = "Productora Glitter <info@productoraglitter.com>";
+const SUBJECT = "Recibimos tu postulación al voluntariado de Glitter";
 
 /** "Camila Andrea Rojas" → "Camila". */
 function firstNameOf(fullName: string) {
   return fullName.trim().split(/\s+/)[0] ?? fullName.trim();
+}
+
+/** "19 y 20 de diciembre de 2026, Teatro CBA, Santa Cruz de la Sierra". */
+function festivalDetails(call: VolunteerCall): string | null {
+  const parts = [
+    formatFestivalDays(call.festival.days),
+    call.festival.locationLabel,
+    call.festival.address,
+  ].filter((part): part is string => Boolean(part?.trim()));
+  return parts.length > 0 ? parts.join(", ") : null;
 }
 
 /**
@@ -26,7 +45,7 @@ export async function sendVolunteerApplicationReceivedEmail(input: {
   applicationId: number;
   email: string;
   fullName: string;
-  festivalName: string;
+  call: VolunteerCall;
   shifts: VolunteerShift[];
   firstChoiceRole: VolunteerRole;
   secondChoiceRole: VolunteerRole;
@@ -36,13 +55,21 @@ export async function sendVolunteerApplicationReceivedEmail(input: {
       {
         from: VOLUNTEERS_FROM,
         to: [input.email],
-        subject: `Recibimos tu postulación como voluntario/a de ${input.festivalName}`,
+        subject: SUBJECT,
         react: VolunteerApplicationReceivedEmailTemplate({
           firstName: firstNameOf(input.fullName),
-          festivalName: input.festivalName,
-          shifts: input.shifts.map(formatShiftSummary),
+          festivalName: input.call.festival.name,
+          shifts: input.shifts.map((shift) => ({
+            when: formatShiftWhen(shift),
+            label: shift.label,
+          })),
           firstChoiceRole: input.firstChoiceRole.name,
           secondChoiceRole: input.secondChoiceRole.name,
+          closesOn: formatCloseDate(input.call.applicationsCloseAt).date,
+          festivalDetails: festivalDetails(input.call),
+          induction: input.call.induction
+            ? formatInduction(input.call.induction)
+            : VOLUNTEER_COPY.inductionToBeConfirmed,
         }) as React.ReactElement,
       },
       {

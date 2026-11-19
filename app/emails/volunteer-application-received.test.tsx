@@ -3,28 +3,46 @@ import { describe, expect, it } from "vitest";
 
 import VolunteerApplicationReceivedEmailTemplate from "@/app/emails/volunteer-application-received";
 
-describe("VolunteerApplicationReceivedEmailTemplate", () => {
-  const html = renderToStaticMarkup(
+function render(overrides: Record<string, unknown> = {}) {
+  return renderToStaticMarkup(
     VolunteerApplicationReceivedEmailTemplate({
       firstName: "Camila",
-      festivalName: "Glitter 11va edición",
+      festivalName: "Glitter v11",
       shifts: [
-        "Vie 18 dic, 15:00–19:00 — Montaje",
-        "Dom 20 dic, 17:30–21:30 — Festival + desmontaje de mesas (turno B)",
+        { when: "Vie 18 dic · 15:00–19:00", label: "Montaje" },
+        {
+          when: "Dom 20 dic · 17:30–21:30",
+          label: "Festival + desmontaje de mesas (turno B)",
+        },
       ],
-      firstChoiceRole: "Orientación al público",
-      secondChoiceRole: "Fotografía y redes sociales",
-    }),
+      firstChoiceRole: "Fotografía y redes sociales",
+      secondChoiceRole: "Orientación al público",
+      closesOn: "30 de noviembre",
+      festivalDetails:
+        "19 y 20 de diciembre de 2026, Teatro CBA, Santa Cruz de la Sierra",
+      induction: "sábado 5 de diciembre",
+      ...overrides,
+    } as Parameters<typeof VolunteerApplicationReceivedEmailTemplate>[0]),
   );
+}
 
+describe("VolunteerApplicationReceivedEmailTemplate", () => {
   it("says the same as the thank-you state and lists what was chosen", () => {
-    expect(html).toContain("Recibimos tu postulación, te contactaremos por");
-    expect(html).toContain("Vie 18 dic, 15:00–19:00 — Montaje");
-    expect(html).toContain("1ª opción: Orientación al público");
-    expect(html).toContain("2ª opción: Fotografía y redes sociales");
+    const html = render();
+    expect(html).toContain("Recibimos tu postulación");
+    expect(html).toContain("Te contactaremos por WhatsApp.");
+    expect(html).toContain("el 30 de noviembre");
+    expect(html).toContain("<strong>Vie 18 dic · 15:00–19:00</strong>");
+    expect(html).toContain("Fotografía y redes sociales");
+    expect(html).toContain("Orientación al público");
+    expect(html).toContain("sábado 5 de diciembre");
+  });
+
+  it("drops the festival line when the festival has no dates or venue", () => {
+    expect(render({ festivalDetails: null })).not.toContain("Festival:");
   });
 
   it("never reads as an acceptance", () => {
-    expect(html).not.toMatch(/aceptad|confirmad|seleccionad|quedaste/i);
+    expect(render()).not.toMatch(/aceptad|confirmad|seleccionad|quedaste/i);
   });
 });

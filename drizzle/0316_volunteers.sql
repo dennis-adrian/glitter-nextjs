@@ -151,11 +151,11 @@ BEGIN
 	INSERT INTO "volunteer_roles" ("festival_id", "name", "description", "sort_order")
 	VALUES
 		(v11_id, 'Acreditación y check-in de los visitantes y participantes', 'Recibís en el ingreso al público y a los expositores del festival, y verificás su registro.', 1),
-		(v11_id, 'Orientación al público', 'Ayudas a los visitantes a encontrar stands, actividades y servicios del festival.', 2),
-		(v11_id, 'Apoyo a expositores', 'Acompañas a los expositores en su llegada, el armado de su mesa y lo que necesiten durante el día.', 3),
-		(v11_id, 'Montaje y desmontaje', 'Armas y desarmas mesas, decoración y señalética antes y después del festival.', 4),
-		(v11_id, 'Fotografía y redes sociales', 'Registras el festival en fotos y videos para nuestras redes sociales.', 5),
-		(v11_id, 'Actividades y talleres', 'Apoyas en talleres y actividades: inscripciones, materiales y tiempos.', 6)
+		(v11_id, 'Orientación al público', 'Respondés dudas y ayudás a ubicar stands, baños y actividades.', 2),
+		(v11_id, 'Apoyo a expositores', 'Acompañás a ilustradores y emprendedores con lo que necesiten en su stand.', 3),
+		(v11_id, 'Montaje y desmontaje', 'Armás y desarmás mesas, señalética y decoración antes y después del festival.', 4),
+		(v11_id, 'Fotografía y redes sociales', 'Registrás el festival en fotos y videos para las redes de Glitter.', 5),
+		(v11_id, 'Actividades y talleres', 'Preparás materiales y ayudás a que cada actividad empiece a tiempo.', 6)
 	ON CONFLICT ("festival_id", "name") DO NOTHING;
 
 	INSERT INTO "volunteer_shifts" ("festival_id", "label", "starts_at", "ends_at", "needed_headcount", "sort_order")

@@ -305,7 +305,7 @@ describeDatabase("submitVolunteerApplication", () => {
 
     expect(result).toEqual({
       success: false,
-      message: "Uno de los turnos ya no está disponible. Recarga la página.",
+      message: "Uno de los turnos ya no está disponible. Recargá la página.",
     });
     expect(await applicationsFor(call.festivalId)).toHaveLength(0);
     await runAfterTasks();
@@ -326,7 +326,7 @@ describeDatabase("submitVolunteerApplication", () => {
 
     expect(result).toEqual({
       success: false,
-      message: "Ese rol ya no está disponible. Recarga la página.",
+      message: "Ese rol ya no está disponible. Recargá la página.",
     });
     expect(await applicationsFor(call.festivalId)).toHaveLength(0);
   });
@@ -346,11 +346,11 @@ describeDatabase("submitVolunteerApplication", () => {
 
     expect(withForeignShift).toEqual({
       success: false,
-      message: "Uno de los turnos ya no está disponible. Recarga la página.",
+      message: "Uno de los turnos ya no está disponible. Recargá la página.",
     });
     expect(withForeignRole).toEqual({
       success: false,
-      message: "Ese rol ya no está disponible. Recarga la página.",
+      message: "Ese rol ya no está disponible. Recargá la página.",
     });
     expect(await applicationsFor(call.festivalId)).toHaveLength(0);
   });

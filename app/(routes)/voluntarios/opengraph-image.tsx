@@ -36,7 +36,7 @@ export default function VolunteersOpenGraphImage() {
         Sé voluntario/a en Glitter
       </div>
       <div style={{ fontSize: 40, marginTop: 32, opacity: 0.95 }}>
-        Elige tus turnos y tu rol · Postúlate
+        Elegí tus turnos y tu rol · Postulá
       </div>
     </div>,
     size,

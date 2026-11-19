@@ -1,28 +1,22 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 
-import VolunteerApplicationForm from "@/app/components/volunteers/volunteer-application-form";
-import VolunteerBenefitsList from "@/app/components/volunteers/volunteer-benefits-list";
-import VolunteerCallClosed from "@/app/components/volunteers/volunteer-call-closed";
-import VolunteerFaq from "@/app/components/volunteers/volunteer-faq";
-import VolunteerRequirements from "@/app/components/volunteers/volunteer-requirements";
-import VolunteerRolesList from "@/app/components/volunteers/volunteer-roles-list";
-import VolunteerShiftsTable from "@/app/components/volunteers/volunteer-shifts-table";
+import VolunteerApplyCallout from "@/app/components/volunteers/volunteer-apply-callout";
+import VolunteerBenefitsRequirements from "@/app/components/volunteers/volunteer-benefits-requirements";
+import VolunteerFaqSection from "@/app/components/volunteers/volunteer-faq-section";
+import VolunteerRolesGrid from "@/app/components/volunteers/volunteer-roles-grid";
+import VolunteerShiftsSection from "@/app/components/volunteers/volunteer-shifts-section";
 import VolunteersHero from "@/app/components/volunteers/volunteers-hero";
 import {
   VOLUNTEER_COPY,
   VOLUNTEERS_PATH,
 } from "@/app/lib/volunteers/definitions";
-import {
-  formatFestivalDays,
-  formatInduction,
-} from "@/app/lib/volunteers/format";
+import { volunteerPageView } from "@/app/lib/volunteers/page-data";
 import { fetchCurrentVolunteerCall } from "@/app/lib/volunteers/queries";
-import { isVolunteerCallOpen } from "@/app/lib/volunteers/schema";
 
 const TITLE = "Sé voluntario/a en Glitter";
 const DESCRIPTION =
-  "Súmate al equipo de voluntarios de Glitter, el festival de ilustración y creatividad. Elige tus turnos y tu rol, y postúlate.";
+  "Sumate al equipo que arma el festival de ilustración y creatividad más grande de Bolivia. Elegí tus turnos y postulá.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -43,9 +37,8 @@ export const metadata: Metadata = {
 };
 
 /**
- * The public volunteer call. Thin on purpose: data comes from
- * app/lib/volunteers, and every section is a swappable component under
- * app/components/volunteers.
+ * The public volunteer call. The form lives on /voluntarios/postular; this
+ * page sells it and links there while the call is open.
  */
 export default async function VolunteersPage() {
   // Per request: the call closes at a set instant, and roles and shifts can
@@ -55,52 +48,43 @@ export default async function VolunteersPage() {
 
   if (!call) {
     return (
-      <div className="container mx-auto max-w-3xl p-4 py-8 md:p-6 md:py-12">
-        <VolunteerCallClosed
-          title={VOLUNTEER_COPY.noCallTitle}
-          message={VOLUNTEER_COPY.noCallMessage}
-        />
+      <div className="bg-brand-lavender px-5 py-16">
+        <div className="mx-auto max-w-xl rounded-[20px] border border-brand-border bg-brand-card p-8 text-center">
+          <h1 className="font-display text-3xl font-extrabold text-brand-ink">
+            {VOLUNTEER_COPY.noCallTitle}
+          </h1>
+          <p className="mt-3 break-words text-brand-neutral">
+            {VOLUNTEER_COPY.noCallMessage}
+          </p>
+        </div>
       </div>
     );
   }
 
-  const open =
-    isVolunteerCallOpen(call.applicationsCloseAt) &&
-    call.ageCutoffDate !== null &&
-    call.roles.length >= 2;
+  const view = volunteerPageView(call);
 
   return (
-    <div className="container mx-auto grid max-w-3xl gap-10 p-4 py-8 md:p-6 md:py-12">
+    <div className="bg-brand-elevated">
       <VolunteersHero
         festivalName={call.festival.name}
-        datesLabel={formatFestivalDays(call.festival.days)}
-        venueLabel={call.festival.locationLabel ?? call.festival.address}
+        dateTile={view.dateTile}
+        venue={view.venue}
+        setupDay={view.setupDay}
+        closesLabel={view.closesShort}
+        open={view.open}
       />
-      <VolunteerRolesList roles={call.roles} />
-      <VolunteerShiftsTable shifts={call.shifts} />
-      <VolunteerBenefitsList />
-      <VolunteerRequirements
-        inductionLabel={
-          call.induction
-            ? formatInduction(call.induction)
-            : VOLUNTEER_COPY.inductionToBeConfirmed
-        }
+      <VolunteerRolesGrid roles={call.roles} />
+      <VolunteerShiftsSection shifts={call.shifts} />
+      <VolunteerBenefitsRequirements
+        ageCutoff={view.ageCutoff}
+        induction={view.induction}
       />
-      <VolunteerFaq />
-      {open && call.ageCutoffDate ? (
-        <VolunteerApplicationForm
-          festivalId={call.festival.id}
-          roles={call.roles}
-          shifts={call.shifts}
-          ageCutoffDate={call.ageCutoffDate}
-          applicationsCloseAt={call.applicationsCloseAt}
-        />
-      ) : (
-        <VolunteerCallClosed
-          title={VOLUNTEER_COPY.closedTitle}
-          message={VOLUNTEER_COPY.closedMessage}
-        />
-      )}
+      <VolunteerFaqSection />
+      <VolunteerApplyCallout
+        open={view.open}
+        festivalName={call.festival.name}
+        closesLabel={view.closesLong}
+      />
     </div>
   );
 }

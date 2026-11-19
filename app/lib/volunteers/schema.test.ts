@@ -162,8 +162,7 @@ describe("buildVolunteerApplicationSchema", () => {
       expect(messages(result)).toEqual([
         {
           path: "birthdate",
-          message:
-            "Para ser voluntario/a necesitas tener 18 años cumplidos el 18 de diciembre de 2026",
+          message: "Tenés que ser mayor de 18 años al 18 de diciembre de 2026.",
         },
       ]);
     });
@@ -188,7 +187,7 @@ describe("buildVolunteerApplicationSchema", () => {
       expect(messages(result)).toEqual([
         {
           path: "secondChoiceRoleId",
-          message: "Tu 2ª opción tiene que ser distinta de la 1ª",
+          message: "Elegí un rol distinto al de tu 1ª opción.",
         },
       ]);
     });
@@ -218,7 +217,7 @@ describe("buildVolunteerApplicationSchema", () => {
         validInput({ shiftIds: [] }),
       );
       expect(messages(result)).toEqual([
-        { path: "shiftIds", message: "Elige al menos un turno" },
+        { path: "shiftIds", message: "Elegí al menos un turno." },
       ]);
     });
 
@@ -284,11 +283,11 @@ describe("buildVolunteerApplicationSchema", () => {
     expect(messages(result)).toEqual([
       {
         path: "commitmentConsent",
-        message: "Para postular, marca los dos compromisos.",
+        message: "Tenés que aceptar los dos compromisos para postular.",
       },
       {
         path: "dataConsent",
-        message: "Para postular, marca los dos compromisos.",
+        message: "Tenés que aceptar los dos compromisos para postular.",
       },
     ]);
   });
@@ -358,7 +357,7 @@ describe("buildVolunteerApplicationSchema", () => {
         {
           path: "portfolio",
           message:
-            "Escribe el enlace completo, empezando con https:// (por ejemplo, https://instagram.com/tuusuario).",
+            "Pegá el enlace completo, empezando con https:// (por ejemplo, https://instagram.com/tuusuario).",
         },
       ]);
     });

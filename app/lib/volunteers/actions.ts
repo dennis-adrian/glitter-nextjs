@@ -86,7 +86,7 @@ export async function submitVolunteerApplication(
     return {
       success: false,
       closed: true,
-      message: VOLUNTEER_COPY.closedMessage,
+      message: VOLUNTEER_COPY.closedTitle,
     };
   }
 
@@ -159,7 +159,7 @@ export async function submitVolunteerApplication(
       applicationId,
       email: values.email,
       fullName: values.fullName,
-      festivalName: call.festival.name,
+      call,
       shifts: call.shifts.filter((shift) => chosenShiftIds.has(shift.id)),
       firstChoiceRole,
       secondChoiceRole,

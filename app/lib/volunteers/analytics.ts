@@ -1,3 +1,4 @@
+import { VOLUNTEER_STEPS } from "@/app/lib/volunteers/definitions";
 import type { VolunteerApplicationValues } from "@/app/lib/volunteers/schema";
 
 /**
@@ -10,6 +11,18 @@ export function volunteerFormStartedProperties(input: {
   field: string;
 }) {
   return { festival_id: input.festivalId, first_field: input.field };
+}
+
+export function volunteerFormStepViewedProperties(
+  festivalId: number,
+  stepIndex: number,
+) {
+  const step = VOLUNTEER_STEPS[stepIndex];
+  return {
+    festival_id: festivalId,
+    step_number: stepIndex + 1,
+    step_name: step?.section ?? "unknown",
+  };
 }
 
 export function volunteerFormSubmittedProperties(

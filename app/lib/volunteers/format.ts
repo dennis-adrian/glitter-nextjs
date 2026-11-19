@@ -34,9 +34,67 @@ export function formatShiftHours(
   return `${laPaz(shift.startsAt).toFormat("HH:mm")}–${laPaz(shift.endsAt).toFormat("HH:mm")}`;
 }
 
-/** "Vie 18 dic, 15:00–19:00 — Montaje" */
+/** "Vie 18 dic · 15:00–19:00" */
+export function formatShiftWhen(
+  shift: Pick<VolunteerShift, "startsAt" | "endsAt">,
+): string {
+  return `${formatShiftDay(shift.startsAt)} · ${formatShiftHours(shift)}`;
+}
+
+/** "Vie 18 · 15:00–19:00", for the short review list. */
+export function formatShiftWhenShort(
+  shift: Pick<VolunteerShift, "startsAt" | "endsAt">,
+): string {
+  const day = laPaz(shift.startsAt);
+  const weekday = capitalize(day.toFormat("ccc").replace(".", ""));
+  return `${weekday} ${day.day} · ${formatShiftHours(shift)}`;
+}
+
+/** "Vie 18 dic · 15:00–19:00 — Montaje" */
 export function formatShiftSummary(shift: VolunteerShift): string {
-  return `${formatShiftDay(shift.startsAt)}, ${formatShiftHours(shift)} — ${shift.label}`;
+  return `${formatShiftWhen(shift)} — ${shift.label}`;
+}
+
+/**
+ * The closing instant on La Paz's clock: "lunes 30 de noviembre", "23:59",
+ * and "30 de noviembre" for the short mentions.
+ */
+export function formatCloseDate(date: Date) {
+  const close = laPaz(date);
+  return {
+    weekdayDate: close.toFormat("cccc d 'de' LLLL"),
+    time: close.toFormat("HH:mm"),
+    date: close.toFormat("d 'de' LLLL"),
+  };
+}
+
+/** The festival's date tile: "19–20" over "dic 2026". Null without dates. */
+export function formatFestivalDateTile(
+  dates: Date[],
+): { days: string; monthYear: string } | null {
+  const days = [...new Set(dates.map((date) => laPaz(date).toISODate()))]
+    .filter((day): day is string => day !== null)
+    .sort()
+    .map((day) => DateTime.fromISO(day).setLocale("es"));
+  if (days.length === 0) return null;
+  const first = days[0]!;
+  const last = days[days.length - 1]!;
+  const sameMonth = first.month === last.month && first.year === last.year;
+  const range =
+    days.length === 1
+      ? String(first.day)
+      : sameMonth
+        ? `${first.day}–${last.day}`
+        : `${first.day} ${first.toFormat("LLL").replace(".", "")}–${last.day}`;
+  return {
+    days: range,
+    monthYear: `${last.toFormat("LLL").replace(".", "")} ${last.year}`,
+  };
+}
+
+/** "viernes 18 de diciembre", the setup day mentioned in the hero. */
+export function formatWeekdayDate(date: Date): string {
+  return laPaz(date).toFormat("cccc d 'de' LLLL");
 }
 
 /**

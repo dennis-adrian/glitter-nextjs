@@ -115,8 +115,8 @@ const phone = (message: string) =>
 const consent = (message: string) =>
   z.boolean().refine((value) => value === true, { error: message });
 
-const id = z.coerce.number({ error: "Elige una opción" }).int().positive({
-  error: "Elige una opción",
+const id = z.coerce.number({ error: "Elegí una opción." }).int().positive({
+  error: "Elegí una opción.",
 });
 
 /** The form's field groups, in the order a step-by-step form would ask them. */
@@ -142,13 +142,13 @@ function sectionDefinitions(ctx: VolunteerSchemaContext) {
   return {
     personal: {
       shape: {
-        fullName: requiredText("Escribe tu nombre completo").pipe(
-          z.string().min(3, "Escribe tu nombre completo"),
+        fullName: requiredText("Escribí tu nombre completo").pipe(
+          z.string().min(3, "Escribí tu nombre completo"),
         ),
         birthdate: z
-          .string({ error: "Indica tu fecha de nacimiento" })
+          .string({ error: "Indicá tu fecha de nacimiento" })
           .trim()
-          .regex(ISO_DATE, "Indica tu fecha de nacimiento")
+          .regex(ISO_DATE, "Indicá tu fecha de nacimiento")
           .refine((value) => DateTime.fromISO(value).isValid, {
             error: "La fecha no es válida",
           })
@@ -156,15 +156,15 @@ function sectionDefinitions(ctx: VolunteerSchemaContext) {
             error: "La fecha no es válida",
           })
           .refine((value) => isOldEnoughOn(value, ctx.ageCutoffDate), {
-            error: `Para ser voluntario/a necesitas tener ${VOLUNTEER_MIN_AGE} años cumplidos el ${formatCutoffDate(ctx.ageCutoffDate)}`,
+            error: `Tenés que ser mayor de ${VOLUNTEER_MIN_AGE} años al ${formatCutoffDate(ctx.ageCutoffDate)}.`,
           }),
-        phone: phone("Ingresa un número de celular válido"),
+        phone: phone("Ingresá un número de celular válido."),
         email: z
-          .string({ error: "Ingresa tu email" })
+          .string({ error: "Ingresá tu correo" })
           .trim()
           .toLowerCase()
           .max(254, "Es demasiado largo")
-          .pipe(z.email({ error: "Ingresa un email válido" })),
+          .pipe(z.email({ error: "Ingresá un correo válido." })),
         zone: optionalText(120),
       },
       refine: undefined,
@@ -173,17 +173,17 @@ function sectionDefinitions(ctx: VolunteerSchemaContext) {
       shape: {
         shiftIds: z
           .array(z.coerce.number().int().positive())
-          .min(1, "Elige al menos un turno")
+          .min(1, "Elegí al menos un turno.")
           .refine((ids) => ids.every((value) => shiftIds.has(value)), {
             error:
-              "Uno de los turnos ya no está disponible. Recarga la página.",
+              "Uno de los turnos ya no está disponible. Recargá la página.",
           })
           .transform((ids) => [...new Set(ids)]),
         firstChoiceRoleId: id.refine((value) => roleIds.has(value), {
-          error: "Ese rol ya no está disponible. Recarga la página.",
+          error: "Ese rol ya no está disponible. Recargá la página.",
         }),
         secondChoiceRoleId: id.refine((value) => roleIds.has(value), {
-          error: "Ese rol ya no está disponible. Recarga la página.",
+          error: "Ese rol ya no está disponible. Recargá la página.",
         }),
       },
       refine: (
@@ -194,7 +194,7 @@ function sectionDefinitions(ctx: VolunteerSchemaContext) {
           issues.addIssue({
             code: "custom",
             path: ["secondChoiceRoleId"],
-            message: "Tu 2ª opción tiene que ser distinta de la 1ª",
+            message: "Elegí un rol distinto al de tu 1ª opción.",
           });
         }
       },
@@ -211,11 +211,11 @@ function sectionDefinitions(ctx: VolunteerSchemaContext) {
           { error: VOLUNTEER_COPY.portfolioInvalid },
         ),
         motivation: requiredText(
-          "Cuéntanos por qué quieres ser voluntario/a",
+          "Contanos en pocas palabras por qué querés sumarte.",
           VOLUNTEER_MOTIVATION_MAX_LENGTH,
         ),
         referralSource: z.enum(VOLUNTEER_REFERRAL_VALUES, {
-          error: "Elige una opción",
+          error: "Elegí una opción.",
         }),
       },
       refine: undefined,
@@ -223,10 +223,10 @@ function sectionDefinitions(ctx: VolunteerSchemaContext) {
     emergencyAndCommitments: {
       shape: {
         emergencyContactName: requiredText(
-          "Escribe el nombre de tu contacto de emergencia",
+          "Escribí el nombre de tu contacto de emergencia.",
         ),
         emergencyContactPhone: phone(
-          "Ingresa un celular válido para tu contacto de emergencia",
+          "Ingresá un celular válido para tu contacto de emergencia.",
         ),
         commitmentConsent: consent(VOLUNTEER_COPY.requiredCommitments),
         dataConsent: consent(VOLUNTEER_COPY.requiredCommitments),
