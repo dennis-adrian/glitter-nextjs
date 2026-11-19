@@ -87,6 +87,13 @@ function isNotFound(error: unknown) {
   return isClerkAPIResponseError(error) && error.status === 404;
 }
 
+/** Clerk answered and refused: the request certainly was not applied. */
+function isDefiniteRefusal(error: unknown) {
+  return (
+    isClerkAPIResponseError(error) && error.status >= 400 && error.status < 500
+  );
+}
+
 function hasClerkCode(error: unknown, code: string) {
   return (
     isClerkAPIResponseError(error) &&
@@ -117,8 +124,8 @@ function requestFailed(step: string, error: unknown): ChangeClerkEmailResult {
  * after a finished one writes nothing.
  *
  * `deadline` (epoch ms) is when the caller's reservation stops being safe: a
- * newer attempt may be writing to the same account after it, so no write
- * starts past it.
+ * newer attempt may be writing to the same account after it, so no request,
+ * write or confirming read, starts past it.
  *
  * `removedEmails` are addresses the caller knows an earlier attempt was taking
  * off the account. An attempt that deleted the address and failed to unlink
@@ -145,6 +152,7 @@ export async function changeClerkUserEmail(
   if (!user) return { status: "not_found" };
   const userId = user.id;
   type Snapshot = Pick<typeof user, "emailAddresses" | "externalAccounts">;
+  type Account = (typeof user.externalAccounts)[number];
 
   try {
     const holders = await clerk.users.getUserList({ emailAddress: [newEmail] });
@@ -168,6 +176,12 @@ export async function changeClerkUserEmail(
     if (email !== "" && email !== newEmail) staleEmails.add(email);
   }
   const staleAccountIds = new Set<string>();
+  // Clerk's link names the account by its identification id; which field
+  // carries it differs by provider.
+  const accountIds = (account: Account) =>
+    [account.id, account.identificationId, account.externalAccountId].filter(
+      (id): id is string => id != null,
+    );
   // Only what is tied to an address being removed goes: a connected account
   // of some other mailbox, or of none, is the person's and stays. One already
   // on the new address stays too.
@@ -184,11 +198,7 @@ export async function changeClerkUserEmail(
       return (
         staleAccountIds.has(account.id) ||
         (email !== "" && staleEmails.has(email)) ||
-        // Clerk's link names the account by its identification id; which
-        // field carries it differs by provider.
-        [account.id, account.identificationId, account.externalAccountId].some(
-          (id) => id != null && linked.has(id),
-        )
+        accountIds(account).some((id) => linked.has(id))
       );
     });
     for (const account of accounts) staleAccountIds.add(account.id);
@@ -196,9 +206,7 @@ export async function changeClerkUserEmail(
   };
   // Clerk names the provider "oauth_google" in some payloads and "google" in
   // others.
-  const isGoogleOnNewAddress = (
-    account: (typeof user.externalAccounts)[number],
-  ) =>
+  const isGoogleOnNewAddress = (account: Account) =>
     (account.provider === "oauth_google" || account.provider === "google") &&
     onNewAddress(account) &&
     account.verification?.status === "verified";
@@ -206,19 +214,30 @@ export async function changeClerkUserEmail(
   const current = user.emailAddresses.find(
     (address) => !isStaleAddress(address),
   );
-  const settled =
-    current != null &&
-    current.verification?.status === "verified" &&
-    user.primaryEmailAddressId === current.id;
+  // The change itself, as Clerk shows it: the new address verified and primary.
+  const holdsNewAddress = (
+    snapshot: Pick<typeof user, "emailAddresses" | "primaryEmailAddressId">,
+  ) =>
+    snapshot.emailAddresses.some(
+      (address) =>
+        !isStaleAddress(address) &&
+        address.verification?.status === "verified" &&
+        snapshot.primaryEmailAddressId === address.id,
+    );
+  const settled = holdsNewAddress(user);
   const { addresses: staleAddresses, accounts: staleAccounts } = staleIn(user);
 
   // The newest read of the account: what the result says is on it.
   let latest = user;
+  // Connected accounts whose unlink failed. The address each is tied to stays
+  // with it: once the address is gone, nothing on an account without an email
+  // of its own says it was the old one's, and a retry would keep it.
+  const kept: Account[] = [];
   const done = (unlinked: Iterable<string>, oldAddressesRemoved: boolean) => ({
     status: "changed" as const,
     unlinkedProviders: [...unlinked],
-    oldAddressesRemoved,
-    passwordEnabled: user.passwordEnabled === true,
+    oldAddressesRemoved: oldAddressesRemoved && kept.length === 0,
+    passwordEnabled: latest.passwordEnabled === true,
     googleOnNewAddress: latest.externalAccounts.some(isGoogleOnNewAddress),
   });
 
@@ -232,39 +251,80 @@ export async function changeClerkUserEmail(
     return { status: "request_failed", detail: "deadline" };
   }
 
+  // "gone" only on Clerk's own word; null when it could not say, "late" when
+  // the deadline passed: by then the account may be a newer attempt's.
+  const readBack = async () => {
+    if (outOfTime()) {
+      console.error("Error confirming clerk email change", "deadline");
+      return "late" as const;
+    }
+    try {
+      return (await clerk.users.getUser(clerkId)) ?? ("gone" as const);
+    } catch (error) {
+      if (isNotFound(error)) return "gone" as const;
+      console.error(
+        "Error confirming clerk email change",
+        `get_user:${clerkErrorCode(error)}`,
+      );
+      return null;
+    }
+  };
+  // Null once the new address is the account's primary.
+  const promote = async (
+    step: string,
+    call: () => Promise<unknown>,
+  ): Promise<ChangeClerkEmailResult | null> => {
+    try {
+      await call();
+      return null;
+    } catch (error) {
+      if (hasClerkCode(error, "form_identifier_exists")) {
+        return { status: "email_taken" };
+      }
+      if (isDefiniteRefusal(error)) return requestFailed(step, error);
+      // A 5xx or a dropped connection can hide a write Clerk applied. Calling
+      // that a failure would leave the profile behind an account that already
+      // signs in with the new address, so the account is asked once.
+      const now = await readBack();
+      if (now === "late") {
+        console.error(
+          "Error changing clerk user email",
+          `${step}:${clerkErrorCode(error)}`,
+        );
+        return { status: "request_failed", detail: "deadline" };
+      }
+      if (now && now !== "gone" && holdsNewAddress(now)) {
+        latest = now;
+        return null;
+      }
+      return requestFailed(step, error);
+    }
+  };
+
   // The new address goes first. Clerk wants a connected account unlinked
   // before the address it is tied to is deleted, not before another is added,
   // so a failure here leaves the person every way in they had. Nothing has to
   // be linked for the new one: Clerk attaches an OAuth sign-in to this user
   // when the provider's verified email matches a verified address on the
   // account.
-  if (current && !settled) {
-    try {
-      await clerk.emailAddresses.updateEmailAddress(current.id, {
-        verified: true,
-        primary: true,
-      });
-    } catch (error) {
-      if (hasClerkCode(error, "form_identifier_exists")) {
-        return { status: "email_taken" };
-      }
-      return requestFailed("update_email_address", error);
-    }
-  } else if (!current) {
-    try {
-      await clerk.emailAddresses.createEmailAddress({
-        userId,
-        emailAddress: newEmail,
-        verified: true,
-        primary: true,
-      });
-    } catch (error) {
-      if (hasClerkCode(error, "form_identifier_exists")) {
-        return { status: "email_taken" };
-      }
-      return requestFailed("create_email_address", error);
-    }
-  }
+  const promoted = !settled
+    ? await promote(
+        current ? "update_email_address" : "create_email_address",
+        () =>
+          current
+            ? clerk.emailAddresses.updateEmailAddress(current.id, {
+                verified: true,
+                primary: true,
+              })
+            : clerk.emailAddresses.createEmailAddress({
+                userId,
+                emailAddress: newEmail,
+                verified: true,
+                primary: true,
+              }),
+      )
+    : null;
+  if (promoted) return promoted;
 
   // The primary has moved, so from here a failure is reported as leftovers
   // and not as a failed change: the database has to follow Clerk either way.
@@ -291,7 +351,7 @@ export async function changeClerkUserEmail(
       return "failed";
     }
   };
-  const unlink = async (account: (typeof user.externalAccounts)[number]) => {
+  const unlink = async (account: Account) => {
     const outcome = await remove("unlink_external_account", () =>
       clerk.users.deleteUserExternalAccount({
         userId,
@@ -301,30 +361,36 @@ export async function changeClerkUserEmail(
     );
     // Only what this call removed: a 404 unlinked nothing.
     if (outcome === "removed") unlinkedProviders.add(account.provider);
+    if (outcome === "failed") kept.push(account);
     return outcome;
   };
+  const tiedToKept = (address: (typeof user.emailAddresses)[number]) =>
+    kept.some(
+      (account) =>
+        normalizeEmail(account.emailAddress ?? "") ===
+          normalizeEmail(address.emailAddress) ||
+        (address.linkedTo ?? []).some((link) =>
+          accountIds(account).includes(link.id),
+        ),
+    );
   const dropAddress = (address: { id: string }) =>
     remove("delete_email_address", () =>
       clerk.emailAddresses.deleteEmailAddress(address.id),
     );
-  // "gone" only on Clerk's own word; null when it could not say.
-  const readBack = async () => {
-    try {
-      return (await clerk.users.getUser(clerkId)) ?? ("gone" as const);
-    } catch (error) {
-      if (isNotFound(error)) return "gone" as const;
-      console.error(
-        "Error confirming clerk email change",
-        `get_user:${clerkErrorCode(error)}`,
-      );
-      return null;
-    }
+  const unconfirmed = () => {
+    console.error(
+      "Error confirming clerk email change",
+      "new_address_not_primary",
+    );
+    return done(unlinkedProviders, false);
   };
 
   // Connected accounts before addresses: Clerk refuses to drop an address
   // that one is linked to.
   for (const account of staleAccounts) await unlink(account);
-  for (const address of staleAddresses) await dropAddress(address);
+  for (const address of staleAddresses) {
+    if (!tiedToKept(address)) await dropAddress(address);
+  }
   // Past the deadline even a read only delays the caller's own completion.
   if (cutShort) return done(unlinkedProviders, false);
 
@@ -335,8 +401,12 @@ export async function changeClerkUserEmail(
   // The account went while this ran: there is nothing for the database to
   // follow and nobody to tell.
   if (fresh === "gone") return { status: "not_found" };
-  if (!fresh) return done(unlinkedProviders, false);
+  if (!fresh || fresh === "late") return done(unlinkedProviders, false);
   latest = fresh;
+  // Without the new address as primary the change is not what Clerk shows, and
+  // removing more could take the way in that is left: the admin's repeat
+  // promotes it again.
+  if (!holdsNewAddress(fresh)) return unconfirmed();
 
   // One more pass, for what the first read did not have. What it did have was
   // already tried; a second attempt is the admin's to ask for.
@@ -358,7 +428,8 @@ export async function changeClerkUserEmail(
     if (seen.has(address.id)) leftovers += 1;
     else {
       late += 1;
-      if ((await dropAddress(address)) === "failed") leftovers += 1;
+      if (tiedToKept(address) || (await dropAddress(address)) === "failed")
+        leftovers += 1;
     }
   }
   if (leftovers > 0) return done(unlinkedProviders, false);
@@ -368,8 +439,9 @@ export async function changeClerkUserEmail(
   // and no pass after it.
   const last = await readBack();
   if (last === "gone") return { status: "not_found" };
-  if (!last) return done(unlinkedProviders, false);
+  if (!last || last === "late") return done(unlinkedProviders, false);
   latest = last;
+  if (!holdsNewAddress(last)) return unconfirmed();
   const remaining = staleIn(last);
   return done(
     unlinkedProviders,

@@ -20,9 +20,9 @@ export type EmailChangedNewAddressEmailProps = {
 };
 
 /**
- * To the address an account signs in with from now on. The Google paragraph is
- * the point: the old Google account was unlinked, and signing in with it again
- * would not open this account but create a new, empty one.
+ * To the address an account signs in with from now on. The Google paragraph
+ * only says which account to use: nothing here knows whether a Google account
+ * was connected, or unlinked by the change.
  */
 export default function EmailChangedNewAddressEmail({
   name,
@@ -51,9 +51,7 @@ export default function EmailChangedNewAddressEmail({
               créditos siguen igual.
             </Text>
             <Text style={styles.text}>
-              Si antes entrabas con Google, usá la cuenta de Google de este
-              correo. Si entrás con la cuenta de Google anterior se crea una
-              cuenta nueva y vacía, separada de la tuya.
+              Si entrás con Google, usá la cuenta de Google de este correo.
             </Text>
             <Text style={styles.text}>
               Si no pediste este cambio, escribinos a{" "}

@@ -1,6 +1,16 @@
 import "server-only";
 
-import { and, asc, eq, gte, inArray, isNotNull, lt, lte } from "drizzle-orm";
+import {
+  and,
+  asc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  lt,
+  lte,
+  sql,
+} from "drizzle-orm";
 
 import { queueEmails } from "@/app/lib/emails/helpers";
 import { sendSessionDayReminderEmail } from "@/app/lib/programs/notifications";
@@ -22,6 +32,7 @@ import {
   sessionTickets,
   sessionWaitlistEntries,
   sessionWaitlistInvitations,
+  users,
   venues,
 } from "@/db/schema";
 
@@ -165,7 +176,9 @@ export type SessionDayReminderSweepResult = {
  * ticket support later cancelled no longer has a seat, and a purchase still
  * under review does not have one yet — neither person should be told to show
  * up. It also gives the sweep the attendee snapshots directly, so guests and
- * renamed profiles both reach the right inbox.
+ * renamed profiles both reach the right inbox. The address is the exception
+ * for a ticket tied to an account: that one is read from the profile, because
+ * the snapshot can be left behind when the account's address changes.
  *
  * Cancelled and completed occurrences are excluded. A cancelled session must
  * never generate a "see you today", and a `completed` one already happened.
@@ -190,7 +203,9 @@ export async function sendSessionDayReminders(
       ticketId: sessionTickets.id,
       ticketCode: sessionTickets.code,
       attendeeName: sessionTickets.attendeeName,
-      attendeeEmail: sessionTickets.attendeeEmail,
+      // A deleted profile's ticket has no user left (anonymization unties
+      // it), so it falls back to its scrubbed snapshot and is dropped below.
+      attendeeEmail: sql<string>`coalesce(${users.email}, ${sessionTickets.attendeeEmail})`,
       attendeeUserId: sessionTickets.attendeeUserId,
       sessionTitle: programSessions.title,
       sessionType: programSessions.type,
@@ -212,6 +227,8 @@ export async function sendSessionDayReminders(
     // Left, not inner: a standalone session's attendees get their reminder too.
     .leftJoin(programs, eq(programs.id, programSessions.programId))
     .leftJoin(venues, eq(venues.id, sessionOccurrences.venueId))
+    // Left: a guest's ticket has no account.
+    .leftJoin(users, eq(users.id, sessionTickets.attendeeUserId))
     .where(
       and(
         eq(sessionTickets.status, "valid"),

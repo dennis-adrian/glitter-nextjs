@@ -181,12 +181,15 @@ function describeOutcome(input: {
             // new address, seen on the Clerk account, does.
             "Desvinculamos su cuenta de Google anterior. Para entrar con Google necesita una cuenta de Google del correo nuevo."
           : // Google was likely their only way in.
-            "Desvinculamos su cuenta de Google anterior. No tiene contraseña: para entrar necesita una cuenta de Google del correo nuevo o el código que le llega a ese correo. Confirmá con la persona que pudo entrar.",
+            // Whether a code by email is offered is Clerk's setting, which the
+            // backend API does not show: it is not promised.
+            "Desvinculamos su cuenta de Google anterior. No tiene contraseña: para entrar necesita una cuenta de Google del correo nuevo, o el código que le llega a ese correo si esa forma de ingreso está habilitada. Confirmá con la persona que pudo entrar.",
     );
   } else if (input.unlinkedProviders.length > 0) {
     lines.push(
       mayBeLockedOut
-        ? "Desvinculamos las cuentas conectadas al correo anterior. No tiene contraseña: para entrar necesita el código que le llega al correo nuevo o conectar una cuenta de ese correo. Confirmá con la persona que pudo entrar."
+        ? // Not "connect an account": that takes being signed in.
+          "Desvinculamos las cuentas conectadas al correo anterior. No tiene contraseña: para entrar necesita una cuenta de Google o de otro proveedor que sea del correo nuevo, o el código que le llega a ese correo si esa forma de ingreso está habilitada. Confirmá con la persona que pudo entrar."
         : "Desvinculamos las cuentas conectadas al correo anterior; puede volver a conectarlas con el correo nuevo.",
     );
   }
@@ -253,9 +256,10 @@ export async function changeUserEmail(
 
     // Outside any transaction: a network call must not hold the user lock.
     // The reservation is not renewed, so Clerk stops being written to while
-    // it still keeps a second attempt out.
+    // it still keeps a second attempt out. Counted from when the row was
+    // reserved, not from now: the transaction may have been slow to return.
     const clerk = await changeClerkUserEmail(begun.clerkId, newEmail, {
-      deadline: Date.now() + EMAIL_CHANGE_CLERK_BUDGET_MS,
+      deadline: begun.reservedAt + EMAIL_CHANGE_CLERK_BUDGET_MS,
       // A connected account of the address they are leaving goes even when
       // an earlier attempt already took the address itself off the account.
       removedEmails: [begun.oldEmail, begun.arrivedFrom],

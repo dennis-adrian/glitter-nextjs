@@ -84,6 +84,12 @@ export type BeginEmailChangeResult =
        */
       arrivedFrom: string | null;
       changeId: number;
+      /**
+       * This server's clock (epoch ms) just before the reservation row was
+       * written. The window is counted from the row, which is written later,
+       * so a deadline counted from here can only fall short of its end.
+       */
+      reservedAt: number;
       clerkId: string;
       /** As stored, read under the lock: where the old-address notice goes. */
       oldEmail: string;
@@ -178,28 +184,26 @@ export async function beginEmailChange(
   if (!resync && (await isSuppressed(newEmail, tx))) {
     // Unless Clerk already signs them in with it: an earlier run stopped
     // before the profile followed, and refusing would leave it behind for as
-    // long as the suppression stands. Only the last run that wrote to Clerk
-    // says what Clerk holds: a later one moved it somewhere else.
-    const [lastInClerk] = await tx
+    // long as the suppression stands. Only the very last attempt says what
+    // Clerk holds: any later one, even one that recorded nothing, may have
+    // written there, and then lifting the suppression is the way out.
+    const [last] = await tx
       .select({
         oldEmail: userEmailChanges.oldEmail,
         newEmail: userEmailChanges.newEmail,
+        clerkChangedAt: userEmailChanges.clerkChangedAt,
         completedAt: userEmailChanges.completedAt,
       })
       .from(userEmailChanges)
-      .where(
-        and(
-          eq(userEmailChanges.userId, user.id),
-          isNotNull(userEmailChanges.clerkChangedAt),
-        ),
-      )
+      .where(eq(userEmailChanges.userId, user.id))
       .orderBy(desc(userEmailChanges.id))
       .limit(1);
     const halfDone =
-      lastInClerk != null &&
-      lastInClerk.completedAt == null &&
-      lastInClerk.newEmail === newEmail &&
-      lastInClerk.oldEmail === user.email;
+      last != null &&
+      last.clerkChangedAt != null &&
+      last.completedAt == null &&
+      last.newEmail === newEmail &&
+      last.oldEmail === user.email;
     if (!halfDone) return { status: "suppressed" };
   }
 
@@ -236,6 +240,8 @@ export async function beginEmailChange(
     }
   }
 
+  // Before the insert: the row's own timestamp is taken after this.
+  const reservedAt = Date.now();
   const [change] = await tx
     .insert(userEmailChanges)
     .values({
@@ -254,6 +260,7 @@ export async function beginEmailChange(
     owedNotices,
     arrivedFrom,
     changeId: change.id,
+    reservedAt,
     clerkId: user.clerkId,
     oldEmail: user.email,
     displayName: user.displayName,
@@ -422,9 +429,11 @@ export async function completeEmailChange(
       .onConflictDoNothing();
   }
 
-  // The day-of reminder goes to the ticket's own copy of the address. A guest
-  // ticket for the same occurrence may already hold the new one; that ticket
-  // keeps the old address rather than break the one-seat-per-address index.
+  // The ticket's own copy of the address is what the roster and the door
+  // search show. A guest ticket for the same occurrence may already hold the
+  // new one; that ticket keeps the old address rather than break the
+  // one-seat-per-address index. The day-of reminder is not affected: for a
+  // ticket with an account it reads the profile.
   try {
     // A savepoint: the check cannot see a guest checkout that has not
     // committed, and its violation must not undo the change Clerk already has.

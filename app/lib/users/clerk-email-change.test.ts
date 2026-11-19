@@ -185,13 +185,34 @@ describe("changeClerkUserEmail", () => {
     [false, false],
     [undefined, false],
   ])("reports passwordEnabled %s as %s", async (onAccount, reported) => {
-    seeUser(clerkUser({ passwordEnabled: onAccount }));
+    seeUser(
+      clerkUser({ passwordEnabled: onAccount }),
+      settledUser({ passwordEnabled: onAccount }),
+    );
 
     await expect(changeClerkUserEmail("user_ana", NEW)).resolves.toMatchObject({
       status: "changed",
       passwordEnabled: reported,
     });
   });
+
+  it.each([
+    [true, false],
+    [false, true],
+  ])(
+    "reports passwordEnabled as last read: %s, then %s",
+    async (first, last) => {
+      // Set or removed while this ran: the read-back is what counts.
+      seeUser(
+        clerkUser({ passwordEnabled: first }),
+        settledUser({ passwordEnabled: last }),
+      );
+
+      await expect(
+        changeClerkUserEmail("user_ana", NEW),
+      ).resolves.toMatchObject({ status: "changed", passwordEnabled: last });
+    },
+  );
 
   it("falls back to the account id when there is no eac_ id", async () => {
     seeUser(
@@ -767,38 +788,323 @@ describe("changeClerkUserEmail", () => {
     expect(calls).toEqual([]);
   });
 
-  it("reports a failed unlink as a leftover once the primary has moved", async () => {
-    const linked = google(OLD, { id: "idn_g", eac: "eac_g" });
-    seeUser(
-      clerkUser({ externalAccounts: [linked] }),
-      settledUser({
-        emailAddresses: [address("idn_old", OLD), address("idn_new", NEW)],
-        externalAccounts: [linked],
-      }),
-    );
-    users.deleteUserExternalAccount.mockRejectedValue(
-      clerkError(403, "forbidden"),
-    );
-    emailAddresses.deleteEmailAddress.mockRejectedValue(
-      clerkError(422, "linked_external_account"),
-    );
-
-    await expect(changeClerkUserEmail("user_ana", NEW)).resolves.toEqual({
-      status: "changed",
-      unlinkedProviders: [],
-      oldAddressesRemoved: false,
-      passwordEnabled: true,
-      googleOnNewAddress: false,
+  describe("when a connected account will not unlink", () => {
+    const THIRD = "otra@example.com";
+    // No email of its own: only the old address's link ties it to the change.
+    const linked = { provider: "oauth_google", emailAddress: "", id: "idn_l" };
+    const byEmail = google(OLD, { id: "idn_g", eac: "eac_g" });
+    const oldAddress = (links: string[] = []) => ({
+      ...address("idn_old", OLD),
+      linkedTo: links.map((id) => ({ id, type: "oauth_google" })),
     });
 
-    // The address is still tried, and neither is tried twice.
-    expect(unlinkedIds()).toEqual(["eac_g"]);
-    expect(deletedIds()).toEqual(["idn_old"]);
-    expect(errorSpy).toHaveBeenCalledWith(
-      expect.any(String),
-      "unlink_external_account:forbidden",
+    it.each([
+      ["by email", byEmail, oldAddress(), "eac_g"],
+      ["by the address's link", linked, oldAddress(["idn_l"]), "idn_l"],
+    ])(
+      "keeps the address it is tied to %s, and still removes the others",
+      async (_label, account, old, unlinkId) => {
+        seeUser(
+          clerkUser({
+            emailAddresses: [old, address("idn_third", THIRD)],
+            externalAccounts: [account],
+          }),
+          settledUser({
+            emailAddresses: [old, address("idn_new", NEW)],
+            externalAccounts: [account],
+          }),
+        );
+        users.deleteUserExternalAccount.mockRejectedValue(
+          clerkError(403, "forbidden"),
+        );
+
+        await expect(changeClerkUserEmail("user_ana", NEW)).resolves.toEqual({
+          status: "changed",
+          unlinkedProviders: [],
+          oldAddressesRemoved: false,
+          passwordEnabled: true,
+          googleOnNewAddress: false,
+        });
+
+        // Tried once; its address is left so a retry can tell whose it was.
+        expect(unlinkedIds()).toEqual([unlinkId]);
+        expect(deletedIds()).toEqual(["idn_third"]);
+        expect(errorSpy).toHaveBeenCalledWith(
+          expect.any(String),
+          "unlink_external_account:forbidden",
+        );
+        expectNoAddressLogged();
+      },
     );
-    expectNoAddressLogged();
+
+    it("is not vouched for even if the read-back no longer shows it", async () => {
+      seeUser(clerkUser({ externalAccounts: [byEmail] }));
+      users.deleteUserExternalAccount.mockRejectedValue(
+        clerkError(500, "oops"),
+      );
+
+      await expect(
+        changeClerkUserEmail("user_ana", NEW),
+      ).resolves.toMatchObject({
+        status: "changed",
+        oldAddressesRemoved: false,
+      });
+      expect(deletedIds()).toEqual([]);
+    });
+
+    it("lets the retry find both again and remove them", async () => {
+      const before = clerkUser({
+        emailAddresses: [oldAddress(["idn_l"])],
+        externalAccounts: [linked],
+      });
+      const halfDone = settledUser({
+        emailAddresses: [oldAddress(["idn_l"]), address("idn_new", NEW)],
+        externalAccounts: [linked],
+      });
+      seeUser(before, halfDone);
+      users.deleteUserExternalAccount.mockRejectedValueOnce(
+        clerkError(500, "oops"),
+      );
+
+      await expect(
+        changeClerkUserEmail("user_ana", NEW),
+      ).resolves.toMatchObject({
+        status: "changed",
+        oldAddressesRemoved: false,
+      });
+      expect(deletedIds()).toEqual([]);
+
+      // The admin repeats the change; nothing but the account says what is old.
+      calls.length = 0;
+      seeUser(halfDone);
+
+      await expect(changeClerkUserEmail("user_ana", NEW)).resolves.toEqual({
+        status: "changed",
+        unlinkedProviders: ["oauth_google"],
+        oldAddressesRemoved: true,
+        passwordEnabled: true,
+        googleOnNewAddress: false,
+      });
+      expect(calls).toEqual(["unlink", "delete"]);
+      expect(unlinkedIds()).toEqual(["idn_l", "idn_l"]);
+      expect(deletedIds()).toEqual(["idn_old"]);
+    });
+
+    it("keeps a late address tied to a late account that will not unlink", async () => {
+      const lateAccount = google("tarde@example.com", {
+        id: "idn_lg",
+        eac: "eac_lg",
+      });
+      seeUser(
+        clerkUser(),
+        settledUser({
+          emailAddresses: [
+            address("idn_new", NEW),
+            address("idn_late", "tarde@example.com"),
+          ],
+          externalAccounts: [lateAccount],
+        }),
+      );
+      users.deleteUserExternalAccount.mockRejectedValue(
+        clerkError(500, "oops"),
+      );
+
+      await expect(
+        changeClerkUserEmail("user_ana", NEW),
+      ).resolves.toMatchObject({
+        status: "changed",
+        oldAddressesRemoved: false,
+      });
+      expect(deletedIds()).toEqual(["idn_old"]);
+    });
+  });
+
+  describe("when adding the new address fails without Clerk refusing it", () => {
+    const unverifiedNew = () =>
+      clerkUser({
+        emailAddresses: [
+          address("idn_old", OLD),
+          address("idn_new", NEW, false),
+        ],
+      });
+    const failWith = (step: "create" | "update", failure: unknown) =>
+      (step === "create"
+        ? emailAddresses.createEmailAddress
+        : emailAddresses.updateEmailAddress
+      ).mockRejectedValue(failure);
+    const dropped = () => new Error(`socket hang up for ${NEW}`);
+
+    it.each([
+      ["create", "a dropped connection", clerkUser, dropped],
+      ["update", "a dropped connection", unverifiedNew, dropped],
+      ["create", "a 502", clerkUser, () => clerkError(502, "bad_gateway")],
+      [
+        "create",
+        // How the SDK reports a fetch that threw: a Clerk error, no status.
+        "an error without a status",
+        clerkUser,
+        () =>
+          new ClerkAPIResponseError(`fetch failed for ${NEW}`, {
+            status: undefined as unknown as number,
+            data: [{ code: "unexpected_error", message: "fetch failed" }],
+          }),
+      ],
+    ] as const)(
+      "carries on when %s was applied behind %s",
+      async (step, _label, first, failure) => {
+        const account = google(OLD, { id: "idn_g", eac: "eac_g" });
+        users.getUser
+          .mockResolvedValueOnce({ ...first(), externalAccounts: [account] })
+          // Asked once: the write had landed.
+          .mockResolvedValueOnce(
+            settledUser({
+              emailAddresses: [
+                address("idn_old", OLD),
+                address("idn_new", NEW),
+              ],
+              externalAccounts: [account],
+            }),
+          )
+          .mockResolvedValueOnce(settledUser());
+        failWith(step, failure());
+
+        await expect(changeClerkUserEmail("user_ana", NEW)).resolves.toEqual({
+          status: "changed",
+          unlinkedProviders: ["oauth_google"],
+          oldAddressesRemoved: true,
+          passwordEnabled: true,
+          googleOnNewAddress: false,
+        });
+
+        // The cleanup goes on as after a write that answered.
+        expect(calls).toEqual(["unlink", "delete"]);
+        expect(users.getUser).toHaveBeenCalledTimes(3);
+        expectNoAddressLogged();
+      },
+    );
+
+    it.each([
+      ["absent", () => clerkUser()],
+      [
+        "there but not primary",
+        () =>
+          clerkUser({
+            emailAddresses: [address("idn_old", OLD), address("idn_new", NEW)],
+          }),
+      ],
+      ["there but unverified", unverifiedNew],
+    ])(
+      "fails as before when the read-back shows the address %s",
+      async (_label, second) => {
+        users.getUser
+          .mockResolvedValueOnce(clerkUser())
+          .mockResolvedValueOnce(second());
+        failWith("create", dropped());
+
+        await expect(changeClerkUserEmail("user_ana", NEW)).resolves.toEqual({
+          status: "request_failed",
+          detail: "create_email_address:unknown",
+        });
+        expect(calls).toEqual([]);
+        expect(users.getUser).toHaveBeenCalledTimes(2);
+        expectNoAddressLogged();
+      },
+    );
+
+    it.each([
+      ["fails", () => Promise.reject(clerkError(500, "oops"))],
+      ["finds no account", () => Promise.resolve(null)],
+    ])("fails as before when the read-back %s", async (_label, second) => {
+      users.getUser
+        .mockResolvedValueOnce(clerkUser())
+        .mockImplementationOnce(second);
+      failWith("create", dropped());
+
+      await expect(changeClerkUserEmail("user_ana", NEW)).resolves.toEqual({
+        status: "request_failed",
+        detail: "create_email_address:unknown",
+      });
+      expect(calls).toEqual([]);
+    });
+
+    it.each([
+      ["create", "form_param_format_invalid", clerkUser],
+      ["update", "form_param_format_invalid", unverifiedNew],
+      ["create", "form_identifier_exists", clerkUser],
+    ] as const)(
+      "takes a 422 on %s (%s) as Clerk's answer, with no read-back",
+      async (step, code, first) => {
+        // Would vouch for the change if it were ever read.
+        users.getUser
+          .mockResolvedValueOnce(first())
+          .mockResolvedValue(settledUser());
+        failWith(step, clerkError(422, code));
+
+        const result = await changeClerkUserEmail("user_ana", NEW);
+
+        expect(result.status).toBe(
+          code === "form_identifier_exists" ? "email_taken" : "request_failed",
+        );
+        expect(users.getUser).toHaveBeenCalledTimes(1);
+        expect(calls).toEqual([]);
+      },
+    );
+  });
+
+  describe("what a confirming read has to show", () => {
+    it.each([
+      [
+        "the old address primary again",
+        () =>
+          clerkUser({
+            emailAddresses: [address("idn_old", OLD), address("idn_new", NEW)],
+          }),
+      ],
+      [
+        "the new address unverified",
+        () => settledUser({ emailAddresses: [address("idn_new", NEW, false)] }),
+      ],
+      ["no new address at all", () => clerkUser({ emailAddresses: [] })],
+    ])("does not vouch for the change when it shows %s", async (_l, second) => {
+      seeUser(clerkUser(), second());
+
+      await expect(changeClerkUserEmail("user_ana", NEW)).resolves.toEqual({
+        status: "changed",
+        unlinkedProviders: [],
+        // The admin's repeat promotes the address again.
+        oldAddressesRemoved: false,
+        passwordEnabled: true,
+        googleOnNewAddress: false,
+      });
+      // Nothing more is removed from an account in that state.
+      expect(calls).toEqual(["create", "delete"]);
+      expect(users.getUser).toHaveBeenCalledTimes(2);
+      expectNoAddressLogged();
+    });
+
+    it("holds the read after the extra pass to the same standard", async () => {
+      seeUser(
+        clerkUser(),
+        settledUser({
+          emailAddresses: [
+            address("idn_new", NEW),
+            address("idn_late", "tarde@example.com"),
+          ],
+        }),
+      );
+      // Clean of old addresses, but the new one is no longer verified.
+      users.getUser.mockResolvedValueOnce(
+        settledUser({ emailAddresses: [address("idn_new", NEW, false)] }),
+      );
+
+      await expect(
+        changeClerkUserEmail("user_ana", NEW),
+      ).resolves.toMatchObject({
+        status: "changed",
+        oldAddressesRemoved: false,
+      });
+      expect(users.getUser).toHaveBeenCalledTimes(3);
+    });
   });
 
   it("counts a connected account left on the old address as a leftover", async () => {
@@ -942,6 +1248,7 @@ describe("changeClerkUserEmail", () => {
           passwordEnabled: false,
           externalAccounts: [google(OLD, { id: "idn_g", eac: "eac_g" })],
         }),
+        settledUser({ passwordEnabled: false }),
       );
 
       await expect(changeClerkUserEmail("user_ana", NEW)).resolves.toEqual({
@@ -1091,6 +1398,90 @@ describe("changeClerkUserEmail", () => {
 
       expect(calls).toEqual([]);
       expectNoAddressLogged();
+    });
+
+    it("writes nothing when it had passed before the call", async () => {
+      users.getUser.mockResolvedValue(withGoogle());
+
+      await expect(
+        changeClerkUserEmail("user_ana", NEW, { deadline: Date.now() }),
+      ).resolves.toEqual({ status: "request_failed", detail: "deadline" });
+
+      expect(calls).toEqual([]);
+      expect(emailAddresses.createEmailAddress).not.toHaveBeenCalled();
+      expect(emailAddresses.updateEmailAddress).not.toHaveBeenCalled();
+    });
+
+    it("does not read back a failed write once it has passed", async () => {
+      users.getUser
+        .mockResolvedValueOnce(withGoogle())
+        // Would vouch for the change if it were read.
+        .mockResolvedValue(settledUser());
+      emailAddresses.createEmailAddress.mockImplementation(async () => {
+        vi.setSystemTime(Date.now() + 1_000);
+        throw new Error(`socket hang up for ${NEW}`);
+      });
+
+      await expect(
+        changeClerkUserEmail("user_ana", NEW, { deadline: Date.now() + 1_000 }),
+      ).resolves.toEqual({ status: "request_failed", detail: "deadline" });
+
+      expect(users.getUser).toHaveBeenCalledTimes(1);
+      expect(calls).toEqual([]);
+      expectNoAddressLogged();
+    });
+
+    it("does not read to confirm once the last removal used the time up", async () => {
+      users.getUser
+        .mockResolvedValueOnce(clerkUser())
+        .mockResolvedValue(settledUser());
+      takes(emailAddresses.deleteEmailAddress, "delete", 1_000);
+
+      await expect(
+        changeClerkUserEmail("user_ana", NEW, { deadline: Date.now() + 1_000 }),
+      ).resolves.toEqual({
+        status: "changed",
+        unlinkedProviders: [],
+        // Every removal answered, but nothing confirmed it.
+        oldAddressesRemoved: false,
+        passwordEnabled: true,
+        googleOnNewAddress: false,
+      });
+
+      expect(calls).toEqual(["create", "delete"]);
+      expect(users.getUser).toHaveBeenCalledTimes(1);
+      expectNoAddressLogged();
+    });
+
+    it("does not make the last read once the extra pass used the time up", async () => {
+      users.getUser
+        .mockResolvedValueOnce(clerkUser())
+        .mockResolvedValueOnce(
+          settledUser({
+            emailAddresses: [
+              address("idn_new", NEW),
+              address("idn_late", "tarde@example.com"),
+            ],
+          }),
+        )
+        .mockResolvedValue(settledUser());
+      emailAddresses.deleteEmailAddress
+        .mockImplementationOnce(trackedCall("delete"))
+        .mockImplementationOnce(async () => {
+          vi.setSystemTime(Date.now() + 1_000);
+          calls.push("delete");
+          return {};
+        });
+
+      await expect(
+        changeClerkUserEmail("user_ana", NEW, { deadline: Date.now() + 1_000 }),
+      ).resolves.toMatchObject({
+        status: "changed",
+        oldAddressesRemoved: false,
+      });
+
+      expect(deletedIds()).toEqual(["idn_old", "idn_late"]);
+      expect(users.getUser).toHaveBeenCalledTimes(2);
     });
 
     it("stops removing once it has passed after the primary moved", async () => {

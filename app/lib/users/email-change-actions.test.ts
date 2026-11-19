@@ -84,6 +84,7 @@ const BEGUN = {
   owedNotices: null,
   arrivedFrom: null,
   changeId: 31,
+  reservedAt: Date.UTC(2030, 0, 1),
   clerkId: "user_ana",
   oldEmail: OLD_EMAIL,
   displayName: "Ana Ilustra",
@@ -123,6 +124,33 @@ function everythingRecorded(consoleError: { mock: { calls: unknown[][] } }) {
 }
 
 const TX = { tx: true };
+
+/**
+ * Makes the completing transaction (the second) stay open after its callback
+ * has returned, until `commit` is called: what runs meanwhile did not wait
+ * for the database.
+ */
+function holdCompletingTransaction() {
+  let commit!: () => void;
+  const committed = new Promise<void>((resolve) => {
+    commit = resolve;
+  });
+  transactionMock
+    .mockImplementationOnce((run: (tx: unknown) => unknown) => run(TX))
+    .mockImplementationOnce(async (run: (tx: unknown) => unknown) => {
+      const result = await run(TX);
+      await committed;
+      return result;
+    });
+  return { commit };
+}
+
+/** Lets everything that can run without the held transaction run. */
+async function settle() {
+  for (let turn = 0; turn < 5; turn += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+}
 
 beforeEach(() => {
   for (const mock of [
@@ -218,39 +246,76 @@ describe("changeUserEmail", () => {
       actorId: ADMIN.id,
     });
     expect(changeClerkEmailMock).toHaveBeenCalledWith("user_ana", NEW_EMAIL, {
-      deadline: expect.any(Number),
+      deadline: BEGUN.reservedAt + EMAIL_CHANGE_CLERK_BUDGET_MS,
       // So a retry still unlinks an account that outlived this address.
       removedEmails: [OLD_EMAIL, null],
     });
   });
 
-  it("gives Clerk a deadline inside the window that keeps a second attempt out", async () => {
-    vi.useFakeTimers();
-    try {
-      vi.setSystemTime(new Date("2031-01-01T00:00:00Z"));
-      // The reservation exists from here on.
-      const reservedAt = Date.now();
-      beginMock.mockImplementation(async () => {
-        vi.setSystemTime(reservedAt + 250);
-        return BEGUN;
-      });
+  describe("the deadline Clerk is given", () => {
+    const START = new Date("2031-01-01T00:00:00Z").getTime();
 
-      await changeUserEmail(INPUT);
+    /** The reservation is written at START; begin returns `ms` later. */
+    async function deadlineWhenBeginTakes(ms: number) {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(START);
+        beginMock.mockImplementation(async () => {
+          const reservedAt = Date.now();
+          // The commit, or the way back from the database, was slow.
+          vi.setSystemTime(reservedAt + ms);
+          return { ...BEGUN, reservedAt };
+        });
 
-      const [, , options] = changeClerkEmailMock.mock.calls[0];
-      expect(options.deadline).toBe(
-        reservedAt + 250 + EMAIL_CHANGE_CLERK_BUDGET_MS,
+        await changeUserEmail(INPUT);
+
+        return changeClerkEmailMock.mock.calls[0][2].deadline as number;
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+
+    it("is counted from when the reservation was written", async () => {
+      expect(await deadlineWhenBeginTakes(250)).toBe(
+        START + EMAIL_CHANGE_CLERK_BUDGET_MS,
       );
       // Room for a request already on its way when the deadline passes.
       expect(EMAIL_CHANGE_WINDOW_MS - EMAIL_CHANGE_CLERK_BUDGET_MS).toBe(
         30_000,
       );
-      expect(options.deadline).toBeLessThan(
-        reservedAt + EMAIL_CHANGE_WINDOW_MS,
+    });
+
+    it("does not move when the reservation takes longer than the margin to return", async () => {
+      const deadline = await deadlineWhenBeginTakes(45_000);
+
+      // Counted from the return it would be 15 s past the window's end.
+      expect(deadline).toBe(START + EMAIL_CHANGE_CLERK_BUDGET_MS);
+      expect(deadline).toBeLessThanOrEqual(
+        START + EMAIL_CHANGE_WINDOW_MS - 30_000,
       );
-    } finally {
-      vi.useRealTimers();
-    }
+    });
+
+    it("has already passed when the reservation returned after it", async () => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(START);
+        let returnedAt = 0;
+        beginMock.mockImplementation(async () => {
+          returnedAt = START + EMAIL_CHANGE_WINDOW_MS;
+          vi.setSystemTime(returnedAt);
+          return { ...BEGUN, reservedAt: START };
+        });
+
+        await changeUserEmail(INPUT);
+
+        // Clerk's side writes nothing past its deadline (clerk-email-change).
+        expect(changeClerkEmailMock.mock.calls[0][2].deadline).toBeLessThan(
+          returnedAt,
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   it.each([
@@ -557,11 +622,20 @@ describe("changeUserEmail", () => {
     });
 
     it("sends them only after the database has followed Clerk", async () => {
-      await changeUserEmail(INPUT);
+      const { commit } = holdCompletingTransaction();
 
-      expect(completeMock.mock.invocationCallOrder[0]).toBeLessThan(
-        sendEmailMock.mock.invocationCallOrder[0],
-      );
+      const pending = changeUserEmail(INPUT);
+      await settle();
+
+      // Its callback has returned, but the transaction has not committed.
+      expect(completeMock).toHaveBeenCalledTimes(1);
+      expect(sendEmailMock).not.toHaveBeenCalled();
+      expect(recordNoticesMock).not.toHaveBeenCalled();
+
+      commit();
+      await pending;
+
+      expect(sendEmailMock).toHaveBeenCalledTimes(2);
       expect(recordNoticesMock).toHaveBeenCalledWith(31, {
         old: "sent",
         new: "sent",
@@ -684,11 +758,31 @@ describe("changeUserEmail", () => {
         success: true,
         message: "Correo actualizado.",
         description:
-          "Desvinculamos su cuenta de Google anterior. No tiene contraseña: para entrar necesita una cuenta de Google del correo nuevo o el código que le llega a ese correo. Confirmá con la persona que pudo entrar.",
+          "Desvinculamos su cuenta de Google anterior. No tiene contraseña: para entrar necesita una cuenta de Google del correo nuevo, o el código que le llega a ese correo si esa forma de ingreso está habilitada. Confirmá con la persona que pudo entrar.",
         // They may be locked out: the toast has to stay until read.
         needsFollowUp: true,
       });
     });
+
+    it.each(["oauth_google", "oauth_facebook"])(
+      "does not state as fact that a code by email is a way in (%s)",
+      async (provider) => {
+        changeClerkEmailMock.mockResolvedValue({
+          ...CHANGED,
+          unlinkedProviders: [provider],
+          passwordEnabled: false,
+        });
+
+        const { description } = await changeUserEmail(INPUT);
+
+        // Which ways of signing in are enabled is not known from here.
+        expect(description).toContain(
+          "o el código que le llega a ese correo si esa forma de ingreso está habilitada",
+        );
+        // Connecting an account takes being signed in already.
+        expect(description).not.toMatch(/conectar/);
+      },
+    );
 
     it("warns the same way when another provider was their only way in", async () => {
       changeClerkEmailMock.mockResolvedValue({
@@ -701,7 +795,7 @@ describe("changeUserEmail", () => {
         success: true,
         message: "Correo actualizado.",
         description:
-          "Desvinculamos las cuentas conectadas al correo anterior. No tiene contraseña: para entrar necesita el código que le llega al correo nuevo o conectar una cuenta de ese correo. Confirmá con la persona que pudo entrar.",
+          "Desvinculamos las cuentas conectadas al correo anterior. No tiene contraseña: para entrar necesita una cuenta de Google o de otro proveedor que sea del correo nuevo, o el código que le llega a ese correo si esa forma de ingreso está habilitada. Confirmá con la persona que pudo entrar.",
         needsFollowUp: true,
       });
     });
@@ -916,9 +1010,26 @@ describe("changeUserEmail", () => {
           old: "sent",
           new: "sent",
         });
-        expect(completeMock.mock.invocationCallOrder[0]).toBeLessThan(
-          sendEmailMock.mock.invocationCallOrder[0],
-        );
+      });
+
+      it("sends them only once this run's transaction has committed", async () => {
+        const { commit } = holdCompletingTransaction();
+
+        const pending = changeUserEmail(RESYNC_INPUT);
+        await settle();
+
+        expect(completeMock).toHaveBeenCalledTimes(1);
+        expect(sendEmailMock).not.toHaveBeenCalled();
+        expect(recordNoticesMock).not.toHaveBeenCalled();
+
+        commit();
+        await pending;
+
+        expect(sendEmailMock).toHaveBeenCalledTimes(2);
+        expect(recordNoticesMock).toHaveBeenCalledWith(27, {
+          old: "sent",
+          new: "sent",
+        });
       });
 
       it("says so when the new address's notice fails again", async () => {

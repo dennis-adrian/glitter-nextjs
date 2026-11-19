@@ -259,10 +259,17 @@ function ageChange(changeId: number, interval: string) {
  */
 async function openRival() {
   const client = await pool!.connect();
-  const { rows } = await client.query<{ pid: number }>(
-    "select pg_backend_pid() as pid",
-  );
-  await client.query("begin");
+  let rows: { pid: number }[];
+  try {
+    ({ rows } = await client.query<{ pid: number }>(
+      "select pg_backend_pid() as pid",
+    ));
+    await client.query("begin");
+  } catch (error) {
+    // Nobody else holds the client yet to give it back.
+    client.release();
+    throw error;
+  }
   let open = true;
   return {
     client,
@@ -383,6 +390,7 @@ describeDatabase("changing the address a person signs in with", () => {
         lastName: "Rojas",
       });
       const typed = `  ${address("Nueva").toUpperCase()} `;
+      const before = Date.now();
 
       const result = await begin(user.id, typed, admin.id);
 
@@ -392,6 +400,7 @@ describeDatabase("changing the address a person signs in with", () => {
         owedNotices: null,
         arrivedFrom: null,
         changeId: expect.any(Number),
+        reservedAt: expect.any(Number),
         clerkId: user.clerkId,
         // As stored, not normalized: it is where the old notice goes.
         oldEmail: user.email,
@@ -400,7 +409,12 @@ describeDatabase("changing the address a person signs in with", () => {
         lastName: "Rojas",
       });
       if (result.status !== "ok") return;
-      expect(await auditRow(result.changeId)).toMatchObject({
+      // Taken before the row: a deadline counted from it ends inside the
+      // window, which is counted from the row.
+      const row = await auditRow(result.changeId);
+      expect(result.reservedAt).toBeGreaterThanOrEqual(before);
+      expect(result.reservedAt).toBeLessThanOrEqual(row!.createdAt.getTime());
+      expect(row).toMatchObject({
         userId: user.id,
         clerkId: user.clerkId,
         oldEmail: user.email,
@@ -743,6 +757,35 @@ describeDatabase("changing the address a person signs in with", () => {
           status: "suppressed",
         });
       });
+
+      it.each([
+        ["to the same address", (newEmail: string) => newEmail],
+        ["to another address", () => address("otra").toLowerCase()],
+      ])(
+        "still refuses after a later attempt %s that failed without saying whether Clerk changed",
+        async (_label, target) => {
+          const { admin, user, newEmail } = await halfDoneThenSuppressed();
+          const later = await begin(user.id, target(newEmail), admin.id);
+          if (later.status !== "ok") throw new Error(later.status);
+          // A dropped request: Clerk may hold either address now.
+          await emailChanges.markEmailChangeFailed(
+            later.changeId,
+            "clerk_failed: update_email_address:unknown",
+          );
+
+          await expect(begin(user.id, newEmail, admin.id)).resolves.toEqual({
+            status: "suppressed",
+          });
+          // Lifting the suppression is the way out.
+          await integrationDb!
+            .update(emailSuppressions)
+            .set({ liftedAt: new Date() })
+            .where(eq(emailSuppressions.emailKey, newEmail));
+          await expect(
+            begin(user.id, newEmail, admin.id),
+          ).resolves.toMatchObject({ status: "ok" });
+        },
+      );
 
       it("still refuses when that run finished and the profile was put back since", async () => {
         const { admin, user, newEmail, changeId } = await begun();

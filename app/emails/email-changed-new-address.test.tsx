@@ -19,17 +19,18 @@ describe("EmailChangedNewAddressEmail", () => {
   });
 
   /**
-   * The old Google account was unlinked. Signing in with it does not fail:
-   * it quietly opens a brand new account, which looks like lost data.
+   * The template is not told whether a Google account was unlinked, so it
+   * must not say one was, nor what signing in with it would do.
    */
-  it("says which Google account to use, and what the old one would do", () => {
+  it("says which Google account to use, and claims nothing about the old one", () => {
     const html = render();
 
     expect(html).toContain(
-      "Si antes entrabas con Google, usá la cuenta de Google de este",
+      "Si entrás con Google, usá la cuenta de Google de este correo.",
     );
-    expect(html).toContain("cuenta de Google anterior");
-    expect(html).toContain("cuenta nueva y vacía");
+    expect(html).not.toContain("anterior");
+    expect(html).not.toContain("Desvincul");
+    expect(html).not.toContain("cuenta nueva");
   });
 
   it("links to the sign-in page", () => {
