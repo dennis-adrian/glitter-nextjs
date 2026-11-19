@@ -357,7 +357,7 @@ describe("buildVolunteerApplicationSchema", () => {
         {
           path: "portfolio",
           message:
-            "Pegá el enlace completo, empezando con https:// (por ejemplo, https://instagram.com/tuusuario).",
+            "Pegá el enlace completo, empezando con https://",
         },
       ]);
     });

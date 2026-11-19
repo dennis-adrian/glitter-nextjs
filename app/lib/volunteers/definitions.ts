@@ -164,13 +164,12 @@ export const VOLUNTEER_COPY = {
   imageConsentLabel:
     "Autorizo el uso de mi imagen en fotos y videos del festival.",
   imageConsentNote: "Podés postular igual si no lo marcás.",
-  portfolioLabel: "Portafolio o enlace a tu trabajo",
+  portfolioLabel: "Portafolio, CV o enlace a tu trabajo",
   portfolioHint:
-    "Opcional. Pegá el enlace completo (Instagram, TikTok, Behance o tu sitio). Solo si elegiste Fotografía y redes sociales y querés mostrarnos tus fotos o videos. No influye en los demás roles.",
-  portfolioPlaceholder: "https://instagram.com/tuusuario",
+    "Opcional. Pegá el enlace completo: LinkedIn, un archivo en Drive, Instagram, Behance o tu sitio. Si es un archivo, revisá que cualquiera con el enlace pueda verlo.",
+  portfolioPlaceholder: "https://",
   /** A bare "@usuario" or anything else that is not an http(s) link. */
-  portfolioInvalid:
-    "Pegá el enlace completo, empezando con https:// (por ejemplo, https://instagram.com/tuusuario).",
+  portfolioInvalid: "Pegá el enlace completo, empezando con https://",
   reviewFields: "Revisá los campos marcados antes de enviar.",
   tooManyRequests:
     "Recibimos demasiados intentos desde tu red. Esperá unos minutos y volvé a intentar.",
