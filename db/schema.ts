@@ -8482,3 +8482,275 @@ export const impersonationSessionsRelations = relations(
     }),
   }),
 );
+/**
+ * Volunteer recruitment (`/voluntarios`).
+ *
+ * Roles and shifts are configured per festival and read by the public page,
+ * the form, the confirmation email and the admin. They are never deleted once
+ * an application references them: `is_active = false` hides them from the
+ * public form and keeps them on the applications that chose them. The foreign
+ * keys from applications are `no action`, so a delete of a referenced role or
+ * shift fails instead of silently dropping what an applicant picked.
+ *
+ * Times are `timestamp` holding UTC wall-clock, like every other column here;
+ * the festival's own clock (America/La_Paz) is applied when they are shown.
+ */
+export const volunteerApplicationStatusEnum = pgEnum(
+  "volunteer_application_status",
+  ["pending", "accepted", "rejected", "waitlist"],
+);
+
+export const volunteerReferralSourceEnum = pgEnum("volunteer_referral_source", [
+  "instagram",
+  "tiktok",
+  "friends",
+  "university",
+  "other",
+]);
+
+export const volunteerRoles = pgTable(
+  "volunteer_roles",
+  {
+    id: serial("id").primaryKey(),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** One line, shown on the role's card. */
+    description: text("description").notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("volunteer_roles_festival_name_unique").on(
+      t.festivalId,
+      t.name,
+    ),
+    index("volunteer_roles_festival_idx").on(t.festivalId, t.sortOrder),
+  ],
+);
+
+export const volunteerShifts = pgTable(
+  "volunteer_shifts",
+  {
+    id: serial("id").primaryKey(),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    /** What the shift is for ("Montaje", "Festival (turno A)"). */
+    label: text("label").notNull(),
+    startsAt: timestamp("starts_at").notNull(),
+    endsAt: timestamp("ends_at").notNull(),
+    /** How many volunteers the shift needs; 0 while undecided. */
+    neededHeadcount: integer("needed_headcount").default(0).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("volunteer_shifts_festival_idx").on(t.festivalId, t.sortOrder),
+    check(
+      "volunteer_shifts_ends_after_start",
+      sql`${t.endsAt} > ${t.startsAt}`,
+    ),
+    check(
+      "volunteer_shifts_needed_headcount_nonnegative",
+      sql`${t.neededHeadcount} >= 0`,
+    ),
+  ],
+);
+
+/**
+ * One row per festival that runs a volunteer call. The public page shows the
+ * call with the latest closing date; after `applications_close_at` it shows
+ * "Convocatoria cerrada" and the server refuses new applications.
+ */
+export const volunteerCallSettings = pgTable("volunteer_call_settings", {
+  id: serial("id").primaryKey(),
+  festivalId: integer("festival_id")
+    .notNull()
+    .unique()
+    .references(() => festivals.id, { onDelete: "cascade" }),
+  applicationsCloseAt: timestamp("applications_close_at").notNull(),
+  /** The induction every volunteer attends; null until it is scheduled. */
+  inductionAt: timestamp("induction_at"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const volunteerApplications = pgTable(
+  "volunteer_applications",
+  {
+    id: serial("id").primaryKey(),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    fullName: text("full_name").notNull(),
+    birthdate: date("birthdate").notNull(),
+    phone: text("phone").notNull(),
+    /** Trimmed and lowercased; one application per email and festival. */
+    email: text("email").notNull(),
+    zone: text("zone"),
+    firstChoiceRoleId: integer("first_choice_role_id")
+      .notNull()
+      .references(() => volunteerRoles.id),
+    secondChoiceRoleId: integer("second_choice_role_id")
+      .notNull()
+      .references(() => volunteerRoles.id),
+    /** Keys from VOLUNTEER_EXPERIENCE_OPTIONS (app/lib/volunteers). */
+    experience: text("experience")
+      .array()
+      .default(sql`'{}'::text[]`)
+      .notNull(),
+    experienceNotes: text("experience_notes"),
+    portfolio: text("portfolio"),
+    motivation: text("motivation").notNull(),
+    emergencyContactName: text("emergency_contact_name").notNull(),
+    emergencyContactPhone: text("emergency_contact_phone").notNull(),
+    referralSource: volunteerReferralSourceEnum("referral_source").notNull(),
+    /**
+     * The three required consents (shift commitment and induction, image use,
+     * data processing) are given together; this is when, and which privacy
+     * note the applicant was shown.
+     */
+    consentedAt: timestamp("consented_at").notNull(),
+    privacyNoticeVersion: text("privacy_notice_version").notNull(),
+    status: volunteerApplicationStatusEnum("status")
+      .default("pending")
+      .notNull(),
+    assignedRoleId: integer("assigned_role_id").references(
+      () => volunteerRoles.id,
+    ),
+    adminNotes: text("admin_notes"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("volunteer_applications_festival_email_unique").on(
+      t.festivalId,
+      t.email,
+    ),
+    index("volunteer_applications_festival_status_idx").on(
+      t.festivalId,
+      t.status,
+    ),
+    check(
+      "volunteer_applications_distinct_role_choices",
+      sql`${t.firstChoiceRoleId} <> ${t.secondChoiceRoleId}`,
+    ),
+    check(
+      "volunteer_applications_email_normalized",
+      sql`${t.email} = lower(btrim(${t.email}))`,
+    ),
+    check(
+      "volunteer_applications_motivation_length",
+      sql`char_length(${t.motivation}) <= 300`,
+    ),
+  ],
+);
+
+/** The shifts an applicant said they can do. */
+export const volunteerApplicationAvailableShifts = pgTable(
+  "volunteer_application_available_shifts",
+  {
+    applicationId: integer("application_id")
+      .notNull()
+      .references(() => volunteerApplications.id, { onDelete: "cascade" }),
+    shiftId: integer("shift_id")
+      .notNull()
+      .references(() => volunteerShifts.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.applicationId, t.shiftId] }),
+    index("volunteer_application_available_shifts_shift_idx").on(t.shiftId),
+  ],
+);
+
+/** The shifts an admin assigned to an applicant (PR 2). */
+export const volunteerApplicationAssignedShifts = pgTable(
+  "volunteer_application_assigned_shifts",
+  {
+    applicationId: integer("application_id")
+      .notNull()
+      .references(() => volunteerApplications.id, { onDelete: "cascade" }),
+    shiftId: integer("shift_id")
+      .notNull()
+      .references(() => volunteerShifts.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.applicationId, t.shiftId] }),
+    index("volunteer_application_assigned_shifts_shift_idx").on(t.shiftId),
+  ],
+);
+
+export const volunteerRolesRelations = relations(volunteerRoles, ({ one }) => ({
+  festival: one(festivals, {
+    fields: [volunteerRoles.festivalId],
+    references: [festivals.id],
+  }),
+}));
+
+export const volunteerShiftsRelations = relations(
+  volunteerShifts,
+  ({ one }) => ({
+    festival: one(festivals, {
+      fields: [volunteerShifts.festivalId],
+      references: [festivals.id],
+    }),
+  }),
+);
+
+export const volunteerApplicationsRelations = relations(
+  volunteerApplications,
+  ({ one, many }) => ({
+    festival: one(festivals, {
+      fields: [volunteerApplications.festivalId],
+      references: [festivals.id],
+    }),
+    firstChoiceRole: one(volunteerRoles, {
+      fields: [volunteerApplications.firstChoiceRoleId],
+      references: [volunteerRoles.id],
+    }),
+    secondChoiceRole: one(volunteerRoles, {
+      fields: [volunteerApplications.secondChoiceRoleId],
+      references: [volunteerRoles.id],
+    }),
+    assignedRole: one(volunteerRoles, {
+      fields: [volunteerApplications.assignedRoleId],
+      references: [volunteerRoles.id],
+    }),
+    availableShifts: many(volunteerApplicationAvailableShifts),
+    assignedShifts: many(volunteerApplicationAssignedShifts),
+  }),
+);
+
+export const volunteerApplicationAvailableShiftsRelations = relations(
+  volunteerApplicationAvailableShifts,
+  ({ one }) => ({
+    application: one(volunteerApplications, {
+      fields: [volunteerApplicationAvailableShifts.applicationId],
+      references: [volunteerApplications.id],
+    }),
+    shift: one(volunteerShifts, {
+      fields: [volunteerApplicationAvailableShifts.shiftId],
+      references: [volunteerShifts.id],
+    }),
+  }),
+);
+
+export const volunteerApplicationAssignedShiftsRelations = relations(
+  volunteerApplicationAssignedShifts,
+  ({ one }) => ({
+    application: one(volunteerApplications, {
+      fields: [volunteerApplicationAssignedShifts.applicationId],
+      references: [volunteerApplications.id],
+    }),
+    shift: one(volunteerShifts, {
+      fields: [volunteerApplicationAssignedShifts.shiftId],
+      references: [volunteerShifts.id],
+    }),
+  }),
+);

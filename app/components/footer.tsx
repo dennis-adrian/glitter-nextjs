@@ -9,6 +9,7 @@ import { MailIcon } from "lucide-react";
 import GlitterLogo from "@/app/components/landing/glitter-logo";
 import BrandIcon from "@/app/components/brand-icon";
 import { LINKS_PATH } from "@/app/lib/links/definitions";
+import { VOLUNTEERS_PATH } from "@/app/lib/volunteers/definitions";
 import {
   SITE_CONTACT_EMAIL,
   SOCIAL_LINKS,
@@ -63,6 +64,14 @@ export default function Footer({
                   className="text-muted-foreground hover:text-primary"
                 >
                   Festicker
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href={VOLUNTEERS_PATH}
+                  className="text-muted-foreground hover:text-primary"
+                >
+                  Voluntariado
                 </Link>
               </li>
               {blogEnabled ? (
