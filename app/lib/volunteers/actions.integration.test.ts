@@ -148,7 +148,8 @@ function application(
     experience: ["events"],
     experienceNotes: "",
     portfolio: "",
-    motivation: "Quiero ayudar a que el festival salga increíble.",
+    motivation:
+      "Quiero ayudar a que el festival salga increíble y conocer de cerca cómo se organiza un evento así de grande.",
     emergencyContactName: "Ana Rojas",
     emergencyContactPhone: "+59171234567",
     referralSource: "university",

@@ -19,8 +19,8 @@ export const VOLUNTEERS_EMAIL = "voluntarios@productoraglitter.com";
 export const VOLUNTEER_PRIVACY_NOTICE_VERSION = "2026-11-v2";
 
 export const VOLUNTEER_MIN_AGE = 18;
-/** Enough for one real sentence; whitespace at the ends does not count. */
-export const VOLUNTEER_MOTIVATION_MIN_LENGTH = 30;
+/** A couple of real sentences; whitespace at the ends does not count. */
+export const VOLUNTEER_MOTIVATION_MIN_LENGTH = 100;
 export const VOLUNTEER_MOTIVATION_MAX_LENGTH = 500;
 /** Shifts are assigned per day, never more than this many. */
 export const VOLUNTEER_MAX_SHIFTS_PER_DAY = 2;

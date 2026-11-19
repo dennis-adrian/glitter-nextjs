@@ -42,7 +42,8 @@ function validInput(overrides: Record<string, unknown> = {}) {
     experience: ["events"],
     experienceNotes: "",
     portfolio: "",
-    motivation: "Me encanta la ilustración y quiero ayudar.",
+    motivation:
+      "Me encanta la ilustración y quiero ayudar a que el festival salga bien, conociendo a artistas y al público.",
     emergencyContactName: "Ana Rojas",
     emergencyContactPhone: "+59160123456",
     referralSource: "instagram",
@@ -369,19 +370,19 @@ describe("buildVolunteerApplicationSchema", () => {
     });
   });
 
-  it("asks for at least 30 characters of motivation, not counting edge spaces", () => {
+  it("asks for at least 100 characters of motivation, not counting edge spaces", () => {
     const schema = buildVolunteerApplicationSchema(context());
     expect(
-      schema.safeParse(validInput({ motivation: "a".repeat(30) })).success,
+      schema.safeParse(validInput({ motivation: "a".repeat(100) })).success,
     ).toBe(true);
     expect(
       messages(
-        schema.safeParse(validInput({ motivation: `  ${"a".repeat(29)}   ` })),
+        schema.safeParse(validInput({ motivation: `  ${"a".repeat(99)}   ` })),
       ),
     ).toEqual([
       {
         path: "motivation",
-        message: "Contanos un poco más: escribí al menos 30 caracteres.",
+        message: "Contanos un poco más: escribí al menos 100 caracteres.",
       },
     ]);
     expect(messages(schema.safeParse(validInput({ motivation: "" })))).toEqual([
