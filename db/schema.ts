@@ -8658,7 +8658,7 @@ export const volunteerApplications = pgTable(
     ),
     check(
       "volunteer_applications_motivation_length",
-      sql`char_length(${t.motivation}) <= 300`,
+      sql`char_length(${t.motivation}) <= 500`,
     ),
   ],
 );

@@ -393,13 +393,13 @@ describe("buildVolunteerApplicationSchema", () => {
     ]);
   });
 
-  it("caps the motivation at 300 characters", () => {
+  it("caps the motivation at 500 characters", () => {
     const schema = buildVolunteerApplicationSchema(context());
     expect(
-      schema.safeParse(validInput({ motivation: "a".repeat(300) })).success,
+      schema.safeParse(validInput({ motivation: "a".repeat(500) })).success,
     ).toBe(true);
     expect(
-      messages(schema.safeParse(validInput({ motivation: "a".repeat(301) }))),
+      messages(schema.safeParse(validInput({ motivation: "a".repeat(501) }))),
     ).toEqual([{ path: "motivation", message: "Es demasiado largo" }]);
   });
 });
