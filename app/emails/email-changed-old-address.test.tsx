@@ -28,8 +28,8 @@ describe("EmailChangedOldAddressEmail", () => {
   });
 
   /**
-   * The old address can still be on the account for a moment, sessions
-   * already open stay open, mail a worker already picked up still comes here,
+   * The old address can still be on the account for a moment, closing its
+   * open sessions can fail, mail a worker already picked up still comes here,
    * and mail to the mailbox as a guest or visitor is not the account's, so
    * the notice promises none of these.
    */

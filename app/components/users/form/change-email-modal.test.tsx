@@ -172,12 +172,15 @@ describe("ChangeEmailModal", () => {
     );
   });
 
-  it("says that sessions already open stay open", () => {
+  it("says that open sessions are closed", () => {
     open();
 
     expect(
-      screen.getByText(/Las sesiones que ya tiene abiertas siguen abiertas/),
+      screen.getByText(
+        /Se cierran las sesiones que tenga abiertas, así que va a tener que volver a entrar/,
+      ),
     ).toBeTruthy();
+    expect(screen.queryByText(/siguen abiertas/)).toBeNull();
   });
 
   it("mounts the form only while open, so nothing typed survives a close", () => {

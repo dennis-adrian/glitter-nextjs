@@ -13,6 +13,7 @@ const clerkDoneMock = vi.hoisted(() => vi.fn());
 const markFailedMock = vi.hoisted(() => vi.fn());
 const recordNoticesMock = vi.hoisted(() => vi.fn());
 const changeClerkEmailMock = vi.hoisted(() => vi.fn());
+const revokeSessionsMock = vi.hoisted(() => vi.fn());
 const sendEmailMock = vi.hoisted(() => vi.fn());
 const revalidatePathMock = vi.hoisted(() => vi.fn());
 const oldTemplateMock = vi.hoisted(() => vi.fn());
@@ -52,6 +53,7 @@ vi.mock("@/app/lib/users/email-changes", async (importOriginal) => {
 });
 vi.mock("@/app/lib/users/clerk", () => ({
   changeClerkUserEmail: changeClerkEmailMock,
+  revokeClerkSessionsBefore: revokeSessionsMock,
 }));
 vi.mock("@/app/vendors/resend", () => ({ sendEmail: sendEmailMock }));
 vi.mock("@/app/emails/email-changed-old-address", () => ({
@@ -83,6 +85,7 @@ const BEGUN = {
   resync: false,
   owedNotices: null,
   arrivedFrom: null,
+  arrivedAt: null,
   changeId: 31,
   reservedAt: Date.UTC(2030, 0, 1),
   clerkId: "user_ana",
@@ -163,6 +166,7 @@ beforeEach(() => {
     markFailedMock,
     recordNoticesMock,
     changeClerkEmailMock,
+    revokeSessionsMock,
     sendEmailMock,
     revalidatePathMock,
     oldTemplateMock,
@@ -175,6 +179,7 @@ beforeEach(() => {
   );
   beginMock.mockResolvedValue(BEGUN);
   changeClerkEmailMock.mockResolvedValue(CHANGED);
+  revokeSessionsMock.mockResolvedValue({ revoked: 1, failed: 0 });
   completeMock.mockResolvedValue({ status: "ok" });
   sendEmailMock.mockResolvedValue({
     data: { id: "email-1" },
@@ -631,6 +636,148 @@ describe("changeUserEmail", () => {
         expect.objectContaining({ changeId: 32 }),
       );
       consoleError.mockRestore();
+    });
+  });
+
+  describe("open sessions", () => {
+    const SESSIONS_LEFT_OPEN =
+      "No pudimos cerrar todas sus sesiones abiertas: volvé a hacer el cambio con el mismo correo para cerrarlas.";
+
+    it("closes those opened before the change began, before the notices", async () => {
+      await expect(changeUserEmail(INPUT)).resolves.toEqual({
+        success: true,
+        message: "Correo actualizado.",
+      });
+
+      expect(revokeSessionsMock).toHaveBeenCalledWith(
+        "user_ana",
+        BEGUN.reservedAt,
+      );
+      expect(completeMock.mock.invocationCallOrder[0]).toBeLessThan(
+        revokeSessionsMock.mock.invocationCallOrder[0],
+      );
+      expect(revokeSessionsMock.mock.invocationCallOrder[0]).toBeLessThan(
+        sendEmailMock.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("counts a resync from the change that brought the profile here", async () => {
+      const arrivedAt = Date.UTC(2029, 11, 31);
+      beginMock.mockResolvedValue({ ...BEGUN, resync: true, arrivedAt });
+
+      await changeUserEmail({ userId: 7, email: OLD_EMAIL });
+
+      expect(revokeSessionsMock).toHaveBeenCalledWith("user_ana", arrivedAt);
+    });
+
+    it("closes nothing on a resync no change led to", async () => {
+      beginMock.mockResolvedValue({ ...BEGUN, resync: true, arrivedAt: null });
+
+      await expect(
+        changeUserEmail({ userId: 7, email: OLD_EMAIL }),
+      ).resolves.toEqual({
+        success: true,
+        message: "La cuenta de acceso quedó sincronizada con ese correo.",
+      });
+      expect(revokeSessionsMock).not.toHaveBeenCalled();
+    });
+
+    it.each<[string, () => void]>([
+      [
+        "a refusal",
+        () => beginMock.mockResolvedValue({ status: "in_progress" }),
+      ],
+      [
+        "Clerk refusing the address",
+        () => changeClerkEmailMock.mockResolvedValue({ status: "email_taken" }),
+      ],
+      [
+        "a failed Clerk request",
+        () =>
+          changeClerkEmailMock.mockResolvedValue({
+            status: "request_failed",
+            detail: "get_user:500",
+          }),
+      ],
+      [
+        "an unconfirmed Clerk change",
+        () =>
+          changeClerkEmailMock.mockResolvedValue({
+            status: "unconfirmed",
+            unlinkedProviders: [],
+          }),
+      ],
+      [
+        "Clerk throwing",
+        () => changeClerkEmailMock.mockRejectedValue(new Error("boom")),
+      ],
+      [
+        "a superseded change",
+        () => completeMock.mockResolvedValue({ status: "superseded" }),
+      ],
+      [
+        "a halfway stop",
+        () => completeMock.mockResolvedValue({ status: "user_gone" }),
+      ],
+      [
+        "a failed completion",
+        () => completeMock.mockRejectedValue(new Error("connection lost")),
+      ],
+    ])("closes nothing after %s", async (_, arrange) => {
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      arrange();
+
+      const result = await changeUserEmail(INPUT);
+
+      expect(result.success).toBe(false);
+      expect(revokeSessionsMock).not.toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
+
+    it("keeps a warning up when some could not be closed, and still writes", async () => {
+      revokeSessionsMock.mockResolvedValue({ revoked: 2, failed: 1 });
+
+      await expect(changeUserEmail(INPUT)).resolves.toEqual({
+        success: true,
+        message: "Correo actualizado.",
+        description: SESSIONS_LEFT_OPEN,
+        needsFollowUp: true,
+      });
+      expect(sendEmailMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps the change when closing them throws, and logs only a code", async () => {
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      revokeSessionsMock.mockRejectedValue(
+        new Error(`${NEW_EMAIL} could not be processed`),
+      );
+
+      await expect(changeUserEmail(INPUT)).resolves.toEqual({
+        success: true,
+        message: "Correo actualizado.",
+        description: SESSIONS_LEFT_OPEN,
+        needsFollowUp: true,
+      });
+      expect(sendEmailMock).toHaveBeenCalledTimes(2);
+      expect(markFailedMock).not.toHaveBeenCalled();
+      expect(everythingRecorded(consoleError)).not.toContain("example.com");
+      consoleError.mockRestore();
+    });
+
+    it("answers with the view's own message when the guard refuses", async () => {
+      const refusal = Object.assign(new Error("solo lectura"), {
+        code: "IMPERSONATION_READ_ONLY",
+      });
+      revokeSessionsMock.mockRejectedValue(refusal);
+
+      await expect(changeUserEmail(INPUT)).resolves.toEqual({
+        success: false,
+        message: "Estás viendo la app como otra cuenta: solo lectura.",
+      });
     });
   });
 

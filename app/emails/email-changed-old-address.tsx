@@ -26,10 +26,11 @@ export type EmailChangedOldAddressEmailProps = {
  * to anyone else.
  *
  * It does not say this address can no longer sign in: it may still be on the
- * account for a moment, and sessions already open stay open. Nor that no more
- * mail comes here: a worker that already read its row still sends to it, and
- * mail to this mailbox as a guest or visitor (purchases, invitations, news)
- * is not the account's and stays. Only the account's notices move.
+ * account for a moment, and closing the sessions it had open can fail. Nor
+ * that no more mail comes here: a worker that already read its row still
+ * sends to it, and mail to this mailbox as a guest or visitor (purchases,
+ * invitations, news) is not the account's and stays. Only the account's
+ * notices move.
  */
 export default function EmailChangedOldAddressEmail({
   name,

@@ -89,8 +89,8 @@ export function ChangeEmailModal({
             <AlertDescription className="min-w-0 space-y-2 break-words">
               <p>
                 Desde ahora va a iniciar sesión con el correo nuevo. El actual
-                deja de funcionar. Las sesiones que ya tiene abiertas siguen
-                abiertas.
+                deja de funcionar. Se cierran las sesiones que tenga abiertas,
+                así que va a tener que volver a entrar.
               </p>
               <p>
                 Si tiene una cuenta de Google vinculada al correo actual, se

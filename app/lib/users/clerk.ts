@@ -497,3 +497,75 @@ export async function clerkLoginStatus(
     return "unknown";
   }
 }
+
+/** Sessions asked for per page. */
+const SESSION_PAGE = 100;
+
+/**
+ * Signs the person out of every session started before `cutoff` (epoch ms).
+ * Used after an admin changes their sign-in address: the old mailbox or the
+ * old Google account may no longer be theirs, and a session it opened would
+ * outlive the change. Sessions started at or after `cutoff` came after the
+ * change began, with the new credentials, and stay.
+ *
+ * `cutoff` comes from this server's clock and `createdAt` from Clerk's: a
+ * skew of a few seconds only moves which sessions from those seconds count.
+ *
+ * Never throws for Clerk: what could not be listed or revoked is counted in
+ * `failed`, and a repeat of the change revokes it.
+ */
+export async function revokeClerkSessionsBefore(
+  clerkId: string,
+  cutoff: number,
+): Promise<{ revoked: number; failed: number }> {
+  await refuseDuringView();
+  let revoked = 0;
+  let failed = 0;
+
+  // Read every page before revoking: a revoked session leaves the active
+  // list, which would shift the offsets of the pages still to read.
+  const stale: string[] = [];
+  let clerk: Awaited<ReturnType<typeof clerkClient>> | null = null;
+  try {
+    clerk = await clerkClient();
+    let total = Infinity;
+    // Bounded by the total Clerk reported on the first page, so a list that
+    // keeps answering full pages cannot loop forever.
+    for (let offset = 0; offset < total; offset += SESSION_PAGE) {
+      const page = await clerk.sessions.getSessionList({
+        userId: clerkId,
+        status: "active",
+        limit: SESSION_PAGE,
+        offset,
+      });
+      if (total === Infinity) total = page.totalCount;
+      for (const session of page.data) {
+        if (session.createdAt < cutoff) stale.push(session.id);
+      }
+      if (page.data.length < SESSION_PAGE) break;
+    }
+  } catch (error) {
+    console.error(
+      "Error listing clerk sessions",
+      `list_sessions:${clerkErrorCode(error)}`,
+    );
+    failed += 1;
+  }
+
+  if (!clerk || stale.length === 0) return { revoked, failed };
+  for (const sessionId of new Set(stale)) {
+    try {
+      await clerk.sessions.revokeSession(sessionId);
+      revoked += 1;
+    } catch (error) {
+      // Already gone: ended or revoked meanwhile.
+      if (isNotFound(error)) continue;
+      console.error(
+        "Error revoking clerk session",
+        `revoke_session:${clerkErrorCode(error)}`,
+      );
+      failed += 1;
+    }
+  }
+  return { revoked, failed };
+}

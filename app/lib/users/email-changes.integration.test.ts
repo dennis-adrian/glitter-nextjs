@@ -399,6 +399,7 @@ describeDatabase("changing the address a person signs in with", () => {
         resync: false,
         owedNotices: null,
         arrivedFrom: null,
+        arrivedAt: null,
         changeId: expect.any(Number),
         reservedAt: expect.any(Number),
         clerkId: user.clerkId,
@@ -906,7 +907,37 @@ describeDatabase("changing the address a person signs in with", () => {
           resync: true,
           owedNotices: null,
           arrivedFrom: null,
+          arrivedAt: null,
         });
+      });
+
+      it("dates the arrival by when the change that made it began", async () => {
+        const before = Date.now();
+        const { admin, user, newEmail, changeId } = await completedUntold();
+        const after = Date.now();
+        // A later resync is not an arrival: the date stays the first one's.
+        const between = await begin(user.id, newEmail, admin.id);
+        if (between.status !== "ok") throw new Error(between.status);
+        await complete({
+          changeId: between.changeId,
+          user: { id: user.id, email: newEmail },
+          newEmail,
+        });
+
+        const resync = await begin(user.id, newEmail, admin.id);
+        if (resync.status !== "ok") throw new Error(resync.status);
+
+        const {
+          rows: [row],
+        } = await pool!.query<{ ms: number }>(
+          "select (extract(epoch from created_at::timestamptz) * 1000)::float8 as ms from user_email_changes where id = $1",
+          [changeId],
+        );
+        expect(resync.arrivedAt).toBe(row.ms);
+        // Read in the zone it was written in: on this machine's clock, give or
+        // take the database's own drift.
+        expect(resync.arrivedAt).toBeGreaterThanOrEqual(before - 5_000);
+        expect(resync.arrivedAt).toBeLessThanOrEqual(after + 5_000);
       });
 
       it("are owed once: not after their outcome is on the row, sent or failed", async () => {

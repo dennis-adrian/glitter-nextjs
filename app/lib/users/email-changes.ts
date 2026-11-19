@@ -105,6 +105,12 @@ export type BeginEmailChangeResult =
        * still hold a connected account of it that nothing else names.
        */
       arrivedFrom: string | null;
+      /**
+       * On a resync, when that change began (epoch ms, the database's clock):
+       * sessions opened before it may be the old address's. Null when no
+       * change brought the profile here.
+       */
+      arrivedAt: number | null;
       changeId: number;
       /**
        * This server's clock (epoch ms) just before the reservation row was
@@ -237,6 +243,7 @@ export async function beginEmailChange(
 
   let owedNotices: { changeId: number; oldEmail: string } | null = null;
   let arrivedFrom: string | null = null;
+  let arrivedAt: number | null = null;
   if (resync) {
     // The change that last brought the profile here, resyncs aside. Only that
     // one: an older move to the same address is not news any more.
@@ -244,6 +251,13 @@ export async function beginEmailChange(
       .select({
         id: userEmailChanges.id,
         oldEmail: userEmailChanges.oldEmail,
+        // The column has no zone and was written from clock_timestamp(), so
+        // it is read back through the session's zone, as the window check
+        // above compares it.
+        createdAtMs:
+          sql<number>`(extract(epoch from ${userEmailChanges.createdAt}::timestamptz) * 1000)::float8`.mapWith(
+            Number,
+          ),
         oldNoticeStatus: userEmailChanges.oldNoticeStatus,
         newNoticeStatus: userEmailChanges.newNoticeStatus,
       })
@@ -259,6 +273,7 @@ export async function beginEmailChange(
       .orderBy(desc(userEmailChanges.id))
       .limit(1);
     arrivedFrom = arrival?.oldEmail ?? null;
+    arrivedAt = arrival?.createdAtMs ?? null;
     if (
       arrival &&
       arrival.oldNoticeStatus == null &&
@@ -287,6 +302,7 @@ export async function beginEmailChange(
     resync,
     owedNotices,
     arrivedFrom,
+    arrivedAt,
     changeId: change.id,
     reservedAt,
     clerkId: user.clerkId,

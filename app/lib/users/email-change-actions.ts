@@ -5,7 +5,10 @@ import { revalidatePath } from "next/cache";
 import EmailChangedNewAddressEmail from "@/app/emails/email-changed-new-address";
 import EmailChangedOldAddressEmail from "@/app/emails/email-changed-old-address";
 import { IMPERSONATION_READ_ONLY_RESULT } from "@/app/lib/impersonation/definitions";
-import { changeClerkUserEmail } from "@/app/lib/users/clerk";
+import {
+  changeClerkUserEmail,
+  revokeClerkSessionsBefore,
+} from "@/app/lib/users/clerk";
 import {
   ChangeUserEmailSchema,
   type ChangeUserEmailInput,
@@ -75,6 +78,9 @@ const UNCONFIRMED =
 const UNCONFIRMED_UNLINKED =
   "Ya desvinculamos las cuentas conectadas al correo anterior.";
 
+const SESSIONS_LEFT_OPEN =
+  "No pudimos cerrar todas sus sesiones abiertas: volvé a hacer el cambio con el mismo correo para cerrarlas.";
+
 const HALFWAY_RETRY =
   "El correo de acceso ya cambió, pero no pudimos terminar de actualizar el perfil. Volvé a hacer el cambio con el mismo correo para completarlo; si te responde que ya hay un cambio en curso, esperá un par de minutos y repetilo.";
 
@@ -105,6 +111,30 @@ async function sendNotice(
     const type = sendFailureType(error);
     console.error("Error sending email change notice", which, changeId, type);
     return type;
+  }
+}
+
+/**
+ * Signs the person out of what they opened before the change began: the old
+ * mailbox or Google account may not be theirs any more. False when some
+ * session may still be open. The change is committed by now, so nothing but
+ * the view guard's refusal is thrown.
+ */
+async function closeOldSessions(clerkId: string, cutoff: number | null) {
+  // A resync with no change behind it: the address was never moved here.
+  if (cutoff == null) return true;
+  try {
+    const { failed } = await revokeClerkSessionsBefore(clerkId, cutoff);
+    return failed === 0;
+  } catch (error) {
+    // A view is refused like everywhere else in the action; the Clerk half
+    // already refused it, so this one cannot be reached.
+    if (isImpersonationReadOnlyError(error)) throw error;
+    console.error(
+      "Error closing sessions after email change",
+      emailChangeErrorCode(error),
+    );
+    return false;
   }
 }
 
@@ -168,6 +198,7 @@ function describeOutcome(input: {
   oldAddressesRemoved: boolean;
   passwordEnabled: boolean;
   googleOnNewAddress: boolean;
+  sessionsClosed: boolean;
   /** Null when nobody was written to: a resync with no notice owed. */
   notices: { old: string; new: string } | null;
 }) {
@@ -209,6 +240,7 @@ function describeOutcome(input: {
       "No pudimos confirmar que el correo anterior haya quedado fuera de la cuenta de acceso: volvé a hacer el cambio con el mismo correo para terminar de quitarlo.",
     );
   }
+  if (!input.sessionsClosed) lines.push(SESSIONS_LEFT_OPEN);
   if (input.notices && input.notices.new !== "sent") {
     lines.push("No pudimos enviar el aviso al correo nuevo; avisale vos.");
   }
@@ -218,6 +250,7 @@ function describeOutcome(input: {
     needsFollowUp:
       mayBeLockedOut ||
       !input.oldAddressesRemoved ||
+      !input.sessionsClosed ||
       (input.notices != null && input.notices.new !== "sent"),
   };
 }
@@ -324,6 +357,15 @@ export async function changeUserEmail(
       return { success: false, message: HALFWAY[completed.status] };
     }
 
+    // Before the notices, so the old mailbox is told of a change that has
+    // already shut it out. Counted from when the change began: what was
+    // opened after it used the new address. On a resync, that is the change
+    // that brought the profile here.
+    const sessionsClosed = await closeOldSessions(
+      begun.clerkId,
+      begun.resync ? begun.arrivedAt : begun.reservedAt,
+    );
+
     // On a resync, the notices belong to the earlier row that made the move.
     const noticesFor = begun.resync
       ? begun.owedNotices
@@ -344,6 +386,7 @@ export async function changeUserEmail(
       oldAddressesRemoved: clerk.oldAddressesRemoved,
       passwordEnabled: clerk.passwordEnabled,
       googleOnNewAddress: clerk.googleOnNewAddress,
+      sessionsClosed,
       notices,
     });
     return {
