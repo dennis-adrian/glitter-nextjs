@@ -6,7 +6,9 @@ import {
   inArray,
   isNotNull,
   isNull,
+  like,
   ne,
+  or,
   sql,
 } from "drizzle-orm";
 
@@ -51,10 +53,28 @@ const ACCOUNT_TOPICS = [
 /**
  * How long an unfinished change keeps another from starting. Nothing renews
  * it, so the Clerk half has to be done writing before it runs out.
+ *
+ * Clerk has no conditional writes, so a request still on its way at the
+ * Clerk deadline is not fenced off by anything here. The platform does it:
+ * vercel.json stops every function at maxDuration (100 s), with whatever
+ * request it still had open, and this window is longer by a margin, so a
+ * newer attempt only begins once the older one cannot write any more.
+ * email-changes.test.ts holds the two to that. A run that stopped with a
+ * failure frees the window at once only when nothing it sent can still land.
  */
 export const EMAIL_CHANGE_WINDOW_MS = 2 * 60_000;
 /** The Clerk half's share of the window; the rest is margin for a slow call. */
 export const EMAIL_CHANGE_CLERK_BUDGET_MS = EMAIL_CHANGE_WINDOW_MS - 30_000;
+
+/**
+ * Failures after which a Clerk write may still land: the outcome of a request
+ * was never seen, or Clerk did not show what was asked. Any `change_failed:`
+ * (Clerk threw) is one too.
+ */
+export const WRITE_MAY_LAND = [
+  "clerk_unconfirmed",
+  "clerk_failed: deadline_unconfirmed",
+] as const;
 
 /** Mail not yet sent for good: queued, or held by a worker that may fail. */
 const IN_FLIGHT = ["pending", "processing"] as const;
@@ -165,7 +185,13 @@ export async function beginEmailChange(
       and(
         eq(userEmailChanges.userId, user.id),
         isNull(userEmailChanges.completedAt),
-        isNull(userEmailChanges.lastError),
+        or(
+          isNull(userEmailChanges.lastError),
+          // Failed, but a write it sent may still land: it holds the window
+          // as long as a run that is still going would.
+          inArray(userEmailChanges.lastError, [...WRITE_MAY_LAND]),
+          like(userEmailChanges.lastError, "change_failed:%"),
+        ),
         sql`${userEmailChanges.createdAt} > clock_timestamp() - ${EMAIL_CHANGE_WINDOW_MS} * interval '1 millisecond'`,
       ),
     )

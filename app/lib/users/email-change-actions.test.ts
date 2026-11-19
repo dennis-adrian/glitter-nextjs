@@ -379,6 +379,67 @@ describe("changeUserEmail", () => {
       expect(completeMock).not.toHaveBeenCalled();
     });
 
+    it("asks to repeat the change when a late write could not be confirmed", async () => {
+      changeClerkEmailMock.mockResolvedValue({
+        status: "request_failed",
+        detail: "deadline_unconfirmed",
+      });
+
+      await expect(changeUserEmail(INPUT)).resolves.toEqual({
+        success: false,
+        message:
+          "No pudimos confirmar si el correo de acceso cambió. Volvé a hacer el cambio con el mismo correo para terminarlo; si te responde que ya hay un cambio en curso, esperá un par de minutos y repetilo.",
+      });
+      expect(markFailedMock).toHaveBeenCalledWith(
+        31,
+        "clerk_failed: deadline_unconfirmed",
+      );
+      expect(clerkDoneMock).not.toHaveBeenCalled();
+      expect(completeMock).not.toHaveBeenCalled();
+      expect(sendEmailMock).not.toHaveBeenCalled();
+      expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/users");
+    });
+
+    describe("when Clerk does not show the new address as its primary", () => {
+      it("follows nothing and asks to repeat the change", async () => {
+        changeClerkEmailMock.mockResolvedValue({
+          status: "unconfirmed",
+          unlinkedProviders: [],
+        });
+
+        await expect(changeUserEmail(INPUT)).resolves.toEqual({
+          success: false,
+          message:
+            "La cuenta de acceso no quedó con el correo nuevo como principal, así que no actualizamos el perfil. Volvé a hacer el cambio con el mismo correo; si te responde que ya hay un cambio en curso, esperá un par de minutos y repetilo.",
+        });
+        expect(markFailedMock).toHaveBeenCalledWith(31, "clerk_unconfirmed");
+        // No profile, queued mail or notice follows an address Clerk does
+        // not sign in with.
+        expect(clerkDoneMock).not.toHaveBeenCalled();
+        expect(completeMock).not.toHaveBeenCalled();
+        expect(sendEmailMock).not.toHaveBeenCalled();
+        expect(recordNoticesMock).not.toHaveBeenCalled();
+        expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/users");
+      });
+
+      it("says the connected accounts it already unlinked", async () => {
+        changeClerkEmailMock.mockResolvedValue({
+          status: "unconfirmed",
+          unlinkedProviders: ["oauth_google"],
+        });
+
+        const result = await changeUserEmail(INPUT);
+
+        expect(result).toMatchObject({
+          success: false,
+          description:
+            "Ya desvinculamos las cuentas conectadas al correo anterior.",
+        });
+        expect(completeMock).not.toHaveBeenCalled();
+        expect(sendEmailMock).not.toHaveBeenCalled();
+      });
+    });
+
     it("says the Clerk account is gone", async () => {
       changeClerkEmailMock.mockResolvedValue({ status: "not_found" });
 
@@ -1010,6 +1071,21 @@ describe("changeUserEmail", () => {
           old: "sent",
           new: "sent",
         });
+      });
+
+      it("keeps them back when Clerk does not show the address as primary", async () => {
+        changeClerkEmailMock.mockResolvedValue({
+          status: "unconfirmed",
+          unlinkedProviders: [],
+        });
+
+        await expect(changeUserEmail(RESYNC_INPUT)).resolves.toMatchObject({
+          success: false,
+        });
+        expect(markFailedMock).toHaveBeenCalledWith(31, "clerk_unconfirmed");
+        expect(completeMock).not.toHaveBeenCalled();
+        expect(sendEmailMock).not.toHaveBeenCalled();
+        expect(recordNoticesMock).not.toHaveBeenCalled();
       });
 
       it("sends them only once this run's transaction has committed", async () => {

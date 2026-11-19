@@ -136,6 +136,22 @@ function seeUser(first: unknown, after: unknown = settledUser()) {
   users.getUser.mockResolvedValueOnce(first).mockResolvedValueOnce(after);
 }
 
+/**
+ * As seeUser, for a run that unlinks something: it reads the account once more
+ * between the unlinks and the address deletes. By default that read already
+ * shows what the last one does.
+ */
+function seeUnlinking(
+  first: unknown,
+  after: unknown = settledUser(),
+  between: unknown = after,
+) {
+  users.getUser
+    .mockResolvedValueOnce(first)
+    .mockResolvedValueOnce(between)
+    .mockResolvedValueOnce(after);
+}
+
 function unlinkedIds() {
   return users.deleteUserExternalAccount.mock.calls.map(
     ([params]) => (params as { externalAccountId: string }).externalAccountId,
@@ -148,7 +164,7 @@ function deletedIds() {
 
 describe("changeClerkUserEmail", () => {
   it("adds the new address as primary, then unlinks, then drops the old", async () => {
-    seeUser(
+    seeUnlinking(
       clerkUser({
         externalAccounts: [google(OLD, { id: "idn_g", eac: "eac_g" })],
       }),
@@ -176,8 +192,8 @@ describe("changeClerkUserEmail", () => {
       primary: true,
     });
     expect(emailAddresses.deleteEmailAddress).toHaveBeenCalledWith("idn_old");
-    // Once before, once to confirm what is left.
-    expect(users.getUser).toHaveBeenCalledTimes(2);
+    // Once before, once after the unlink, once to confirm what is left.
+    expect(users.getUser).toHaveBeenCalledTimes(3);
   });
 
   it.each([
@@ -215,7 +231,7 @@ describe("changeClerkUserEmail", () => {
   );
 
   it("falls back to the account id when there is no eac_ id", async () => {
-    seeUser(
+    seeUnlinking(
       clerkUser({ externalAccounts: [google(OLD, { id: "eac_plain" })] }),
     );
 
@@ -232,7 +248,7 @@ describe("changeClerkUserEmail", () => {
       id: "idn_keep",
       eac: "eac_keep",
     });
-    seeUser(
+    seeUnlinking(
       clerkUser({
         externalAccounts: [kept, google(OLD, { id: "idn_a", eac: "eac_a" })],
       }),
@@ -295,7 +311,7 @@ describe("changeClerkUserEmail", () => {
     });
 
     it("unlinks one on another of the account's addresses, which is removed too", async () => {
-      seeUser(
+      seeUnlinking(
         clerkUser({
           emailAddresses: [
             address("idn_old", OLD),
@@ -323,7 +339,7 @@ describe("changeClerkUserEmail", () => {
     ])(
       "unlinks one the old address only links to, by its %s",
       async (_label, ids) => {
-        seeUser(
+        seeUnlinking(
           clerkUser({
             emailAddresses: [
               {
@@ -349,34 +365,119 @@ describe("changeClerkUserEmail", () => {
       },
     );
 
-    it("still counts as a leftover one that outlived the address it was tied to", async () => {
+    describe("when one outlives an unlink Clerk answered ok", () => {
       const linked = {
         provider: "oauth_google",
         emailAddress: "",
         id: "idn_l",
       };
+      const oldAddress = {
+        ...address("idn_old", OLD),
+        linkedTo: [{ id: "idn_l", type: "oauth_google" }],
+      };
+      const stillThere = () =>
+        settledUser({
+          emailAddresses: [oldAddress, address("idn_new", NEW)],
+          externalAccounts: [linked],
+        });
+
+      it("keeps the address it is tied to, so a retry can find both", async () => {
+        seeUnlinking(
+          clerkUser({
+            emailAddresses: [oldAddress],
+            externalAccounts: [linked],
+          }),
+          stillThere(),
+        );
+
+        await expect(
+          changeClerkUserEmail("user_ana", NEW),
+        ).resolves.toMatchObject({
+          status: "changed",
+          oldAddressesRemoved: false,
+        });
+        // Tried once, in the first pass; the address is all that ties it.
+        expect(unlinkedIds()).toEqual(["idn_l"]);
+        expect(deletedIds()).toEqual([]);
+
+        // The admin repeats it, with what the action passes on.
+        calls.length = 0;
+        seeUnlinking(stillThere());
+
+        await expect(
+          changeClerkUserEmail("user_ana", NEW, { removedEmails: [OLD, null] }),
+        ).resolves.toEqual({
+          status: "changed",
+          unlinkedProviders: ["oauth_google"],
+          oldAddressesRemoved: true,
+          passwordEnabled: true,
+          googleOnNewAddress: false,
+        });
+        expect(calls).toEqual(["unlink", "delete"]);
+        expect(deletedIds()).toEqual(["idn_old"]);
+      });
+
+      it("keeps the address too when that read fails", async () => {
+        users.getUser
+          .mockResolvedValueOnce(
+            clerkUser({
+              emailAddresses: [oldAddress, address("idn_third", THIRD)],
+              externalAccounts: [linked],
+            }),
+          )
+          .mockRejectedValueOnce(clerkError(500, "oops"))
+          .mockResolvedValueOnce(stillThere());
+
+        await expect(
+          changeClerkUserEmail("user_ana", NEW),
+        ).resolves.toMatchObject({
+          status: "changed",
+          oldAddressesRemoved: false,
+        });
+        // Only the address nothing unlinked was tied to goes.
+        expect(deletedIds()).toEqual(["idn_third"]);
+        expectNoAddressLogged();
+      });
+
+      it("reports the account as gone when that read answers 404", async () => {
+        users.getUser
+          .mockResolvedValueOnce(
+            clerkUser({
+              emailAddresses: [oldAddress],
+              externalAccounts: [linked],
+            }),
+          )
+          .mockRejectedValueOnce(clerkError(404, "resource_not_found"));
+
+        await expect(changeClerkUserEmail("user_ana", NEW)).resolves.toEqual({
+          status: "not_found",
+        });
+        expect(calls).toEqual(["create", "unlink"]);
+      });
+    });
+
+    it("makes no read between when nothing was unlinked", async () => {
+      // An address alone, then an account whose unlink found it gone.
+      seeUser(clerkUser());
+      await changeClerkUserEmail("user_ana", NEW);
+      expect(users.getUser).toHaveBeenCalledTimes(2);
+
+      users.getUser.mockClear();
+      users.deleteUserExternalAccount.mockRejectedValueOnce(
+        clerkError(404, "external_account_not_found"),
+      );
       seeUser(
         clerkUser({
-          emailAddresses: [
-            {
-              ...address("idn_old", OLD),
-              linkedTo: [{ id: "idn_l", type: "oauth_google" }],
-            },
-          ],
-          externalAccounts: [linked],
+          externalAccounts: [google(OLD, { id: "idn_g", eac: "eac_g" })],
         }),
-        // The address is gone, and with it the link that named the account.
-        settledUser({ externalAccounts: [linked] }),
       );
-
       await expect(
         changeClerkUserEmail("user_ana", NEW),
       ).resolves.toMatchObject({
         status: "changed",
-        oldAddressesRemoved: false,
+        oldAddressesRemoved: true,
       });
-      // Tried once, in the first pass.
-      expect(unlinkedIds()).toEqual(["idn_l"]);
+      expect(users.getUser).toHaveBeenCalledTimes(2);
     });
 
     describe("on a retry, once the old address is already off the account", () => {
@@ -396,7 +497,7 @@ describe("changeClerkUserEmail", () => {
       });
 
       it("unlinks the survivor of an address the caller says was removed", async () => {
-        seeUser(settledUser({ externalAccounts: [survivor] }));
+        seeUnlinking(settledUser({ externalAccounts: [survivor] }));
 
         await expect(
           changeClerkUserEmail("user_ana", NEW, { removedEmails: [OLD, null] }),
@@ -605,7 +706,7 @@ describe("changeClerkUserEmail", () => {
   );
 
   it("finishes a half-done attempt: only the leftovers are removed", async () => {
-    seeUser(
+    seeUnlinking(
       clerkUser({
         primaryEmailAddressId: "idn_new",
         emailAddresses: [address("idn_old", OLD), address("idn_new", NEW)],
@@ -624,7 +725,7 @@ describe("changeClerkUserEmail", () => {
   });
 
   it("does not count as unlinked an account that was already gone", async () => {
-    seeUser(
+    seeUnlinking(
       clerkUser({
         externalAccounts: [
           google(OLD, { id: "idn_g", eac: "eac_g" }),
@@ -876,7 +977,7 @@ describe("changeClerkUserEmail", () => {
 
       // The admin repeats the change; nothing but the account says what is old.
       calls.length = 0;
-      seeUser(halfDone);
+      seeUnlinking(halfDone);
 
       await expect(changeClerkUserEmail("user_ana", NEW)).resolves.toEqual({
         status: "changed",
@@ -965,6 +1066,15 @@ describe("changeClerkUserEmail", () => {
               externalAccounts: [account],
             }),
           )
+          // After the unlink, before the old address goes.
+          .mockResolvedValueOnce(
+            settledUser({
+              emailAddresses: [
+                address("idn_old", OLD),
+                address("idn_new", NEW),
+              ],
+            }),
+          )
           .mockResolvedValueOnce(settledUser());
         failWith(step, failure());
 
@@ -978,7 +1088,7 @@ describe("changeClerkUserEmail", () => {
 
         // The cleanup goes on as after a write that answered.
         expect(calls).toEqual(["unlink", "delete"]);
-        expect(users.getUser).toHaveBeenCalledTimes(3);
+        expect(users.getUser).toHaveBeenCalledTimes(4);
         expectNoAddressLogged();
       },
     );
@@ -1065,16 +1175,14 @@ describe("changeClerkUserEmail", () => {
         () => settledUser({ emailAddresses: [address("idn_new", NEW, false)] }),
       ],
       ["no new address at all", () => clerkUser({ emailAddresses: [] })],
-    ])("does not vouch for the change when it shows %s", async (_l, second) => {
+    ])("does not report a change when it shows %s", async (_l, second) => {
       seeUser(clerkUser(), second());
 
+      // Clerk does not sign in with the new address: nothing may follow it.
+      // The admin's repeat promotes the address again.
       await expect(changeClerkUserEmail("user_ana", NEW)).resolves.toEqual({
-        status: "changed",
+        status: "unconfirmed",
         unlinkedProviders: [],
-        // The admin's repeat promotes the address again.
-        oldAddressesRemoved: false,
-        passwordEnabled: true,
-        googleOnNewAddress: false,
       });
       // Nothing more is removed from an account in that state.
       expect(calls).toEqual(["create", "delete"]);
@@ -1097,11 +1205,9 @@ describe("changeClerkUserEmail", () => {
         settledUser({ emailAddresses: [address("idn_new", NEW, false)] }),
       );
 
-      await expect(
-        changeClerkUserEmail("user_ana", NEW),
-      ).resolves.toMatchObject({
-        status: "changed",
-        oldAddressesRemoved: false,
+      await expect(changeClerkUserEmail("user_ana", NEW)).resolves.toEqual({
+        status: "unconfirmed",
+        unlinkedProviders: [],
       });
       expect(users.getUser).toHaveBeenCalledTimes(3);
     });
@@ -1109,16 +1215,19 @@ describe("changeClerkUserEmail", () => {
 
   it("counts a connected account left on the old address as a leftover", async () => {
     const linked = google(OLD, { id: "idn_g", eac: "eac_g" });
-    seeUser(
-      clerkUser({ externalAccounts: [linked] }),
-      // The address went; the account Clerk said it removed is still there.
-      settledUser({ externalAccounts: [linked] }),
-    );
+    const stillLinked = settledUser({
+      emailAddresses: [address("idn_old", OLD), address("idn_new", NEW)],
+      externalAccounts: [linked],
+    });
+    // The account Clerk said it removed is still there, on both reads.
+    seeUnlinking(clerkUser({ externalAccounts: [linked] }), stillLinked);
 
     await expect(changeClerkUserEmail("user_ana", NEW)).resolves.toMatchObject({
       status: "changed",
       oldAddressesRemoved: false,
     });
+    // Its address stays with it, for a retry to tie the two.
+    expect(deletedIds()).toEqual([]);
   });
 
   it("still reports the change when the old address cannot be removed", async () => {
@@ -1208,7 +1317,7 @@ describe("changeClerkUserEmail", () => {
 
   describe("what the result says about Google on the new address", () => {
     it("is true for a verified Google account of the new address, read last", async () => {
-      seeUser(
+      seeUnlinking(
         clerkUser({
           externalAccounts: [google(OLD, { id: "idn_g", eac: "eac_g" })],
         }),
@@ -1243,7 +1352,7 @@ describe("changeClerkUserEmail", () => {
     });
 
     it("is false when the only Google account was the one unlinked", async () => {
-      seeUser(
+      seeUnlinking(
         clerkUser({
           passwordEnabled: false,
           externalAccounts: [google(OLD, { id: "idn_g", eac: "eac_g" })],
@@ -1400,16 +1509,34 @@ describe("changeClerkUserEmail", () => {
       expectNoAddressLogged();
     });
 
-    it("writes nothing when it had passed before the call", async () => {
+    it("sends nothing, not even a read, when it had passed before the call", async () => {
       users.getUser.mockResolvedValue(withGoogle());
 
       await expect(
         changeClerkUserEmail("user_ana", NEW, { deadline: Date.now() }),
       ).resolves.toEqual({ status: "request_failed", detail: "deadline" });
 
+      expect(users.getUser).not.toHaveBeenCalled();
+      expect(users.getUserList).not.toHaveBeenCalled();
       expect(calls).toEqual([]);
       expect(emailAddresses.createEmailAddress).not.toHaveBeenCalled();
       expect(emailAddresses.updateEmailAddress).not.toHaveBeenCalled();
+    });
+
+    it("sends nothing more once the first read used the time up", async () => {
+      users.getUser.mockImplementation(async () => {
+        vi.setSystemTime(Date.now() + 1_000);
+        return withGoogle();
+      });
+
+      await expect(
+        changeClerkUserEmail("user_ana", NEW, { deadline: Date.now() + 1_000 }),
+      ).resolves.toEqual({ status: "request_failed", detail: "deadline" });
+
+      expect(users.getUser).toHaveBeenCalledTimes(1);
+      expect(users.getUserList).not.toHaveBeenCalled();
+      expect(calls).toEqual([]);
+      expectNoAddressLogged();
     });
 
     it("does not read back a failed write once it has passed", async () => {
@@ -1422,9 +1549,13 @@ describe("changeClerkUserEmail", () => {
         throw new Error(`socket hang up for ${NEW}`);
       });
 
+      // Not "deadline": the write may have landed, and nothing read whether.
       await expect(
         changeClerkUserEmail("user_ana", NEW, { deadline: Date.now() + 1_000 }),
-      ).resolves.toEqual({ status: "request_failed", detail: "deadline" });
+      ).resolves.toEqual({
+        status: "request_failed",
+        detail: "deadline_unconfirmed",
+      });
 
       expect(users.getUser).toHaveBeenCalledTimes(1);
       expect(calls).toEqual([]);
@@ -1508,7 +1639,8 @@ describe("changeClerkUserEmail", () => {
       });
 
       // A newer attempt may own the account now: not one more write, and no
-      // read to wait for either.
+      // read to wait for either. Unread, the unlinked account counts as still
+      // there, so the old address tied to it is not even tried.
       expect(calls).toEqual(["create", "unlink"]);
       expect(users.getUser).toHaveBeenCalledTimes(1);
       expectNoAddressLogged();
@@ -1545,7 +1677,7 @@ describe("changeClerkUserEmail", () => {
     });
 
     it("finishes as usual while there is time left", async () => {
-      seeUser(withGoogle());
+      seeUnlinking(withGoogle());
 
       await expect(
         changeClerkUserEmail("user_ana", NEW, { deadline: Date.now() + 1_000 }),
@@ -1556,28 +1688,31 @@ describe("changeClerkUserEmail", () => {
       expect(calls).toEqual(["create", "unlink", "delete"]);
     });
 
-    it("leaves a settled account alone whatever the time", async () => {
+    it("does not even read a settled account once it has passed", async () => {
       users.getUser.mockResolvedValue(settledUser());
 
+      // The account may be a newer attempt's by then; the admin repeats it.
       await expect(
         changeClerkUserEmail("user_ana", NEW, { deadline: Date.now() - 1 }),
-      ).resolves.toMatchObject({
-        status: "changed",
-        oldAddressesRemoved: true,
-      });
+      ).resolves.toEqual({ status: "request_failed", detail: "deadline" });
+      expect(users.getUser).not.toHaveBeenCalled();
     });
 
     it("removes nothing, and says so, when the primary had moved already", async () => {
-      // A retry that arrives late: the change itself is done in Clerk.
+      // A retry whose reads used the time up: the change is done in Clerk.
       users.getUser.mockResolvedValue(
         clerkUser({
           primaryEmailAddressId: "idn_new",
           emailAddresses: [address("idn_old", OLD), address("idn_new", NEW)],
         }),
       );
+      users.getUserList.mockImplementation(async () => {
+        vi.setSystemTime(Date.now() + 1_000);
+        return { data: [], totalCount: 0 };
+      });
 
       await expect(
-        changeClerkUserEmail("user_ana", NEW, { deadline: Date.now() - 1 }),
+        changeClerkUserEmail("user_ana", NEW, { deadline: Date.now() + 1_000 }),
       ).resolves.toMatchObject({
         status: "changed",
         oldAddressesRemoved: false,

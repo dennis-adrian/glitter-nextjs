@@ -1,4 +1,7 @@
 // @vitest-environment node
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { type SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it, vi } from "vitest";
@@ -6,7 +9,11 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/db", () => ({ db: {} }));
 
-import { scrubEmailChangesForUser } from "@/app/lib/users/email-changes";
+import {
+  EMAIL_CHANGE_CLERK_BUDGET_MS,
+  EMAIL_CHANGE_WINDOW_MS,
+  scrubEmailChangesForUser,
+} from "@/app/lib/users/email-changes";
 import { userEmailChanges } from "@/db/schema";
 
 describe("scrubEmailChangesForUser", () => {
@@ -36,5 +43,20 @@ describe("scrubEmailChangesForUser", () => {
     const where = new PgDialect().sqlToQuery(conditions[0] as SQL);
     expect(where.sql).toBe('"user_email_changes"."user_id" = $1');
     expect(where.params).toEqual([12]);
+  });
+});
+
+describe("the reservation window", () => {
+  // Clerk cannot refuse a stale write, so the platform's function limit is
+  // what keeps an older attempt from writing over a newer one.
+  it("outlasts the functions' maxDuration in vercel.json by a margin", () => {
+    const vercel = JSON.parse(
+      readFileSync(join(process.cwd(), "vercel.json"), "utf8"),
+    ) as { functions: Record<string, { maxDuration: number }> };
+    const capMs = vercel.functions["app/**/*"]!.maxDuration * 1_000;
+
+    expect(EMAIL_CHANGE_WINDOW_MS).toBeGreaterThanOrEqual(capMs + 20_000);
+    // The Clerk half stops on its own before the platform stops it.
+    expect(EMAIL_CHANGE_CLERK_BUDGET_MS).toBeLessThan(capMs);
   });
 });

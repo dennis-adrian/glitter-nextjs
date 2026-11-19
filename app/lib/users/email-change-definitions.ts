@@ -51,7 +51,8 @@ export type ChangeUserEmailResult = {
  * What the Clerk side of a change reports. `changed` covers a retry that found
  * the work already done. Once the primary address has moved, the result is
  * `changed` even when tidying up failed, so the database can follow Clerk.
- * `not_found` can also come after that, when the account was deleted meanwhile.
+ * `not_found` can also come after that, when the account was deleted meanwhile,
+ * and `unconfirmed` when a read no longer shows the new address as primary.
  */
 export type ChangeClerkEmailResult =
   | {
@@ -61,8 +62,7 @@ export type ChangeClerkEmailResult =
       /**
        * False when an address other than the new one, or a connected account
        * tied to one, is still on the account, or when that is unknown: no
-       * read confirmed it, or the read did not show the new address verified
-       * and primary.
+       * read confirmed it.
        */
       oldAddressesRemoved: boolean;
       /** Without one, a connected account or an emailed code is the way in. */
@@ -73,10 +73,24 @@ export type ChangeClerkEmailResult =
        */
       googleOnNewAddress: boolean;
     }
+  | {
+      /**
+       * A read after the write did not show the new address verified and
+       * primary: Clerk does not sign in with it, so nothing may follow it.
+       */
+      status: "unconfirmed";
+      /** Providers of the accounts this run unlinked before it found out. */
+      unlinkedProviders: string[];
+    }
   | { status: "email_taken" }
   | { status: "not_found" }
   | {
       status: "request_failed";
-      /** Log-safe: a step name and Clerk's error code, never an address. */
+      /**
+       * Log-safe: a step name and Clerk's error code, never an address.
+       * "deadline" when nothing was sent; "deadline_unconfirmed" when a write
+       * failed in a way that may still have been applied and the deadline
+       * left no time to read whether it was.
+       */
       detail: string;
     };

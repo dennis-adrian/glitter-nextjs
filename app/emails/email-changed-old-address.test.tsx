@@ -29,15 +29,17 @@ describe("EmailChangedOldAddressEmail", () => {
 
   /**
    * The old address can still be on the account for a moment, sessions
-   * already open stay open, and mail a worker already picked up still comes
-   * here, so the notice promises none of the three.
+   * already open stay open, mail a worker already picked up still comes here,
+   * and mail to the mailbox as a guest or visitor is not the account's, so
+   * the notice promises none of these.
    */
-  it("says where notices go from now on, not that this mailbox is cut off", () => {
+  it("says where the account's notices go from now on, not that this mailbox is cut off", () => {
     const html = render();
 
     expect(html).toContain(
-      "nuestros avisos van a ese correo de ahora en adelante",
+      "los avisos de tu cuenta van a ese correo de ahora en adelante",
     );
+    expect(html).not.toContain("nuestros avisos");
     expect(html).toContain("alguno que ya estaba en camino");
     expect(html).not.toContain("deja de recibir");
     expect(html).not.toContain("ya no sirve");

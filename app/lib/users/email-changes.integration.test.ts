@@ -545,6 +545,28 @@ describeDatabase("changing the address a person signs in with", () => {
         );
       });
 
+      it.each([
+        "clerk_unconfirmed",
+        "clerk_failed: deadline_unconfirmed",
+        "change_failed: TypeError",
+      ])(
+        "keeps holding back while a failed one's write may still land (%s)",
+        async (code) => {
+          const { admin, user, newEmail, changeId } = await begun();
+          await emailChanges.markEmailChangeFailed(changeId, code);
+
+          await expect(begin(user.id, newEmail, admin.id)).resolves.toEqual({
+            status: "in_progress",
+          });
+
+          // Past the window the run that sent it has been stopped.
+          await ageChange(changeId, "2 minutes 5 seconds");
+          await expect(
+            begin(user.id, newEmail, admin.id),
+          ).resolves.toMatchObject({ status: "ok" });
+        },
+      );
+
       it("goes ahead once the earlier one completed", async () => {
         const { admin, user, newEmail, changeId } = await begun();
         await complete({ changeId, user, newEmail });

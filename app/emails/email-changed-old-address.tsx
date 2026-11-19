@@ -27,7 +27,9 @@ export type EmailChangedOldAddressEmailProps = {
  *
  * It does not say this address can no longer sign in: it may still be on the
  * account for a moment, and sessions already open stay open. Nor that no more
- * mail comes here: a worker that already read its row still sends to it.
+ * mail comes here: a worker that already read its row still sends to it, and
+ * mail to this mailbox as a guest or visitor (purchases, invitations, news)
+ * is not the account's and stays. Only the account's notices move.
  */
 export default function EmailChangedOldAddressEmail({
   name,
@@ -50,8 +52,8 @@ export default function EmailChangedOldAddressEmail({
               <span style={{ ...styles.email, overflowWrap: "anywhere" }}>
                 {maskEmail(newEmail)}
               </span>
-              , y nuestros avisos van a ese correo de ahora en adelante. Puede
-              que todavía llegue acá alguno que ya estaba en camino.
+              , y los avisos de tu cuenta van a ese correo de ahora en adelante.
+              Puede que todavía llegue acá alguno que ya estaba en camino.
             </Text>
             <Text style={styles.text}>
               Si no pediste este cambio, escribinos cuanto antes a{" "}

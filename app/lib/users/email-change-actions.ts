@@ -65,6 +65,16 @@ const HALFWAY: Record<
     "Mientras tanto empezó otro cambio de correo para este perfil, así que no actualizamos el perfil con este. Puede que el correo de acceso haya cambiado en este intento: revisá el correo del perfil y, si hace falta, repetí el cambio.",
 };
 
+// A write may have landed after all: only a repeat can tell.
+const DEADLINE_UNCONFIRMED =
+  "No pudimos confirmar si el correo de acceso cambió. Volvé a hacer el cambio con el mismo correo para terminarlo; si te responde que ya hay un cambio en curso, esperá un par de minutos y repetilo.";
+
+const UNCONFIRMED =
+  "La cuenta de acceso no quedó con el correo nuevo como principal, así que no actualizamos el perfil. Volvé a hacer el cambio con el mismo correo; si te responde que ya hay un cambio en curso, esperá un par de minutos y repetilo.";
+
+const UNCONFIRMED_UNLINKED =
+  "Ya desvinculamos las cuentas conectadas al correo anterior.";
+
 const HALFWAY_RETRY =
   "El correo de acceso ya cambió, pero no pudimos terminar de actualizar el perfil. Volvé a hacer el cambio con el mismo correo para completarlo; si te responde que ya hay un cambio en curso, esperá un par de minutos y repetilo.";
 
@@ -278,7 +288,24 @@ export async function changeUserEmail(
     }
     if (clerk.status === "request_failed") {
       await noteFailure(changeId, `clerk_failed: ${clerk.detail}`);
+      if (clerk.detail === "deadline_unconfirmed") {
+        revalidatePath("/dashboard/users");
+        return { success: false, message: DEADLINE_UNCONFIRMED };
+      }
       return { success: false, message: GENERIC_FAILURE };
+    }
+    // Clerk does not sign in with the new address, so the profile, the queued
+    // mail and the notices must not follow it.
+    if (clerk.status === "unconfirmed") {
+      await noteFailure(changeId, "clerk_unconfirmed");
+      revalidatePath("/dashboard/users");
+      return {
+        success: false,
+        message: UNCONFIRMED,
+        ...(clerk.unlinkedProviders.length > 0
+          ? { description: UNCONFIRMED_UNLINKED }
+          : {}),
+      };
     }
     clerkChanged = true;
 

@@ -125,7 +125,11 @@ function requestFailed(step: string, error: unknown): ChangeClerkEmailResult {
  *
  * `deadline` (epoch ms) is when the caller's reservation stops being safe: a
  * newer attempt may be writing to the same account after it, so no request,
- * write or confirming read, starts past it.
+ * write or confirming read, starts past it. Clerk has no conditional writes,
+ * so a request already on its way at the deadline cannot be fenced off here:
+ * what keeps it from landing over a newer attempt is the platform, which
+ * stops this function (and its open requests) at vercel.json's maxDuration,
+ * before the reservation window lets that attempt begin.
  *
  * `removedEmails` are addresses the caller knows an earlier attempt was taking
  * off the account. An attempt that deleted the address and failed to unlink
@@ -142,6 +146,13 @@ export async function changeClerkUserEmail(
   const outOfTime = () =>
     options.deadline != null && Date.now() >= options.deadline;
 
+  // Nothing sent yet: a retry starts clean.
+  const tooLate = (): ChangeClerkEmailResult => {
+    console.error("Error changing clerk user email", "deadline");
+    return { status: "request_failed", detail: "deadline" };
+  };
+  if (outOfTime()) return tooLate();
+
   let user;
   try {
     user = await clerk.users.getUser(clerkId);
@@ -154,6 +165,7 @@ export async function changeClerkUserEmail(
   type Snapshot = Pick<typeof user, "emailAddresses" | "externalAccounts">;
   type Account = (typeof user.externalAccounts)[number];
 
+  if (outOfTime()) return tooLate();
   try {
     const holders = await clerk.users.getUserList({ emailAddress: [newEmail] });
     if (holders.data.some((holder) => holder.id !== userId)) {
@@ -229,9 +241,9 @@ export async function changeClerkUserEmail(
 
   // The newest read of the account: what the result says is on it.
   let latest = user;
-  // Connected accounts whose unlink failed. The address each is tied to stays
-  // with it: once the address is gone, nothing on an account without an email
-  // of its own says it was the old one's, and a retry would keep it.
+  // Connected accounts not known to be unlinked. The address each is tied to
+  // stays with it: once the address is gone, nothing on an account without an
+  // email of its own says it was the old one's, and a retry would keep it.
   const kept: Account[] = [];
   const done = (unlinked: Iterable<string>, oldAddressesRemoved: boolean) => ({
     status: "changed" as const,
@@ -246,10 +258,7 @@ export async function changeClerkUserEmail(
   }
 
   // Nothing written yet, so the account is as it was and a retry starts clean.
-  if (!settled && outOfTime()) {
-    console.error("Error changing clerk user email", "deadline");
-    return { status: "request_failed", detail: "deadline" };
-  }
+  if (!settled && outOfTime()) return tooLate();
 
   // "gone" only on Clerk's own word; null when it could not say, "late" when
   // the deadline passed: by then the account may be a newer attempt's.
@@ -286,12 +295,14 @@ export async function changeClerkUserEmail(
       // that a failure would leave the profile behind an account that already
       // signs in with the new address, so the account is asked once.
       const now = await readBack();
+      // Not "deadline": the write may have landed, and only a repeat by the
+      // admin can find out.
       if (now === "late") {
         console.error(
           "Error changing clerk user email",
           `${step}:${clerkErrorCode(error)}`,
         );
-        return { status: "request_failed", detail: "deadline" };
+        return { status: "request_failed", detail: "deadline_unconfirmed" };
       }
       if (now && now !== "gone" && holdsNewAddress(now)) {
         latest = now;
@@ -377,17 +388,36 @@ export async function changeClerkUserEmail(
     remove("delete_email_address", () =>
       clerk.emailAddresses.deleteEmailAddress(address.id),
     );
-  const unconfirmed = () => {
+  const unconfirmed = (): ChangeClerkEmailResult => {
     console.error(
       "Error confirming clerk email change",
       "new_address_not_primary",
     );
-    return done(unlinkedProviders, false);
+    return { status: "unconfirmed", unlinkedProviders: [...unlinkedProviders] };
   };
 
   // Connected accounts before addresses: Clerk refuses to drop an address
   // that one is linked to.
-  for (const account of staleAccounts) await unlink(account);
+  const unlinked: Account[] = [];
+  for (const account of staleAccounts) {
+    if ((await unlink(account)) === "removed") unlinked.push(account);
+  }
+  // Clerk can answer an unlink with success and keep the account, and its
+  // address is the only thing a retry could tie it back by: so it is read
+  // before that address goes.
+  if (unlinked.length > 0) {
+    const after = await readBack();
+    if (after === "gone") return { status: "not_found" };
+    // Unread (failed, or past the deadline) counts as still there.
+    const left =
+      after && after !== "late"
+        ? new Set(after.externalAccounts.map((account) => account.id))
+        : null;
+    if (after && after !== "late") latest = after;
+    for (const account of unlinked) {
+      if (!left || left.has(account.id)) kept.push(account);
+    }
+  }
   for (const address of staleAddresses) {
     if (!tiedToKept(address)) await dropAddress(address);
   }
