@@ -138,6 +138,7 @@ function fullTableFixture() {
 function queueJob(job: {
   kind: string;
   recipientEmail: string;
+  userId?: number | null;
   reservationId?: number | null;
   payload?: Record<string, unknown>;
 }) {
@@ -145,6 +146,7 @@ function queueJob(job: {
     id: 1,
     notificationKind: job.kind,
     recipientEmail: job.recipientEmail,
+    userId: job.userId ?? null,
     reservationId: job.reservationId === undefined ? 42 : job.reservationId,
     payload: job.payload ?? {},
     attempts: 0,
@@ -448,6 +450,109 @@ describe("attemptReservationNotificationJob", () => {
 
       const { html } = await sentEmail();
       expect(html).toContain("cupo completo");
+    });
+  });
+  /**
+   * An email change moves the address on a job a worker already claimed, and
+   * the profile it is compared with then holds the other one. The account the
+   * job was queued for is what says whose copy it is.
+   */
+  describe("a job claimed across an email change", () => {
+    const MOVED = "ana.nueva@example.com";
+    const withAnaMoved = () => {
+      const reservation = reservationFixture();
+      const ana = { ...ANA, email: MOVED };
+      return {
+        ...reservation,
+        participants: [
+          { userId: ANA.id, user: ana },
+          { userId: CARLA.id, user: CARLA },
+        ],
+        invoices: reservation.invoices.map((invoice) => ({
+          ...invoice,
+          user: ana,
+        })),
+      };
+    };
+    const ADMIN_ID = 99;
+
+    it.each(["proof_submitted", "zero_value_review_requested"])(
+      "still sends the owner their own %s copy",
+      async (kind) => {
+        findReservationMock.mockResolvedValue(withAnaMoved());
+        // Read before the change: the old address, and Ana's id.
+        queueJob({ kind, recipientEmail: ANA.email, userId: ANA.id });
+
+        await attemptReservationNotificationJob(1);
+
+        const { subject } = await sentEmail();
+        expect(subject).toMatch(
+          /^Tu (pago ha sido registrado|reserva está en revisión)$/,
+        );
+      },
+    );
+
+    it("still sends an admin the admin copy", async () => {
+      findReservationMock.mockResolvedValue(withAnaMoved());
+      queueJob({
+        kind: "proof_submitted",
+        recipientEmail: ADMIN_EMAIL,
+        userId: ADMIN_ID,
+      });
+
+      await attemptReservationNotificationJob(1);
+
+      const { subject } = await sentEmail();
+      expect(subject).toBe("Ana Ilustra hizo el pago de su reserva");
+    });
+
+    it("still sends the owner their own settlement confirmation", async () => {
+      findReservationMock.mockResolvedValue(withAnaMoved());
+      queueJob({
+        kind: "settlement_approved",
+        recipientEmail: ANA.email,
+        userId: ANA.id,
+      });
+
+      await attemptReservationNotificationJob(1);
+
+      const { subject } = await sentEmail();
+      expect(subject).toBe(
+        "Reserva confirmada para el festival Glitter ¡Feliz Cumple!",
+      );
+    });
+
+    it("still finds the participant a rejection is for", async () => {
+      findReservationMock.mockResolvedValue(withAnaMoved());
+      queueJob({
+        kind: "reservation_rejected",
+        recipientEmail: ANA.email,
+        userId: ANA.id,
+      });
+
+      await attemptReservationNotificationJob(1);
+
+      const { html } = await sentEmail();
+      expect(html).toContain("Ana Ilustra");
+      expect(setCalls.at(-1)).toEqual(
+        expect.objectContaining({ status: "completed" }),
+      );
+    });
+
+    it("goes by the account over a matching address", async () => {
+      // Carla's id on a job whose address is Ana's: Carla's copy.
+      queueJob({
+        kind: "deadline_extended",
+        recipientEmail: ANA.email,
+        userId: CARLA.id,
+      });
+
+      await attemptReservationNotificationJob(1);
+
+      const { subject } = await sentEmail();
+      expect(subject).toBe(
+        "Se extendió el plazo de pago de la reserva que compartís",
+      );
     });
   });
 });

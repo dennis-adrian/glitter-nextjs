@@ -42,8 +42,9 @@ export function resolveStoreDayWindow(now: Date): StoreDayWindow {
 export type ReminderTicket = {
   ticketId: number;
   ticketCode: string;
-  /** Snapshots on the ticket, so guests and edited profiles both work. */
+  /** Snapshot on the ticket, so guests and edited profiles both work. */
   attendeeName: string;
+  /** The account's current address; the ticket's snapshot for a guest. */
   attendeeEmail: string;
   /** Null for a guest; drives whether we can offer a "my sessions" link. */
   attendeeUserId: number | null;
@@ -87,8 +88,8 @@ export function isDeliverableAttendeeEmail(email: string): boolean {
  * Grouped rather than sent per ticket because the same address can hold seats
  * in two sessions on one day — a morning charla and an afternoon taller is a
  * normal festival schedule — and two "you have something today" emails an hour
- * apart read as a bug. The identity used is the ticket snapshot, so a guest and
- * a signed-in attendee group the same way.
+ * apart read as a bug. The identity used is the address the sweep read for
+ * the ticket, so a guest and a signed-in attendee group the same way.
  *
  * Case-insensitive on the address, matching the partial unique index on
  * `(occurrenceId, lower(attendeeEmail))`: the database already treats

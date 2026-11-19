@@ -90,6 +90,9 @@ vi.mock("@/app/lib/programs/anonymization", () => ({
   anonymizeProgramPurchasesForUser: vi.fn(),
 }));
 vi.mock("@/app/lib/users/clerk", () => ({ deleteClerkUser: vi.fn() }));
+vi.mock("@/app/lib/users/email-changes", () => ({
+  scrubEmailChangesForUser: vi.fn(),
+}));
 
 import * as userRequestActions from "@/app/api/user_requests/actions";
 import * as apiUserActions from "@/app/api/users/actions";
