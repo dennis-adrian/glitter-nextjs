@@ -1,5 +1,6 @@
 import {
   BookMarkedIcon,
+  HandHeartIcon,
   HandshakeIcon,
   LayoutGridIcon,
   MailCheckIcon,
@@ -102,6 +103,14 @@ export const FESTIVAL_SECTIONS: readonly FestivalSection[] = [
     icon: HandshakeIcon,
     group: "participants",
     path: "collaborators",
+  },
+  {
+    key: "volunteers",
+    label: "Voluntarios",
+    description: "Convocatoria, postulaciones y turnos",
+    icon: HandHeartIcon,
+    group: "participants",
+    path: "volunteers",
   },
   {
     key: "allowed-participants",
