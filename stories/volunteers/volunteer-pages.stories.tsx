@@ -93,15 +93,36 @@ const CALL: VolunteerCall = {
   ageCutoffDate: "2026-12-18",
 };
 
-function Landing({ open }: { open: boolean }) {
+/** Days with gaps across a month, and a long name, for the hero's tile. */
+const SPLIT_DAYS_CALL: VolunteerCall = {
+  ...CALL,
+  festival: {
+    ...CALL.festival,
+    name: "Glitter v11 — Festival de Ilustración y Emprendimiento",
+    days: [
+      at("2026-11-28T14:00:00Z"),
+      at("2026-12-05T14:00:00Z"),
+      at("2026-12-06T14:00:00Z"),
+      at("2026-12-12T14:00:00Z"),
+    ],
+  },
+};
+
+function Landing({
+  open,
+  call = CALL,
+}: {
+  open: boolean;
+  call?: VolunteerCall;
+}) {
   const view = volunteerPageView(
-    CALL,
+    call,
     open ? at("2026-11-20T12:00:00Z") : at("2026-12-02T12:00:00Z"),
   );
   return (
     <div className="-m-6 bg-brand-elevated">
       <VolunteersHero
-        festivalName={CALL.festival.name}
+        festivalName={call.festival.name}
         dateTile={view.dateTile}
         venue={view.venue}
         setupDay={view.setupDay}
@@ -205,6 +226,9 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const LandingOpen: Story = { render: () => <Landing open /> };
+export const LandingSplitDays: Story = {
+  render: () => <Landing open call={SPLIT_DAYS_CALL} />,
+};
 export const LandingClosed: Story = { render: () => <Landing open={false} /> };
 export const Step1TusDatos: Story = { render: () => <Wizard step={0} /> };
 export const Step2TurnosYRoles: Story = { render: () => <Wizard step={1} /> };

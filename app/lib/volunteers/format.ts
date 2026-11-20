@@ -1,5 +1,9 @@
 import { DateTime } from "luxon";
 
+import {
+  festivalDayRuns,
+  formatFestivalDayRuns,
+} from "@/app/lib/festival-days";
 import { STORE_TIMEZONE } from "@/app/lib/formatters";
 import type {
   VolunteerInduction,
@@ -68,28 +72,37 @@ export function formatCloseDate(date: Date) {
   };
 }
 
-/** The festival's date tile: "19–20" over "dic 2026". Null without dates. */
+/**
+ * The festival's date tile: "19–20" over "dic 2026". Consecutive days join
+ * with a dash and separate runs with a comma, so 18–20 and 27 de diciembre
+ * read "18–20, 27"; a day before a month change names its month ("30 nov–1").
+ * Null without dates.
+ */
 export function formatFestivalDateTile(
   dates: Date[],
 ): { days: string; monthYear: string } | null {
-  const days = [...new Set(dates.map((date) => laPaz(date).toISODate()))]
-    .filter((day): day is string => day !== null)
-    .sort()
-    .map((day) => DateTime.fromISO(day).setLocale("es"));
-  if (days.length === 0) return null;
-  const first = days[0]!;
-  const last = days[days.length - 1]!;
-  const sameMonth = first.month === last.month && first.year === last.year;
-  const range =
-    days.length === 1
-      ? String(first.day)
-      : sameMonth
-        ? `${first.day}–${last.day}`
-        : `${first.day} ${first.toFormat("LLL").replace(".", "")}–${last.day}`;
-  return {
-    days: range,
-    monthYear: `${last.toFormat("LLL").replace(".", "")} ${last.year}`,
+  const runs = festivalDayRuns(dates);
+  if (runs.length === 0) return null;
+  const points = runs.flatMap((run) =>
+    run.length === 1 ? [run] : [[run[0]!, run[run.length - 1]!]],
+  );
+  const all = points.flat();
+  let index = 0;
+  const label = (day: DateTime) => {
+    const next = all[++index];
+    return !next || (next.month === day.month && next.year === day.year)
+      ? String(day.day)
+      : `${day.day} ${shortMonth(day)}`;
   };
+  const last = all[all.length - 1]!;
+  return {
+    days: points.map((run) => run.map(label).join("–")).join(", "),
+    monthYear: `${shortMonth(last)} ${last.year}`,
+  };
+}
+
+function shortMonth(day: DateTime) {
+  return day.toFormat("LLL").replace(".", "");
 }
 
 /** "viernes 18 de diciembre", the setup day mentioned in the hero. */
@@ -109,20 +122,10 @@ export function formatInduction(induction: VolunteerInduction): string {
   return time ? `${day}, ${time}` : day;
 }
 
-/** The festival's days: "19 de diciembre", "19 y 20 de diciembre", "30 de noviembre al 1 de diciembre". */
+/**
+ * The festival's days with the year: "19 de diciembre de 2026", "19 y 20 de
+ * diciembre de 2026", "18 al 20 y 27 de diciembre de 2026". Null without dates.
+ */
 export function formatFestivalDays(dates: Date[]): string | null {
-  const days = [...new Set(dates.map((date) => laPaz(date).toISODate()))]
-    .filter((day): day is string => day !== null)
-    .sort();
-  if (days.length === 0) return null;
-  const first = DateTime.fromISO(days[0]!).setLocale("es");
-  const last = DateTime.fromISO(days[days.length - 1]!).setLocale("es");
-  const lastLabel = last.toFormat("d 'de' LLLL 'de' yyyy");
-  if (days.length === 1) return lastLabel;
-  const joiner = days.length === 2 ? " y " : " al ";
-  const firstLabel =
-    first.month === last.month
-      ? String(first.day)
-      : first.toFormat("d 'de' LLLL");
-  return `${firstLabel}${joiner}${lastLabel}`;
+  return formatFestivalDayRuns(festivalDayRuns(dates), { year: true }) || null;
 }
