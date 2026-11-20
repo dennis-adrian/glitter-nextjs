@@ -295,6 +295,7 @@ export function LastStep({
             <ChoiceRow
               checked={field.value === true}
               onCheckedChange={field.onChange}
+              required
               invalid={Boolean(fieldState.error)}
               describedBy={fieldState.error ? commitmentsErrorId : undefined}
             >
@@ -311,6 +312,7 @@ export function LastStep({
             <ChoiceRow
               checked={field.value === true}
               onCheckedChange={field.onChange}
+              required
               invalid={Boolean(fieldState.error)}
               describedBy={fieldState.error ? commitmentsErrorId : undefined}
             >

@@ -174,6 +174,32 @@ describe("VolunteerApplicationWizard", () => {
     );
   });
 
+  it("announces the two commitments as required, not image consent", () => {
+    storeDraft(3, validPersonal);
+    render(<VolunteerApplicationWizard {...props} />);
+
+    const required = screen
+      .getAllByRole("checkbox")
+      .map((box) => box.getAttribute("aria-required"));
+    expect(required).toEqual(["true", "true", null]);
+  });
+
+  it("sends a failed final check back to the earliest step at fault", async () => {
+    // A draft on the last step whose "Sobre vos" answers are missing.
+    storeDraft(3, {
+      ...validPersonal,
+      shiftIds: [5],
+      firstChoiceRoleId: "1",
+      secondChoiceRoleId: "2",
+    });
+    render(<VolunteerApplicationWizard {...props} />);
+    expect(stepTitle()).toBe("Último paso");
+
+    clickPrimary("Enviar postulación");
+
+    await waitFor(() => expect(stepTitle()).toBe("Sobre vos"));
+  });
+
   it("keeps the answers when going back, and in sessionStorage", async () => {
     storeDraft(1, validPersonal);
     render(<VolunteerApplicationWizard {...props} />);
