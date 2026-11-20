@@ -1,3 +1,7 @@
+import { DateTime } from "luxon";
+
+import { festivalDayRuns } from "@/app/lib/festival-days";
+import { STORE_TIMEZONE } from "@/app/lib/formatters";
 import type { VolunteerCall } from "@/app/lib/volunteers/definitions";
 import {
   formatCloseDate,
@@ -21,6 +25,17 @@ export function volunteerPageView(call: VolunteerCall, now = new Date()) {
       min === null || shift.startsAt < min ? shift.startsAt : min,
     null,
   );
+  // Setup is a shift on a La Paz day before the festival opens; without one
+  // (or without festival days to compare with) the hero names no setup day.
+  const firstFestivalDay = festivalDayRuns(call.festival.days)[0]?.[0];
+  const setupStart =
+    earliestShift &&
+    firstFestivalDay &&
+    DateTime.fromJSDate(earliestShift, { zone: STORE_TIMEZONE }).startOf(
+      "day",
+    ) < firstFestivalDay
+      ? earliestShift
+      : null;
   return {
     /** Accepting applications: before the close, with shifts and two roles. */
     open:
@@ -38,7 +53,7 @@ export function volunteerPageView(call: VolunteerCall, now = new Date()) {
       [call.festival.locationLabel, call.festival.address]
         .filter((part): part is string => Boolean(part?.trim()))
         .join(", ") || null,
-    setupDay: earliestShift ? formatWeekdayDate(earliestShift) : null,
+    setupDay: setupStart ? formatWeekdayDate(setupStart) : null,
     ageCutoff: call.ageCutoffDate ? formatCutoffDate(call.ageCutoffDate) : null,
     induction: call.induction ? formatInduction(call.induction) : null,
   };

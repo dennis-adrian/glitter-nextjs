@@ -200,6 +200,34 @@ describe("VolunteerApplicationWizard", () => {
     await waitFor(() => expect(stepTitle()).toBe("Sobre vos"));
   });
 
+  it("brings a failed send's message into view", async () => {
+    storeDraft(3, {
+      ...validPersonal,
+      shiftIds: [5],
+      firstChoiceRoleId: "1",
+      secondChoiceRoleId: "2",
+      motivation: "x".repeat(120),
+      referralSource: "instagram",
+      emergencyContactName: "Ana Rojas",
+      emergencyContactPhone: "+59171234568",
+      commitmentConsent: true,
+      dataConsent: true,
+    });
+    submitMock.mockResolvedValue({
+      success: false,
+      message: "Demasiados intentos",
+    });
+    render(<VolunteerApplicationWizard {...props} />);
+    vi.mocked(window.scrollTo).mockClear();
+
+    clickPrimary("Enviar postulación");
+
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Demasiados intentos",
+    );
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0 });
+  });
+
   it("keeps the answers when going back, and in sessionStorage", async () => {
     storeDraft(1, validPersonal);
     render(<VolunteerApplicationWizard {...props} />);

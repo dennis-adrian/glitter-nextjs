@@ -106,44 +106,64 @@ export async function submitVolunteerApplication(
   }
   const values = parsed.data;
 
-  const applicationId = await db.transaction(async (tx) => {
-    const [inserted] = await tx
-      .insert(volunteerApplications)
-      .values({
-        festivalId: festival.data,
-        fullName: values.fullName,
-        birthdate: values.birthdate,
-        phone: values.phone,
-        email: values.email,
-        zone: values.zone,
-        firstChoiceRoleId: values.firstChoiceRoleId,
-        secondChoiceRoleId: values.secondChoiceRoleId,
-        experience: values.experience,
-        experienceNotes: values.experienceNotes,
-        portfolio: values.portfolio,
-        motivation: values.motivation,
-        emergencyContactName: values.emergencyContactName,
-        emergencyContactPhone: values.emergencyContactPhone,
-        referralSource: values.referralSource,
-        consentedAt: now,
-        privacyNoticeVersion: VOLUNTEER_PRIVACY_NOTICE_VERSION,
-        imageConsent: values.imageConsent,
-      })
-      .onConflictDoNothing({
-        target: [volunteerApplications.festivalId, volunteerApplications.email],
-      })
-      .returning({ id: volunteerApplications.id });
-    if (!inserted) return null;
+  let applicationId: number | null;
+  try {
+    applicationId = await db.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(volunteerApplications)
+        .values({
+          festivalId: festival.data,
+          fullName: values.fullName,
+          birthdate: values.birthdate,
+          phone: values.phone,
+          email: values.email,
+          zone: values.zone,
+          firstChoiceRoleId: values.firstChoiceRoleId,
+          secondChoiceRoleId: values.secondChoiceRoleId,
+          experience: values.experience,
+          experienceNotes: values.experienceNotes,
+          portfolio: values.portfolio,
+          motivation: values.motivation,
+          emergencyContactName: values.emergencyContactName,
+          emergencyContactPhone: values.emergencyContactPhone,
+          referralSource: values.referralSource,
+          consentedAt: now,
+          privacyNoticeVersion: VOLUNTEER_PRIVACY_NOTICE_VERSION,
+          imageConsent: values.imageConsent,
+        })
+        .onConflictDoNothing({
+          target: [
+            volunteerApplications.festivalId,
+            volunteerApplications.email,
+          ],
+        })
+        .returning({ id: volunteerApplications.id });
+      if (!inserted) return null;
 
-    await tx.insert(volunteerApplicationAvailableShifts).values(
-      values.shiftIds.map((shiftId) => ({
-        applicationId: inserted.id,
-        shiftId,
-        festivalId: festival.data,
-      })),
-    );
-    return inserted.id;
-  });
+      await tx.insert(volunteerApplicationAvailableShifts).values(
+        values.shiftIds.map((shiftId) => ({
+          applicationId: inserted.id,
+          shiftId,
+          festivalId: festival.data,
+        })),
+      );
+      return inserted.id;
+    });
+  } catch (error) {
+    // Drizzle's error message lists every param: the applicant's name,
+    // phones, email and free text. Log only what Postgres says went wrong.
+    const cause = error instanceof Error && error.cause ? error.cause : error;
+    const { code, constraint } = (cause ?? {}) as {
+      code?: unknown;
+      constraint?: unknown;
+    };
+    console.error("Volunteer application insert failed", {
+      festivalId: festival.data,
+      code,
+      constraint,
+    });
+    return { success: false, message: VOLUNTEER_COPY.genericError };
+  }
 
   // A duplicate email: the same thank-you, and no second email.
   if (applicationId === null) return RECEIVED;

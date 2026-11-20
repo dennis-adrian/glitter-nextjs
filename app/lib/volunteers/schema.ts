@@ -60,6 +60,8 @@ export function formatCutoffDate(isoDate: string): string {
 
 /** A full http(s) link with a host: "https://instagram.com/x", not "@x". */
 export function isHttpUrl(value: string): boolean {
+  // "https:example.com" parses, but stored as typed it is no working link.
+  if (!/^https?:\/\//i.test(value)) return false;
   try {
     const url = new URL(value);
     return (
@@ -157,7 +159,7 @@ function sectionDefinitions(ctx: VolunteerSchemaContext) {
             error: "La fecha no es válida",
           })
           .refine((value) => isOldEnoughOn(value, ctx.ageCutoffDate), {
-            error: `Tenés que ser mayor de ${VOLUNTEER_MIN_AGE} años al ${formatCutoffDate(ctx.ageCutoffDate)}.`,
+            error: `Tenés que tener al menos ${VOLUNTEER_MIN_AGE} años al ${formatCutoffDate(ctx.ageCutoffDate)}.`,
           }),
         phone: phone("Ingresá un número de celular válido."),
         email: z

@@ -420,6 +420,41 @@ describeDatabase("submitVolunteerApplication", () => {
     }
   });
 
+  it("keeps the applicant's data out of the logs when the insert fails", async () => {
+    const call = await createCall();
+    // Postgres refuses a NUL in text, so the insert throws with every param.
+    const input = application(call, {
+      zone: "Equipetrol\u0000",
+    });
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const consoleLog = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    try {
+      const result = await actions
+        .submitVolunteerApplication(call.festivalId, input)
+        .catch((error: unknown) => ({ thrown: String(error) }));
+
+      expect(result).toEqual({
+        success: false,
+        message: "No pudimos enviar tu postulación. Volvé a intentar.",
+      });
+      const logged = JSON.stringify([
+        consoleError.mock.calls,
+        consoleLog.mock.calls,
+      ]);
+      expect(logged).toContain("22021");
+      expect(logged).not.toMatch(
+        /camila|rojas|59151234567|59171234567|Equipetrol|example\.test/i,
+      );
+    } finally {
+      consoleError.mockRestore();
+      consoleLog.mockRestore();
+    }
+    expect(await applicationsFor(call.festivalId)).toHaveLength(0);
+  });
+
   it("refuses applications after the closing date", async () => {
     const call = await createCall({ closesAt: new Date(Date.now() - 60_000) });
 

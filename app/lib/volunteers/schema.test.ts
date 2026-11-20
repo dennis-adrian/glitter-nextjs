@@ -163,7 +163,8 @@ describe("buildVolunteerApplicationSchema", () => {
       expect(messages(result)).toEqual([
         {
           path: "birthdate",
-          message: "Tenés que ser mayor de 18 años al 18 de diciembre de 2026.",
+          message:
+            "Tenés que tener al menos 18 años al 18 de diciembre de 2026.",
         },
       ]);
     });
@@ -350,6 +351,8 @@ describe("buildVolunteerApplicationSchema", () => {
       "instagram.com/camila",
       "ftp://camila.com",
       "https://localhost",
+      "https:camila.com/work",
+      "http:/camila.com",
     ])("asks for the full link instead of %s", (portfolio) => {
       const result = buildVolunteerApplicationSchema(context()).safeParse(
         validInput({ portfolio }),

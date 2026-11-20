@@ -51,6 +51,21 @@ describe("volunteerPageView", () => {
     });
   });
 
+  it("names no setup day without a shift before the festival's first day", () => {
+    const now = new Date("2026-11-20T12:00:00Z");
+    const festivalShiftsOnly = {
+      ...call,
+      shifts: call.shifts.filter((shift) => shift.label !== "Montaje"),
+    };
+    expect(volunteerPageView(festivalShiftsOnly, now).setupDay).toBeNull();
+    expect(
+      volunteerPageView(
+        { ...call, festival: { ...call.festival, days: [] } },
+        now,
+      ).setupDay,
+    ).toBeNull();
+  });
+
   it("closes after the closing instant", () => {
     expect(volunteerPageView(call, new Date("2026-12-01T04:00:00Z")).open).toBe(
       false,

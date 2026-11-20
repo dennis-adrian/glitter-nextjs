@@ -12,6 +12,7 @@ import {
 import { FormField, FormItem } from "@/app/components/ui/form";
 import {
   VOLUNTEER_COPY,
+  VOLUNTEER_MIN_AGE,
   VOLUNTEER_EXPERIENCE_OPTIONS,
   VOLUNTEER_MOTIVATION_MAX_LENGTH,
   VOLUNTEER_MOTIVATION_MIN_LENGTH,
@@ -62,7 +63,7 @@ export function PersonalStep({ ageCutoffDate }: { ageCutoffDate: string }) {
         type="date"
         autoComplete="bday"
         max={ageCutoffDate}
-        hint={`Tenés que ser mayor de 18 años al ${formatCutoffDate(ageCutoffDate)}.`}
+        hint={`Tenés que tener al menos ${VOLUNTEER_MIN_AGE} años al ${formatCutoffDate(ageCutoffDate)}.`}
         required
       />
       <PhoneField name="phone" label="Celular / WhatsApp" required />

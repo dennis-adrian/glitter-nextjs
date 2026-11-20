@@ -18,8 +18,8 @@ export default function VolunteerBenefitsRequirements({
 }) {
   const requirements = [
     ageCutoff
-      ? `Ser mayor de ${VOLUNTEER_MIN_AGE} años al ${ageCutoff}.`
-      : `Ser mayor de ${VOLUNTEER_MIN_AGE} años.`,
+      ? `Tener al menos ${VOLUNTEER_MIN_AGE} años al ${ageCutoff}.`
+      : `Tener al menos ${VOLUNTEER_MIN_AGE} años.`,
     VOLUNTEER_COPY.requirementShifts,
     VOLUNTEER_COPY.requirementInduction,
   ];

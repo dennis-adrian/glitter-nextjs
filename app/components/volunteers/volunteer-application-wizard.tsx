@@ -339,9 +339,12 @@ function Wizard({
         return;
       }
       setStepError(result.message);
+      // On a phone the sender is at the sticky button, far below the alert.
+      window.scrollTo({ top: 0 });
     } catch (error) {
       console.error(error);
       setStepError(VOLUNTEER_COPY.genericError);
+      window.scrollTo({ top: 0 });
     } finally {
       setIsSubmitting(false);
     }
