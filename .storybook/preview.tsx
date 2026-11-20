@@ -11,6 +11,7 @@ sb.mock("../app/lib/discount_codes/actions.ts");
 sb.mock("../app/lib/notifications/push/actions.ts");
 sb.mock("../app/lib/reservations/participant-transfer-actions.ts");
 sb.mock("../app/lib/participations/admin-history-actions.ts");
+sb.mock("../app/lib/volunteers/actions.ts");
 
 const preview: Preview = {
   globalTypes: {

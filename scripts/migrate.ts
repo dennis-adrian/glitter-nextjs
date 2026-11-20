@@ -150,8 +150,17 @@ async function main() {
   // five seconds instead: the build fails, the old deployment keeps serving,
   // and a redeploy tries again. Attached before anything uses the pool, since
   // pg-pool reuses clients whose connect event has already fired.
+  // Production must find Glitter v11 for migration 0316's volunteer seed;
+  // preview and development databases may not have it, and skip that seed
+  // with a NOTICE instead (drizzle/0316_volunteers.sql).
+  const requireVolunteerSeed = process.env.VERCEL_ENV === "production";
   pool.on("connect", (client) => {
     client.query("SET lock_timeout = '5s'").catch(() => undefined);
+    if (requireVolunteerSeed) {
+      client
+        .query("SET glitter.require_volunteer_seed = 'on'")
+        .catch(() => undefined);
+    }
   });
 
   try {

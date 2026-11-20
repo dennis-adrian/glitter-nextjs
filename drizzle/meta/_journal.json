@@ -2206,6 +2206,27 @@
       "when": 1795047563626,
       "tag": "0315_user_email_changes",
       "breakpoints": true
+    },
+    {
+      "idx": 316,
+      "version": "7",
+      "when": 1795121010820,
+      "tag": "0316_volunteers",
+      "breakpoints": true
+    },
+    {
+      "idx": 317,
+      "version": "7",
+      "when": 1795127812964,
+      "tag": "0317_volunteer_motivation_500",
+      "breakpoints": true
+    },
+    {
+      "idx": 318,
+      "version": "7",
+      "when": 1795130000000,
+      "tag": "0318_volunteer_festival_scoped_fks",
+      "breakpoints": true
     }
   ]
 }
