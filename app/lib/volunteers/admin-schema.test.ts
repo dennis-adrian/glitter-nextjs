@@ -22,7 +22,9 @@ function firstMessage(result: {
 
 const originalTz = process.env.TZ;
 afterEach(() => {
-  process.env.TZ = originalTz;
+  // Assigning undefined would store the string "undefined", an invalid zone.
+  if (originalTz === undefined) delete process.env.TZ;
+  else process.env.TZ = originalTz;
 });
 
 describe("volunteerStatusInputSchema", () => {

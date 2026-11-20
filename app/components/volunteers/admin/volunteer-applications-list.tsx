@@ -213,7 +213,9 @@ export default function VolunteerApplicationsList({
     <div className="flex min-w-0 flex-col gap-3">
       {items.length === 0 ? (
         <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-          {volunteerApplicationsEmptyMessage(filters)}
+          {total > 0
+            ? "No hay más postulaciones en esta página."
+            : volunteerApplicationsEmptyMessage(filters)}
         </p>
       ) : (
         <>

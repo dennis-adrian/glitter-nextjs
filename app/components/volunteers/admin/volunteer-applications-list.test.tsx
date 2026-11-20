@@ -139,6 +139,14 @@ describe("VolunteerApplicationsList", () => {
     ).toBeTruthy();
   });
 
+  it("says the page ran out, not that there is nothing, past the last page", () => {
+    renderList([], { offset: "50" }, 3);
+    expect(
+      screen.getByText("No hay más postulaciones en esta página."),
+    ).toBeTruthy();
+    expect(screen.queryByText("No hay postulaciones por revisar.")).toBeNull();
+  });
+
   it("pages with the volunteer page sizes", () => {
     renderList([item()], { limit: "25", offset: "25" }, 60);
     expect(screen.getByText(/2 de 3/)).toBeTruthy();

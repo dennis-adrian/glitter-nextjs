@@ -64,9 +64,16 @@ function inactive(isActive: boolean, label: string) {
 export default function VolunteerApplicationsFilters({
   roles,
   shifts,
+  roleId: parsedRoleId,
+  shiftId: parsedShiftId,
+  query,
 }: {
   roles: VolunteerAdminRole[];
   shifts: VolunteerAdminShift[];
+  /** The filters as the server parsed them, so the UI shows what applies. */
+  roleId?: number;
+  shiftId?: number;
+  query: string;
 }) {
   const searchParams = useSearchParams();
   const { push } = useRouter();
@@ -74,10 +81,9 @@ export default function VolunteerApplicationsFilters({
   // The search box keeps what was typed; clearing remounts it empty.
   const [searchKey, setSearchKey] = useState(0);
 
-  const roleId = searchParams.get("roleId") ?? ALL;
-  const shiftId = searchParams.get("shiftId") ?? ALL;
-  const hasFilters =
-    Boolean(searchParams.get("query")) || roleId !== ALL || shiftId !== ALL;
+  const roleId = parsedRoleId ? `${parsedRoleId}` : ALL;
+  const shiftId = parsedShiftId ? `${parsedShiftId}` : ALL;
+  const hasFilters = Boolean(query) || roleId !== ALL || shiftId !== ALL;
 
   function navigate(href: string) {
     startTransition(() => push(href, { scroll: false }));
@@ -117,13 +123,19 @@ export default function VolunteerApplicationsFilters({
             >
               <SelectValue placeholder="Todos los roles" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-w-[min(var(--radix-select-content-available-width),calc(100vw-2rem))]">
               <SelectItem value={ALL}>Todos los roles</SelectItem>
               {!roleKnown && (
-                <SelectItem value={roleId}>Rol #{roleId}</SelectItem>
+                <SelectItem value={roleId} className="break-words">
+                  Rol #{roleId}
+                </SelectItem>
               )}
               {roles.map((role) => (
-                <SelectItem key={role.id} value={`${role.id}`}>
+                <SelectItem
+                  key={role.id}
+                  value={`${role.id}`}
+                  className="break-words"
+                >
                   {inactive(role.isActive, role.name)}
                 </SelectItem>
               ))}
@@ -149,13 +161,17 @@ export default function VolunteerApplicationsFilters({
             >
               <SelectValue placeholder="Todos los turnos" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-w-[min(var(--radix-select-content-available-width),calc(100vw-2rem))]">
               <SelectItem value={ALL}>Todos los turnos</SelectItem>
               {!shiftKnown && (
                 <SelectItem value={shiftId}>Turno #{shiftId}</SelectItem>
               )}
               {shifts.map((shift) => (
-                <SelectItem key={shift.id} value={`${shift.id}`}>
+                <SelectItem
+                  key={shift.id}
+                  value={`${shift.id}`}
+                  className="break-words"
+                >
                   {inactive(
                     shift.isActive,
                     `${formatShiftWhen(shift)} — ${shift.label}`,

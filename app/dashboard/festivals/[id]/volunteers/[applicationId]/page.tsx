@@ -6,6 +6,7 @@ import { notFound, redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { z } from "zod";
 
+import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import VolunteerAdminTabs from "@/app/components/volunteers/admin/volunteer-admin-tabs";
 import VolunteerApplicationAnswers from "@/app/components/volunteers/admin/volunteer-application-answers";
 import VolunteerApplicationAssignmentForm from "@/app/components/volunteers/admin/volunteer-application-assignment-form";
@@ -15,15 +16,18 @@ import VolunteerApplicationStatusActions from "@/app/components/volunteers/admin
 import VolunteerStatusBadge from "@/app/components/volunteers/admin/volunteer-status-badge";
 import { formatDisplayDate } from "@/app/lib/formatters";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
-import { volunteerAdminPath } from "@/app/lib/volunteers/admin-definitions";
+import {
+  POSTGRES_INT_MAX,
+  volunteerAdminPath,
+} from "@/app/lib/volunteers/admin-definitions";
 import {
   fetchVolunteerAdminCall,
   fetchVolunteerApplicationDetail,
 } from "@/app/lib/volunteers/admin-queries";
 
 const ParamsSchema = z.object({
-  id: z.coerce.number().int().positive(),
-  applicationId: z.coerce.number().int().positive(),
+  id: z.coerce.number().int().positive().max(POSTGRES_INT_MAX),
+  applicationId: z.coerce.number().int().positive().max(POSTGRES_INT_MAX),
 });
 
 export const metadata: Metadata = { title: "Postulación" };
@@ -74,9 +78,14 @@ export default async function VolunteerApplicationPage(props: {
 
   return (
     <div className="container flex min-w-0 flex-col gap-4 p-3 pb-10 md:gap-6 md:p-6">
+      <ScreenTitle
+        title={application.fullName}
+        backHref={volunteerAdminPath(festivalId)}
+      />
       <div className="flex min-w-0 flex-col gap-3">
         <Link
           href={volunteerAdminPath(festivalId)}
+          data-installed-hidden=""
           className="inline-flex items-center gap-1 self-start text-sm font-medium text-primary underline-offset-2 hover:underline focus-visible:underline"
         >
           <ArrowLeftIcon aria-hidden="true" className="h-4 w-4 shrink-0" />

@@ -9,11 +9,12 @@ import VolunteerCallSettingsForm from "@/app/components/volunteers/admin/volunte
 import VolunteerRoleList from "@/app/components/volunteers/admin/volunteer-role-list";
 import VolunteerShiftList from "@/app/components/volunteers/admin/volunteer-shift-list";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
+import { POSTGRES_INT_MAX } from "@/app/lib/volunteers/admin-definitions";
 import { fetchVolunteerAdminCall } from "@/app/lib/volunteers/admin-queries";
 import { VOLUNTEERS_PATH } from "@/app/lib/volunteers/definitions";
 
 const ParamsSchema = z.object({
-  id: z.coerce.number().int().positive(),
+  id: z.coerce.number().int().positive().max(POSTGRES_INT_MAX),
 });
 
 export const metadata: Metadata = { title: "Convocatoria de voluntarios" };

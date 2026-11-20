@@ -11,6 +11,7 @@ import VolunteerApplicationsStatusTabs from "@/app/components/volunteers/admin/v
 import type { RawSearchParams } from "@/app/lib/credits/admin-definitions";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import {
+  POSTGRES_INT_MAX,
   VolunteerApplicationsSearchSchema,
   volunteerSetupAdminPath,
 } from "@/app/lib/volunteers/admin-definitions";
@@ -20,7 +21,7 @@ import {
 } from "@/app/lib/volunteers/admin-queries";
 
 const ParamsSchema = z.object({
-  id: z.coerce.number().int().positive(),
+  id: z.coerce.number().int().positive().max(POSTGRES_INT_MAX),
 });
 
 export const metadata: Metadata = { title: "Voluntarios" };
@@ -88,6 +89,9 @@ export default async function VolunteerApplicationsPage(props: {
           <VolunteerApplicationsFilters
             roles={call.roles}
             shifts={call.shifts}
+            roleId={filters.roleId}
+            shiftId={filters.shiftId}
+            query={filters.query}
           />
           <VolunteerApplicationsList
             festivalId={festivalId}

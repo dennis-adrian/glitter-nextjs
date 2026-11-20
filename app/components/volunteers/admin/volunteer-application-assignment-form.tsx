@@ -177,10 +177,14 @@ export default function VolunteerApplicationAssignmentForm({
           >
             <SelectValue placeholder="Sin rol" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-w-[min(var(--radix-select-content-available-width),calc(100vw-2rem))]">
             <SelectItem value={NO_ROLE}>Sin rol</SelectItem>
             {roleOptions.map((role) => (
-              <SelectItem key={role.id} value={`${role.id}`}>
+              <SelectItem
+                key={role.id}
+                value={`${role.id}`}
+                className="break-words"
+              >
                 {role.isActive ? role.name : `${role.name} (inactivo)`}
               </SelectItem>
             ))}

@@ -16,6 +16,7 @@ import VolunteerApplicationsFilters, {
   volunteerFilterHref,
 } from "@/app/components/volunteers/admin/volunteer-applications-filters";
 import { volunteerStatusTabHref } from "@/app/components/volunteers/admin/volunteer-applications-status-tabs";
+import { VolunteerApplicationsSearchSchema } from "@/app/lib/volunteers/admin-definitions";
 
 afterEach(() => {
   cleanup();
@@ -89,8 +90,24 @@ describe("VolunteerApplicationsFilters", () => {
     },
   ];
 
+  /** Renders the filters the way the page does: from the parsed URL. */
+  function renderFilters() {
+    const filters = VolunteerApplicationsSearchSchema.parse(
+      Object.fromEntries(new URLSearchParams(search)),
+    );
+    return render(
+      <VolunteerApplicationsFilters
+        roles={roles}
+        shifts={shifts}
+        roleId={filters.roleId}
+        shiftId={filters.shiftId}
+        query={filters.query}
+      />,
+    );
+  }
+
   it("labels the search, role and shift filters", () => {
-    render(<VolunteerApplicationsFilters roles={roles} shifts={shifts} />);
+    renderFilters();
     expect(
       screen.getByPlaceholderText("Buscar por nombre o correo"),
     ).toBeTruthy();
@@ -107,9 +124,21 @@ describe("VolunteerApplicationsFilters", () => {
 
   it("clears the search and filters", () => {
     search = "status=all&roleId=1&offset=25";
-    render(<VolunteerApplicationsFilters roles={roles} shifts={shifts} />);
+    renderFilters();
     expect(screen.getByLabelText("Rol").textContent).toContain("Fotografía");
     fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
     expect(push).toHaveBeenCalledWith("?status=all", { scroll: false });
+  });
+
+  it("ignores a filter the server ignores", () => {
+    search = "roleId=abc";
+    renderFilters();
+    expect(screen.getByLabelText("Rol").textContent).toContain(
+      "Todos los roles",
+    );
+    expect(screen.queryByText("Rol #abc")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Limpiar filtros" }),
+    ).toBeNull();
   });
 });

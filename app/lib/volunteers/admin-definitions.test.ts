@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   canAssignVolunteer,
   daysOverShiftLimit,
+  POSTGRES_INT_MAX,
   VOLUNTEER_APPLICATION_STATUSES,
   VolunteerApplicationsSearchSchema,
   volunteerAdminPath,
@@ -162,10 +163,28 @@ describe("VolunteerApplicationsSearchSchema", () => {
       offset: 0,
     });
     expect(
-      VolunteerApplicationsSearchSchema.parse({ query: "x".repeat(201) }).query,
-    ).toBe("");
-    expect(
       VolunteerApplicationsSearchSchema.parse({ roleId: "1.5" }).roleId,
     ).toBeUndefined();
+  });
+
+  it("cuts an over-long search to 200 characters instead of dropping it", () => {
+    const query = VolunteerApplicationsSearchSchema.parse({
+      query: `  ${"x".repeat(150)}${"y".repeat(100)}  `,
+    }).query;
+    expect(query).toBe(`${"x".repeat(150)}${"y".repeat(50)}`);
+  });
+
+  it("drops an id Postgres's int4 cannot hold", () => {
+    const parsed = VolunteerApplicationsSearchSchema.parse({
+      roleId: `${POSTGRES_INT_MAX + 1}`,
+      shiftId: "99999999999",
+    });
+    expect(parsed.roleId).toBeUndefined();
+    expect(parsed.shiftId).toBeUndefined();
+    expect(
+      VolunteerApplicationsSearchSchema.parse({
+        roleId: `${POSTGRES_INT_MAX}`,
+      }).roleId,
+    ).toBe(POSTGRES_INT_MAX);
   });
 });

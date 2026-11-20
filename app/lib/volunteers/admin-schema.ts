@@ -2,7 +2,10 @@ import { DateTime } from "luxon";
 import { z } from "zod";
 
 import { parseStoreDateTimeLocal } from "@/app/lib/schedule-time";
-import { VOLUNTEER_APPLICATION_STATUSES } from "@/app/lib/volunteers/admin-definitions";
+import {
+  POSTGRES_INT_MAX,
+  VOLUNTEER_APPLICATION_STATUSES,
+} from "@/app/lib/volunteers/admin-definitions";
 
 /**
  * Inputs of the volunteer admin actions. Client-safe: the forms validate with
@@ -11,7 +14,7 @@ import { VOLUNTEER_APPLICATION_STATUSES } from "@/app/lib/volunteers/admin-defin
  * and become instants only here, through parseStoreDateTimeLocal.
  */
 
-const id = z.coerce.number().int().positive();
+const id = z.coerce.number().int().positive().max(POSTGRES_INT_MAX);
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;

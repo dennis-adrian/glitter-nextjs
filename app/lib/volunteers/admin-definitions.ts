@@ -87,10 +87,14 @@ export type VolunteerAdminResult =
 
 export const VOLUNTEER_ADMIN_PAGE_SIZES = [25, 50, 100] as const;
 
+/** Largest Postgres int4; a bigger id would make the query throw (22003). */
+export const POSTGRES_INT_MAX = 2_147_483_647;
+
 const optionalId = z.coerce
   .number()
   .int()
   .positive()
+  .max(POSTGRES_INT_MAX)
   .optional()
   .catch(undefined);
 
@@ -100,7 +104,13 @@ export const VolunteerApplicationsSearchSchema = z.object({
     .enum([...VOLUNTEER_APPLICATION_STATUSES, "all"])
     .catch("pending")
     .default("pending"),
-  query: z.string().trim().max(200).catch("").default(""),
+  /** Cut, not dropped: an over-long search still filters by its start. */
+  query: z
+    .string()
+    .trim()
+    .transform((value) => value.slice(0, 200))
+    .catch("")
+    .default(""),
   roleId: optionalId,
   shiftId: optionalId,
   limit: z.coerce

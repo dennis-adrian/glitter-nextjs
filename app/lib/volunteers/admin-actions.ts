@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { revalidatePath } from "next/cache";
 
@@ -446,6 +446,85 @@ export async function setVolunteerRoleActive(
 }
 
 /** Creates a shift (active) without `shiftId`, or updates that one. */
+/**
+ * The first application assigned to `shiftId` (any status: assignments stay
+ * when an application leaves "accepted") that would hold more than
+ * VOLUNTEER_MAX_SHIFTS_PER_DAY on a La Paz day if the shift started at
+ * `startsAt`; null when the move respects the limit for everyone.
+ */
+async function shiftMoveConflict(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  {
+    festivalId,
+    shiftId,
+    startsAt,
+  }: { festivalId: number; shiftId: number; startsAt: Date },
+): Promise<{ fullName: string; day: string } | null> {
+  const assigned = await tx
+    .select({ applicationId: volunteerApplicationAssignedShifts.applicationId })
+    .from(volunteerApplicationAssignedShifts)
+    .where(
+      and(
+        eq(volunteerApplicationAssignedShifts.shiftId, shiftId),
+        eq(volunteerApplicationAssignedShifts.festivalId, festivalId),
+      ),
+    );
+  if (assigned.length === 0) return null;
+
+  const rows = await tx
+    .select({
+      applicationId: volunteerApplications.id,
+      fullName: volunteerApplications.fullName,
+      shiftId: volunteerShifts.id,
+      startsAt: volunteerShifts.startsAt,
+    })
+    .from(volunteerApplicationAssignedShifts)
+    .innerJoin(
+      volunteerApplications,
+      eq(
+        volunteerApplications.id,
+        volunteerApplicationAssignedShifts.applicationId,
+      ),
+    )
+    .innerJoin(
+      volunteerShifts,
+      eq(volunteerShifts.id, volunteerApplicationAssignedShifts.shiftId),
+    )
+    .where(
+      and(
+        inArray(
+          volunteerApplicationAssignedShifts.applicationId,
+          assigned.map((row) => row.applicationId),
+        ),
+        eq(volunteerApplicationAssignedShifts.festivalId, festivalId),
+      ),
+    )
+    .orderBy(
+      asc(volunteerApplications.fullName),
+      asc(volunteerApplications.id),
+    );
+
+  const byApplication = new Map<
+    number,
+    { fullName: string; shifts: { startsAt: Date }[] }
+  >();
+  for (const row of rows) {
+    const entry = byApplication.get(row.applicationId) ?? {
+      fullName: row.fullName,
+      shifts: [],
+    };
+    entry.shifts.push({
+      startsAt: row.shiftId === shiftId ? startsAt : row.startsAt,
+    });
+    byApplication.set(row.applicationId, entry);
+  }
+  for (const { fullName, shifts } of byApplication.values()) {
+    const [day] = daysOverShiftLimit(shifts);
+    if (day) return { fullName, day };
+  }
+  return null;
+}
+
 export async function saveVolunteerShift(
   input: VolunteerShiftInput,
 ): Promise<VolunteerAdminResult> {
@@ -473,17 +552,40 @@ export async function saveVolunteerShift(
         .insert(volunteerShifts)
         .values({ festivalId, ...values, isActive: true });
     } else {
-      const [updated] = await db
-        .update(volunteerShifts)
-        .set({ ...values, updatedAt: new Date() })
-        .where(
-          and(
-            eq(volunteerShifts.id, shiftId),
-            eq(volunteerShifts.festivalId, festivalId),
-          ),
-        )
-        .returning({ id: volunteerShifts.id });
-      if (!updated) return refused(SHIFT_NOT_FOUND);
+      await db.transaction(async (tx) => {
+        const [shift] = await tx
+          .select({ id: volunteerShifts.id })
+          .from(volunteerShifts)
+          .where(
+            and(
+              eq(volunteerShifts.id, shiftId),
+              eq(volunteerShifts.festivalId, festivalId),
+            ),
+          )
+          .for("update");
+        if (!shift) throw new Refusal(SHIFT_NOT_FOUND);
+
+        const conflict = await shiftMoveConflict(tx, {
+          festivalId,
+          shiftId,
+          startsAt,
+        });
+        if (conflict) {
+          throw new Refusal(
+            `Ese cambio deja a ${conflict.fullName} con más de ${VOLUNTEER_MAX_SHIFTS_PER_DAY} turnos ${spanishDays([conflict.day])}. Reasigná sus turnos primero.`,
+          );
+        }
+
+        await tx
+          .update(volunteerShifts)
+          .set({ ...values, updatedAt: new Date() })
+          .where(
+            and(
+              eq(volunteerShifts.id, shiftId),
+              eq(volunteerShifts.festivalId, festivalId),
+            ),
+          );
+      });
     }
   } catch (error) {
     return failure(error, "Error saving a volunteer shift", festivalId);

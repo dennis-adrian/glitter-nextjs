@@ -850,6 +850,56 @@ describeDatabase("volunteer admin", () => {
       });
     });
 
+    it("refuses moving a shift onto a day where an assigned volunteer would hold too many", async () => {
+      const call = await createCall();
+      const [manana, tarde, , domingo] = call.shiftIds as [
+        number,
+        number,
+        number,
+        number,
+      ];
+      // Assignments outlive "accepted", so a waitlisted one counts too.
+      await insertApplication(call, {
+        fullName: "Lucía Mamani",
+        status: "waitlist",
+        assigned: [manana, tarde, domingo],
+      });
+      // Two Saturday shifts but not the one that moves: unaffected.
+      await insertApplication(call, {
+        fullName: "Andrés Quispe",
+        status: "accepted",
+        assigned: [manana, tarde],
+      });
+      const move = (startsAt: string, endsAt: string) =>
+        actions.saveVolunteerShift({
+          festivalId: call.festivalId,
+          shiftId: domingo,
+          label: "Domingo",
+          startsAt,
+          endsAt,
+          neededHeadcount: 4,
+          sortOrder: 3,
+        });
+
+      expect(await move("2026-12-19T19:00", "2026-12-19T21:00")).toEqual({
+        success: false,
+        message:
+          "Ese cambio deja a Lucía Mamani con más de 2 turnos el sábado 19 de diciembre. Reasigná sus turnos primero.",
+      });
+      const stored = async () =>
+        (await queries.fetchVolunteerAdminCall(call.festivalId))!.shifts.find(
+          (shift) => shift.id === domingo,
+        )!.startsAt;
+      expect(await stored()).toEqual(laPaz("2026-12-20T09:00"));
+
+      // Within Sunday, or to a free day, it saves.
+      expect(await move("2026-12-20T15:00", "2026-12-20T19:00")).toEqual({
+        success: true,
+        message: "Turno actualizado.",
+      });
+      expect(await stored()).toEqual(laPaz("2026-12-20T15:00"));
+    });
+
     it("deactivates and reactivates roles and shifts, scoped to the festival", async () => {
       const call = await createCall();
       const other = await createCall();
