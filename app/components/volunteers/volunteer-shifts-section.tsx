@@ -11,7 +11,7 @@ export default function VolunteerShiftsSection({
   shifts: VolunteerShift[];
 }) {
   return (
-    <section id="turnos" className="scroll-mt-20 bg-brand-elevated">
+    <section id="turnos" className="scroll-mt-20 bg-brand-coral-soft">
       <div className="mx-auto max-w-7xl px-5 py-14 md:px-10 md:py-20 lg:px-20">
         <h2 className="font-display text-[30px] leading-[1.1] font-extrabold tracking-[-0.5px] text-brand-ink md:text-[44px]">
           {VOLUNTEER_COPY.shiftsTitle}
