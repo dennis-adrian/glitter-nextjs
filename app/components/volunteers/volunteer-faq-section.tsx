@@ -18,7 +18,7 @@ const INSTAGRAM_URL =
 /** Three questions; the contact answer links the email and Instagram. */
 export default function VolunteerFaqSection() {
   return (
-    <section id="preguntas" className="bg-brand-elevated">
+    <section id="preguntas" className="bg-brand-coral-soft">
       <div className="mx-auto max-w-3xl px-5 py-14 md:px-10 md:py-20">
         <h2 className="mb-4 font-display text-[30px] leading-[1.1] font-extrabold tracking-[-0.5px] text-brand-ink md:text-[44px]">
           {VOLUNTEER_COPY.faqTitle}
