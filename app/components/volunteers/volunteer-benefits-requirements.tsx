@@ -25,7 +25,7 @@ export default function VolunteerBenefitsRequirements({
   ];
 
   return (
-    <section id="que-recibis" className="bg-brand-coral-soft">
+    <section id="que-recibis" className="bg-brand-elevated">
       <div className="mx-auto grid max-w-7xl gap-6 px-5 py-14 md:grid-cols-2 md:px-10 md:py-20 lg:px-20">
         <div className="min-w-0 rounded-[20px] border border-brand-ink/10 bg-brand-card p-6 md:p-8">
           <h2 className="font-display text-[30px] leading-9 font-extrabold tracking-[-0.5px] text-brand-ink">

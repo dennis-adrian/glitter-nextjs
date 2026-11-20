@@ -130,11 +130,11 @@ function Landing({
         open={view.open}
       />
       <VolunteerRolesGrid roles={CALL.roles} />
-      <VolunteerShiftsSection shifts={CALL.shifts} />
       <VolunteerBenefitsRequirements
         ageCutoff={view.ageCutoff}
         induction={view.induction}
       />
+      <VolunteerShiftsSection shifts={CALL.shifts} />
       <VolunteerFaqSection />
       <VolunteerApplyCallout
         open={view.open}

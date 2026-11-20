@@ -74,11 +74,11 @@ export default async function VolunteersPage() {
         open={view.open}
       />
       <VolunteerRolesGrid roles={call.roles} />
-      <VolunteerShiftsSection shifts={call.shifts} />
       <VolunteerBenefitsRequirements
         ageCutoff={view.ageCutoff}
         induction={view.induction}
       />
+      <VolunteerShiftsSection shifts={call.shifts} />
       <VolunteerFaqSection />
       <VolunteerApplyCallout
         open={view.open}
