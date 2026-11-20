@@ -18,7 +18,11 @@ export function festivalDayRuns(dates: readonly Date[]): DateTime[][] {
   ]
     .filter((day): day is string => day !== null)
     .sort()
-    .map((day) => DateTime.fromISO(day).setLocale("es"));
+    // Parsed on La Paz's clock (no DST): in the runtime's own zone a DST
+    // jump at midnight moves a day to 01:00 and splits it from the next.
+    .map((day) =>
+      DateTime.fromISO(day, { zone: STORE_TIMEZONE }).setLocale("es"),
+    );
 
   const runs: DateTime[][] = [];
   for (const day of days) {
