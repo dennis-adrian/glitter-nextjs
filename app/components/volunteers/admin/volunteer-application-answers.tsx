@@ -63,7 +63,11 @@ export default function VolunteerApplicationAnswers({
   const available = shifts
     .filter((shift) => application.availableShiftIds.includes(shift.id))
     .sort(compareShiftsByStart);
+  // "N de M" counts active shifts only; inactive ones they marked stay listed.
   const activeCount = shifts.filter((shift) => shift.isActive).length;
+  const availableActiveCount = available.filter(
+    (shift) => shift.isActive,
+  ).length;
 
   return (
     <div className="flex min-w-0 flex-col gap-5">
@@ -79,7 +83,7 @@ export default function VolunteerApplicationAnswers({
       </Block>
 
       <Block
-        title={`Turnos disponibles (${available.length} de ${activeCount})`}
+        title={`Turnos disponibles (${availableActiveCount} de ${activeCount})`}
       >
         {available.length === 0 ? (
           <p className="text-sm text-muted-foreground">No marcó turnos.</p>

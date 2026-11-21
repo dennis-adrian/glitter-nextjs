@@ -130,6 +130,19 @@ describe("VolunteerApplicationAnswers", () => {
     expect(screen.getByText("No marcó ninguna.")).toBeTruthy();
     expect(screen.getByText("No marcó turnos.")).toBeTruthy();
   });
+
+  it("counts only active shifts, but still lists a deactivated one", () => {
+    render(
+      <VolunteerApplicationAnswers
+        application={application({ availableShiftIds: [10, 11] })}
+        roles={roles}
+        shifts={[shifts[0]!, { ...shifts[1]!, isActive: false }]}
+      />,
+    );
+    expect(screen.getByText("Turnos disponibles (1 de 1)")).toBeTruthy();
+    expect(screen.getByText(/Montaje/)).toBeTruthy();
+    expect(screen.getByText(/Puerta/).textContent).toContain("(inactivo)");
+  });
 });
 
 describe("VolunteerApplicationContact", () => {
