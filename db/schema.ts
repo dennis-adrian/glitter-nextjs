@@ -7355,10 +7355,10 @@ export const notificationCampaignTypeEnum = pgEnum(
   ["credit_gift", "comunicado", "reservations_open", "stands_available"],
 );
 /** Who a "stands still available" reminder was for. */
-export const standsAvailableAudienceEnum = pgEnum(
-  "stands_available_audience",
-  ["terms_accepted", "all_eligible"],
-);
+export const standsAvailableAudienceEnum = pgEnum("stands_available_audience", [
+  "terms_accepted",
+  "all_eligible",
+]);
 /** What sent a "reservations are open" notice: the cron, or an admin's resend. */
 export const reservationsOpenNoticeTriggerEnum = pgEnum(
   "reservations_open_notice_trigger",
@@ -8632,6 +8632,15 @@ export const volunteerApplications = pgTable(
       .notNull(),
     assignedRoleId: integer("assigned_role_id"),
     adminNotes: text("admin_notes"),
+    /**
+     * The admin who last changed the status, assignment or notes, and when.
+     * Null until someone reviews it; kept (as null) if that user is deleted.
+     */
+    reviewedByUserId: integer("reviewed_by_user_id").references(
+      () => users.id,
+      { onDelete: "set null" },
+    ),
+    reviewedAt: timestamp("reviewed_at"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
