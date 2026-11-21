@@ -279,7 +279,7 @@ export const SCREENS: Record<string, ScreenDef> = {
   [`${FEST}/collaborators`]: { title: "Colaboradores", parent: FEST },
   [`${FEST}/volunteers`]: { title: "Voluntarios", parent: FEST },
   [`${FEST}/volunteers/setup`]: {
-    title: "Convocatoria",
+    title: "Roles, turnos y fechas",
     parent: `${FEST}/volunteers`,
   },
   [`${FEST}/volunteers/[applicationId]`]: {

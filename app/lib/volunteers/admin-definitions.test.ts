@@ -3,10 +3,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ageOn,
   canAssignVolunteer,
   daysOverShiftLimit,
   POSTGRES_INT_MAX,
+  shiftCoverageState,
   VOLUNTEER_APPLICATION_STATUSES,
+  VOLUNTEER_STATUS_FILTER_LABELS,
+  VOLUNTEER_STATUS_FILTERS,
+  VOLUNTEER_STATUS_LABELS,
   VolunteerApplicationsSearchSchema,
   volunteerAdminPath,
   volunteerApplicationAdminPath,
@@ -28,6 +33,35 @@ describe("paths", () => {
     expect(volunteerSetupAdminPath(7)).toBe(
       "/dashboard/festivals/7/volunteers/setup",
     );
+  });
+});
+
+describe("status labels", () => {
+  it("name every status as the mockups do", () => {
+    expect(VOLUNTEER_STATUS_LABELS).toEqual({
+      pending: "Pendiente",
+      accepted: "Aceptada",
+      waitlist: "En espera",
+      rejected: "No aceptada",
+    });
+  });
+
+  it("offer every status plus all as a filter, all first", () => {
+    expect(VOLUNTEER_STATUS_FILTERS).toEqual([
+      "all",
+      ...VOLUNTEER_APPLICATION_STATUSES,
+    ]);
+    expect(
+      VOLUNTEER_STATUS_FILTERS.map(
+        (filter) => VOLUNTEER_STATUS_FILTER_LABELS[filter],
+      ),
+    ).toEqual([
+      "Todas",
+      "Pendientes",
+      "Aceptadas",
+      "En espera",
+      "No aceptadas",
+    ]);
   });
 });
 
@@ -100,6 +134,77 @@ describe("daysOverShiftLimit", () => {
   });
 });
 
+describe("ageOn", () => {
+  it("counts whole years on La Paz's calendar", () => {
+    const today = new Date("2026-11-21T14:00:00.000Z");
+    expect(ageOn("2004-11-21", today)).toBe(22);
+    expect(ageOn("2004-11-22", today)).toBe(21);
+    expect(ageOn("2004-11-20", today)).toBe(22);
+  });
+
+  it("uses La Paz's day, not UTC's, late in the evening", () => {
+    // 21:30 on the 21st in La Paz is already the 22nd in UTC.
+    const lateOn21st = new Date("2026-11-22T01:30:00.000Z");
+    expect(ageOn("2004-11-22", lateOn21st)).toBe(21);
+    expect(ageOn("2004-11-22", new Date("2026-11-22T04:00:00.000Z"))).toBe(22);
+  });
+});
+
+describe("shiftCoverageState", () => {
+  it("is unset while the cupo is 0", () => {
+    expect(
+      shiftCoverageState({
+        neededHeadcount: 0,
+        assignedCount: 2,
+        availableCount: 5,
+      }),
+    ).toEqual({ kind: "unset", label: "Sin cupo" });
+  });
+
+  it("is complete once the cupo is assigned, or more", () => {
+    for (const assignedCount of [4, 5]) {
+      expect(
+        shiftCoverageState({
+          neededHeadcount: 4,
+          assignedCount,
+          availableCount: 6,
+        }),
+      ).toEqual({ kind: "complete", label: "Completo" });
+    }
+  });
+
+  it("is missing while enough unassigned people marked it", () => {
+    expect(
+      shiftCoverageState({
+        neededHeadcount: 6,
+        assignedCount: 2,
+        availableCount: 6,
+      }),
+    ).toEqual({ kind: "missing", missing: 4, label: "Faltan 4" });
+  });
+
+  it("is short when those who marked it cannot fill it", () => {
+    expect(
+      shiftCoverageState({
+        neededHeadcount: 6,
+        assignedCount: 2,
+        availableCount: 5,
+      }),
+    ).toEqual({
+      kind: "short",
+      missing: 4,
+      label: "Faltan 4, solo 5 disponibles",
+    });
+    expect(
+      shiftCoverageState({
+        neededHeadcount: 3,
+        assignedCount: 0,
+        availableCount: 0,
+      }),
+    ).toMatchObject({ kind: "short", label: "Faltan 3, solo 0 disponibles" });
+  });
+});
+
 describe("whatsappHref", () => {
   it("keeps only the digits", () => {
     expect(whatsappHref("+591 7123-4567")).toBe("https://wa.me/59171234567");
@@ -113,9 +218,9 @@ describe("whatsappHref", () => {
 });
 
 describe("VolunteerApplicationsSearchSchema", () => {
-  it("defaults to pending, no search and the first page of 25", () => {
+  it("defaults to all, no search and the first page of 25", () => {
     expect(VolunteerApplicationsSearchSchema.parse({})).toEqual({
-      status: "pending",
+      status: "all",
       query: "",
       roleId: undefined,
       shiftId: undefined,
@@ -127,7 +232,7 @@ describe("VolunteerApplicationsSearchSchema", () => {
   it("reads valid params from the URL", () => {
     expect(
       VolunteerApplicationsSearchSchema.parse({
-        status: "all",
+        status: "waitlist",
         query: "  camila ",
         roleId: "3",
         shiftId: "8",
@@ -135,7 +240,7 @@ describe("VolunteerApplicationsSearchSchema", () => {
         offset: "50",
       }),
     ).toEqual({
-      status: "all",
+      status: "waitlist",
       query: "camila",
       roleId: 3,
       shiftId: 8,
@@ -155,7 +260,7 @@ describe("VolunteerApplicationsSearchSchema", () => {
         offset: "-10",
       }),
     ).toEqual({
-      status: "pending",
+      status: "all",
       query: "",
       roleId: undefined,
       shiftId: undefined,

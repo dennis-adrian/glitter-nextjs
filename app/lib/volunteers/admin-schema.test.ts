@@ -8,7 +8,9 @@ import {
   volunteerAssignmentInputSchema,
   volunteerCallSettingsInputSchema,
   volunteerNotesInputSchema,
+  volunteerReviewInputSchema,
   volunteerRoleInputSchema,
+  volunteerRoleMoveInputSchema,
   volunteerShiftInputSchema,
   volunteerStatusInputSchema,
 } from "@/app/lib/volunteers/admin-schema";
@@ -91,6 +93,54 @@ describe("volunteerAssignmentInputSchema", () => {
       roleId: null,
       shiftIds: [5, 6],
     });
+  });
+});
+
+describe("volunteerReviewInputSchema", () => {
+  const base = {
+    festivalId: "1",
+    applicationId: 2,
+    status: "accepted",
+    roleId: "4",
+    shiftIds: [5, "5", 6],
+    adminNotes: "  Llamar el lunes  ",
+  };
+
+  it("coerces ids, dedupes shifts and trims the notes", () => {
+    expect(volunteerReviewInputSchema.parse(base)).toEqual({
+      festivalId: 1,
+      applicationId: 2,
+      status: "accepted",
+      roleId: 4,
+      shiftIds: [5, 6],
+      adminNotes: "Llamar el lunes",
+    });
+  });
+
+  it("keeps a null role and stores blank notes as null", () => {
+    expect(
+      volunteerReviewInputSchema.parse({
+        ...base,
+        status: "pending",
+        roleId: null,
+        shiftIds: [],
+        adminNotes: "   ",
+      }),
+    ).toMatchObject({ roleId: null, shiftIds: [], adminNotes: null });
+  });
+
+  it("refuses another status and over-long notes", () => {
+    expect(
+      firstMessage(
+        volunteerReviewInputSchema.safeParse({ ...base, status: "approved" }),
+      )?.message,
+    ).toBe("Elegí un estado.");
+    expect(
+      volunteerReviewInputSchema.safeParse({
+        ...base,
+        adminNotes: "a".repeat(VOLUNTEER_ADMIN_NOTES_MAX_LENGTH + 1),
+      }).success,
+    ).toBe(false);
   });
 });
 
@@ -189,6 +239,17 @@ describe("volunteerRoleInputSchema", () => {
     });
   });
 
+  it("leaves the order out when it is not given", () => {
+    const parsed = volunteerRoleInputSchema.parse({
+      festivalId: 1,
+      roleId: 3,
+      name: "Acreditación",
+      description: "Recibir al público",
+    });
+    expect(parsed.sortOrder).toBeUndefined();
+    expect("sortOrder" in parsed && parsed.sortOrder !== undefined).toBe(false);
+  });
+
   it("refuses a blank name or a negative order", () => {
     expect(
       firstMessage(
@@ -213,41 +274,114 @@ describe("volunteerRoleInputSchema", () => {
   });
 });
 
+describe("volunteerRoleMoveInputSchema", () => {
+  it("takes up or down", () => {
+    expect(
+      volunteerRoleMoveInputSchema.parse({
+        festivalId: "1",
+        roleId: "3",
+        direction: "up",
+      }),
+    ).toEqual({ festivalId: 1, roleId: 3, direction: "up" });
+    expect(
+      volunteerRoleMoveInputSchema.safeParse({
+        festivalId: 1,
+        roleId: 3,
+        direction: "left",
+      }).success,
+    ).toBe(false);
+  });
+});
+
 describe("volunteerShiftInputSchema", () => {
   const base = {
     festivalId: 1,
-    label: "Montaje",
-    startsAt: "2026-12-18T15:00",
-    endsAt: "2026-12-18T21:00",
+    label: " Montaje ",
+    date: "2026-12-18",
+    startTime: "15:00",
+    endTime: "21:00",
     neededHeadcount: "6",
-    sortOrder: 0,
   };
 
-  it("reads start and end as La Paz time, whatever the server's zone", () => {
-    process.env.TZ = "America/New_York";
-    const parsed = volunteerShiftInputSchema.parse(base);
-    expect(parsed.startsAt.toISOString()).toBe("2026-12-18T19:00:00.000Z");
-    expect(parsed.endsAt.toISOString()).toBe("2026-12-19T01:00:00.000Z");
-    expect(parsed.neededHeadcount).toBe(6);
-    expect(parsed.shiftId).toBeUndefined();
+  it("turns the La Paz day and times into instants", () => {
+    expect(volunteerShiftInputSchema.parse(base)).toEqual({
+      festivalId: 1,
+      label: "Montaje",
+      neededHeadcount: 6,
+      startsAt: new Date("2026-12-18T19:00:00.000Z"),
+      endsAt: new Date("2026-12-19T01:00:00.000Z"),
+    });
   });
 
-  it("requires the end after the start", () => {
-    for (const endsAt of ["2026-12-18T15:00", "2026-12-18T14:00"]) {
+  it("gives the same instants whatever the server's zone", () => {
+    process.env.TZ = "Asia/Tokyo";
+    const tokyo = volunteerShiftInputSchema.parse(base);
+    process.env.TZ = "America/New_York";
+    const newYork = volunteerShiftInputSchema.parse(base);
+    process.env.TZ = "UTC";
+    const utc = volunteerShiftInputSchema.parse(base);
+    expect(tokyo.startsAt.toISOString()).toBe("2026-12-18T19:00:00.000Z");
+    expect(newYork.startsAt).toEqual(tokyo.startsAt);
+    expect(utc.endsAt).toEqual(tokyo.endsAt);
+  });
+
+  it("accepts HH:mm:ss from a time input and keeps the shift id", () => {
+    const parsed = volunteerShiftInputSchema.parse({
+      ...base,
+      shiftId: "9",
+      startTime: "15:00:00",
+      endTime: "23:59:00",
+    });
+    expect(parsed.shiftId).toBe(9);
+    expect(parsed.endsAt.toISOString()).toBe("2026-12-19T03:59:00.000Z");
+  });
+
+  it("requires the end after the start, on the same day", () => {
+    for (const endTime of ["15:00", "14:00", "01:00"]) {
       const issue = firstMessage(
-        volunteerShiftInputSchema.safeParse({ ...base, endsAt }),
+        volunteerShiftInputSchema.safeParse({ ...base, endTime }),
       );
-      expect(issue?.path).toEqual(["endsAt"]);
+      expect(issue?.path).toEqual(["endTime"]);
       expect(issue?.message).toBe("El fin tiene que ser posterior al inicio.");
     }
   });
 
-  it("refuses a missing start", () => {
+  it("refuses a missing or impossible day and a bad time", () => {
+    for (const date of ["", "2026-02-30", "18/12/2026"]) {
+      expect(
+        firstMessage(volunteerShiftInputSchema.safeParse({ ...base, date }))
+          ?.message,
+      ).toBe("Indicá el día.");
+    }
     expect(
       firstMessage(
-        volunteerShiftInputSchema.safeParse({ ...base, startsAt: "" }),
+        volunteerShiftInputSchema.safeParse({ ...base, startTime: "" }),
       )?.message,
-    ).toBe("Indicá cuándo empieza.");
+    ).toBe("Indicá la hora de inicio.");
+    expect(
+      firstMessage(
+        volunteerShiftInputSchema.safeParse({ ...base, endTime: "24:00" }),
+      )?.message,
+    ).toBe("Indicá la hora de fin.");
+    expect(
+      firstMessage(
+        volunteerShiftInputSchema.safeParse({ ...base, neededHeadcount: "-1" }),
+      )?.message,
+    ).toBe("No puede ser negativo.");
+  });
+
+  it("refuses an empty cupo instead of reading it as 0", () => {
+    for (const neededHeadcount of ["", "  ", undefined]) {
+      const issue = firstMessage(
+        volunteerShiftInputSchema.safeParse({ ...base, neededHeadcount }),
+      );
+      expect(issue?.path).toEqual(["neededHeadcount"]);
+      expect(issue?.message).toBe("Indicá el cupo.");
+    }
+    expect(
+      volunteerShiftInputSchema.parse({ ...base, neededHeadcount: "0" })
+        .neededHeadcount,
+    ).toBe(0);
   });
 });
 

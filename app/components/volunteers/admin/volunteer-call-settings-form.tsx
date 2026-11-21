@@ -8,7 +8,23 @@ import type { z } from "zod";
 
 import TextInput from "@/app/components/form/fields/text";
 import SubmitButton from "@/app/components/simple-submit-button";
-import { Form } from "@/app/components/ui/form";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+} from "@/app/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/app/components/ui/form";
+import { Input } from "@/app/components/ui/input";
 import { toastActionError } from "@/app/lib/errors/action-error";
 import { toStoreDateTimeLocal } from "@/app/lib/schedule-time";
 import { updateVolunteerCallSettings } from "@/app/lib/volunteers/admin-actions";
@@ -39,8 +55,8 @@ export function volunteerCallSettingsDefaults(
 }
 
 /**
- * When the call closes and when the induction is. Without saved settings the
- * same form opens the call for the festival.
+ * "Fechas de la convocatoria": when the call closes and when the induction
+ * is. Without saved settings the same card opens the call for the festival.
  */
 export default function VolunteerCallSettingsForm({
   festivalId,
@@ -56,6 +72,7 @@ export default function VolunteerCallSettingsForm({
     resolver: zodResolver(volunteerCallSettingsInputSchema),
     defaultValues: volunteerCallSettingsDefaults(festivalId, settings),
   });
+  const timeError = form.formState.errors.inductionTime?.message;
 
   const action = form.handleSubmit(async () => {
     try {
@@ -73,35 +90,77 @@ export default function VolunteerCallSettingsForm({
   });
 
   return (
-    <Form {...form}>
-      <form className="grid min-w-0 gap-4" onSubmit={action} noValidate>
-        <TextInput
-          label="Cierre de postulaciones"
-          name="applicationsCloseAt"
-          type="datetime-local"
-          description="Hora de Bolivia."
-          required
-        />
-        <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-          <TextInput
-            label="Fecha de la inducción"
-            name="inductionDate"
-            type="date"
-          />
-          <TextInput
-            label="Hora de la inducción"
-            name="inductionTime"
-            type="time"
-            description="Dejala vacía si todavía no está definida."
-          />
-        </div>
-        <SubmitButton
-          className="sm:w-auto sm:justify-self-start"
-          disabled={form.formState.isSubmitting}
-          label={isNew ? "Abrir convocatoria" : "Guardar fechas"}
-          submittingLabel="Guardando..."
-        />
-      </form>
-    </Form>
+    <Card role="region" aria-labelledby="volunteer-dates-title">
+      <Form {...form}>
+        <form className="min-w-0" onSubmit={action} noValidate>
+          <CardHeader className="p-4 pb-3 md:p-6 md:pb-3">
+            <h2
+              id="volunteer-dates-title"
+              className="text-lg leading-tight font-semibold"
+            >
+              Fechas de la convocatoria
+            </h2>
+            <CardDescription className="break-words">
+              Hora de Bolivia. Después del cierre, la página muestra
+              “Convocatoria cerrada” en lugar del formulario.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid min-w-0 items-start gap-4 p-4 pt-0 md:grid-cols-2 md:p-6 md:pt-0">
+            <div className="min-w-0">
+              <TextInput
+                label="Cierre de postulaciones"
+                name="applicationsCloseAt"
+                type="datetime-local"
+                className="min-w-0"
+                required
+              />
+            </div>
+            <FormField
+              name="inductionDate"
+              render={({ field }) => (
+                <FormItem className="grid min-w-0 gap-2 space-y-0">
+                  <FormLabel>Inducción</FormLabel>
+                  <div className="flex min-w-0 flex-wrap items-start gap-2">
+                    <FormControl>
+                      <Input
+                        type="date"
+                        className="min-w-0 flex-[1_1_9rem]"
+                        {...field}
+                      />
+                    </FormControl>
+                    <Input
+                      type="time"
+                      aria-label="Hora de la inducción, opcional"
+                      aria-invalid={!!timeError}
+                      className="min-w-0 flex-[1_1_7rem]"
+                      {...form.register("inductionTime")}
+                    />
+                  </div>
+                  <FormDescription className="break-words">
+                    La hora es opcional. Si dejás la fecha vacía, la página dice
+                    “fecha por confirmar”.
+                  </FormDescription>
+                  <FormMessage />
+                  {timeError && (
+                    <p className="text-sm font-medium text-destructive">
+                      {timeError}
+                    </p>
+                  )}
+                </FormItem>
+              )}
+            />
+          </CardContent>
+          <CardFooter className="p-4 pt-0 md:p-6 md:pt-0">
+            <SubmitButton
+              className="min-h-11 sm:w-auto md:min-h-10"
+              wrap
+              disabled={form.formState.isSubmitting}
+              label={isNew ? "Abrir convocatoria" : "Guardar fechas"}
+              submittingLabel="Guardando..."
+            />
+          </CardFooter>
+        </form>
+      </Form>
+    </Card>
   );
 }

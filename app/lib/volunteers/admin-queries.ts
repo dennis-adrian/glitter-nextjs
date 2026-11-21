@@ -12,7 +12,11 @@ import {
   type VolunteerApplicationsFilters,
   type VolunteerApplicationsPage,
 } from "@/app/lib/volunteers/admin-definitions";
-import type { VolunteerReferralSource } from "@/app/lib/volunteers/definitions";
+import type { VolunteerExport } from "@/app/lib/volunteers/admin-export";
+import type {
+  VolunteerApplicationStatus,
+  VolunteerReferralSource,
+} from "@/app/lib/volunteers/definitions";
 import { db } from "@/db";
 import {
   festivals,
@@ -27,7 +31,8 @@ import {
 
 /**
  * Admin reads for a festival's volunteer call: its configuration with how
- * full every shift is, the applications list and one application. Every read
+ * full every shift is, the applications list, one application and the CSV
+ * export. Every read
  * is scoped by the festival; the pages check who is asking.
  *
  * Unlike the public reads (queries.ts), roles and shifts come back active and
@@ -94,7 +99,7 @@ export async function fetchVolunteerAdminCall(
     .groupBy(volunteerApplicationAssignedShifts.shiftId)
     .as("assigned_by_shift");
 
-  const [settingsRows, roles, shifts] = await Promise.all([
+  const [settingsRows, roles, shifts, statusRows] = await Promise.all([
     db
       .select({
         applicationsCloseAt: volunteerCallSettings.applicationsCloseAt,
@@ -111,6 +116,14 @@ export async function fetchVolunteerAdminCall(
         description: volunteerRoles.description,
         sortOrder: volunteerRoles.sortOrder,
         isActive: volunteerRoles.isActive,
+        choiceCount: sql<number>`(
+          select count(*)::int from ${volunteerApplications}
+          where ${volunteerApplications.festivalId} = ${festivalId}
+            and ${OUTER_ROLE_ID} in (
+              ${volunteerApplications.firstChoiceRoleId},
+              ${volunteerApplications.secondChoiceRoleId}
+            )
+        )`.mapWith(Number),
       })
       .from(volunteerRoles)
       .where(eq(volunteerRoles.festivalId, festivalId))
@@ -139,11 +152,16 @@ export async function fetchVolunteerAdminCall(
         eq(assignedByShift.shiftId, volunteerShifts.id),
       )
       .where(eq(volunteerShifts.festivalId, festivalId))
-      .orderBy(
-        asc(volunteerShifts.sortOrder),
-        asc(volunteerShifts.startsAt),
-        asc(volunteerShifts.id),
-      ),
+      // Chronological, as the admin and the public page list them.
+      .orderBy(asc(volunteerShifts.startsAt), asc(volunteerShifts.id)),
+    db
+      .select({
+        status: volunteerApplications.status,
+        total: sql<number>`count(*)::int`.mapWith(Number),
+      })
+      .from(volunteerApplications)
+      .where(eq(volunteerApplications.festivalId, festivalId))
+      .groupBy(volunteerApplications.status),
   ]);
 
   return {
@@ -151,12 +169,59 @@ export async function fetchVolunteerAdminCall(
     settings: settingsRows[0] ?? null,
     roles,
     shifts,
+    statusTotals: tallyStatuses(statusRows),
   };
 }
+
+/** Per-status counts, every status present, plus their sum as `all`. */
+function tallyStatuses(
+  rows: ReadonlyArray<{ status: VolunteerApplicationStatus; total: number }>,
+): Record<VolunteerApplicationStatus, number> & { all: number } {
+  const counts = Object.fromEntries(
+    VOLUNTEER_APPLICATION_STATUSES.map((status) => [status, 0]),
+  ) as Record<VolunteerApplicationStatus, number> & { all: number };
+  counts.all = 0;
+  for (const row of rows) {
+    counts[row.status] = row.total;
+    counts.all += row.total;
+  }
+  return counts;
+}
+
+/**
+ * The outer row's id inside a correlated subquery. Drizzle leaves columns
+ * unqualified in a select without joins, where `id` would resolve to the
+ * subquery's own table; these constants always name the outer table.
+ */
+const OUTER_ROLE_ID = sql.raw(`"volunteer_roles"."id"`);
+const OUTER_APPLICATION_ID = sql.raw(`"volunteer_applications"."id"`);
+
+/** Postgres int[] as numbers, [] for null (no rows to aggregate). */
+function idArray(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(Number);
+}
+
+/** The application's marked shift ids, ascending. */
+const availableShiftIdsSql = sql<number[]>`coalesce((
+  select array_agg(${volunteerApplicationAvailableShifts.shiftId} order by ${volunteerApplicationAvailableShifts.shiftId})
+  from ${volunteerApplicationAvailableShifts}
+  where ${volunteerApplicationAvailableShifts.applicationId} = ${OUTER_APPLICATION_ID}
+), '{}'::int[])`.mapWith(idArray);
+
+/** The application's assigned shift ids, ascending. */
+const assignedShiftIdsSql = sql<number[]>`coalesce((
+  select array_agg(${volunteerApplicationAssignedShifts.shiftId} order by ${volunteerApplicationAssignedShifts.shiftId})
+  from ${volunteerApplicationAssignedShifts}
+  where ${volunteerApplicationAssignedShifts.applicationId} = ${OUTER_APPLICATION_ID}
+), '{}'::int[])`.mapWith(idArray);
 
 const firstChoiceRole = alias(volunteerRoles, "first_choice_role");
 const secondChoiceRole = alias(volunteerRoles, "second_choice_role");
 const assignedRole = alias(volunteerRoles, "assigned_role");
+
+/** A search with fewer digits than this does not look at phones. */
+const PHONE_SEARCH_MIN_DIGITS = 3;
 
 /** Every filter but the status, which the counts ignore. */
 function applicationConditions(
@@ -168,36 +233,36 @@ function applicationConditions(
   const query = filters.query.trim();
   if (query) {
     const pattern = buildSearchPattern(query);
-    conditions.push(
-      or(
-        ilike(volunteerApplications.fullName, pattern),
-        ilike(volunteerApplications.email, pattern),
-      )!,
-    );
+    const matches: SQL[] = [
+      ilike(volunteerApplications.fullName, pattern),
+      ilike(volunteerApplications.email, pattern),
+    ];
+    // "70000001", "+591 7000-0001" or "7000 0001" all find the stored phone.
+    const digits = query.replace(/\D/g, "");
+    if (digits.length >= PHONE_SEARCH_MIN_DIGITS) {
+      matches.push(
+        sql`regexp_replace(${volunteerApplications.phone}, '\\D', '', 'g') like ${`%${digits}%`}`,
+      );
+    }
+    conditions.push(or(...matches)!);
   }
 
+  // "Rol preferido": their 1st or 2nd choice, not the assigned role.
   if (filters.roleId !== undefined) {
     conditions.push(
       or(
         eq(volunteerApplications.firstChoiceRoleId, filters.roleId),
         eq(volunteerApplications.secondChoiceRoleId, filters.roleId),
-        eq(volunteerApplications.assignedRoleId, filters.roleId),
       )!,
     );
   }
 
+  // "Turno disponible": a shift they marked, not one they were assigned.
   if (filters.shiftId !== undefined) {
-    conditions.push(sql`(
-      exists (
-        select 1 from ${volunteerApplicationAvailableShifts}
-        where ${volunteerApplicationAvailableShifts.applicationId} = ${volunteerApplications.id}
-          and ${volunteerApplicationAvailableShifts.shiftId} = ${filters.shiftId}
-      )
-      or exists (
-        select 1 from ${volunteerApplicationAssignedShifts}
-        where ${volunteerApplicationAssignedShifts.applicationId} = ${volunteerApplications.id}
-          and ${volunteerApplicationAssignedShifts.shiftId} = ${filters.shiftId}
-      )
+    conditions.push(sql`exists (
+      select 1 from ${volunteerApplicationAvailableShifts}
+      where ${volunteerApplicationAvailableShifts.applicationId} = ${volunteerApplications.id}
+        and ${volunteerApplicationAvailableShifts.shiftId} = ${filters.shiftId}
     )`);
   }
 
@@ -225,18 +290,16 @@ export async function fetchVolunteerApplicationsPage(
         fullName: volunteerApplications.fullName,
         email: volunteerApplications.email,
         phone: volunteerApplications.phone,
+        birthdate: volunteerApplications.birthdate,
         status: volunteerApplications.status,
+        firstChoiceRoleId: volunteerApplications.firstChoiceRoleId,
+        secondChoiceRoleId: volunteerApplications.secondChoiceRoleId,
+        assignedRoleId: volunteerApplications.assignedRoleId,
         firstChoiceRoleName: firstChoiceRole.name,
         secondChoiceRoleName: secondChoiceRole.name,
         assignedRoleName: assignedRole.name,
-        availableShiftCount: sql<number>`(
-          select count(*)::int from ${volunteerApplicationAvailableShifts}
-          where ${volunteerApplicationAvailableShifts.applicationId} = ${volunteerApplications.id}
-        )`.mapWith(Number),
-        assignedShiftCount: sql<number>`(
-          select count(*)::int from ${volunteerApplicationAssignedShifts}
-          where ${volunteerApplicationAssignedShifts.applicationId} = ${volunteerApplications.id}
-        )`.mapWith(Number),
+        availableShiftIds: availableShiftIdsSql,
+        assignedShiftIds: assignedShiftIdsSql,
         createdAt: volunteerApplications.createdAt,
       })
       .from(volunteerApplications)
@@ -269,14 +332,7 @@ export async function fetchVolunteerApplicationsPage(
       .groupBy(volunteerApplications.status),
   ]);
 
-  const counts = Object.fromEntries(
-    VOLUNTEER_APPLICATION_STATUSES.map((status) => [status, 0]),
-  ) as VolunteerApplicationsPage["counts"];
-  counts.all = 0;
-  for (const row of countRows) {
-    counts[row.status] = row.total;
-    counts.all += row.total;
-  }
+  const counts = tallyStatuses(countRows);
 
   return {
     items,
@@ -370,5 +426,86 @@ export async function fetchVolunteerApplicationDetail(
     reviewedAt: application.reviewedAt,
     createdAt: application.createdAt,
     updatedAt: application.updatedAt,
+  };
+}
+
+/**
+ * Everything the CSV export needs: the festival, its shifts (to name the
+ * ones each application marked or was given) and every application, newest
+ * first. Null when the festival does not exist.
+ */
+export async function fetchVolunteerApplicationsForExport(
+  festivalId: number,
+): Promise<VolunteerExport | null> {
+  const [festival] = await db
+    .select({ id: festivals.id, name: festivals.name })
+    .from(festivals)
+    .where(eq(festivals.id, festivalId))
+    .limit(1);
+  if (!festival) return null;
+
+  const [shifts, applications] = await Promise.all([
+    db
+      .select({
+        id: volunteerShifts.id,
+        label: volunteerShifts.label,
+        startsAt: volunteerShifts.startsAt,
+        endsAt: volunteerShifts.endsAt,
+      })
+      .from(volunteerShifts)
+      .where(eq(volunteerShifts.festivalId, festivalId))
+      .orderBy(asc(volunteerShifts.startsAt), asc(volunteerShifts.id)),
+    db
+      .select({
+        id: volunteerApplications.id,
+        fullName: volunteerApplications.fullName,
+        status: volunteerApplications.status,
+        phone: volunteerApplications.phone,
+        email: volunteerApplications.email,
+        birthdate: volunteerApplications.birthdate,
+        zone: volunteerApplications.zone,
+        firstChoiceRoleName: firstChoiceRole.name,
+        secondChoiceRoleName: secondChoiceRole.name,
+        assignedRoleName: assignedRole.name,
+        availableShiftIds: availableShiftIdsSql,
+        assignedShiftIds: assignedShiftIdsSql,
+        experience: volunteerApplications.experience,
+        experienceNotes: volunteerApplications.experienceNotes,
+        portfolio: volunteerApplications.portfolio,
+        motivation: volunteerApplications.motivation,
+        emergencyContactName: volunteerApplications.emergencyContactName,
+        emergencyContactPhone: volunteerApplications.emergencyContactPhone,
+        referralSource: volunteerApplications.referralSource,
+        imageConsent: volunteerApplications.imageConsent,
+        adminNotes: volunteerApplications.adminNotes,
+        createdAt: volunteerApplications.createdAt,
+      })
+      .from(volunteerApplications)
+      .innerJoin(
+        firstChoiceRole,
+        eq(firstChoiceRole.id, volunteerApplications.firstChoiceRoleId),
+      )
+      .innerJoin(
+        secondChoiceRole,
+        eq(secondChoiceRole.id, volunteerApplications.secondChoiceRoleId),
+      )
+      .leftJoin(
+        assignedRole,
+        eq(assignedRole.id, volunteerApplications.assignedRoleId),
+      )
+      .where(eq(volunteerApplications.festivalId, festivalId))
+      .orderBy(
+        desc(volunteerApplications.createdAt),
+        desc(volunteerApplications.id),
+      ),
+  ]);
+
+  return {
+    festival,
+    shifts,
+    applications: applications.map((application) => ({
+      ...application,
+      referralSource: application.referralSource as VolunteerReferralSource,
+    })),
   };
 }

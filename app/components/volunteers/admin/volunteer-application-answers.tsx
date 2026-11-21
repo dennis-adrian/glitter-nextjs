@@ -1,20 +1,14 @@
-import { DateTime } from "luxon";
+import { CheckIcon } from "lucide-react";
+import type { ReactNode } from "react";
 
-import { VolunteerApplicationField as Field } from "@/app/components/volunteers/admin/volunteer-application-contact";
-import { formatDisplayDate } from "@/app/lib/formatters";
+import { Badge } from "@/app/components/ui/badge";
 import {
-  VOLUNTEER_ADMIN_COPY,
   VOLUNTEER_EXPERIENCE_ADMIN_LABELS,
-  VOLUNTEER_REFERRAL_ADMIN_LABELS,
   type VolunteerAdminRole,
   type VolunteerAdminShift,
   type VolunteerApplicationDetail,
 } from "@/app/lib/volunteers/admin-definitions";
 import { formatShiftWhen } from "@/app/lib/volunteers/format";
-
-function isHttpUrl(value: string) {
-  return /^https?:\/\//i.test(value);
-}
 
 function roleName(roles: VolunteerAdminRole[], id: number) {
   const role = roles.find((candidate) => candidate.id === id);
@@ -30,11 +24,22 @@ function experienceLabel(value: string) {
   );
 }
 
-const muted = (text: string) => (
-  <span className="text-muted-foreground">{text}</span>
-);
+function Block({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <h3 className="text-sm text-muted-foreground">{title}</h3>
+      {children}
+    </div>
+  );
+}
 
-/** What the applicant answered in the form, as the team reads it. */
+/** A badge whose long role name wraps instead of running out of the card. */
+const wrappingBadge = "max-w-full whitespace-normal break-words";
+
+/**
+ * The "Lo que eligió" card's body: the roles and shifts the applicant chose,
+ * their experience and why they want to volunteer.
+ */
 export default function VolunteerApplicationAnswers({
   application,
   roles,
@@ -47,109 +52,84 @@ export default function VolunteerApplicationAnswers({
     | "availableShiftIds"
     | "experience"
     | "experienceNotes"
-    | "portfolio"
     | "motivation"
-    | "referralSource"
-    | "imageConsent"
-    | "consentedAt"
-    | "privacyNoticeVersion"
   >;
   roles: VolunteerAdminRole[];
   shifts: VolunteerAdminShift[];
 }) {
   const available = shifts
     .filter((shift) => application.availableShiftIds.includes(shift.id))
-    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
-  const portfolio = application.portfolio;
+    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime() || a.id - b.id);
+  const activeCount = shifts.filter((shift) => shift.isActive).length;
 
   return (
-    <dl className="grid min-w-0 gap-3">
-      <Field label="1ª opción de rol">
-        <span className="break-words">
-          {roleName(roles, application.firstChoiceRoleId)}
-        </span>
-      </Field>
-      <Field label="2ª opción de rol">
-        <span className="break-words">
-          {roleName(roles, application.secondChoiceRoleId)}
-        </span>
-      </Field>
-      <Field label="Turnos disponibles">
+    <div className="flex min-w-0 flex-col gap-5">
+      <Block title="Roles preferidos">
+        <div className="flex min-w-0 flex-wrap gap-2">
+          <Badge size="lg" className={wrappingBadge}>
+            1ª {roleName(roles, application.firstChoiceRoleId)}
+          </Badge>
+          <Badge size="lg" variant="outline" className={wrappingBadge}>
+            2ª {roleName(roles, application.secondChoiceRoleId)}
+          </Badge>
+        </div>
+      </Block>
+
+      <Block
+        title={`Turnos disponibles (${available.length} de ${activeCount})`}
+      >
         {available.length === 0 ? (
-          muted("No marcó turnos")
+          <p className="text-sm text-muted-foreground">No marcó turnos.</p>
         ) : (
-          <ul className="space-y-0.5">
+          <ul className="flex min-w-0 flex-col gap-1.5">
             {available.map((shift) => (
-              <li key={shift.id} className="break-words">
-                <span className="tabular-nums">{formatShiftWhen(shift)}</span>
-                {" — "}
-                {shift.label}
-                {!shift.isActive && muted(" (inactivo)")}
+              <li key={shift.id} className="flex min-w-0 items-start gap-2">
+                <CheckIcon
+                  aria-hidden="true"
+                  className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+                />
+                <span className="min-w-0 text-sm break-words">
+                  <strong className="font-semibold tabular-nums">
+                    {formatShiftWhen(shift)}
+                  </strong>
+                  {" — "}
+                  {shift.label}
+                  {!shift.isActive && (
+                    <span className="text-muted-foreground"> (inactivo)</span>
+                  )}
+                </span>
               </li>
             ))}
           </ul>
         )}
-      </Field>
-      <Field label="Experiencia">
+      </Block>
+
+      <Block title="Experiencia y habilidades">
         {application.experience.length === 0 ? (
-          muted("No marcó ninguna")
+          <p className="text-sm text-muted-foreground">No marcó ninguna.</p>
         ) : (
-          <ul className="flex flex-wrap gap-1.5">
+          <ul className="flex min-w-0 flex-wrap gap-2">
             {application.experience.map((value) => (
-              <li
-                key={value}
-                className="rounded-full bg-muted px-2 py-0.5 text-xs break-words"
-              >
-                {experienceLabel(value)}
+              <li key={value} className="min-w-0 max-w-full">
+                <Badge variant="outline" className={wrappingBadge}>
+                  {experienceLabel(value)}
+                </Badge>
               </li>
             ))}
           </ul>
         )}
-      </Field>
-      {application.experienceNotes && (
-        <Field label="Sobre su experiencia">
-          <p className="break-words whitespace-pre-line">
+        {application.experienceNotes && (
+          <p className="text-sm break-words whitespace-pre-line">
             {application.experienceNotes}
           </p>
-        </Field>
-      )}
-      <Field label={VOLUNTEER_ADMIN_COPY.portfolioLabel}>
-        {!portfolio ? (
-          muted("No compartió ninguno")
-        ) : isHttpUrl(portfolio) ? (
-          <a
-            href={portfolio}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-primary underline-offset-2 wrap-anywhere hover:underline focus-visible:underline"
-          >
-            {portfolio}
-          </a>
-        ) : (
-          <span className="wrap-anywhere">{portfolio}</span>
         )}
-      </Field>
-      <Field label="Motivación">
-        <p className="break-words whitespace-pre-line">
+      </Block>
+
+      <Block title="¿Por qué quiere ser voluntario/a?">
+        <p className="rounded-md bg-muted px-4 py-3 text-sm break-words whitespace-pre-line">
           {application.motivation}
         </p>
-      </Field>
-      <Field label="Cómo se enteró">
-        {VOLUNTEER_REFERRAL_ADMIN_LABELS[application.referralSource] ??
-          application.referralSource}
-      </Field>
-      <Field label="Uso de imagen">
-        {application.imageConsent
-          ? VOLUNTEER_ADMIN_COPY.imageConsentYes
-          : VOLUNTEER_ADMIN_COPY.imageConsentNo}
-      </Field>
-      <Field label="Consentimiento de datos">
-        <span className="break-words">
-          {formatDisplayDate(application.consentedAt, DateTime.DATETIME_MED)}
-          {" · "}
-          aviso de privacidad {application.privacyNoticeVersion}
-        </span>
-      </Field>
-    </dl>
+      </Block>
+    </div>
   );
 }

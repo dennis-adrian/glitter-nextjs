@@ -1,6 +1,8 @@
-import { DateTime } from "luxon";
+import { MessageCircleIcon } from "lucide-react";
 import Link from "next/link";
 
+import { Button, buttonVariants } from "@/app/components/ui/button";
+import { toolbarButtonClass } from "@/app/components/ui/data_table/styles";
 import {
   Table,
   TableBody,
@@ -9,128 +11,207 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table";
-import UsersTablePagination from "@/app/components/users/users-table-pagination";
-import VolunteerStatusBadge from "@/app/components/volunteers/admin/volunteer-status-badge";
-import { formatDisplayDate } from "@/app/lib/formatters";
 import {
-  VOLUNTEER_ADMIN_PAGE_SIZES,
+  formatShiftList,
+  hasVolunteerFilters,
+  roleFilterLabel,
+  shiftFilterLabel,
+  volunteerAgeAndPhone,
+  volunteerListHref,
+} from "@/app/components/volunteers/admin/volunteer-admin-list-params";
+import VolunteerApplicationRowMenu from "@/app/components/volunteers/admin/volunteer-applications-row-actions";
+import VolunteerStatusBadge from "@/app/components/volunteers/admin/volunteer-status-badge";
+import type { RawSearchParams } from "@/app/lib/credits/admin-definitions";
+import { cn } from "@/app/lib/utils";
+import {
+  VOLUNTEER_ADMIN_COPY,
   volunteerApplicationAdminPath,
+  whatsappHref,
+  type VolunteerAdminRole,
+  type VolunteerAdminShift,
   type VolunteerApplicationListItem,
   type VolunteerApplicationsFilters,
+  type VolunteerStatusFilter,
 } from "@/app/lib/volunteers/admin-definitions";
 
-const linkClass =
-  "font-medium text-primary underline-offset-2 hover:underline focus-visible:underline";
+const nameLinkClass =
+  "font-semibold text-primary underline-offset-2 hover:underline focus-visible:underline";
 
-const EMPTY_BY_STATUS: Record<VolunteerApplicationsFilters["status"], string> =
-  {
-    pending: "No hay postulaciones por revisar.",
-    accepted: "Todavía no hay postulaciones aceptadas.",
-    waitlist: "No hay postulaciones en espera.",
-    rejected: "No hay postulaciones rechazadas.",
-    all: "Todavía no llegó ninguna postulación.",
-  };
+const EMPTY_BY_STATUS: Record<VolunteerStatusFilter, string> = {
+  all: "Todavía no llegó ninguna postulación.",
+  pending: "No hay postulaciones pendientes.",
+  accepted: "Todavía no hay postulaciones aceptadas.",
+  waitlist: "No hay postulaciones en espera.",
+  rejected: "No hay postulaciones no aceptadas.",
+};
 
-/** What the inbox says when the current tab and filters match nothing. */
+/** What the list says when the current chip and filters match nothing. */
 export function volunteerApplicationsEmptyMessage(
   filters: VolunteerApplicationsFilters,
 ) {
-  if (filters.query || filters.roleId != null || filters.shiftId != null) {
+  if (hasVolunteerFilters(filters)) {
     return "Ninguna postulación coincide con la búsqueda y los filtros.";
   }
   return EMPTY_BY_STATUS[filters.status];
 }
 
-function shiftCount(count: number) {
-  return count === 1 ? "1 turno" : `${count} turnos`;
+/**
+ * "Mostrando 5 de 9 postulaciones con Fotografía como rol preferido": the
+ * page's share of the matches, naming the filters that narrowed them.
+ */
+export function volunteerApplicationsSummary({
+  shown,
+  total,
+  offset,
+  filters,
+  roles,
+  shifts,
+}: {
+  shown: number;
+  total: number;
+  offset: number;
+  filters: VolunteerApplicationsFilters;
+  roles: readonly VolunteerAdminRole[];
+  shifts: readonly VolunteerAdminShift[];
+}) {
+  // Past the first page, which ones: "26–50 de 60".
+  const range =
+    offset > 0 && shown > 0
+      ? shown > 1
+        ? `${offset + 1}–${offset + shown}`
+        : `${offset + 1}`
+      : `${shown}`;
+  const noun = total === 1 ? "postulación" : "postulaciones";
+  const narrowed = [
+    filters.roleId != null &&
+      `${roleFilterLabel(roles, filters.roleId)} como rol preferido`,
+    filters.shiftId != null &&
+      `${shiftFilterLabel(shifts, filters.shiftId, true)} como turno disponible`,
+  ].filter(Boolean);
+  const suffix = narrowed.length ? ` con ${narrowed.join(" y ")}` : "";
+  return `Mostrando ${range} de ${total} ${noun}${suffix}`;
 }
 
-function appliedOn(date: Date) {
-  return formatDisplayDate(date, DateTime.DATE_MED);
-}
-
-/** The role and shifts given, once accepted; nothing before. */
-function assignment(item: VolunteerApplicationListItem) {
+/** What the application was given, which counts only once accepted. */
+function assignment(
+  item: VolunteerApplicationListItem,
+  shifts: readonly VolunteerAdminShift[],
+) {
   if (item.status !== "accepted") return null;
-  const role = item.assignedRoleName ?? "Sin rol";
-  return `${role} · ${shiftCount(item.assignedShiftCount)}`;
+  const shiftList = formatShiftList(item.assignedShiftIds, shifts);
+  if (!item.assignedRoleName && !shiftList) return null;
+  return { role: item.assignedRoleName, shifts: shiftList };
 }
 
-function Choices({ item }: { item: VolunteerApplicationListItem }) {
+function WhatsAppLink({
+  item,
+  className,
+}: {
+  item: VolunteerApplicationListItem;
+  className?: string;
+}) {
+  const href = whatsappHref(item.phone);
+  if (!href) return null;
   return (
-    <ul className="space-y-0.5">
-      <li className="break-words">
-        <span className="text-muted-foreground">1ª </span>
-        {item.firstChoiceRoleName}
-      </li>
-      <li className="break-words">
-        <span className="text-muted-foreground">2ª </span>
-        {item.secondChoiceRoleName}
-      </li>
-    </ul>
+    <Button asChild variant="ghost" size="icon" className={className}>
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`Escribir por WhatsApp a ${item.fullName}`}
+      >
+        <MessageCircleIcon aria-hidden="true" className="h-4 w-4" />
+      </a>
+    </Button>
   );
 }
 
-function ApplicationsTable({
-  festivalId,
-  items,
-}: {
+type RowsProps = {
   festivalId: number;
   items: VolunteerApplicationListItem[];
-}) {
+  shifts: VolunteerAdminShift[];
+  today?: Date;
+};
+
+function ApplicationsTable({ festivalId, items, shifts, today }: RowsProps) {
   return (
-    <div className="hidden overflow-x-auto rounded-md border md:block">
-      <Table>
+    <div className="hidden md:-mx-6 md:block">
+      <Table className="min-w-[980px]">
         <TableHeader>
           <TableRow>
-            <TableHead>Nombre</TableHead>
-            <TableHead>Roles elegidos</TableHead>
-            <TableHead>Turnos disponibles</TableHead>
-            <TableHead>Asignación</TableHead>
-            <TableHead>Estado</TableHead>
-            <TableHead>Postuló</TableHead>
-            <TableHead>
+            <TableHead scope="col">Postulante</TableHead>
+            <TableHead scope="col">Turnos disponibles</TableHead>
+            <TableHead scope="col">Roles preferidos</TableHead>
+            <TableHead scope="col">Estado</TableHead>
+            <TableHead scope="col">Asignación</TableHead>
+            <TableHead scope="col">
               <span className="sr-only">Acciones</span>
             </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {items.map((item) => {
-            const href = volunteerApplicationAdminPath(festivalId, item.id);
-            const assigned = assignment(item);
+            const assigned = assignment(item, shifts);
+            const available = formatShiftList(item.availableShiftIds, shifts, {
+              all: true,
+            });
             return (
               <TableRow key={item.id}>
                 <TableCell className="max-w-72 min-w-48">
-                  <Link href={href} className={`break-words ${linkClass}`}>
+                  <Link
+                    href={volunteerApplicationAdminPath(festivalId, item.id)}
+                    className={cn("break-words", nameLinkClass)}
+                  >
                     {item.fullName}
                   </Link>
-                  <p className="text-xs text-muted-foreground wrap-anywhere">
-                    {item.email}
+                  <p className="break-words text-muted-foreground tabular-nums">
+                    {volunteerAgeAndPhone(item, today)}
                   </p>
                 </TableCell>
-                <TableCell className="max-w-60 min-w-40">
-                  <Choices item={item} />
+                <TableCell className="max-w-64 min-w-36 break-words">
+                  {available ?? (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                 </TableCell>
-                <TableCell className="whitespace-nowrap tabular-nums">
-                  {shiftCount(item.availableShiftCount)}
-                </TableCell>
-                <TableCell className="max-w-56 min-w-32 break-words">
-                  {assigned ?? <span className="text-muted-foreground">—</span>}
+                <TableCell className="max-w-64 min-w-44">
+                  <p className="break-words">1ª {item.firstChoiceRoleName}</p>
+                  <p className="break-words text-muted-foreground">
+                    2ª {item.secondChoiceRoleName}
+                  </p>
                 </TableCell>
                 <TableCell>
                   <VolunteerStatusBadge status={item.status} />
                 </TableCell>
-                <TableCell className="whitespace-nowrap">
-                  {appliedOn(item.createdAt)}
+                <TableCell className="max-w-64 min-w-36">
+                  {assigned ? (
+                    <>
+                      <p className="break-words">
+                        {assigned.role ?? (
+                          <span className="text-muted-foreground">Sin rol</span>
+                        )}
+                      </p>
+                      {assigned.shifts && (
+                        <p className="break-words text-muted-foreground">
+                          {assigned.shifts}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">
+                      {VOLUNTEER_ADMIN_COPY.unassigned}
+                    </span>
+                  )}
                 </TableCell>
-                <TableCell className="text-right">
-                  <Link
-                    href={href}
-                    className={linkClass}
-                    aria-label={`Ver la postulación de ${item.fullName}`}
-                  >
-                    Ver
-                  </Link>
+                <TableCell>
+                  <div className="flex justify-end gap-1">
+                    <WhatsAppLink item={item} />
+                    <VolunteerApplicationRowMenu
+                      festivalId={festivalId}
+                      applicationId={item.id}
+                      name={item.fullName}
+                      status={item.status}
+                    />
+                  </div>
                 </TableCell>
               </TableRow>
             );
@@ -141,49 +222,61 @@ function ApplicationsTable({
   );
 }
 
-function ApplicationCards({
-  festivalId,
-  items,
-}: {
-  festivalId: number;
-  items: VolunteerApplicationListItem[];
-}) {
+function ApplicationCards({ festivalId, items, shifts, today }: RowsProps) {
   return (
     <ul
       aria-label="Postulaciones"
       className="flex min-w-0 flex-col gap-2 md:hidden"
     >
       {items.map((item) => {
-        const assigned = assignment(item);
+        const assigned = assignment(item, shifts);
+        const available = formatShiftList(item.availableShiftIds, shifts, {
+          all: true,
+        });
         return (
-          <li key={item.id}>
-            <Link
-              href={volunteerApplicationAdminPath(festivalId, item.id)}
-              className="flex min-w-0 flex-col gap-2 rounded-md border p-3 text-sm transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-medium break-words">{item.fullName}</p>
-                  <p className="text-xs text-muted-foreground wrap-anywhere">
-                    {item.email}
-                  </p>
-                </div>
-                <div className="shrink-0">
-                  <VolunteerStatusBadge status={item.status} />
-                </div>
+          <li
+            key={item.id}
+            className="flex min-w-0 items-start gap-3 rounded-lg border bg-card p-3 text-sm"
+          >
+            <div className="flex min-w-0 grow flex-col gap-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  href={volunteerApplicationAdminPath(festivalId, item.id)}
+                  className={cn("min-w-0 wrap-anywhere", nameLinkClass)}
+                >
+                  {item.fullName}
+                </Link>
+                <VolunteerStatusBadge status={item.status} />
               </div>
-              <Choices item={item} />
-              <p className="text-xs text-muted-foreground">
-                {shiftCount(item.availableShiftCount)} disponibles · Postuló el{" "}
-                {appliedOn(item.createdAt)}
+              <p className="break-words text-muted-foreground tabular-nums">
+                {volunteerAgeAndPhone(item, today)}
               </p>
-              {assigned && (
-                <p className="break-words">
-                  <span className="text-muted-foreground">Asignación: </span>
-                  {assigned}
-                </p>
+              {assigned ? (
+                <>
+                  <p className="break-words">
+                    Asignada: {assigned.role ?? "sin rol"}
+                  </p>
+                  {assigned.shifts && (
+                    <p className="break-words text-muted-foreground">
+                      Turnos: {assigned.shifts}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="break-words">
+                    1ª {item.firstChoiceRoleName} · 2ª{" "}
+                    {item.secondChoiceRoleName}
+                  </p>
+                  {available && (
+                    <p className="break-words text-muted-foreground">
+                      Disponible: {available}
+                    </p>
+                  )}
+                </>
               )}
-            </Link>
+            </div>
+            <WhatsAppLink item={item} className="size-11 shrink-0" />
           </li>
         );
       })}
@@ -191,23 +284,43 @@ function ApplicationCards({
   );
 }
 
+const pagerClass = cn(
+  buttonVariants({ variant: "outline", size: "sm" }),
+  toolbarButtonClass,
+  "h-11 md:h-9",
+);
+
 /**
- * One page of the inbox: a table on wider screens, cards on phones, and the
- * pager. Each row opens the application.
+ * One page of the "Postulaciones" card: a table from md, a card per
+ * application on phones, then how many show and Anterior / Siguiente.
  */
 export default function VolunteerApplicationsList({
   festivalId,
+  basePath,
+  searchParams,
   items,
   total,
   filters,
+  roles,
+  shifts,
+  today,
 }: {
   festivalId: number;
+  basePath: string;
+  searchParams: RawSearchParams;
   items: VolunteerApplicationListItem[];
   total: number;
   filters: VolunteerApplicationsFilters;
+  roles: VolunteerAdminRole[];
+  shifts: VolunteerAdminShift[];
+  /** For the ages; tests and stories pin it. */
+  today?: Date;
 }) {
-  const pageCount = Math.ceil(total / filters.limit);
-  const pageIndex = Math.floor(filters.offset / filters.limit) + 1;
+  const { offset, limit } = filters;
+  const previousOffset = Math.max(offset - limit, 0);
+  const nextOffset = offset + limit;
+  const canPrevious = offset > 0;
+  const canNext = nextOffset < total;
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
@@ -219,22 +332,74 @@ export default function VolunteerApplicationsList({
         </p>
       ) : (
         <>
-          <ApplicationsTable festivalId={festivalId} items={items} />
-          <ApplicationCards festivalId={festivalId} items={items} />
+          <ApplicationsTable
+            festivalId={festivalId}
+            items={items}
+            shifts={shifts}
+            today={today}
+          />
+          <ApplicationCards
+            festivalId={festivalId}
+            items={items}
+            shifts={shifts}
+            today={today}
+          />
         </>
       )}
       {total > 0 && (
-        <div className="min-w-0 overflow-x-auto">
-          <UsersTablePagination
-            canNextPage={pageIndex < pageCount}
-            canPreviousPage={pageIndex > 1}
-            pageIndex={pageIndex}
-            pageCount={pageCount}
-            pageSize={`${filters.limit}`}
-            rowCount={items.length}
-            total={total}
-            pageSizes={VOLUNTEER_ADMIN_PAGE_SIZES}
-          />
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 pt-1 text-sm text-muted-foreground">
+          <p className="min-w-0 break-words" aria-live="polite">
+            {volunteerApplicationsSummary({
+              shown: items.length,
+              total,
+              offset,
+              filters,
+              roles,
+              shifts,
+            })}
+          </p>
+          <nav aria-label="Páginas" className="flex gap-2">
+            {canPrevious ? (
+              <Link
+                href={volunteerListHref(basePath, searchParams, {
+                  offset: previousOffset > 0 ? `${previousOffset}` : null,
+                })}
+                className={pagerClass}
+              >
+                Anterior
+              </Link>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className={pagerClass}
+                disabled
+              >
+                Anterior
+              </Button>
+            )}
+            {canNext ? (
+              <Link
+                href={volunteerListHref(basePath, searchParams, {
+                  offset: `${nextOffset}`,
+                })}
+                className={pagerClass}
+              >
+                Siguiente
+              </Link>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className={pagerClass}
+                disabled
+              >
+                Siguiente
+              </Button>
+            )}
+          </nav>
         </div>
       )}
     </div>

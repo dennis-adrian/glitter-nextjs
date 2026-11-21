@@ -1,6 +1,6 @@
 "use server";
 
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { revalidatePath } from "next/cache";
 
@@ -20,14 +20,14 @@ import {
 import {
   type VolunteerActiveInput,
   volunteerActiveInputSchema,
-  type VolunteerAssignmentInput,
-  volunteerAssignmentInputSchema,
   type VolunteerCallSettingsInput,
   volunteerCallSettingsInputSchema,
-  type VolunteerNotesInput,
-  volunteerNotesInputSchema,
+  type VolunteerReviewInput,
+  volunteerReviewInputSchema,
   type VolunteerRoleInput,
   volunteerRoleInputSchema,
+  type VolunteerRoleMoveInput,
+  volunteerRoleMoveInputSchema,
   type VolunteerShiftInput,
   volunteerShiftInputSchema,
   type VolunteerStatusInput,
@@ -125,6 +125,16 @@ function spanishDays(days: string[]) {
   return `${names.slice(0, -1).join(", ")} y ${names.at(-1)}`;
 }
 
+function laPazDay(date: Date) {
+  return DateTime.fromJSDate(date, { zone: STORE_TIMEZONE }).toISODate()!;
+}
+
+/** "Lucía Mamani, Andrés Quispe y Ana Pérez" */
+function spanishList(items: string[]) {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} y ${items.at(-1)}`;
+}
+
 async function festivalExists(festivalId: number) {
   const [festival] = await db
     .select({ id: festivals.id })
@@ -170,57 +180,122 @@ export async function updateVolunteerApplicationStatus(
   };
 }
 
-export async function updateVolunteerApplicationNotes(
-  input: VolunteerNotesInput,
-): Promise<VolunteerAdminResult> {
-  const profile = await requireAdminOrFestivalAdmin();
-  if (!profile) return UNAUTHORIZED;
-  const parsed = volunteerNotesInputSchema.safeParse(input);
-  if (!parsed.success) return invalid(parsed.error);
-  const { festivalId, applicationId, adminNotes } = parsed.data;
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-  try {
-    const [updated] = await db
-      .update(volunteerApplications)
-      .set({ adminNotes, ...reviewedBy(profile.id) })
+/**
+ * Validates and stores an accepted application's role and shifts, replacing
+ * the shifts it had. Any active shift of the festival may be given, not only
+ * those the applicant marked. A role or shift deactivated since it was
+ * assigned may stay assigned. More than VOLUNTEER_MAX_SHIFTS_PER_DAY on a La
+ * Paz day is the public rule, but admins may make exceptions: it saves, and
+ * the days are returned (yyyy-MM-dd) for a warning. Throws a Refusal; the
+ * caller holds the application's row lock.
+ */
+async function replaceAssignment(
+  tx: Tx,
+  {
+    festivalId,
+    applicationId,
+    currentRoleId,
+    roleId,
+    shiftIds,
+  }: {
+    festivalId: number;
+    applicationId: number;
+    currentRoleId: number | null;
+    roleId: number | null;
+    shiftIds: number[];
+  },
+): Promise<string[]> {
+  let overLimit: string[] = [];
+  if (roleId !== null) {
+    const [role] = await tx
+      .select({ isActive: volunteerRoles.isActive })
+      .from(volunteerRoles)
       .where(
         and(
-          eq(volunteerApplications.id, applicationId),
-          eq(volunteerApplications.festivalId, festivalId),
+          eq(volunteerRoles.id, roleId),
+          eq(volunteerRoles.festivalId, festivalId),
         ),
-      )
-      .returning({ id: volunteerApplications.id });
-    if (!updated) return refused(VOLUNTEER_ADMIN_COPY.notFound);
-  } catch (error) {
-    return failure(error, "Error updating volunteer notes", festivalId);
+      );
+    if (!role || (!role.isActive && roleId !== currentRoleId)) {
+      throw new Refusal(ROLE_UNAVAILABLE);
+    }
   }
 
-  revalidateApplications(festivalId);
-  return { success: true, message: "Notas guardadas." };
+  if (shiftIds.length > 0) {
+    const [shifts, current] = await Promise.all([
+      tx
+        .select({
+          id: volunteerShifts.id,
+          startsAt: volunteerShifts.startsAt,
+          isActive: volunteerShifts.isActive,
+        })
+        .from(volunteerShifts)
+        .where(
+          and(
+            inArray(volunteerShifts.id, shiftIds),
+            eq(volunteerShifts.festivalId, festivalId),
+          ),
+        ),
+      tx
+        .select({ shiftId: volunteerApplicationAssignedShifts.shiftId })
+        .from(volunteerApplicationAssignedShifts)
+        .where(
+          eq(volunteerApplicationAssignedShifts.applicationId, applicationId),
+        ),
+    ]);
+    const alreadyAssigned = new Set(current.map((row) => row.shiftId));
+    if (
+      shifts.length !== shiftIds.length ||
+      shifts.some((shift) => !shift.isActive && !alreadyAssigned.has(shift.id))
+    ) {
+      throw new Refusal(SHIFT_UNAVAILABLE);
+    }
+    overLimit = daysOverShiftLimit(shifts);
+  }
+
+  await tx
+    .delete(volunteerApplicationAssignedShifts)
+    .where(
+      and(
+        eq(volunteerApplicationAssignedShifts.applicationId, applicationId),
+        eq(volunteerApplicationAssignedShifts.festivalId, festivalId),
+      ),
+    );
+  if (shiftIds.length > 0) {
+    await tx
+      .insert(volunteerApplicationAssignedShifts)
+      .values(
+        shiftIds.map((shiftId) => ({ applicationId, shiftId, festivalId })),
+      );
+  }
+  return overLimit;
 }
 
 /**
- * Sets the application's role and replaces its shifts. Only for an accepted
- * application. Any active shift of the festival may be given, not only those
- * the applicant marked, up to VOLUNTEER_MAX_SHIFTS_PER_DAY per La Paz day.
- * A role or shift deactivated since it was assigned may stay assigned.
+ * The detail page's "Decisión y asignación" card, in one transaction: the
+ * status and the notes, and, when the new status is "accepted", the role and
+ * shifts (see replaceAssignment). Under any other status the stored
+ * assignment is left as it is and the incoming role and shifts are ignored:
+ * the form locks them, and an assignment outlives a status change. More
+ * than VOLUNTEER_MAX_SHIFTS_PER_DAY on a day saves with a warning.
  */
-export async function updateVolunteerAssignment(
-  input: VolunteerAssignmentInput,
+export async function saveVolunteerReview(
+  input: VolunteerReviewInput,
 ): Promise<VolunteerAdminResult> {
   const profile = await requireAdminOrFestivalAdmin();
   if (!profile) return UNAUTHORIZED;
-  const parsed = volunteerAssignmentInputSchema.safeParse(input);
+  const parsed = volunteerReviewInputSchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
-  const { festivalId, applicationId, roleId, shiftIds } = parsed.data;
+  const { festivalId, applicationId, status, roleId, shiftIds, adminNotes } =
+    parsed.data;
 
+  let overLimit: string[] = [];
   try {
     await db.transaction(async (tx) => {
       const [application] = await tx
-        .select({
-          status: volunteerApplications.status,
-          assignedRoleId: volunteerApplications.assignedRoleId,
-        })
+        .select({ assignedRoleId: volunteerApplications.assignedRoleId })
         .from(volunteerApplications)
         .where(
           and(
@@ -230,88 +305,26 @@ export async function updateVolunteerAssignment(
         )
         .for("update");
       if (!application) throw new Refusal(VOLUNTEER_ADMIN_COPY.notFound);
-      if (!canAssignVolunteer(application.status)) {
-        throw new Refusal(VOLUNTEER_ADMIN_COPY.assignmentLocked);
+
+      const assigning = canAssignVolunteer(status);
+      if (assigning) {
+        overLimit = await replaceAssignment(tx, {
+          festivalId,
+          applicationId,
+          currentRoleId: application.assignedRoleId,
+          roleId,
+          shiftIds,
+        });
       }
 
-      if (roleId !== null) {
-        const [role] = await tx
-          .select({ isActive: volunteerRoles.isActive })
-          .from(volunteerRoles)
-          .where(
-            and(
-              eq(volunteerRoles.id, roleId),
-              eq(volunteerRoles.festivalId, festivalId),
-            ),
-          );
-        if (
-          !role ||
-          (!role.isActive && roleId !== application.assignedRoleId)
-        ) {
-          throw new Refusal(ROLE_UNAVAILABLE);
-        }
-      }
-
-      if (shiftIds.length > 0) {
-        const [shifts, current] = await Promise.all([
-          tx
-            .select({
-              id: volunteerShifts.id,
-              startsAt: volunteerShifts.startsAt,
-              isActive: volunteerShifts.isActive,
-            })
-            .from(volunteerShifts)
-            .where(
-              and(
-                inArray(volunteerShifts.id, shiftIds),
-                eq(volunteerShifts.festivalId, festivalId),
-              ),
-            ),
-          tx
-            .select({ shiftId: volunteerApplicationAssignedShifts.shiftId })
-            .from(volunteerApplicationAssignedShifts)
-            .where(
-              eq(
-                volunteerApplicationAssignedShifts.applicationId,
-                applicationId,
-              ),
-            ),
-        ]);
-        const alreadyAssigned = new Set(current.map((row) => row.shiftId));
-        if (
-          shifts.length !== shiftIds.length ||
-          shifts.some(
-            (shift) => !shift.isActive && !alreadyAssigned.has(shift.id),
-          )
-        ) {
-          throw new Refusal(SHIFT_UNAVAILABLE);
-        }
-        const overLimit = daysOverShiftLimit(shifts);
-        if (overLimit.length > 0) {
-          throw new Refusal(
-            `Máximo ${VOLUNTEER_MAX_SHIFTS_PER_DAY} turnos por día: revisá ${spanishDays(overLimit)}.`,
-          );
-        }
-      }
-
-      await tx
-        .delete(volunteerApplicationAssignedShifts)
-        .where(
-          and(
-            eq(volunteerApplicationAssignedShifts.applicationId, applicationId),
-            eq(volunteerApplicationAssignedShifts.festivalId, festivalId),
-          ),
-        );
-      if (shiftIds.length > 0) {
-        await tx
-          .insert(volunteerApplicationAssignedShifts)
-          .values(
-            shiftIds.map((shiftId) => ({ applicationId, shiftId, festivalId })),
-          );
-      }
       await tx
         .update(volunteerApplications)
-        .set({ assignedRoleId: roleId, ...reviewedBy(profile.id) })
+        .set({
+          status,
+          adminNotes,
+          ...(assigning ? { assignedRoleId: roleId } : {}),
+          ...reviewedBy(profile.id),
+        })
         .where(
           and(
             eq(volunteerApplications.id, applicationId),
@@ -320,11 +333,17 @@ export async function updateVolunteerAssignment(
         );
     });
   } catch (error) {
-    return failure(error, "Error updating a volunteer assignment", festivalId);
+    return failure(error, "Error saving a volunteer review", festivalId);
   }
 
   revalidateApplications(festivalId);
-  return { success: true, message: "Asignación guardada." };
+  const message = "Cambios guardados.";
+  if (overLimit.length === 0) return { success: true, message };
+  return {
+    success: true,
+    message,
+    warning: `${message} Quedó con más de ${VOLUNTEER_MAX_SHIFTS_PER_DAY} turnos ${spanishDays(overLimit)}.`,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -362,7 +381,10 @@ export async function updateVolunteerCallSettings(
   return { success: true, message: "Convocatoria guardada." };
 }
 
-/** Creates a role (active) without `roleId`, or updates that one. */
+/**
+ * Creates a role (active) without `roleId`, last unless `sortOrder` is given,
+ * or updates that one, keeping its place unless `sortOrder` is given.
+ */
 export async function saveVolunteerRole(
   input: VolunteerRoleInput,
 ): Promise<VolunteerAdminResult> {
@@ -377,13 +399,28 @@ export async function saveVolunteerRole(
       if (!(await festivalExists(festivalId))) {
         return refused(FESTIVAL_NOT_FOUND);
       }
-      await db
-        .insert(volunteerRoles)
-        .values({ festivalId, name, description, sortOrder, isActive: true });
+      await db.insert(volunteerRoles).values({
+        festivalId,
+        name,
+        description,
+        sortOrder:
+          sortOrder ??
+          sql<number>`(
+            select coalesce(max(${volunteerRoles.sortOrder}), 0) + 1
+            from ${volunteerRoles}
+            where ${volunteerRoles.festivalId} = ${festivalId}
+          )`,
+        isActive: true,
+      });
     } else {
       const [updated] = await db
         .update(volunteerRoles)
-        .set({ name, description, sortOrder, updatedAt: new Date() })
+        .set({
+          name,
+          description,
+          ...(sortOrder === undefined ? {} : { sortOrder }),
+          updatedAt: new Date(),
+        })
         .where(
           and(
             eq(volunteerRoles.id, roleId),
@@ -410,6 +447,58 @@ export async function saveVolunteerRole(
     success: true,
     message: roleId === undefined ? "Rol creado." : "Rol actualizado.",
   };
+}
+
+/**
+ * The roles table's up/down buttons: swaps the role with its neighbour in
+ * the festival's order (sortOrder, then id) and renumbers every role 1..n,
+ * so ties and gaps from older data are gone after the first move. At either
+ * end it changes nothing.
+ */
+export async function moveVolunteerRole(
+  input: VolunteerRoleMoveInput,
+): Promise<VolunteerAdminResult> {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) return UNAUTHORIZED;
+  const parsed = volunteerRoleMoveInputSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, roleId, direction } = parsed.data;
+
+  try {
+    await db.transaction(async (tx) => {
+      const roles = await tx
+        .select({ id: volunteerRoles.id, sortOrder: volunteerRoles.sortOrder })
+        .from(volunteerRoles)
+        .where(eq(volunteerRoles.festivalId, festivalId))
+        .orderBy(asc(volunteerRoles.sortOrder), asc(volunteerRoles.id))
+        .for("update");
+      const index = roles.findIndex((role) => role.id === roleId);
+      if (index === -1) throw new Refusal(ROLE_NOT_FOUND);
+      const target = direction === "up" ? index - 1 : index + 1;
+      if (target < 0 || target >= roles.length) return;
+
+      const order = [...roles];
+      [order[index], order[target]] = [order[target]!, order[index]!];
+      const now = new Date();
+      for (const [position, role] of order.entries()) {
+        if (role.sortOrder === position + 1) continue;
+        await tx
+          .update(volunteerRoles)
+          .set({ sortOrder: position + 1, updatedAt: now })
+          .where(
+            and(
+              eq(volunteerRoles.id, role.id),
+              eq(volunteerRoles.festivalId, festivalId),
+            ),
+          );
+      }
+    });
+  } catch (error) {
+    return failure(error, "Error moving a volunteer role", festivalId);
+  }
+
+  revalidateCall(festivalId);
+  return { success: true, message: "Orden actualizado." };
 }
 
 /** Roles are never deleted: applications keep naming them. */
@@ -445,21 +534,20 @@ export async function setVolunteerRoleActive(
   };
 }
 
-/** Creates a shift (active) without `shiftId`, or updates that one. */
 /**
- * The first application assigned to `shiftId` (any status: assignments stay
- * when an application leaves "accepted") that would hold more than
- * VOLUNTEER_MAX_SHIFTS_PER_DAY on a La Paz day if the shift started at
- * `startsAt`; null when the move respects the limit for everyone.
+ * The people assigned to `shiftId` (any status: assignments stay when an
+ * application leaves "accepted") who would hold more than
+ * VOLUNTEER_MAX_SHIFTS_PER_DAY on the La Paz day of `startsAt` if the shift
+ * started then, by name; empty when the move respects the limit for everyone.
  */
-async function shiftMoveConflict(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+async function shiftMoveConflicts(
+  tx: Tx,
   {
     festivalId,
     shiftId,
     startsAt,
   }: { festivalId: number; shiftId: number; startsAt: Date },
-): Promise<{ fullName: string; day: string } | null> {
+): Promise<string[]> {
   const assigned = await tx
     .select({ applicationId: volunteerApplicationAssignedShifts.applicationId })
     .from(volunteerApplicationAssignedShifts)
@@ -469,7 +557,7 @@ async function shiftMoveConflict(
         eq(volunteerApplicationAssignedShifts.festivalId, festivalId),
       ),
     );
-  if (assigned.length === 0) return null;
+  if (assigned.length === 0) return [];
 
   const rows = await tx
     .select({
@@ -518,13 +606,37 @@ async function shiftMoveConflict(
     });
     byApplication.set(row.applicationId, entry);
   }
-  for (const { fullName, shifts } of byApplication.values()) {
-    const [day] = daysOverShiftLimit(shifts);
-    if (day) return { fullName, day };
-  }
-  return null;
+  const day = laPazDay(startsAt);
+  return [...byApplication.values()]
+    .filter(({ shifts }) => daysOverShiftLimit(shifts).includes(day))
+    .map(({ fullName }) => fullName);
 }
 
+/**
+ * Numbers the festival's shifts 1..n by start (then id), so the public page,
+ * which lists them by sortOrder, shows them chronologically.
+ */
+async function renumberShifts(tx: Tx, festivalId: number) {
+  await tx.execute(sql`
+    update ${volunteerShifts}
+    set sort_order = ordered.position
+    from (
+      select id, row_number() over (order by starts_at, id)::int as position
+      from ${volunteerShifts}
+      where festival_id = ${festivalId}
+    ) as ordered
+    where ${volunteerShifts.id} = ordered.id
+      and ${volunteerShifts.sortOrder} <> ordered.position
+  `);
+}
+
+/**
+ * Creates a shift (active) without `shiftId`, or updates that one, then
+ * renumbers the festival's shifts chronologically. A move to another La Paz
+ * day that leaves someone assigned with more than
+ * VOLUNTEER_MAX_SHIFTS_PER_DAY on it saves, with a warning naming them (only
+ * in the answer, never in the logs).
+ */
 export async function saveVolunteerShift(
   input: VolunteerShiftInput,
 ): Promise<VolunteerAdminResult> {
@@ -532,29 +644,26 @@ export async function saveVolunteerShift(
   if (!profile) return UNAUTHORIZED;
   const parsed = volunteerShiftInputSchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
-  const {
-    festivalId,
-    shiftId,
-    label,
-    startsAt,
-    endsAt,
-    neededHeadcount,
-    sortOrder,
-  } = parsed.data;
-  const values = { label, startsAt, endsAt, neededHeadcount, sortOrder };
+  const { festivalId, shiftId, label, startsAt, endsAt, neededHeadcount } =
+    parsed.data;
+  const values = { label, startsAt, endsAt, neededHeadcount };
 
+  let overLimit: string[] = [];
   try {
     if (shiftId === undefined) {
       if (!(await festivalExists(festivalId))) {
         return refused(FESTIVAL_NOT_FOUND);
       }
-      await db
-        .insert(volunteerShifts)
-        .values({ festivalId, ...values, isActive: true });
+      await db.transaction(async (tx) => {
+        await tx
+          .insert(volunteerShifts)
+          .values({ festivalId, ...values, isActive: true });
+        await renumberShifts(tx, festivalId);
+      });
     } else {
       await db.transaction(async (tx) => {
         const [shift] = await tx
-          .select({ id: volunteerShifts.id })
+          .select({ startsAt: volunteerShifts.startsAt })
           .from(volunteerShifts)
           .where(
             and(
@@ -565,15 +674,13 @@ export async function saveVolunteerShift(
           .for("update");
         if (!shift) throw new Refusal(SHIFT_NOT_FOUND);
 
-        const conflict = await shiftMoveConflict(tx, {
-          festivalId,
-          shiftId,
-          startsAt,
-        });
-        if (conflict) {
-          throw new Refusal(
-            `Ese cambio deja a ${conflict.fullName} con más de ${VOLUNTEER_MAX_SHIFTS_PER_DAY} turnos ${spanishDays([conflict.day])}. Reasigná sus turnos primero.`,
-          );
+        // Within its day a shift changes nobody's count for that day.
+        if (laPazDay(shift.startsAt) !== laPazDay(startsAt)) {
+          overLimit = await shiftMoveConflicts(tx, {
+            festivalId,
+            shiftId,
+            startsAt,
+          });
         }
 
         await tx
@@ -585,6 +692,7 @@ export async function saveVolunteerShift(
               eq(volunteerShifts.festivalId, festivalId),
             ),
           );
+        await renumberShifts(tx, festivalId);
       });
     }
   } catch (error) {
@@ -592,9 +700,15 @@ export async function saveVolunteerShift(
   }
 
   revalidateCall(festivalId);
+  const message =
+    shiftId === undefined ? "Turno creado." : "Turno actualizado.";
+  if (overLimit.length === 0) return { success: true, message };
   return {
     success: true,
-    message: shiftId === undefined ? "Turno creado." : "Turno actualizado.",
+    message,
+    warning: `${message} ${spanishList(overLimit)} ${
+      overLimit.length === 1 ? "quedó" : "quedaron"
+    } con más de ${VOLUNTEER_MAX_SHIFTS_PER_DAY} turnos ${spanishDays([laPazDay(startsAt)])}.`,
   };
 }
 

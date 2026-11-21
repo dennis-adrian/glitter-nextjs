@@ -1,144 +1,154 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const push = vi.fn();
-let search = "";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, refresh: vi.fn() }),
   usePathname: () => "/dashboard/festivals/619/volunteers",
-  useSearchParams: () => new URLSearchParams(search),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
-import VolunteerApplicationsFilters, {
-  clearVolunteerFiltersHref,
-  volunteerFilterHref,
-} from "@/app/components/volunteers/admin/volunteer-applications-filters";
-import { volunteerStatusTabHref } from "@/app/components/volunteers/admin/volunteer-applications-status-tabs";
-import { VolunteerApplicationsSearchSchema } from "@/app/lib/volunteers/admin-definitions";
+import VolunteerApplicationsFilters from "@/app/components/volunteers/admin/volunteer-applications-filters";
+import type { RawSearchParams } from "@/app/lib/credits/admin-definitions";
+import {
+  VolunteerApplicationsSearchSchema,
+  type VolunteerAdminRole,
+  type VolunteerAdminShift,
+} from "@/app/lib/volunteers/admin-definitions";
+
+const BASE = "/dashboard/festivals/619/volunteers";
+
+const roles: VolunteerAdminRole[] = [
+  {
+    id: 1,
+    name: "Fotografía y redes sociales",
+    description: "",
+    sortOrder: 1,
+    isActive: true,
+    choiceCount: 4,
+  },
+];
+const shifts: VolunteerAdminShift[] = [
+  {
+    id: 5,
+    label: "Montaje",
+    startsAt: new Date("2026-12-18T19:00:00Z"),
+    endsAt: new Date("2026-12-18T23:00:00Z"),
+    neededHeadcount: 4,
+    sortOrder: 1,
+    isActive: true,
+  },
+];
+const counts = { all: 9, pending: 4, accepted: 3, waitlist: 1, rejected: 1 };
+
+function renderFilters(searchParams: RawSearchParams = {}) {
+  return render(
+    <VolunteerApplicationsFilters
+      basePath={BASE}
+      searchParams={searchParams}
+      filters={VolunteerApplicationsSearchSchema.parse(searchParams)}
+      counts={counts}
+      roles={roles}
+      shifts={shifts}
+    />,
+  );
+}
 
 afterEach(() => {
   cleanup();
   push.mockClear();
-  search = "";
-});
-
-describe("volunteerFilterHref", () => {
-  it("sets the filter and goes back to the first page", () => {
-    expect(
-      volunteerFilterHref("status=accepted&offset=50&limit=50", "roleId", "3"),
-    ).toBe("?status=accepted&limit=50&roleId=3");
-  });
-
-  it("replaces a previous value", () => {
-    expect(volunteerFilterHref("shiftId=1", "shiftId", "9")).toBe("?shiftId=9");
-  });
-
-  it("drops the filter for 'all' or null", () => {
-    expect(volunteerFilterHref("roleId=3&shiftId=4", "roleId", "all")).toBe(
-      "?shiftId=4",
-    );
-    expect(volunteerFilterHref("shiftId=4", "shiftId", null)).toBe("?");
-  });
-});
-
-describe("clearVolunteerFiltersHref", () => {
-  it("keeps the status and page size", () => {
-    expect(
-      clearVolunteerFiltersHref(
-        "status=all&query=ana&roleId=1&shiftId=2&limit=50&offset=50",
-      ),
-    ).toBe("?status=all&limit=50");
-  });
-});
-
-describe("volunteerStatusTabHref", () => {
-  it("keeps the search and filters, drops the page", () => {
-    expect(
-      volunteerStatusTabHref(
-        { query: "ana", roleId: "2", offset: "25", status: "pending" },
-        "accepted",
-      ),
-    ).toBe("?query=ana&roleId=2&status=accepted");
-  });
-
-  it("leaves 'Por revisar' as the default", () => {
-    expect(volunteerStatusTabHref({ status: "all" }, "pending")).toBe("?");
-  });
+  vi.useRealTimers();
 });
 
 describe("VolunteerApplicationsFilters", () => {
-  const roles = [
-    {
-      id: 1,
-      name: "Fotografía",
-      description: "",
-      sortOrder: 0,
-      isActive: true,
-    },
-  ];
-  const shifts = [
-    {
-      id: 5,
-      label: "Montaje",
-      startsAt: new Date("2026-12-18T19:00:00Z"),
-      endsAt: new Date("2026-12-18T23:00:00Z"),
-      neededHeadcount: 4,
-      sortOrder: 0,
-      isActive: true,
-    },
-  ];
-
-  /** Renders the filters the way the page does: from the parsed URL. */
-  function renderFilters() {
-    const filters = VolunteerApplicationsSearchSchema.parse(
-      Object.fromEntries(new URLSearchParams(search)),
+  it("links a chip per status with its count, Todas current by default", () => {
+    renderFilters({ query: "ana", offset: "25" });
+    const nav = within(
+      screen.getByRole("navigation", { name: "Estado de las postulaciones" }),
     );
-    return render(
-      <VolunteerApplicationsFilters
-        roles={roles}
-        shifts={shifts}
-        roleId={filters.roleId}
-        shiftId={filters.shiftId}
-        query={filters.query}
-      />,
+    const all = nav.getByRole("link", { name: "Todas 9" });
+    expect(all.getAttribute("aria-current")).toBe("page");
+    expect(all.getAttribute("href")).toBe(`${BASE}?query=ana`);
+    const pending = nav.getByRole("link", { name: "Pendientes 4" });
+    expect(pending.getAttribute("aria-current")).toBeNull();
+    expect(pending.getAttribute("href")).toBe(
+      `${BASE}?query=ana&status=pending`,
     );
-  }
+    expect(nav.getByRole("link", { name: "No aceptadas 1" })).toBeTruthy();
+  });
 
-  it("labels the search, role and shift filters", () => {
+  it("labels the search and the two filters, with nothing to clear", () => {
     renderFilters();
+    const search = screen.getByLabelText("Buscar postulaciones");
+    expect(search.getAttribute("placeholder")).toBe(
+      "Buscar por nombre, celular o correo",
+    );
     expect(
-      screen.getByPlaceholderText("Buscar por nombre o correo"),
+      screen.getByRole("button", { name: "Turno disponible" }),
     ).toBeTruthy();
-    expect(screen.getByLabelText("Rol").textContent).toContain(
-      "Todos los roles",
-    );
-    expect(screen.getByLabelText("Turno").textContent).toContain(
-      "Todos los turnos",
-    );
+    expect(screen.getByRole("button", { name: "Rol preferido" })).toBeTruthy();
     expect(
-      screen.queryByRole("button", { name: "Limpiar filtros" }),
+      screen.queryByRole("button", { name: /Limpiar filtros/ }),
     ).toBeNull();
   });
 
-  it("clears the search and filters", () => {
-    search = "status=all&roleId=1&offset=25";
-    renderFilters();
-    expect(screen.getByLabelText("Rol").textContent).toContain("Fotografía");
-    fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
-    expect(push).toHaveBeenCalledWith("?status=all", { scroll: false });
+  it("shows the active filters and clears them, keeping the status", () => {
+    renderFilters({
+      status: "accepted",
+      roleId: "1",
+      shiftId: "5",
+      offset: "25",
+    });
+    expect(
+      screen.getByRole("button", {
+        name: "Rol preferido: Fotografía y redes sociales",
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Turno disponible: Vie 18 15:00" }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Limpiar filtros/ }));
+    expect(push).toHaveBeenCalledWith(`${BASE}?status=accepted`, {
+      scroll: false,
+    });
+  });
+
+  it("names a filter left in the URL for a role that is gone", () => {
+    renderFilters({ roleId: "42" });
+    expect(
+      screen.getByRole("button", { name: "Rol preferido: Rol #42" }),
+    ).toBeTruthy();
   });
 
   it("ignores a filter the server ignores", () => {
-    search = "roleId=abc";
-    renderFilters();
-    expect(screen.getByLabelText("Rol").textContent).toContain(
-      "Todos los roles",
-    );
-    expect(screen.queryByText("Rol #abc")).toBeNull();
+    renderFilters({ roleId: "abc" });
+    expect(screen.getByRole("button", { name: "Rol preferido" })).toBeTruthy();
     expect(
-      screen.queryByRole("button", { name: "Limpiar filtros" }),
+      screen.queryByRole("button", { name: /Limpiar filtros/ }),
     ).toBeNull();
+  });
+
+  it("pushes the search after a pause, back on the first page", () => {
+    vi.useFakeTimers();
+    renderFilters({ status: "pending", offset: "25" });
+    fireEvent.change(screen.getByLabelText("Buscar postulaciones"), {
+      target: { value: " 7000 " },
+    });
+    expect(push).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(450);
+    });
+    expect(push).toHaveBeenCalledWith(`${BASE}?status=pending&query=7000`, {
+      scroll: false,
+    });
   });
 });

@@ -5,17 +5,21 @@ import type { VolunteerApplicationStatus } from "@/app/lib/volunteers/definition
 const VARIANTS = {
   pending: "amber",
   accepted: "green",
-  waitlist: "secondary",
+  waitlist: "outline",
   rejected: "red",
 } as const satisfies Record<VolunteerApplicationStatus, string>;
 
-/** An application's status as a pill: "Por revisar", "Aceptada"... */
+/** An application's status as a pill: "Pendiente", "Aceptada"... */
 export default function VolunteerStatusBadge({
   status,
+  className,
 }: {
   status: VolunteerApplicationStatus;
+  className?: string;
 }) {
   return (
-    <Badge variant={VARIANTS[status]}>{VOLUNTEER_STATUS_LABELS[status]}</Badge>
+    <Badge variant={VARIANTS[status]} className={className}>
+      {VOLUNTEER_STATUS_LABELS[status]}
+    </Badge>
   );
 }

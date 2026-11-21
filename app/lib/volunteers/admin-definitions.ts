@@ -35,10 +35,31 @@ export const VOLUNTEER_STATUS_LABELS: Record<
   VolunteerApplicationStatus,
   string
 > = {
-  pending: "Por revisar",
+  pending: "Pendiente",
   accepted: "Aceptada",
   waitlist: "En espera",
-  rejected: "Rechazada",
+  rejected: "No aceptada",
+};
+
+/** The list's status chips and stat tiles, in their order. */
+export const VOLUNTEER_STATUS_FILTERS = [
+  "all",
+  "pending",
+  "accepted",
+  "waitlist",
+  "rejected",
+] as const;
+export type VolunteerStatusFilter = (typeof VOLUNTEER_STATUS_FILTERS)[number];
+
+export const VOLUNTEER_STATUS_FILTER_LABELS: Record<
+  VolunteerStatusFilter,
+  string
+> = {
+  all: "Todas",
+  pending: "Pendientes",
+  accepted: "Aceptadas",
+  waitlist: "En espera",
+  rejected: "No aceptadas",
 };
 
 /** How the admin reads each "Sobre vos" checkbox (third person). */
@@ -64,21 +85,32 @@ export const VOLUNTEER_REFERRAL_ADMIN_LABELS: Record<
   other: "Otro",
 };
 
+/** Admin copy, as the mockups (canvas "Admin" page) word it. */
 export const VOLUNTEER_ADMIN_COPY = {
   portfolioLabel: "Portafolio, CV o enlace a su trabajo",
-  imageConsentYes: "Autorizó el uso de su imagen",
-  imageConsentNo: "No autorizó el uso de su imagen",
-  notesHint: "Solo las ve el equipo.",
+  imageConsentLabel: "Uso de su imagen en fotos y videos",
+  imageConsentYes: "Autorizó",
+  imageConsentNo: "No autorizó",
+  noAutomaticNotice:
+    "La persona no recibe aviso automático: escribile por WhatsApp.",
+  notesPlaceholder: "Solo las ve el equipo de Glitter",
   assignmentLocked: "Aceptá la postulación para asignarle un rol y turnos.",
-  notAvailableWarning: "No lo marcó como disponible",
+  notMarked: "no marcó este turno",
+  unassigned: "Sin asignar",
   unauthorized: "No tenés permiso para hacer esto.",
   notFound: "No encontramos esa postulación. Actualizá la página.",
   genericError: "No pudimos guardar el cambio. Volvé a intentar.",
 } as const;
 
 /** What every admin action answers. */
+/**
+ * A write's answer. A success may carry a `warning` (already a full sentence,
+ * the message included) when the admin went past a recommendation, such as
+ * more than VOLUNTEER_MAX_SHIFTS_PER_DAY for someone on a day: shown instead
+ * of the message.
+ */
 export type VolunteerAdminResult =
-  | { success: true; message: string }
+  | { success: true; message: string; warning?: string }
   | { success: false; message: string };
 
 /* ------------------------------------------------------------------ */
@@ -100,10 +132,7 @@ const optionalId = z.coerce
 
 /** A bad param falls back to its default instead of a 404. */
 export const VolunteerApplicationsSearchSchema = z.object({
-  status: z
-    .enum([...VOLUNTEER_APPLICATION_STATUSES, "all"])
-    .catch("pending")
-    .default("pending"),
+  status: z.enum(VOLUNTEER_STATUS_FILTERS).catch("all").default("all"),
   /** Cut, not dropped: an over-long search still filters by its start. */
   query: z
     .string()
@@ -111,7 +140,9 @@ export const VolunteerApplicationsSearchSchema = z.object({
     .transform((value) => value.slice(0, 200))
     .catch("")
     .default(""),
+  /** "Rol preferido": the application's 1st or 2nd choice. */
   roleId: optionalId,
+  /** "Turno disponible": a shift the applicant marked. */
   shiftId: optionalId,
   limit: z.coerce
     .number()
@@ -138,6 +169,8 @@ export type VolunteerAdminRole = {
   description: string;
   sortOrder: number;
   isActive: boolean;
+  /** Applications (any status) that named it as their 1st or 2nd choice. */
+  choiceCount: number;
 };
 
 export type VolunteerAdminShift = {
@@ -170,6 +203,8 @@ export type VolunteerAdminCall = {
   } | null;
   roles: VolunteerAdminRole[];
   shifts: VolunteerShiftCoverage[];
+  /** Applications per status, with no filter: the list's stat tiles. */
+  statusTotals: Record<VolunteerApplicationStatus, number> & { all: number };
 };
 
 export type VolunteerApplicationListItem = {
@@ -177,12 +212,18 @@ export type VolunteerApplicationListItem = {
   fullName: string;
   email: string;
   phone: string;
+  /** yyyy-MM-dd */
+  birthdate: string;
   status: VolunteerApplicationStatus;
+  firstChoiceRoleId: number;
+  secondChoiceRoleId: number;
+  assignedRoleId: number | null;
   firstChoiceRoleName: string;
   secondChoiceRoleName: string;
   assignedRoleName: string | null;
-  availableShiftCount: number;
-  assignedShiftCount: number;
+  /** Ascending ids; resolve them against VolunteerAdminCall.shifts. */
+  availableShiftIds: number[];
+  assignedShiftIds: number[];
   createdAt: Date;
 };
 
@@ -253,6 +294,48 @@ export function daysOverShiftLimit(
     .filter(([, count]) => count > max)
     .map(([day]) => day)
     .sort();
+}
+
+/** Whole years on `today` (La Paz) for a yyyy-MM-dd birth date. */
+export function ageOn(birthdate: string, today: Date = new Date()): number {
+  const born = DateTime.fromISO(birthdate, { zone: STORE_TIMEZONE });
+  const now = DateTime.fromJSDate(today, { zone: STORE_TIMEZONE }).startOf(
+    "day",
+  );
+  return Math.floor(now.diff(born, "years").years);
+}
+
+export type ShiftCoverageState =
+  | { kind: "unset"; label: string }
+  | { kind: "complete"; label: string }
+  | { kind: "missing"; label: string; missing: number }
+  | { kind: "short"; label: string; missing: number };
+
+/**
+ * A shift's coverage badge: green "Completo"; amber "Faltan N"; red "Faltan
+ * N, solo M disponibles" when the people who marked it and are not yet
+ * assigned can no longer fill it; "Sin cupo" while the cupo is 0.
+ */
+export function shiftCoverageState(shift: {
+  neededHeadcount: number;
+  assignedCount: number;
+  availableCount: number;
+}): ShiftCoverageState {
+  if (shift.neededHeadcount <= 0) return { kind: "unset", label: "Sin cupo" };
+  const missing = shift.neededHeadcount - shift.assignedCount;
+  if (missing <= 0) return { kind: "complete", label: "Completo" };
+  const stillAvailable = Math.max(
+    shift.availableCount - shift.assignedCount,
+    0,
+  );
+  if (stillAvailable < missing) {
+    return {
+      kind: "short",
+      missing,
+      label: `Faltan ${missing}, solo ${shift.availableCount} disponibles`,
+    };
+  }
+  return { kind: "missing", missing, label: `Faltan ${missing}` };
 }
 
 /** "https://wa.me/59171234567" from "+591 7123-4567"; null without digits. */

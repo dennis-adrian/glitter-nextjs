@@ -160,7 +160,7 @@ describe("resolveScreen", () => {
         ctx(festivalAdmin),
       ),
     ).toMatchObject({
-      title: "Convocatoria",
+      title: "Roles, turnos y fechas",
       parentHref: "/dashboard/festivals/9/volunteers",
     });
     expect(

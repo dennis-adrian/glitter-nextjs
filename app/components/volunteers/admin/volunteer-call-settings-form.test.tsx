@@ -69,10 +69,16 @@ describe("VolunteerCallSettingsForm", () => {
       "value",
       "2026-11-30T23:59",
     );
-    expect(screen.getByLabelText(/Hora de la inducción/)).toHaveProperty(
+    expect(screen.getByLabelText("Inducción")).toHaveProperty(
       "value",
-      "18:00",
+      "2026-12-05",
     );
+    expect(
+      screen.getByLabelText("Hora de la inducción, opcional"),
+    ).toHaveProperty("value", "18:00");
+    expect(
+      screen.getByRole("region", { name: "Fechas de la convocatoria" }),
+    ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Guardar fechas" })).toBeTruthy();
   });
 

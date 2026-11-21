@@ -17,6 +17,8 @@ import {
 const id = z.coerce.number().int().positive().max(POSTGRES_INT_MAX);
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const isIsoDate = (value: string) =>
+  ISO_DATE.test(value) && DateTime.fromISO(value).isValid;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /** A datetime-local value read as La Paz time. */
@@ -65,6 +67,29 @@ export type VolunteerAssignmentInput = z.input<
   typeof volunteerAssignmentInputSchema
 >;
 
+/**
+ * The detail page's "Decisión y asignación" card, saved at once: status,
+ * notes and, when the status is "accepted", the assigned role and shifts.
+ */
+export const volunteerReviewInputSchema = z.object({
+  festivalId: id,
+  applicationId: id,
+  status: z.enum(VOLUNTEER_APPLICATION_STATUSES, {
+    error: "Elegí un estado.",
+  }),
+  roleId: id.nullable(),
+  shiftIds: z
+    .array(id)
+    .max(50)
+    .transform((ids) => [...new Set(ids)]),
+  adminNotes: z
+    .string()
+    .trim()
+    .max(VOLUNTEER_ADMIN_NOTES_MAX_LENGTH, "Es demasiado largo")
+    .transform((value) => (value ? value : null)),
+});
+export type VolunteerReviewInput = z.input<typeof volunteerReviewInputSchema>;
+
 export const volunteerCallSettingsInputSchema = z
   .object({
     festivalId: id,
@@ -72,12 +97,9 @@ export const volunteerCallSettingsInputSchema = z
     inductionDate: z
       .string()
       .trim()
-      .refine(
-        (value) =>
-          value === "" ||
-          (ISO_DATE.test(value) && DateTime.fromISO(value).isValid),
-        { error: "La fecha no es válida." },
-      )
+      .refine((value) => value === "" || isIsoDate(value), {
+        error: "La fecha no es válida.",
+      })
       .transform((value) => (value ? value : null)),
     inductionTime: z
       .string()
@@ -120,10 +142,26 @@ export const volunteerRoleInputSchema = z.object({
     .trim()
     .min(1, "Escribí una descripción corta.")
     .max(300, "Es demasiado largo"),
-  sortOrder,
+  /** Omitted: a new role goes last; an edited one keeps its place. */
+  sortOrder: sortOrder.optional(),
 });
 export type VolunteerRoleInput = z.input<typeof volunteerRoleInputSchema>;
 
+/** The roles table's up/down buttons. */
+export const volunteerRoleMoveInputSchema = z.object({
+  festivalId: id,
+  roleId: id,
+  direction: z.enum(["up", "down"]),
+});
+export type VolunteerRoleMoveInput = z.input<
+  typeof volunteerRoleMoveInputSchema
+>;
+
+/**
+ * A shift as the "Turnos" table edits it: one La Paz day, a start and an end
+ * time on it, a name and a cupo. Shifts are listed by time, so there is no
+ * order to set.
+ */
 export const volunteerShiftInputSchema = z
   .object({
     festivalId: id,
@@ -134,24 +172,52 @@ export const volunteerShiftInputSchema = z
       .trim()
       .min(1, "Escribí el nombre del turno.")
       .max(120, "Es demasiado largo"),
-    startsAt: storeDateTime("Indicá cuándo empieza."),
-    endsAt: storeDateTime("Indicá cuándo termina."),
-    neededHeadcount: z.coerce
-      .number({ error: "Indicá cuántas personas hacen falta." })
-      .int("Indicá un número entero.")
-      .min(0, "No puede ser negativo.")
-      .max(999, "Es demasiado grande."),
-    sortOrder,
+    /** yyyy-MM-dd, La Paz */
+    date: z
+      .string({ error: "Indicá el día." })
+      .trim()
+      .refine(isIsoDate, { error: "Indicá el día." }),
+    /** HH:mm */
+    startTime: z
+      .string({ error: "Indicá la hora de inicio." })
+      .trim()
+      .refine((value) => TIME.test(value.slice(0, 5)), {
+        error: "Indicá la hora de inicio.",
+      })
+      .transform((value) => value.slice(0, 5)),
+    /** HH:mm, the same day */
+    endTime: z
+      .string({ error: "Indicá la hora de fin." })
+      .trim()
+      .refine((value) => TIME.test(value.slice(0, 5)), {
+        error: "Indicá la hora de fin.",
+      })
+      .transform((value) => value.slice(0, 5)),
+    // An empty input is a missing cupo, not 0 (Number("") is 0).
+    neededHeadcount: z.preprocess(
+      (value) =>
+        typeof value === "string" && value.trim() === "" ? undefined : value,
+      z.coerce
+        .number({ error: "Indicá el cupo." })
+        .int("Indicá un número entero.")
+        .min(0, "No puede ser negativo.")
+        .max(999, "Es demasiado grande."),
+    ),
   })
   .superRefine((values, issues) => {
-    if (values.endsAt <= values.startsAt) {
+    if (values.endTime <= values.startTime) {
       issues.addIssue({
         code: "custom",
-        path: ["endsAt"],
+        path: ["endTime"],
         message: "El fin tiene que ser posterior al inicio.",
       });
     }
-  });
+  })
+  .transform(({ date, startTime, endTime, ...rest }) => ({
+    ...rest,
+    startsAt: parseStoreDateTimeLocal(`${date}T${startTime}`)!,
+    endsAt: parseStoreDateTimeLocal(`${date}T${endTime}`)!,
+  }));
 export type VolunteerShiftInput = z.input<typeof volunteerShiftInputSchema>;
 
 export const volunteerActiveInputSchema = z.object({

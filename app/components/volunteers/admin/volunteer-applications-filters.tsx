@@ -1,202 +1,291 @@
 "use client";
 
-import { XIcon } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useTransition } from "react";
+import { CirclePlusIcon, SearchIcon, XIcon } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { useDebouncedCallback } from "use-debounce";
 
+import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
-import { Label } from "@/app/components/ui/label";
-import Search from "@/app/components/ui/search";
+import { toolbarButtonClass } from "@/app/components/ui/data_table/styles";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/app/components/ui/select";
-import type {
-  VolunteerAdminRole,
-  VolunteerAdminShift,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/app/components/ui/dropdown-menu";
+import { Input } from "@/app/components/ui/input";
+import {
+  clearVolunteerFiltersHref,
+  hasVolunteerFilters,
+  roleFilterLabel,
+  shiftFilterLabel,
+  volunteerListHref,
+  volunteerStatusHref,
+} from "@/app/components/volunteers/admin/volunteer-admin-list-params";
+import type { RawSearchParams } from "@/app/lib/credits/admin-definitions";
+import { cn } from "@/app/lib/utils";
+import {
+  VOLUNTEER_STATUS_FILTER_LABELS,
+  VOLUNTEER_STATUS_FILTERS,
+  type VolunteerAdminRole,
+  type VolunteerAdminShift,
+  type VolunteerApplicationsFilters,
+  type VolunteerApplicationsPage,
 } from "@/app/lib/volunteers/admin-definitions";
 import { formatShiftWhen } from "@/app/lib/volunteers/format";
 
-/** The select's value for "no filter": Radix refuses an empty value. */
+/** The radio value for "no filter": Radix needs a non-empty one. */
 const ALL = "all";
 
-type FilterKey = "roleId" | "shiftId";
+export type FacetOption = { value: string; label: string };
 
 /**
- * The query string for the current URL with `key` set to `value` (or removed
- * when null), back on the first page: page four of one filter is rarely page
- * four of another.
+ * A dashed toolbar button that narrows the list to one value of a URL
+ * parameter, and shows that value as a badge once one is chosen.
  */
-export function volunteerFilterHref(
-  current: URLSearchParams | string,
-  key: FilterKey,
-  value: string | null,
-) {
-  const params = new URLSearchParams(current);
-  params.delete("offset");
-  if (value && value !== ALL) params.set(key, value);
-  else params.delete(key);
-  const query = params.toString();
-  return query ? `?${query}` : "?";
-}
-
-/** The query string without the search and filters; status and size stay. */
-export function clearVolunteerFiltersHref(current: URLSearchParams | string) {
-  const params = new URLSearchParams(current);
-  for (const key of ["query", "roleId", "shiftId", "offset"]) {
-    params.delete(key);
-  }
-  const query = params.toString();
-  return query ? `?${query}` : "?";
+export function VolunteerFacetFilter({
+  label,
+  allLabel,
+  options,
+  value,
+  valueLabel,
+  onChange,
+}: {
+  label: string;
+  allLabel: string;
+  options: FacetOption[];
+  /** The chosen value, or undefined for none. */
+  value?: string;
+  /** What the badge says for `value`. */
+  valueLabel?: string;
+  onChange: (value: string | null) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className={cn(
+            toolbarButtonClass,
+            "h-11 max-w-full min-w-0 border-dashed md:h-9",
+          )}
+        >
+          <CirclePlusIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
+          <span className="shrink-0">
+            {label}
+            {value && <span className="sr-only">:</span>}
+          </span>
+          {value && (
+            <Badge
+              variant="secondary"
+              className="ml-1 block min-w-0 shrink truncate"
+            >
+              {valueLabel}
+            </Badge>
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))] w-72 max-w-[calc(100vw-2rem)] overflow-y-auto"
+      >
+        <DropdownMenuLabel>{label}</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuRadioGroup
+          value={value ?? ALL}
+          onValueChange={(next) => onChange(next === ALL ? null : next)}
+        >
+          <DropdownMenuRadioItem value={ALL}>{allLabel}</DropdownMenuRadioItem>
+          {options.map((option) => (
+            <DropdownMenuRadioItem
+              key={option.value}
+              value={option.value}
+              className="break-words"
+            >
+              {option.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 function inactive(isActive: boolean, label: string) {
   return isActive ? label : `${label} (inactivo)`;
 }
 
+function byStart(a: VolunteerAdminShift, b: VolunteerAdminShift) {
+  return a.startsAt.getTime() - b.startsAt.getTime() || a.id - b.id;
+}
+
 /**
- * Search by name or email, and narrow the inbox to a role (chosen first,
- * second or assigned) or a shift (available or assigned).
+ * The "Postulaciones" card's controls: a chip per status with how many it
+ * holds under the other filters, the search (name, phone or email), the
+ * "Turno disponible" and "Rol preferido" filters and "Limpiar filtros".
+ * Everything is URL state, so a filtered list can be shared or reloaded.
  */
 export default function VolunteerApplicationsFilters({
+  basePath,
+  searchParams,
+  filters,
+  counts,
   roles,
   shifts,
-  roleId: parsedRoleId,
-  shiftId: parsedShiftId,
-  query,
 }: {
+  /** The list's path, without a query string. */
+  basePath: string;
+  /** The URL's query, as the page received it. */
+  searchParams: RawSearchParams;
+  /** The same query, as the server parsed it: what actually applies. */
+  filters: VolunteerApplicationsFilters;
+  counts: VolunteerApplicationsPage["counts"];
   roles: VolunteerAdminRole[];
   shifts: VolunteerAdminShift[];
-  /** The filters as the server parsed them, so the UI shows what applies. */
-  roleId?: number;
-  shiftId?: number;
-  query: string;
 }) {
-  const searchParams = useSearchParams();
-  const { push } = useRouter();
-  const [, startTransition] = useTransition();
-  // The search box keeps what was typed; clearing remounts it empty.
-  const [searchKey, setSearchKey] = useState(0);
-
-  const roleId = parsedRoleId ? `${parsedRoleId}` : ALL;
-  const shiftId = parsedShiftId ? `${parsedShiftId}` : ALL;
-  const hasFilters = Boolean(query) || roleId !== ALL || shiftId !== ALL;
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
 
   function navigate(href: string) {
-    startTransition(() => push(href, { scroll: false }));
+    startTransition(() => router.push(href, { scroll: false }));
   }
 
-  // A filter left in the URL for a role or shift that no longer exists still
-  // narrows the list; showing it as "Todos" would hide why it is empty.
-  const roleKnown = roleId === ALL || roles.some((r) => `${r.id}` === roleId);
-  const shiftKnown =
-    shiftId === ALL || shifts.some((s) => `${s.id}` === shiftId);
+  // Typed into directly and pushed to the URL after a pause, so a server
+  // round trip never eats keystrokes; follows the URL when it changes from
+  // elsewhere ("Limpiar filtros", a chip, the back button).
+  const [search, setSearch] = useState(filters.query);
+  const lastPushed = useRef(filters.query);
+  useEffect(() => {
+    if (filters.query !== lastPushed.current) {
+      lastPushed.current = filters.query;
+      setSearch(filters.query);
+    }
+  }, [filters.query]);
+  const pushSearch = useDebouncedCallback((term: string) => {
+    lastPushed.current = term;
+    navigate(
+      volunteerListHref(basePath, searchParams, { query: term || null }),
+    );
+  }, 400);
+
+  const shiftOptions = [...shifts].sort(byStart).map((shift) => ({
+    value: `${shift.id}`,
+    label: inactive(
+      shift.isActive,
+      `${formatShiftWhen(shift)} — ${shift.label}`,
+    ),
+  }));
+  const roleOptions = roles.map((role) => ({
+    value: `${role.id}`,
+    label: inactive(role.isActive, role.name),
+  }));
 
   return (
-    <div className="flex min-w-0 flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
-      <Search
-        key={searchKey}
-        className="min-w-0 md:w-80"
-        placeholder="Buscar por nombre o correo"
-        label="Buscar por nombre o correo"
-      />
-      <div className="grid min-w-0 grid-cols-1 gap-3 min-[400px]:grid-cols-2 md:flex md:flex-wrap md:items-end">
-        <div className="flex min-w-0 flex-col gap-1">
-          <Label
-            htmlFor="volunteer-role-filter"
-            className="text-sm font-normal text-muted-foreground"
-          >
-            Rol
-          </Label>
-          <Select
-            value={roleId}
-            onValueChange={(value) =>
-              navigate(volunteerFilterHref(searchParams, "roleId", value))
-            }
-          >
-            <SelectTrigger
-              id="volunteer-role-filter"
-              className="min-w-0 md:w-52"
-            >
-              <SelectValue placeholder="Todos los roles" />
-            </SelectTrigger>
-            <SelectContent className="max-w-[min(var(--radix-select-content-available-width),calc(100vw-2rem))]">
-              <SelectItem value={ALL}>Todos los roles</SelectItem>
-              {!roleKnown && (
-                <SelectItem value={roleId} className="break-words">
-                  Rol #{roleId}
-                </SelectItem>
+    <div className="flex min-w-0 flex-col gap-3">
+      <nav
+        aria-label="Estado de las postulaciones"
+        className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0 [&::-webkit-scrollbar]:hidden"
+      >
+        {VOLUNTEER_STATUS_FILTERS.map((status) => {
+          const active = status === filters.status;
+          return (
+            <Link
+              key={status}
+              href={volunteerStatusHref(basePath, searchParams, status)}
+              scroll={false}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none md:min-h-7",
+                active
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border text-foreground hover:bg-muted",
               )}
-              {roles.map((role) => (
-                <SelectItem
-                  key={role.id}
-                  value={`${role.id}`}
-                  className="break-words"
-                >
-                  {inactive(role.isActive, role.name)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            >
+              {VOLUNTEER_STATUS_FILTER_LABELS[status]}{" "}
+              <span className="tabular-nums">{counts[status]}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="flex min-w-0 flex-col gap-2 md:flex-row md:flex-wrap md:items-start">
+        <div className="relative w-full min-w-0 md:max-w-sm md:flex-1 md:basis-60">
+          <label htmlFor="volunteer-search" className="sr-only">
+            Buscar postulaciones
+          </label>
+          <SearchIcon
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            id="volunteer-search"
+            type="search"
+            value={search}
+            placeholder="Buscar por nombre, celular o correo"
+            onChange={(event) => {
+              setSearch(event.target.value);
+              pushSearch(event.target.value.trim());
+            }}
+            className="h-11 pl-9 md:h-9"
+            aria-busy={isPending || undefined}
+          />
         </div>
-        <div className="flex min-w-0 flex-col gap-1">
-          <Label
-            htmlFor="volunteer-shift-filter"
-            className="text-sm font-normal text-muted-foreground"
-          >
-            Turno
-          </Label>
-          <Select
-            value={shiftId}
-            onValueChange={(value) =>
-              navigate(volunteerFilterHref(searchParams, "shiftId", value))
+        <div className="flex min-w-0 flex-wrap items-start gap-2">
+          <VolunteerFacetFilter
+            label="Turno disponible"
+            allLabel="Todos los turnos"
+            options={shiftOptions}
+            value={filters.shiftId ? `${filters.shiftId}` : undefined}
+            valueLabel={
+              filters.shiftId
+                ? shiftFilterLabel(shifts, filters.shiftId)
+                : undefined
             }
-          >
-            <SelectTrigger
-              id="volunteer-shift-filter"
-              className="min-w-0 md:w-72"
+            onChange={(value) =>
+              navigate(
+                volunteerListHref(basePath, searchParams, { shiftId: value }),
+              )
+            }
+          />
+          <VolunteerFacetFilter
+            label="Rol preferido"
+            allLabel="Todos los roles"
+            options={roleOptions}
+            value={filters.roleId ? `${filters.roleId}` : undefined}
+            valueLabel={
+              filters.roleId
+                ? roleFilterLabel(roles, filters.roleId)
+                : undefined
+            }
+            onChange={(value) =>
+              navigate(
+                volunteerListHref(basePath, searchParams, { roleId: value }),
+              )
+            }
+          />
+          {hasVolunteerFilters(filters) && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-11 md:h-9"
+              onClick={() => {
+                pushSearch.cancel();
+                navigate(clearVolunteerFiltersHref(basePath, searchParams));
+              }}
             >
-              <SelectValue placeholder="Todos los turnos" />
-            </SelectTrigger>
-            <SelectContent className="max-w-[min(var(--radix-select-content-available-width),calc(100vw-2rem))]">
-              <SelectItem value={ALL}>Todos los turnos</SelectItem>
-              {!shiftKnown && (
-                <SelectItem value={shiftId}>Turno #{shiftId}</SelectItem>
-              )}
-              {shifts.map((shift) => (
-                <SelectItem
-                  key={shift.id}
-                  value={`${shift.id}`}
-                  className="break-words"
-                >
-                  {inactive(
-                    shift.isActive,
-                    `${formatShiftWhen(shift)} — ${shift.label}`,
-                  )}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <XIcon aria-hidden="true" className="mr-1 h-4 w-4" />
+              Limpiar filtros
+            </Button>
+          )}
         </div>
       </div>
-      {hasFilters && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="self-start md:self-end"
-          onClick={() => {
-            setSearchKey((key) => key + 1);
-            navigate(clearVolunteerFiltersHref(searchParams));
-          }}
-        >
-          <XIcon aria-hidden="true" className="mr-1 h-4 w-4" />
-          Limpiar filtros
-        </Button>
-      )}
     </div>
   );
 }
