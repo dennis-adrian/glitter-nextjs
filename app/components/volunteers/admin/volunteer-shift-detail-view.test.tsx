@@ -32,8 +32,8 @@ vi.mock("@/app/lib/volunteers/admin-actions", () => ({
 import VolunteerShiftDetailView, {
   availableSentence,
   candidateDayLine,
-  volunteerCoverageHref,
 } from "@/app/components/volunteers/admin/volunteer-shift-detail-view";
+import { volunteerCoverageHref } from "@/app/components/volunteers/admin/volunteer-admin-list-params";
 import type {
   VolunteerShiftAssignee,
   VolunteerShiftCandidate,

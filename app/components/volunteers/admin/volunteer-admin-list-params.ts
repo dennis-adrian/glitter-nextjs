@@ -1,6 +1,7 @@
 import type { RawSearchParams } from "@/app/lib/credits/admin-definitions";
 import {
   ageOn,
+  volunteerAdminPath,
   type VolunteerAdminShift,
   type VolunteerApplicationsFilters,
   type VolunteerStatusFilter,
@@ -119,4 +120,9 @@ export function volunteerAgeAndPhone(
     item.phone || null,
   ];
   return parts.filter(Boolean).join(" · ");
+}
+
+/** The list's Cobertura view, where phones come back to from a shift. */
+export function volunteerCoverageHref(festivalId: number) {
+  return volunteerViewHref(volunteerAdminPath(festivalId), {}, "cobertura");
 }

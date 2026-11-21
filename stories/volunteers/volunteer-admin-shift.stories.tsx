@@ -1,8 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import VolunteerShiftDetailView, {
-  volunteerCoverageHref,
-} from "@/app/components/volunteers/admin/volunteer-shift-detail-view";
+import { volunteerCoverageHref } from "@/app/components/volunteers/admin/volunteer-admin-list-params";
+import VolunteerShiftDetailView from "@/app/components/volunteers/admin/volunteer-shift-detail-view";
 import type {
   VolunteerShiftAssignee,
   VolunteerShiftCandidate,

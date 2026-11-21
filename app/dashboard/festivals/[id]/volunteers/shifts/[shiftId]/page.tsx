@@ -3,9 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 
 import { ScreenTitle } from "@/app/components/navbar/screen-bar";
-import VolunteerShiftDetailView, {
-  volunteerCoverageHref,
-} from "@/app/components/volunteers/admin/volunteer-shift-detail-view";
+import { volunteerCoverageHref } from "@/app/components/volunteers/admin/volunteer-admin-list-params";
+import VolunteerShiftDetailView from "@/app/components/volunteers/admin/volunteer-shift-detail-view";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { POSTGRES_INT_MAX } from "@/app/lib/volunteers/admin-definitions";
 import { fetchVolunteerShiftDetail } from "@/app/lib/volunteers/admin-queries";

@@ -10,7 +10,7 @@ import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/card";
-import { volunteerViewHref } from "@/app/components/volunteers/admin/volunteer-admin-list-params";
+import { volunteerCoverageHref } from "@/app/components/volunteers/admin/volunteer-admin-list-params";
 import { volunteerNameLinkClass } from "@/app/components/volunteers/admin/volunteer-applications-list";
 import {
   COVERAGE_BADGE_VARIANTS,
@@ -29,7 +29,6 @@ import {
   VOLUNTEER_ASSIGN_AUTO_ACCEPTS,
   VOLUNTEER_STATUS_FILTER_LABELS,
   shiftCoverageState,
-  volunteerAdminPath,
   volunteerApplicationAdminPath,
   type VolunteerAdminResult,
   type VolunteerShiftCandidate,
@@ -56,11 +55,6 @@ const EMPTY_CANDIDATES: Record<CandidateFilter, string> = {
   pending: "No hay postulaciones pendientes que puedan cubrirlo.",
   waitlist: "No hay postulaciones en espera que puedan cubrirlo.",
 };
-
-/** The list's Cobertura view, where phones come back to. */
-export function volunteerCoverageHref(festivalId: number) {
-  return volunteerViewHref(volunteerAdminPath(festivalId), {}, "cobertura");
-}
 
 /** "29 personas marcaron este turno como disponible." */
 export function availableSentence(count: number) {
