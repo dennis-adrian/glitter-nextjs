@@ -5,6 +5,7 @@ import {
   formatFestivalDayRuns,
 } from "@/app/lib/festival-days";
 import { STORE_TIMEZONE } from "@/app/lib/formatters";
+import { capitalize } from "@/app/lib/utils";
 import type {
   VolunteerInduction,
   VolunteerShift,
@@ -19,14 +20,28 @@ function laPaz(date: Date) {
   return DateTime.fromJSDate(date, { zone: STORE_TIMEZONE }).setLocale("es");
 }
 
-function capitalize(value: string) {
-  return value.charAt(0).toUpperCase() + value.slice(1);
+/** "Vie", the day's short weekday. */
+function shortWeekday(day: DateTime) {
+  return capitalize(day.toFormat("ccc").replace(".", ""));
+}
+
+/** Shifts in time order, ties by id, so every list orders them alike. */
+export function compareShiftsByStart(
+  a: Pick<VolunteerShift, "startsAt" | "id">,
+  b: Pick<VolunteerShift, "startsAt" | "id">,
+): number {
+  return a.startsAt.getTime() - b.startsAt.getTime() || a.id - b.id;
+}
+
+/** "22 años", or "1 año". */
+export function formatYears(years: number): string {
+  return `${years} ${years === 1 ? "año" : "años"}`;
 }
 
 /** "Vie 18 dic" */
 export function formatShiftDay(date: Date): string {
   const day = laPaz(date);
-  const weekday = capitalize(day.toFormat("ccc").replace(".", ""));
+  const weekday = shortWeekday(day);
   const month = day.toFormat("LLL").replace(".", "");
   return `${weekday} ${day.day} ${month}`;
 }
@@ -50,8 +65,15 @@ export function formatShiftWhenShort(
   shift: Pick<VolunteerShift, "startsAt" | "endsAt">,
 ): string {
   const day = laPaz(shift.startsAt);
-  const weekday = capitalize(day.toFormat("ccc").replace(".", ""));
-  return `${weekday} ${day.day} · ${formatShiftHours(shift)}`;
+  return `${shortWeekday(day)} ${day.day} · ${formatShiftHours(shift)}`;
+}
+
+/** "Vie 18 15:00": a shift's day and start, short enough to list several. */
+export function formatShiftStartShort(
+  shift: Pick<VolunteerShift, "startsAt">,
+): string {
+  const start = laPaz(shift.startsAt);
+  return `${shortWeekday(start)} ${start.day} ${start.toFormat("HH:mm")}`;
 }
 
 /** "Vie 18 dic · 15:00–19:00 — Montaje" */
