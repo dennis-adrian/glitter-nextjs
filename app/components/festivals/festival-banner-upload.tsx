@@ -18,14 +18,14 @@ const COPY: Record<
 > = {
   wide: {
     label: "Banner ancho (3:1)",
-    description: "JPG o PNG · 3:1 · recomendado 2400 × 800 px",
+    description: "JPG, PNG o WebP · 3:1 · recomendado 2400 × 800 px",
     currentName: "Banner ancho actual",
     emptyLabel: "Todavía no añadiste un banner ancho",
     confirmLabel: "Subir banner ancho",
   },
   mobile: {
     label: "Banner para teléfonos (3:2)",
-    description: "JPG o PNG · 3:2 · recomendado 1200 × 800 px",
+    description: "JPG, PNG o WebP · 3:2 · recomendado 1200 × 800 px",
     currentName: "Banner para teléfonos actual",
     emptyLabel: "Todavía no añadiste un banner para teléfonos",
     confirmLabel: "Subir banner para teléfonos",

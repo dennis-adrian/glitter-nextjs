@@ -68,11 +68,27 @@ describe("who an upload is filed under", () => {
 });
 
 describe("festivalArtwork upload route", () => {
-  it("takes only the formats every mail client shows", () => {
+  it("takes JPEG, PNG and WebP, the formats the picker offers", () => {
     expect(Object.keys(festivalArtwork.routerConfig).sort()).toEqual(
       [...FESTIVAL_ARTWORK_TYPES].sort(),
     );
+    expect(Object.keys(festivalArtwork.routerConfig).sort()).toEqual([
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+    ]);
+    // Not every image: SVG would break in Gmail.
     expect(festivalArtwork.routerConfig).not.toHaveProperty("image");
+    expect(festivalArtwork.routerConfig).not.toHaveProperty("image/svg+xml");
+  });
+
+  it("takes one WebP image from an admin", async () => {
+    requireStaffMock.mockResolvedValue({ id: 3 } as never);
+    await expect(
+      festivalArtwork.middleware({
+        files: [{ name: "banner.webp", type: "image/webp" }],
+      }),
+    ).resolves.toEqual({ userId: 3 });
   });
 
   it("takes one image from an admin", async () => {
