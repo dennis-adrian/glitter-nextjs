@@ -30,7 +30,8 @@ import {
   formatShiftWhen,
 } from "@/app/lib/volunteers/format";
 
-const nameLinkClass =
+/** An applicant's name as a link to their application. */
+export const volunteerNameLinkClass =
   "font-semibold text-primary underline-offset-2 hover:underline focus-visible:underline";
 
 const EMPTY_BY_STATUS: Record<VolunteerStatusFilter, string> = {
@@ -118,7 +119,7 @@ function volunteerApplicationColumns({
         <div className="max-w-72 min-w-48">
           <Link
             href={volunteerApplicationAdminPath(festivalId, item.id)}
-            className={cn("break-words", nameLinkClass)}
+            className={cn("break-words", volunteerNameLinkClass)}
           >
             {item.fullName}
           </Link>
@@ -228,7 +229,7 @@ function ApplicationCard({
         <div className="flex flex-wrap items-center gap-2">
           <Link
             href={volunteerApplicationAdminPath(festivalId, item.id)}
-            className={cn("min-w-0 wrap-anywhere", nameLinkClass)}
+            className={cn("min-w-0 wrap-anywhere", volunteerNameLinkClass)}
           >
             {item.fullName}
           </Link>

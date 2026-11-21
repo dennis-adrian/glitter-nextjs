@@ -12,6 +12,8 @@ import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import {
   canAssignVolunteer,
   daysOverShiftLimit,
+  decideShiftAssignment,
+  defaultAssignedRoleId,
   VOLUNTEER_ADMIN_COPY,
   VOLUNTEER_STATUS_LABELS,
   type VolunteerAdminResult,
@@ -28,6 +30,8 @@ import {
   volunteerRoleInputSchema,
   type VolunteerRoleMoveInput,
   volunteerRoleMoveInputSchema,
+  type VolunteerShiftAssignmentInput,
+  volunteerShiftAssignmentInputSchema,
   type VolunteerShiftInput,
   volunteerShiftInputSchema,
   type VolunteerStatusInput,
@@ -65,6 +69,7 @@ const ROLE_UNAVAILABLE = "Ese rol ya no está disponible. Actualizá la página.
 const SHIFT_UNAVAILABLE =
   "Uno de los turnos ya no está disponible. Actualizá la página.";
 const ROLE_NAME_TAKEN = "Ya hay un rol con ese nombre.";
+const SHIFT_INACTIVE = "Ese turno está desactivado.";
 
 /** A refusal decided inside a transaction; rolls it back. */
 class Refusal extends Error {}
@@ -294,17 +299,7 @@ export async function saveVolunteerReview(
   let overLimit: string[] = [];
   try {
     await db.transaction(async (tx) => {
-      const [application] = await tx
-        .select({ assignedRoleId: volunteerApplications.assignedRoleId })
-        .from(volunteerApplications)
-        .where(
-          and(
-            eq(volunteerApplications.id, applicationId),
-            eq(volunteerApplications.festivalId, festivalId),
-          ),
-        )
-        .for("update");
-      if (!application) throw new Refusal(VOLUNTEER_ADMIN_COPY.notFound);
+      const application = await lockApplication(tx, festivalId, applicationId);
 
       const assigning = canAssignVolunteer(status);
       if (assigning) {
@@ -337,12 +332,245 @@ export async function saveVolunteerReview(
   }
 
   revalidateApplications(festivalId);
-  const message = "Cambios guardados.";
+  return withOverLimitWarning("Cambios guardados.", overLimit);
+}
+
+/**
+ * A success, with a warning when an application was left holding more than
+ * VOLUNTEER_MAX_SHIFTS_PER_DAY on some La Paz days (yyyy-MM-dd).
+ */
+function withOverLimitWarning(
+  message: string,
+  overLimit: string[],
+): VolunteerAdminResult {
   if (overLimit.length === 0) return { success: true, message };
   return {
     success: true,
     message,
     warning: `${message} Quedó con más de ${VOLUNTEER_MAX_SHIFTS_PER_DAY} turnos ${spanishDays(overLimit)}.`,
+  };
+}
+
+/**
+ * Locks an application of the festival for the rest of the transaction.
+ * Throws a Refusal when the festival has no such application.
+ */
+async function lockApplication(
+  tx: Tx,
+  festivalId: number,
+  applicationId: number,
+) {
+  const [application] = await tx
+    .select({
+      fullName: volunteerApplications.fullName,
+      status: volunteerApplications.status,
+      assignedRoleId: volunteerApplications.assignedRoleId,
+      firstChoiceRoleId: volunteerApplications.firstChoiceRoleId,
+      secondChoiceRoleId: volunteerApplications.secondChoiceRoleId,
+    })
+    .from(volunteerApplications)
+    .where(
+      and(
+        eq(volunteerApplications.id, applicationId),
+        eq(volunteerApplications.festivalId, festivalId),
+      ),
+    )
+    .for("update");
+  if (!application) throw new Refusal(VOLUNTEER_ADMIN_COPY.notFound);
+  return application;
+}
+
+/** Whether the application holds the shift. */
+async function holdsShift(tx: Tx, applicationId: number, shiftId: number) {
+  const [row] = await tx
+    .select({ shiftId: volunteerApplicationAssignedShifts.shiftId })
+    .from(volunteerApplicationAssignedShifts)
+    .where(
+      and(
+        eq(volunteerApplicationAssignedShifts.applicationId, applicationId),
+        eq(volunteerApplicationAssignedShifts.shiftId, shiftId),
+      ),
+    );
+  return Boolean(row);
+}
+
+/**
+ * The shift screen's "Asignar": adds one active shift of the festival to an
+ * application, keeping its other shifts. A pending or waitlisted application
+ * also becomes accepted while VOLUNTEER_ASSIGN_AUTO_ACCEPTS is on (see
+ * decideShiftAssignment); a rejected one is refused. Someone with no role
+ * gets their 1st choice, or their 2nd when the 1st is inactive. More than
+ * VOLUNTEER_MAX_SHIFTS_PER_DAY that day saves with a warning. Already
+ * assigned: a success that changes nothing.
+ */
+export async function assignVolunteerShift(
+  input: VolunteerShiftAssignmentInput,
+): Promise<VolunteerAdminResult> {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) return UNAUTHORIZED;
+  const parsed = volunteerShiftAssignmentInputSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, shiftId, applicationId } = parsed.data;
+
+  let outcome: {
+    fullName: string;
+    changed: boolean;
+    accepted: boolean;
+    overLimit: string[];
+  };
+  try {
+    outcome = await db.transaction(async (tx) => {
+      const application = await lockApplication(tx, festivalId, applicationId);
+      const decision = decideShiftAssignment(application.status);
+      if (decision.kind === "refuse") throw new Refusal(decision.message);
+
+      const [shift] = await tx
+        .select({
+          startsAt: volunteerShifts.startsAt,
+          isActive: volunteerShifts.isActive,
+        })
+        .from(volunteerShifts)
+        .where(
+          and(
+            eq(volunteerShifts.id, shiftId),
+            eq(volunteerShifts.festivalId, festivalId),
+          ),
+        );
+      if (!shift) throw new Refusal(SHIFT_NOT_FOUND);
+      const { fullName } = application;
+      if (await holdsShift(tx, applicationId, shiftId)) {
+        return { fullName, changed: false, accepted: false, overLimit: [] };
+      }
+      if (!shift.isActive) throw new Refusal(SHIFT_INACTIVE);
+
+      let assignedRoleId = application.assignedRoleId;
+      if (assignedRoleId === null) {
+        const activeRoles = await tx
+          .select({ id: volunteerRoles.id })
+          .from(volunteerRoles)
+          .where(
+            and(
+              eq(volunteerRoles.festivalId, festivalId),
+              eq(volunteerRoles.isActive, true),
+              inArray(volunteerRoles.id, [
+                application.firstChoiceRoleId,
+                application.secondChoiceRoleId,
+              ]),
+            ),
+          );
+        assignedRoleId = defaultAssignedRoleId(
+          application,
+          new Set(activeRoles.map((role) => role.id)),
+        );
+      }
+
+      await tx
+        .insert(volunteerApplicationAssignedShifts)
+        .values({ applicationId, shiftId, festivalId });
+      await tx
+        .update(volunteerApplications)
+        .set({
+          ...(decision.accept ? { status: "accepted" as const } : {}),
+          assignedRoleId,
+          ...reviewedBy(profile.id),
+        })
+        .where(
+          and(
+            eq(volunteerApplications.id, applicationId),
+            eq(volunteerApplications.festivalId, festivalId),
+          ),
+        );
+
+      const held = await tx
+        .select({ startsAt: volunteerShifts.startsAt })
+        .from(volunteerApplicationAssignedShifts)
+        .innerJoin(
+          volunteerShifts,
+          eq(volunteerShifts.id, volunteerApplicationAssignedShifts.shiftId),
+        )
+        .where(
+          eq(volunteerApplicationAssignedShifts.applicationId, applicationId),
+        );
+      const day = laPazDay(shift.startsAt);
+      return {
+        fullName,
+        changed: true,
+        accepted: decision.accept,
+        overLimit: daysOverShiftLimit(held).filter((over) => over === day),
+      };
+    });
+  } catch (error) {
+    return failure(error, "Error assigning a volunteer shift", festivalId);
+  }
+
+  if (!outcome.changed) {
+    return {
+      success: true,
+      message: `Ese turno ya estaba asignado a ${outcome.fullName}.`,
+    };
+  }
+  revalidateApplications(festivalId);
+  const message = outcome.accepted
+    ? `Turno asignado a ${outcome.fullName}. Su postulación pasó a Aceptada.`
+    : `Turno asignado a ${outcome.fullName}.`;
+  return withOverLimitWarning(message, outcome.overLimit);
+}
+
+/**
+ * The shift screen's "Quitar": removes only this shift from the application;
+ * its status, role and other shifts stay. Not assigned: a success that
+ * changes nothing.
+ */
+export async function unassignVolunteerShift(
+  input: VolunteerShiftAssignmentInput,
+): Promise<VolunteerAdminResult> {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) return UNAUTHORIZED;
+  const parsed = volunteerShiftAssignmentInputSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, shiftId, applicationId } = parsed.data;
+
+  let outcome: { fullName: string; changed: boolean };
+  try {
+    outcome = await db.transaction(async (tx) => {
+      const { fullName } = await lockApplication(tx, festivalId, applicationId);
+      const removed = await tx
+        .delete(volunteerApplicationAssignedShifts)
+        .where(
+          and(
+            eq(volunteerApplicationAssignedShifts.applicationId, applicationId),
+            eq(volunteerApplicationAssignedShifts.shiftId, shiftId),
+            eq(volunteerApplicationAssignedShifts.festivalId, festivalId),
+          ),
+        )
+        .returning({ shiftId: volunteerApplicationAssignedShifts.shiftId });
+      if (removed.length === 0) return { fullName, changed: false };
+
+      await tx
+        .update(volunteerApplications)
+        .set(reviewedBy(profile.id))
+        .where(
+          and(
+            eq(volunteerApplications.id, applicationId),
+            eq(volunteerApplications.festivalId, festivalId),
+          ),
+        );
+      return { fullName, changed: true };
+    });
+  } catch (error) {
+    return failure(error, "Error unassigning a volunteer shift", festivalId);
+  }
+
+  if (!outcome.changed) {
+    return {
+      success: true,
+      message: `${outcome.fullName} ya no estaba en este turno.`,
+    };
+  }
+  revalidateApplications(festivalId);
+  return {
+    success: true,
+    message: `Quitamos a ${outcome.fullName} de este turno.`,
   };
 }
 

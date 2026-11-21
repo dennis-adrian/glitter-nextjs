@@ -1,3 +1,6 @@
+import { ChevronRightIcon } from "lucide-react";
+import Link from "next/link";
+
 import { Badge } from "@/app/components/ui/badge";
 import {
   Card,
@@ -14,8 +17,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table";
+import { cn } from "@/app/lib/utils";
 import {
   shiftCoverageState,
+  volunteerShiftAdminPath,
   type ShiftCoverageState,
   type VolunteerShiftCoverage,
 } from "@/app/lib/volunteers/admin-definitions";
@@ -25,19 +30,27 @@ import {
   formatShiftWhenShort,
 } from "@/app/lib/volunteers/format";
 
-const BADGE_VARIANTS = {
+/** The coverage badge's colour per state: the card's and the shift screen's. */
+export const COVERAGE_BADGE_VARIANTS = {
   unset: "outline",
   complete: "green",
   missing: "amber",
   short: "red",
 } as const satisfies Record<ShiftCoverageState["kind"], string>;
 
-function assignedOf(shift: VolunteerShiftCoverage) {
+/** "7 de 10" */
+export function assignedOf(
+  shift: Pick<VolunteerShiftCoverage, "assignedCount" | "neededHeadcount">,
+) {
   return `${shift.assignedCount} de ${shift.neededHeadcount}`;
 }
 
 /** The assigned share of the cupo as a bar; empty while there is no cupo. */
-export function CoverageMeter({ shift }: { shift: VolunteerShiftCoverage }) {
+export function CoverageMeter({
+  shift,
+}: {
+  shift: Pick<VolunteerShiftCoverage, "assignedCount" | "neededHeadcount">;
+}) {
   const percent =
     shift.neededHeadcount > 0
       ? Math.round(
@@ -60,17 +73,26 @@ export function coverageShifts(shifts: readonly VolunteerShiftCoverage[]) {
 
 /**
  * "Cobertura por turno": per active shift, who marked it, who is assigned
- * against the cupo, and whether it can still be filled. A table from md, a
- * list with a badge and a bar per shift on phones.
+ * against the cupo, and whether it can still be filled. Each shift opens its
+ * own screen. A table from md; on phones a tappable row per shift, with a
+ * badge and a bar.
  */
 export default function VolunteerCoverageCard({
+  festivalId,
   shifts: allShifts,
+  className,
 }: {
+  festivalId: number;
   shifts: VolunteerShiftCoverage[];
+  className?: string;
 }) {
   const shifts = coverageShifts(allShifts);
   return (
-    <Card aria-labelledby="volunteer-coverage-title" role="region">
+    <Card
+      aria-labelledby="volunteer-coverage-title"
+      role="region"
+      className={className}
+    >
       <CardHeader className="p-4 pb-2 md:p-6 md:pb-2">
         <h2
           id="volunteer-coverage-title"
@@ -78,42 +100,60 @@ export default function VolunteerCoverageCard({
         >
           Cobertura por turno
         </h2>
-        <CardDescription className="max-md:sr-only">
+        <CardDescription className="md:hidden">
+          Tocá un turno para ver quién está asignado y quién puede cubrirlo.
+        </CardDescription>
+        <CardDescription className="max-md:hidden">
           Personas aceptadas y asignadas a cada turno, contra el cupo que
-          necesitás.
+          necesitás. Abrí un turno para ver quién está asignado y quién puede
+          cubrirlo.
         </CardDescription>
       </CardHeader>
-      <CardContent className="p-4 pt-2 md:p-6 md:pt-2">
+      <CardContent
+        className={cn(
+          shifts.length === 0 ? "p-4 pt-2" : "p-0 pb-2",
+          "md:p-6 md:pt-2",
+        )}
+      >
         {shifts.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No hay turnos activos.
           </p>
         ) : (
           <>
-            <ul className="flex flex-col gap-3.5 md:hidden">
+            <ul className="flex flex-col md:hidden">
               {shifts.map((shift) => {
                 const state = shiftCoverageState(shift);
                 return (
-                  <li key={shift.id} className="flex flex-col gap-1.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 text-sm">
-                        <p className="font-semibold">
-                          {formatShiftWhenShort(shift)}
-                        </p>
-                        <p className="break-words text-muted-foreground">
-                          {shift.label}
-                        </p>
+                  <li key={shift.id} className="border-t">
+                    <Link
+                      href={volunteerShiftAdminPath(festivalId, shift.id)}
+                      className="flex flex-col gap-2 px-4 py-3 transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset"
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0 grow text-sm">
+                          <p className="font-semibold">
+                            {formatShiftWhenShort(shift)}
+                          </p>
+                          <p className="break-words text-muted-foreground">
+                            {shift.label}
+                          </p>
+                        </div>
+                        <Badge
+                          variant={COVERAGE_BADGE_VARIANTS[state.kind]}
+                          className="tabular-nums"
+                          title={state.label}
+                        >
+                          {assignedOf(shift)}
+                          <span className="sr-only">: {state.label}</span>
+                        </Badge>
+                        <ChevronRightIcon
+                          aria-hidden="true"
+                          className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                        />
                       </div>
-                      <Badge
-                        variant={BADGE_VARIANTS[state.kind]}
-                        className="tabular-nums"
-                        title={state.label}
-                      >
-                        {assignedOf(shift)}
-                        <span className="sr-only">: {state.label}</span>
-                      </Badge>
-                    </div>
-                    <CoverageMeter shift={shift} />
+                      <CoverageMeter shift={shift} />
+                    </Link>
                   </li>
                 );
               })}
@@ -141,9 +181,12 @@ export default function VolunteerCoverageCard({
                     return (
                       <TableRow key={shift.id}>
                         <TableCell className="min-w-52">
-                          <p className="font-semibold whitespace-nowrap">
+                          <Link
+                            href={volunteerShiftAdminPath(festivalId, shift.id)}
+                            className="font-semibold whitespace-nowrap text-primary underline-offset-2 hover:underline focus-visible:underline"
+                          >
                             {formatShiftWhen(shift)}
-                          </p>
+                          </Link>
                           <p className="break-words text-muted-foreground">
                             {shift.label}
                           </p>
@@ -159,7 +202,7 @@ export default function VolunteerCoverageCard({
                         </TableCell>
                         <TableCell>
                           <Badge
-                            variant={BADGE_VARIANTS[state.kind]}
+                            variant={COVERAGE_BADGE_VARIANTS[state.kind]}
                             className="h-auto whitespace-normal"
                           >
                             {state.label}

@@ -40,17 +40,20 @@ function Navbar() {
 /**
  * The volunteer admin pages' app context in a story: the router, the URL
  * (path and query, which the server table reads) and the navbar's screen
- * context with an optional title.
+ * context with an optional title and back target.
  */
 export function VolunteerAdminStoryContext({
   path,
   searchParams = {},
   title,
+  backHref,
   children,
 }: {
   path: string;
   searchParams?: RawSearchParams;
   title?: string;
+  /** The page's back target, as its ScreenTitle gives it. */
+  backHref?: string;
   children: ReactNode;
 }) {
   const query = new URLSearchParams(
@@ -66,7 +69,7 @@ export function VolunteerAdminStoryContext({
         <SearchParamsContext.Provider value={query}>
           <ScreenBarProvider>
             <Navbar />
-            {title && <ScreenTitle title={title} />}
+            {title && <ScreenTitle title={title} backHref={backHref} />}
             {children}
           </ScreenBarProvider>
         </SearchParamsContext.Provider>

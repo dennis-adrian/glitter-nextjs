@@ -169,6 +169,15 @@ describe("resolveScreen", () => {
       title: "Postulación",
       parentHref: "/dashboard/festivals/9/volunteers",
     });
+    expect(
+      resolveScreen(
+        "/dashboard/festivals/9/volunteers/shifts/4",
+        ctx(festivalAdmin),
+      ),
+    ).toMatchObject({
+      title: "Turno",
+      parentHref: "/dashboard/festivals/9/volunteers",
+    });
   });
 
   it("treats the festival in progress as Festivales' own page for unverified profiles", () => {

@@ -33,6 +33,7 @@ describe("VolunteerCoverageCard", () => {
   it("lists active shifts in time order with their meter and state", () => {
     render(
       <VolunteerCoverageCard
+        festivalId={11}
         shifts={[
           shift(2, "2026-12-20T21:30:00Z", {
             label: "Festival + desmontaje de mesas (turno B)",
@@ -48,7 +49,11 @@ describe("VolunteerCoverageCard", () => {
     const rows = within(screen.getByRole("table")).getAllByRole("row");
     expect(rows).toHaveLength(3);
     const first = within(rows[1]);
-    expect(first.getByText("Vie 18 dic · 15:00–19:00")).toBeTruthy();
+    expect(
+      first
+        .getByRole("link", { name: "Vie 18 dic · 15:00–19:00" })
+        .getAttribute("href"),
+    ).toBe("/dashboard/festivals/11/volunteers/shifts/1");
     expect(first.getByText("Montaje")).toBeTruthy();
     expect(first.getByText("4 de 8")).toBeTruthy();
     const meter = first.getByRole("progressbar", { name: "4 de 8 asignados" });
@@ -62,12 +67,29 @@ describe("VolunteerCoverageCard", () => {
     expect(screen.queryByText("Viejo")).toBeNull();
 
     const phone = within(screen.getAllByRole("list")[0]);
-    expect(phone.getByText("Vie 18 · 15:00–19:00")).toBeTruthy();
-    expect(phone.getAllByRole("listitem")).toHaveLength(2);
+    const items = phone.getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    const tap = within(items[0]).getByRole("link");
+    expect(tap.getAttribute("href")).toBe(
+      "/dashboard/festivals/11/volunteers/shifts/1",
+    );
+    expect(tap.textContent).toContain("Vie 18 · 15:00–19:00");
+    expect(tap.textContent).toContain("4 de 8: Faltan 4");
+    expect(
+      within(tap).getByRole("progressbar", { name: "4 de 8 asignados" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Tocá un turno para ver quién está asignado y quién puede cubrirlo.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/Abrí un turno para ver quién está asignado/),
+    ).toBeTruthy();
   });
 
   it("says when there is no active shift", () => {
-    render(<VolunteerCoverageCard shifts={[]} />);
+    render(<VolunteerCoverageCard festivalId={11} shifts={[]} />);
     expect(screen.getByText("No hay turnos activos.")).toBeTruthy();
   });
 });

@@ -83,6 +83,56 @@ describe("VolunteerAdminListView", () => {
     expect(screen.getByRole("heading", { name: "Postulaciones" })).toBeTruthy();
   });
 
+  it("switches phones between the applications and the coverage", () => {
+    const { rerender } = render(
+      <VolunteerAdminListView
+        call={CALL}
+        page={{ items: [], total: 0, counts: totals }}
+        filters={filters}
+        searchParams={{ status: "pending" }}
+        today={NOW}
+      />,
+    );
+    const nav = screen.getByRole("navigation", {
+      name: "Vistas de voluntarios",
+    });
+    expect(nav.className).toContain("md:hidden");
+    const applications = screen.getByRole("link", { name: "Postulaciones" });
+    const coverage = screen.getByRole("link", { name: "Cobertura" });
+    expect(applications.getAttribute("aria-current")).toBe("page");
+    expect(coverage.getAttribute("aria-current")).toBeNull();
+    expect(coverage.getAttribute("href")).toBe(
+      "/dashboard/festivals/11/volunteers?status=pending&view=cobertura",
+    );
+    const coverageCard = () =>
+      screen.getByRole("region", { name: "Cobertura por turno" });
+    const applicationsCard = () =>
+      screen.getByRole("region", { name: "Postulaciones" });
+    expect(coverageCard().className).toContain("max-md:hidden");
+    expect(applicationsCard().className).not.toContain("max-md:hidden");
+
+    rerender(
+      <VolunteerAdminListView
+        call={CALL}
+        page={{ items: [], total: 0, counts: totals }}
+        filters={filters}
+        searchParams={{ status: "pending", view: "cobertura" }}
+        view="cobertura"
+        today={NOW}
+      />,
+    );
+    expect(
+      screen
+        .getByRole("link", { name: "Cobertura" })
+        .getAttribute("aria-current"),
+    ).toBe("page");
+    expect(
+      screen.getByRole("link", { name: "Postulaciones" }).getAttribute("href"),
+    ).toBe("/dashboard/festivals/11/volunteers?status=pending");
+    expect(coverageCard().className).not.toContain("max-md:hidden");
+    expect(applicationsCard().className).toContain("max-md:hidden");
+  });
+
   it("leads to the setup without a call", () => {
     render(
       <VolunteerAdminListView
@@ -100,5 +150,8 @@ describe("VolunteerAdminListView", () => {
     ).toBe("/dashboard/festivals/11/volunteers/setup");
     expect(screen.queryByRole("link", { name: "Exportar CSV" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "Postulaciones" })).toBeNull();
+    expect(
+      screen.queryByRole("navigation", { name: "Vistas de voluntarios" }),
+    ).toBeNull();
   });
 });

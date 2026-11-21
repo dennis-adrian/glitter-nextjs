@@ -6,8 +6,12 @@ import {
   ageOn,
   canAssignVolunteer,
   daysOverShiftLimit,
+  decideShiftAssignment,
+  defaultAssignedRoleId,
   POSTGRES_INT_MAX,
   shiftCoverageState,
+  VOLUNTEER_ADMIN_COPY,
+  VOLUNTEER_ASSIGN_AUTO_ACCEPTS,
   VOLUNTEER_APPLICATION_STATUSES,
   VOLUNTEER_STATUS_FILTER_LABELS,
   VOLUNTEER_STATUS_FILTERS,
@@ -16,6 +20,7 @@ import {
   volunteerAdminPath,
   volunteerApplicationAdminPath,
   volunteerSetupAdminPath,
+  volunteerShiftAdminPath,
   whatsappHref,
 } from "@/app/lib/volunteers/admin-definitions";
 
@@ -33,6 +38,54 @@ describe("paths", () => {
     expect(volunteerSetupAdminPath(7)).toBe(
       "/dashboard/festivals/7/volunteers/setup",
     );
+    expect(volunteerShiftAdminPath(7, 12)).toBe(
+      "/dashboard/festivals/7/volunteers/shifts/12",
+    );
+  });
+});
+
+describe("decideShiftAssignment", () => {
+  it("assigns an accepted application without changing its status", () => {
+    expect(decideShiftAssignment("accepted", true)).toEqual({
+      kind: "assign",
+      accept: false,
+    });
+    expect(decideShiftAssignment("accepted", false)).toEqual({
+      kind: "assign",
+      accept: false,
+    });
+  });
+
+  it("accepts a pending or waitlisted one while the switch is on", () => {
+    expect(VOLUNTEER_ASSIGN_AUTO_ACCEPTS).toBe(true);
+    for (const status of ["pending", "waitlist"] as const) {
+      expect(decideShiftAssignment(status)).toEqual({
+        kind: "assign",
+        accept: true,
+      });
+      expect(decideShiftAssignment(status, false)).toEqual({
+        kind: "refuse",
+        message: VOLUNTEER_ADMIN_COPY.assignmentLocked,
+      });
+    }
+  });
+
+  it("always refuses a rejected one", () => {
+    for (const autoAccept of [true, false]) {
+      expect(decideShiftAssignment("rejected", autoAccept)).toEqual({
+        kind: "refuse",
+        message: "No se puede asignar una postulación no aceptada.",
+      });
+    }
+  });
+});
+
+describe("defaultAssignedRoleId", () => {
+  const choices = { firstChoiceRoleId: 1, secondChoiceRoleId: 2 };
+  it("takes the 1st choice, else the 2nd, while active", () => {
+    expect(defaultAssignedRoleId(choices, new Set([1, 2]))).toBe(1);
+    expect(defaultAssignedRoleId(choices, new Set([2, 3]))).toBe(2);
+    expect(defaultAssignedRoleId(choices, new Set([3]))).toBeNull();
   });
 });
 

@@ -286,6 +286,10 @@ export const SCREENS: Record<string, ScreenDef> = {
     title: "Postulación",
     parent: `${FEST}/volunteers`,
   },
+  [`${FEST}/volunteers/shifts/[shiftId]`]: {
+    title: "Turno",
+    parent: `${FEST}/volunteers`,
+  },
   [`${FEST}/allowed_participants`]: {
     title: "Participantes habilitados",
     parent: FEST,

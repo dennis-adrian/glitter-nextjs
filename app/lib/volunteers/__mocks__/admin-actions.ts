@@ -19,3 +19,7 @@ export const setVolunteerRoleActive = saved("Rol actualizado.");
 export const moveVolunteerRole = saved("Orden actualizado.");
 export const saveVolunteerShift = saved("Turno guardado.");
 export const setVolunteerShiftActive = saved("Turno actualizado.");
+export const assignVolunteerShift = saved("Turno asignado.");
+export const unassignVolunteerShift = saved(
+  "Quitamos a la persona de este turno.",
+);

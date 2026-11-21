@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 
+import { parseVolunteerAdminView } from "@/app/components/volunteers/admin/volunteer-admin-list-params";
 import VolunteerAdminListView from "@/app/components/volunteers/admin/volunteer-admin-list-view";
 import type { RawSearchParams } from "@/app/lib/credits/admin-definitions";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
@@ -22,7 +23,8 @@ export const metadata: Metadata = { title: "Voluntarios" };
 
 /**
  * The festival's volunteer applications: totals, coverage per shift, and the
- * list, searchable and filterable by status, shift and preferred role.
+ * list, searchable and filterable by status, shift and preferred role. On
+ * phones `view=cobertura` shows the coverage instead of the list.
  */
 export default async function VolunteerApplicationsPage(props: {
   params: Promise<{ id: string }>;
@@ -57,6 +59,7 @@ export default async function VolunteerApplicationsPage(props: {
       page={page}
       filters={filters}
       searchParams={searchParams}
+      view={parseVolunteerAdminView(searchParams)}
     />
   );
 }

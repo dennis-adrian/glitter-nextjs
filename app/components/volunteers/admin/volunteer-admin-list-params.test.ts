@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   formatShiftList,
   formatShiftStartShort,
+  parseVolunteerAdminView,
   volunteerAgeAndPhone,
   volunteerStatusHref,
+  volunteerViewHref,
 } from "@/app/components/volunteers/admin/volunteer-admin-list-params";
 import type { VolunteerAdminShift } from "@/app/lib/volunteers/admin-definitions";
 
@@ -103,5 +105,38 @@ describe("volunteerAgeAndPhone", () => {
     expect(
       volunteerAgeAndPhone({ birthdate: "not-a-date", phone: "+591 7" }, today),
     ).toBe("+591 7");
+  });
+});
+
+describe("parseVolunteerAdminView", () => {
+  it("reads cobertura and falls back to postulaciones", () => {
+    expect(parseVolunteerAdminView({ view: "cobertura" })).toBe("cobertura");
+    expect(parseVolunteerAdminView({ view: "postulaciones" })).toBe(
+      "postulaciones",
+    );
+    expect(parseVolunteerAdminView({})).toBe("postulaciones");
+    expect(parseVolunteerAdminView({ view: "otra" })).toBe("postulaciones");
+    expect(parseVolunteerAdminView({ view: ["cobertura", "x"] })).toBe(
+      "postulaciones",
+    );
+  });
+});
+
+describe("volunteerViewHref", () => {
+  it("swaps the view and keeps the filters and page", () => {
+    const current = { status: "pending", query: "ana", offset: "25" };
+    expect(volunteerViewHref(BASE, current, "cobertura")).toBe(
+      `${BASE}?status=pending&query=ana&offset=25&view=cobertura`,
+    );
+    expect(
+      volunteerViewHref(
+        BASE,
+        { ...current, view: "cobertura" },
+        "postulaciones",
+      ),
+    ).toBe(`${BASE}?status=pending&query=ana&offset=25`);
+    expect(
+      volunteerViewHref(BASE, { view: "cobertura" }, "postulaciones"),
+    ).toBe(BASE);
   });
 });

@@ -41,6 +41,43 @@ export function volunteerStatusHref(
   return query ? `${basePath}?${query}` : basePath;
 }
 
+/**
+ * The list's two views on phones: the applications, or the coverage per
+ * shift. From md the page shows both and ignores it.
+ */
+export const VOLUNTEER_ADMIN_VIEWS = ["postulaciones", "cobertura"] as const;
+export type VolunteerAdminView = (typeof VOLUNTEER_ADMIN_VIEWS)[number];
+
+/** The `view` param; anything else (or several) is the default view. */
+export function parseVolunteerAdminView(
+  searchParams: RawSearchParams,
+): VolunteerAdminView {
+  const raw = searchParams.view;
+  return raw === "cobertura" ? "cobertura" : "postulaciones";
+}
+
+/**
+ * A view's link: the current query with its view swapped, so the filters
+ * and page survive switching back and forth. "postulaciones" is the default,
+ * so it carries no view.
+ */
+export function volunteerViewHref(
+  basePath: string,
+  current: RawSearchParams,
+  view: VolunteerAdminView,
+) {
+  const params = new URLSearchParams();
+  for (const [key, raw] of Object.entries(current)) {
+    if (key === "view") continue;
+    for (const value of Array.isArray(raw) ? raw : raw ? [raw] : []) {
+      params.append(key, value);
+    }
+  }
+  if (view !== "postulaciones") params.set("view", view);
+  const query = params.toString();
+  return query ? `${basePath}?${query}` : basePath;
+}
+
 export function hasVolunteerFilters(filters: VolunteerApplicationsFilters) {
   return (
     Boolean(filters.query) || filters.roleId != null || filters.shiftId != null

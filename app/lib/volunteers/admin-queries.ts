@@ -1,8 +1,21 @@
 import "server-only";
 
-import { and, asc, desc, eq, ilike, ne, or, type SQL, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  ne,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { DateTime } from "luxon";
 
+import { STORE_TIMEZONE } from "@/app/lib/formatters";
 import { buildSearchPattern } from "@/app/lib/programs/search";
 import { getUserName } from "@/app/lib/users/utils";
 import {
@@ -11,6 +24,8 @@ import {
   type VolunteerApplicationDetail,
   type VolunteerApplicationsFilters,
   type VolunteerApplicationsPage,
+  type VolunteerShiftCandidate,
+  type VolunteerShiftDetail,
 } from "@/app/lib/volunteers/admin-definitions";
 import type { VolunteerExport } from "@/app/lib/volunteers/admin-export";
 import type {
@@ -31,9 +46,9 @@ import {
 
 /**
  * Admin reads for a festival's volunteer call: its configuration with how
- * full every shift is, the applications list, one application and the CSV
- * export. Every read
- * is scoped by the festival; the pages check who is asking.
+ * full every shift is, the applications list, one application, one shift's
+ * screen and the CSV export. Every read is scoped by the festival; the pages
+ * check who is asking.
  *
  * Unlike the public reads (queries.ts), roles and shifts come back active and
  * inactive alike: the admin reactivates them and applications keep naming
@@ -426,6 +441,184 @@ export async function fetchVolunteerApplicationDetail(
     reviewedAt: application.reviewedAt,
     createdAt: application.createdAt,
     updatedAt: application.updatedAt,
+  };
+}
+
+function laPazDay(date: Date) {
+  return DateTime.fromJSDate(date, { zone: STORE_TIMEZONE }).toISODate();
+}
+
+const byName = new Intl.Collator("es", { sensitivity: "base" });
+
+const CANDIDATE_STATUS_ORDER: Record<
+  VolunteerShiftCandidate["status"],
+  number
+> = { accepted: 0, pending: 1, waitlist: 2 };
+
+/**
+ * One shift of the festival for its screen: its coverage (counted as
+ * fetchVolunteerAdminCall counts it), everyone assigned to it, whatever their
+ * status, and who could cover it: people who marked it, are not assigned to
+ * it and are not rejected, with how many other shifts they hold that La Paz
+ * day. Null when the shift is not this festival's.
+ */
+export async function fetchVolunteerShiftDetail(
+  festivalId: number,
+  shiftId: number,
+): Promise<VolunteerShiftDetail | null> {
+  const [row] = await db
+    .select({
+      festival: { id: festivals.id, name: festivals.name },
+      shift: {
+        id: volunteerShifts.id,
+        label: volunteerShifts.label,
+        startsAt: volunteerShifts.startsAt,
+        endsAt: volunteerShifts.endsAt,
+        neededHeadcount: volunteerShifts.neededHeadcount,
+        sortOrder: volunteerShifts.sortOrder,
+        isActive: volunteerShifts.isActive,
+      },
+    })
+    .from(volunteerShifts)
+    .innerJoin(festivals, eq(festivals.id, volunteerShifts.festivalId))
+    .where(
+      and(
+        eq(volunteerShifts.id, shiftId),
+        eq(volunteerShifts.festivalId, festivalId),
+      ),
+    )
+    .limit(1);
+  if (!row) return null;
+
+  const [assigneeRows, markedRows] = await Promise.all([
+    db
+      .select({
+        applicationId: volunteerApplications.id,
+        fullName: volunteerApplications.fullName,
+        status: volunteerApplications.status,
+        assignedRoleName: assignedRole.name,
+      })
+      .from(volunteerApplicationAssignedShifts)
+      .innerJoin(
+        volunteerApplications,
+        eq(
+          volunteerApplications.id,
+          volunteerApplicationAssignedShifts.applicationId,
+        ),
+      )
+      .leftJoin(
+        assignedRole,
+        eq(assignedRole.id, volunteerApplications.assignedRoleId),
+      )
+      .where(
+        and(
+          eq(volunteerApplicationAssignedShifts.shiftId, shiftId),
+          eq(volunteerApplicationAssignedShifts.festivalId, festivalId),
+        ),
+      ),
+    // Rejected applicants are not a pool to draw from.
+    db
+      .select({
+        applicationId: volunteerApplications.id,
+        fullName: volunteerApplications.fullName,
+        status: volunteerApplications.status,
+        firstChoiceRoleName: firstChoiceRole.name,
+        secondChoiceRoleName: secondChoiceRole.name,
+      })
+      .from(volunteerApplicationAvailableShifts)
+      .innerJoin(
+        volunteerApplications,
+        eq(
+          volunteerApplications.id,
+          volunteerApplicationAvailableShifts.applicationId,
+        ),
+      )
+      .innerJoin(
+        firstChoiceRole,
+        eq(firstChoiceRole.id, volunteerApplications.firstChoiceRoleId),
+      )
+      .innerJoin(
+        secondChoiceRole,
+        eq(secondChoiceRole.id, volunteerApplications.secondChoiceRoleId),
+      )
+      .where(
+        and(
+          eq(volunteerApplicationAvailableShifts.shiftId, shiftId),
+          eq(volunteerApplicationAvailableShifts.festivalId, festivalId),
+          ne(volunteerApplications.status, "rejected"),
+        ),
+      ),
+  ]);
+
+  const assignedIds = new Set(assigneeRows.map((a) => a.applicationId));
+  const candidateRows = markedRows.filter(
+    (marked) => !assignedIds.has(marked.applicationId),
+  );
+
+  // Their other assignments, to count the ones on this shift's day.
+  const day = laPazDay(row.shift.startsAt);
+  const otherAssignments =
+    candidateRows.length === 0
+      ? []
+      : await db
+          .select({
+            applicationId: volunteerApplicationAssignedShifts.applicationId,
+            startsAt: volunteerShifts.startsAt,
+          })
+          .from(volunteerApplicationAssignedShifts)
+          .innerJoin(
+            volunteerShifts,
+            eq(volunteerShifts.id, volunteerApplicationAssignedShifts.shiftId),
+          )
+          .where(
+            and(
+              eq(volunteerApplicationAssignedShifts.festivalId, festivalId),
+              inArray(
+                volunteerApplicationAssignedShifts.applicationId,
+                candidateRows.map((candidate) => candidate.applicationId),
+              ),
+            ),
+          );
+  const shiftsThatDay = new Map<number, number>();
+  for (const assignment of otherAssignments) {
+    if (laPazDay(assignment.startsAt) !== day) continue;
+    shiftsThatDay.set(
+      assignment.applicationId,
+      (shiftsThatDay.get(assignment.applicationId) ?? 0) + 1,
+    );
+  }
+
+  const candidates: VolunteerShiftCandidate[] = candidateRows
+    .map((candidate) => ({
+      ...candidate,
+      status: candidate.status as VolunteerShiftCandidate["status"],
+      shiftsThatDay: shiftsThatDay.get(candidate.applicationId) ?? 0,
+    }))
+    .sort(
+      (a, b) =>
+        CANDIDATE_STATUS_ORDER[a.status] - CANDIDATE_STATUS_ORDER[b.status] ||
+        byName.compare(a.fullName, b.fullName) ||
+        a.applicationId - b.applicationId,
+    );
+  const assignees = [...assigneeRows].sort(
+    (a, b) =>
+      byName.compare(a.fullName, b.fullName) ||
+      a.applicationId - b.applicationId,
+  );
+
+  return {
+    festival: row.festival,
+    shift: {
+      ...row.shift,
+      // As fetchVolunteerAdminCall: marked and not rejected; assigned and
+      // accepted (an assignment outlives a status change).
+      availableCount: markedRows.length,
+      assignedCount: assigneeRows.filter(
+        (assignee) => assignee.status === "accepted",
+      ).length,
+    },
+    assignees,
+    candidates,
   };
 }
 

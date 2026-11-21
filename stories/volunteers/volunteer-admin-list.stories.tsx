@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
+import { parseVolunteerAdminView } from "@/app/components/volunteers/admin/volunteer-admin-list-params";
 import VolunteerAdminListView from "@/app/components/volunteers/admin/volunteer-admin-list-view";
 import type { RawSearchParams } from "@/app/lib/credits/admin-definitions";
 import {
@@ -230,6 +231,7 @@ function List({
   page: VolunteerApplicationsPage | null;
   call?: VolunteerAdminCall;
 }) {
+  const view = parseVolunteerAdminView(searchParams);
   return (
     <VolunteerAdminStoryContext
       path={`/dashboard/festivals/${call.festival.id}/volunteers`}
@@ -241,6 +243,7 @@ function List({
           page={page}
           filters={VolunteerApplicationsSearchSchema.parse(searchParams)}
           searchParams={searchParams}
+          view={view}
           today={TODAY}
         />
       </div>
@@ -258,6 +261,23 @@ type Story = StoryObj<typeof meta>;
 
 export const WithApplications: Story = {
   render: () => <List page={{ items: ITEMS, total: 8, counts: TOTALS }} />,
+};
+
+/** A phone, on the default "Postulaciones" view. */
+export const PhoneApplications: Story = {
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  render: () => <List page={{ items: ITEMS, total: 8, counts: TOTALS }} />,
+};
+
+/** A phone on "Cobertura": a tappable row per shift, no applications. */
+export const PhoneCoverage: Story = {
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  render: () => (
+    <List
+      searchParams={{ view: "cobertura" }}
+      page={{ items: ITEMS, total: 8, counts: TOTALS }}
+    />
+  ),
 };
 
 /** "Rol preferido" set, on page two of a longer list. */

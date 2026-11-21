@@ -11,6 +11,7 @@ import {
   volunteerReviewInputSchema,
   volunteerRoleInputSchema,
   volunteerRoleMoveInputSchema,
+  volunteerShiftAssignmentInputSchema,
   volunteerShiftInputSchema,
   volunteerStatusInputSchema,
 } from "@/app/lib/volunteers/admin-schema";
@@ -93,6 +94,27 @@ describe("volunteerAssignmentInputSchema", () => {
       roleId: null,
       shiftIds: [5, 6],
     });
+  });
+});
+
+describe("volunteerShiftAssignmentInputSchema", () => {
+  it("coerces the three ids and refuses bad ones", () => {
+    expect(
+      volunteerShiftAssignmentInputSchema.parse({
+        festivalId: "3",
+        shiftId: "12",
+        applicationId: 9,
+      }),
+    ).toEqual({ festivalId: 3, shiftId: 12, applicationId: 9 });
+    for (const bad of [0, -1, 1.5, 2_147_483_648, "x"]) {
+      expect(
+        volunteerShiftAssignmentInputSchema.safeParse({
+          festivalId: 3,
+          shiftId: bad,
+          applicationId: 9,
+        }).success,
+      ).toBe(false);
+    }
   });
 });
 

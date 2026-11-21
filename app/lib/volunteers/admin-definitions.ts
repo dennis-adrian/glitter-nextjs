@@ -23,6 +23,16 @@ export const volunteerApplicationAdminPath = (
 ) => `${volunteerAdminPath(festivalId)}/${applicationId}`;
 export const volunteerSetupAdminPath = (festivalId: number) =>
   `${volunteerAdminPath(festivalId)}/setup`;
+/** One shift's screen: who is assigned to it and who could cover it. */
+export const volunteerShiftAdminPath = (festivalId: number, shiftId: number) =>
+  `${volunteerAdminPath(festivalId)}/shifts/${shiftId}`;
+
+/**
+ * The shift screen's "Asignar" on a pending or waitlisted application also
+ * accepts it. Set to false to require accepting it first (the action then
+ * refuses with VOLUNTEER_ADMIN_COPY.assignmentLocked).
+ */
+export const VOLUNTEER_ASSIGN_AUTO_ACCEPTS: boolean = true;
 
 export const VOLUNTEER_APPLICATION_STATUSES = [
   "pending",
@@ -191,6 +201,37 @@ export type VolunteerShiftCoverage = VolunteerAdminShift & {
   assignedCount: number;
 };
 
+/** Someone assigned to a shift, whatever their status. */
+export type VolunteerShiftAssignee = {
+  applicationId: number;
+  fullName: string;
+  /** Only accepted ones count toward the coverage. */
+  status: VolunteerApplicationStatus;
+  assignedRoleName: string | null;
+};
+
+/** Someone who marked a shift, is not assigned to it and is not rejected. */
+export type VolunteerShiftCandidate = {
+  applicationId: number;
+  fullName: string;
+  status: Exclude<VolunteerApplicationStatus, "rejected">;
+  firstChoiceRoleName: string;
+  secondChoiceRoleName: string;
+  /** Other shifts they are assigned to on this shift's La Paz day. */
+  shiftsThatDay: number;
+};
+
+/** The shift screen. */
+export type VolunteerShiftDetail = {
+  festival: { id: number; name: string };
+  /** The same numbers VolunteerAdminCall.shifts gives for it. */
+  shift: VolunteerShiftCoverage;
+  /** By name. */
+  assignees: VolunteerShiftAssignee[];
+  /** Accepted, then pending, then waitlisted; by name within each. */
+  candidates: VolunteerShiftCandidate[];
+};
+
 export type VolunteerAdminCall = {
   festival: { id: number; name: string };
   /** Null until the call is configured for this festival. */
@@ -273,6 +314,47 @@ export type VolunteerApplicationDetail = {
 /** Roles and shifts are assigned only once the application is accepted. */
 export function canAssignVolunteer(status: VolunteerApplicationStatus) {
   return status === "accepted";
+}
+
+export type VolunteerShiftAssignmentDecision =
+  | { kind: "assign"; accept: boolean }
+  | { kind: "refuse"; message: string };
+
+export const VOLUNTEER_ASSIGN_REJECTED_MESSAGE =
+  "No se puede asignar una postulación no aceptada.";
+
+/**
+ * Whether the shift screen's "Asignar" may assign an application with this
+ * status, and whether it also accepts it (pending and waitlisted ones, while
+ * `autoAccept` is on). Rejected ones are always refused.
+ */
+export function decideShiftAssignment(
+  status: VolunteerApplicationStatus,
+  autoAccept: boolean = VOLUNTEER_ASSIGN_AUTO_ACCEPTS,
+): VolunteerShiftAssignmentDecision {
+  if (status === "accepted") return { kind: "assign", accept: false };
+  if (status === "rejected") {
+    return { kind: "refuse", message: VOLUNTEER_ASSIGN_REJECTED_MESSAGE };
+  }
+  if (autoAccept) return { kind: "assign", accept: true };
+  return { kind: "refuse", message: VOLUNTEER_ADMIN_COPY.assignmentLocked };
+}
+
+/**
+ * The role an assignment from the shift screen gives someone with none: their
+ * 1st choice while it is active, else their 2nd, else none.
+ */
+export function defaultAssignedRoleId(
+  choices: { firstChoiceRoleId: number; secondChoiceRoleId: number },
+  activeRoleIds: ReadonlySet<number>,
+): number | null {
+  if (activeRoleIds.has(choices.firstChoiceRoleId)) {
+    return choices.firstChoiceRoleId;
+  }
+  if (activeRoleIds.has(choices.secondChoiceRoleId)) {
+    return choices.secondChoiceRoleId;
+  }
+  return null;
 }
 
 /**

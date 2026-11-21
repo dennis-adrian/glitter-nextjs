@@ -67,6 +67,16 @@ export type VolunteerAssignmentInput = z.input<
   typeof volunteerAssignmentInputSchema
 >;
 
+/** The shift screen's "Asignar" and "Quitar": one application, one shift. */
+export const volunteerShiftAssignmentInputSchema = z.object({
+  festivalId: id,
+  shiftId: id,
+  applicationId: id,
+});
+export type VolunteerShiftAssignmentInput = z.input<
+  typeof volunteerShiftAssignmentInputSchema
+>;
+
 /**
  * The detail page's "Decisión y asignación" card, saved at once: status,
  * notes and, when the status is "accepted", the assigned role and shifts.
