@@ -118,5 +118,9 @@ describe("VolunteerStatsCards", () => {
       "No aceptadas2",
     ]);
     expect(tiles[1].firstElementChild?.className).toContain("border-amber-300");
+    // Phones keep only the total and the pending count.
+    expect(
+      tiles.map((tile) => tile.className.includes("max-md:hidden")),
+    ).toEqual([false, false, true, true, true]);
   });
 });

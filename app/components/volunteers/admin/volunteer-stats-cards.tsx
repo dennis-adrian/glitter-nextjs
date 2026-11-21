@@ -12,22 +12,26 @@ const TILES: { key: keyof Totals; label: string; accent?: boolean }[] = [
   { key: "rejected", label: "No aceptadas" },
 ];
 
+/** Tiles shown on phones; the rest only from md up (the status chips carry them). */
+const PHONE_TILES = 2;
+
 /**
  * How many applications there are, per status and with no filter. On phones
- * the total takes the whole first row and the four states sit two by two.
+ * only the total and the pending count show, side by side; the other states
+ * are already on the status chips below.
  */
 export default function VolunteerStatsCards({ totals }: { totals: Totals }) {
   return (
     <ul
       aria-label="Postulaciones por estado"
-      className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5 md:gap-3"
+      className="grid grid-cols-2 gap-2 md:grid-cols-5 md:gap-3"
     >
       {TILES.map((tile, index) => {
         const value = totals[tile.key];
         return (
           <li
             key={tile.key}
-            className={cn("min-w-0", index === 0 && "col-span-2 sm:col-span-1")}
+            className={cn("min-w-0", index >= PHONE_TILES && "max-md:hidden")}
           >
             <StatTile
               label={tile.label}
