@@ -35,6 +35,8 @@ const SHIFT: VolunteerShiftDetail["shift"] = {
   isActive: true,
   availableCount: 29,
   assignedCount: 7,
+  // CANDIDATES below.
+  unassignedAvailableCount: 10,
 };
 
 const ASSIGNEES: VolunteerShiftAssignee[] = (
@@ -123,6 +125,7 @@ export const EmptyInactive: Story = {
           isActive: false,
           assignedCount: 0,
           availableCount: 0,
+          unassignedAvailableCount: 0,
         },
         assignees: [],
         candidates: [],

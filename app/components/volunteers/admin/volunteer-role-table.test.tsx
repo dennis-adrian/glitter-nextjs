@@ -151,6 +151,43 @@ describe("VolunteerRoleTable", () => {
     );
   });
 
+  it("locks switching editors while a save is in flight", async () => {
+    let finish!: (result: { success: boolean; message: string }) => void;
+    mocks.save.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    render(<VolunteerRoleTable festivalId={9} roles={ROLES} />);
+
+    fireEvent.click(
+      desktop().getByRole("button", { name: "Editar Acreditación" }),
+    );
+    fireEvent.click(desktop().getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(mocks.save).toHaveBeenCalled());
+
+    const other = screen.getAllByRole("button", {
+      name: "Editar Apoyo a expositores",
+    }) as HTMLButtonElement[];
+    expect(other).toHaveLength(2);
+    for (const button of other) expect(button.disabled).toBe(true);
+    const add = screen.getByRole("button", {
+      name: "Agregar rol",
+    }) as HTMLButtonElement;
+    expect(add.disabled).toBe(true);
+
+    fireEvent.click(other[0]!);
+    expect(desktop().getByLabelText("Nombre del rol")).toHaveProperty(
+      "value",
+      "Acreditación",
+    );
+
+    finish({ success: false, message: "No." });
+    await waitFor(() => expect(mocks.error).toHaveBeenCalledWith("No."));
+    expect(desktop().getByLabelText("Nombre del rol")).toBeTruthy();
+    await waitFor(() => expect(add.disabled).toBe(false));
+  });
+
   it("asks for the name and description of a new role", async () => {
     render(<VolunteerRoleTable festivalId={9} roles={[]} />);
 

@@ -293,13 +293,27 @@ export async function saveVolunteerReview(
   if (!profile) return UNAUTHORIZED;
   const parsed = volunteerReviewInputSchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
-  const { festivalId, applicationId, status, roleId, shiftIds, adminNotes } =
-    parsed.data;
+  const {
+    festivalId,
+    applicationId,
+    status,
+    roleId,
+    shiftIds,
+    adminNotes,
+    loadedUpdatedAt,
+  } = parsed.data;
 
   let overLimit: string[] = [];
   try {
     await db.transaction(async (tx) => {
       const application = await lockApplication(tx, festivalId, applicationId);
+      // Changed since the form loaded (another tab, the shift screen): its
+      // role, shifts and status would overwrite those changes.
+      if (
+        application.updatedAt.getTime() !== new Date(loadedUpdatedAt).getTime()
+      ) {
+        throw new Refusal(VOLUNTEER_ADMIN_COPY.staleReview);
+      }
 
       const assigning = canAssignVolunteer(status);
       if (assigning) {
@@ -367,6 +381,7 @@ async function lockApplication(
       assignedRoleId: volunteerApplications.assignedRoleId,
       firstChoiceRoleId: volunteerApplications.firstChoiceRoleId,
       secondChoiceRoleId: volunteerApplications.secondChoiceRoleId,
+      updatedAt: volunteerApplications.updatedAt,
     })
     .from(volunteerApplications)
     .where(

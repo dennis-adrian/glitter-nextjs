@@ -108,6 +108,8 @@ export default function VolunteerRoleTable({
   const isSaving = form.formState.isSubmitting;
 
   function open(target: Exclude<Editing, null>) {
+    // The form is shared: switching mid-save would let that save close the next editor.
+    if (isSaving) return;
     setEditing(target);
     form.reset(formValues(target));
   }
@@ -343,7 +345,7 @@ export default function VolunteerRoleTable({
           description="Aparecen en la página y en el formulario en este orden. Un rol que alguien ya eligió no se puede borrar, solo desactivar."
           addLabel="Agregar rol"
           onAdd={() => open("new")}
-          addDisabled={editing === "new"}
+          addDisabled={editing === "new" || isSaving}
         />
         <CardContent className="min-w-0 p-4 pt-0 md:px-0 md:pb-2">
           <Table
@@ -408,6 +410,7 @@ export default function VolunteerRoleTable({
                         size="sm"
                         aria-label={`Editar ${role.name}`}
                         onClick={() => open(role.id)}
+                        disabled={isSaving}
                       >
                         Editar
                       </Button>
@@ -473,6 +476,7 @@ export default function VolunteerRoleTable({
                       className="min-h-11 flex-1"
                       aria-label={`Editar ${role.name}`}
                       onClick={() => open(role.id)}
+                      disabled={isSaving}
                     >
                       Editar
                     </Button>

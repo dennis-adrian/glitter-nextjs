@@ -110,6 +110,8 @@ export const VOLUNTEER_ADMIN_COPY = {
   unauthorized: "No tenés permiso para hacer esto.",
   notFound: "No encontramos esa postulación. Actualizá la página.",
   genericError: "No pudimos guardar el cambio. Volvé a intentar.",
+  staleReview:
+    "Alguien más cambió esta postulación. Actualizá la página para ver los cambios.",
 } as const;
 
 /** What every admin action answers. */
@@ -199,6 +201,12 @@ export type VolunteerShiftCoverage = VolunteerAdminShift & {
   availableCount: number;
   /** Accepted applications assigned to it. */
   assignedCount: number;
+  /**
+   * Applications (any status but rejected) that marked it and are not
+   * assigned to it, whatever their status: the shift screen's candidates,
+   * the people who can still fill it.
+   */
+  unassignedAvailableCount: number;
 };
 
 /** Someone assigned to a shift, whatever their status. */
@@ -401,20 +409,16 @@ export type ShiftCoverageState =
 export function shiftCoverageState(shift: {
   neededHeadcount: number;
   assignedCount: number;
-  availableCount: number;
+  unassignedAvailableCount: number;
 }): ShiftCoverageState {
   if (shift.neededHeadcount <= 0) return { kind: "unset", label: "Sin cupo" };
   const missing = shift.neededHeadcount - shift.assignedCount;
   if (missing <= 0) return { kind: "complete", label: "Completo" };
-  const stillAvailable = Math.max(
-    shift.availableCount - shift.assignedCount,
-    0,
-  );
-  if (stillAvailable < missing) {
+  if (shift.unassignedAvailableCount < missing) {
     return {
       kind: "short",
       missing,
-      label: `Faltan ${missing}, solo ${shift.availableCount} disponibles`,
+      label: `Faltan ${missing}, solo ${shift.unassignedAvailableCount} disponibles`,
     };
   }
   return { kind: "missing", missing, label: `Faltan ${missing}` };

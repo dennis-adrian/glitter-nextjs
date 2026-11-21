@@ -58,6 +58,7 @@ function shift(
     isActive: true,
     availableCount: 14,
     assignedCount: 4,
+    unassignedAvailableCount: 10,
     ...overrides,
   };
 }
@@ -70,6 +71,7 @@ const LATER = shift({
   endsAt: new Date("2026-12-19T21:30:00Z"),
   sortOrder: 1,
   availableCount: 1,
+  unassignedAvailableCount: 1,
 });
 
 /** The md+ table; the phone cards repeat the same data below it. */
@@ -286,6 +288,47 @@ describe("VolunteerShiftTable", () => {
     await waitFor(() => expect(mocks.error).toHaveBeenCalledWith("No."));
     expect(desktop().getByLabelText("Día")).toBeTruthy();
     expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+
+  it("locks switching editors while a save is in flight", async () => {
+    let finish!: (result: { success: boolean; message: string }) => void;
+    mocks.save.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    render(
+      <VolunteerShiftTable
+        festivalId={9}
+        shifts={[shift(), LATER]}
+        initialEditing={4}
+      />,
+    );
+
+    fireEvent.click(desktop().getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(mocks.save).toHaveBeenCalled());
+
+    // Desktop row and phone card alike.
+    const other = screen.getAllByRole("button", {
+      name: "Editar Festival (turno A), sábado 19",
+    }) as HTMLButtonElement[];
+    expect(other).toHaveLength(2);
+    for (const button of other) expect(button.disabled).toBe(true);
+    const add = screen.getByRole("button", {
+      name: "Agregar turno",
+    }) as HTMLButtonElement;
+    expect(add.disabled).toBe(true);
+
+    fireEvent.click(other[0]!);
+    fireEvent.click(add);
+    expect(desktop().getByLabelText("Día")).toHaveProperty(
+      "value",
+      "2026-12-18",
+    );
+
+    finish({ success: true, message: "Guardado." });
+    await waitFor(() => expect(desktop().queryByLabelText("Día")).toBeNull());
+    expect(mocks.refresh).toHaveBeenCalled();
   });
 
   it("says so when there are no shifts", () => {

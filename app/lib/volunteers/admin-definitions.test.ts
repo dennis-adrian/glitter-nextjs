@@ -209,7 +209,7 @@ describe("shiftCoverageState", () => {
       shiftCoverageState({
         neededHeadcount: 0,
         assignedCount: 2,
-        availableCount: 5,
+        unassignedAvailableCount: 5,
       }),
     ).toEqual({ kind: "unset", label: "Sin cupo" });
   });
@@ -220,7 +220,7 @@ describe("shiftCoverageState", () => {
         shiftCoverageState({
           neededHeadcount: 4,
           assignedCount,
-          availableCount: 6,
+          unassignedAvailableCount: 6,
         }),
       ).toEqual({ kind: "complete", label: "Completo" });
     }
@@ -231,7 +231,18 @@ describe("shiftCoverageState", () => {
       shiftCoverageState({
         neededHeadcount: 6,
         assignedCount: 2,
-        availableCount: 6,
+        unassignedAvailableCount: 4,
+      }),
+    ).toEqual({ kind: "missing", missing: 4, label: "Faltan 4" });
+  });
+
+  it("counts the unassigned who marked it, whoever was assigned", () => {
+    // Both assignees did not mark it: the five who did can fill four spots.
+    expect(
+      shiftCoverageState({
+        neededHeadcount: 6,
+        assignedCount: 2,
+        unassignedAvailableCount: 5,
       }),
     ).toEqual({ kind: "missing", missing: 4, label: "Faltan 4" });
   });
@@ -241,18 +252,18 @@ describe("shiftCoverageState", () => {
       shiftCoverageState({
         neededHeadcount: 6,
         assignedCount: 2,
-        availableCount: 5,
+        unassignedAvailableCount: 3,
       }),
     ).toEqual({
       kind: "short",
       missing: 4,
-      label: "Faltan 4, solo 5 disponibles",
+      label: "Faltan 4, solo 3 disponibles",
     });
     expect(
       shiftCoverageState({
         neededHeadcount: 3,
         assignedCount: 0,
-        availableCount: 0,
+        unassignedAvailableCount: 0,
       }),
     ).toMatchObject({ kind: "short", label: "Faltan 3, solo 0 disponibles" });
   });

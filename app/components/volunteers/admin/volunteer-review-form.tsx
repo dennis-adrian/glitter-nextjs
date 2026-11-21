@@ -183,6 +183,7 @@ export default function VolunteerReviewForm({
     | "adminNotes"
     | "reviewedBy"
     | "reviewedAt"
+    | "updatedAt"
   >;
   roles: VolunteerAdminRole[];
   shifts: VolunteerShiftCoverage[];
@@ -255,12 +256,15 @@ export default function VolunteerReviewForm({
           roleId,
           shiftIds: selected,
           adminNotes: notes,
+          loadedUpdatedAt: application.updatedAt.toISOString(),
         });
         if (result.success) {
           if (result.warning) toast.warning(result.warning);
           else toast.success(result.message);
           router.refresh();
         } else {
+          // A stale save (staleReview) keeps the form as typed: the
+          // admin refreshes once they have copied what they need.
           toast.error(result.message);
         }
       } catch (error) {

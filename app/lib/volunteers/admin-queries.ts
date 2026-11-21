@@ -69,11 +69,22 @@ export async function fetchVolunteerAdminCall(
     .limit(1);
   if (!festival) return null;
 
-  // Rejected applicants are not a pool to draw from.
+  // Rejected applicants are not a pool to draw from. Those already assigned
+  // to the shift, whatever their status, cannot fill it again: the
+  // unassigned ones are the shift screen's candidates.
   const availableByShift = db
     .select({
       shiftId: volunteerApplicationAvailableShifts.shiftId,
       total: sql<number>`count(*)::int`.as("available_total"),
+      unassigned: sql<number>`(count(*) filter (
+        where not exists (
+          select 1 from ${volunteerApplicationAssignedShifts}
+          where ${volunteerApplicationAssignedShifts.applicationId} =
+              ${volunteerApplicationAvailableShifts.applicationId}
+            and ${volunteerApplicationAssignedShifts.shiftId} =
+              ${volunteerApplicationAvailableShifts.shiftId}
+        )
+      ))::int`.as("available_unassigned"),
     })
     .from(volunteerApplicationAvailableShifts)
     .innerJoin(
@@ -156,6 +167,10 @@ export async function fetchVolunteerAdminCall(
           sql<number>`coalesce(${availableByShift.total}, 0)`.mapWith(Number),
         assignedCount:
           sql<number>`coalesce(${assignedByShift.total}, 0)`.mapWith(Number),
+        unassignedAvailableCount:
+          sql<number>`coalesce(${availableByShift.unassigned}, 0)`.mapWith(
+            Number,
+          ),
       })
       .from(volunteerShifts)
       .leftJoin(
@@ -611,11 +626,13 @@ export async function fetchVolunteerShiftDetail(
     shift: {
       ...row.shift,
       // As fetchVolunteerAdminCall: marked and not rejected; assigned and
-      // accepted (an assignment outlives a status change).
+      // accepted (an assignment outlives a status change); marked, not
+      // rejected and not assigned (the candidates).
       availableCount: markedRows.length,
       assignedCount: assigneeRows.filter(
         (assignee) => assignee.status === "accepted",
       ).length,
+      unassignedAvailableCount: candidateRows.length,
     },
     assignees,
     candidates,

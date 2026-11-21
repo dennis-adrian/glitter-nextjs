@@ -126,6 +126,7 @@ describe("volunteerReviewInputSchema", () => {
     roleId: "4",
     shiftIds: [5, "5", 6],
     adminNotes: "  Llamar el lunes  ",
+    loadedUpdatedAt: "2026-11-21T14:12:00.123Z",
   };
 
   it("coerces ids, dedupes shifts and trims the notes", () => {
@@ -136,7 +137,23 @@ describe("volunteerReviewInputSchema", () => {
       roleId: 4,
       shiftIds: [5, 6],
       adminNotes: "Llamar el lunes",
+      loadedUpdatedAt: "2026-11-21T14:12:00.123Z",
     });
+  });
+
+  it("requires the updatedAt the form loaded, as an ISO date-time", () => {
+    expect(
+      volunteerReviewInputSchema.safeParse({
+        ...base,
+        loadedUpdatedAt: undefined,
+      }).success,
+    ).toBe(false);
+    expect(
+      volunteerReviewInputSchema.safeParse({
+        ...base,
+        loadedUpdatedAt: "ayer",
+      }).success,
+    ).toBe(false);
   });
 
   it("keeps a null role and stores blank notes as null", () => {

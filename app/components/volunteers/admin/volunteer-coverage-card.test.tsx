@@ -23,6 +23,7 @@ function shift(
     isActive: true,
     availableCount: 14,
     assignedCount: 4,
+    unassignedAvailableCount: 10,
     ...overrides,
   };
 }
@@ -40,6 +41,7 @@ describe("VolunteerCoverageCard", () => {
             neededHeadcount: 10,
             assignedCount: 2,
             availableCount: 9,
+            unassignedAvailableCount: 7,
           }),
           shift(1, "2026-12-18T19:00:00Z", { label: "Montaje" }),
           shift(3, "2026-12-19T14:00:00Z", { isActive: false, label: "Viejo" }),
@@ -62,7 +64,7 @@ describe("VolunteerCoverageCard", () => {
     );
     expect(first.getByText("Faltan 4")).toBeTruthy();
     expect(
-      within(rows[2]).getByText("Faltan 8, solo 9 disponibles").className,
+      within(rows[2]).getByText("Faltan 8, solo 7 disponibles").className,
     ).toContain("bg-red-100");
     expect(screen.queryByText("Viejo")).toBeNull();
 

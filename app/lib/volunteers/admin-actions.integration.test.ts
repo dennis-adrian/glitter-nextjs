@@ -308,12 +308,19 @@ describeDatabase("volunteer admin", () => {
     await pool?.end();
   });
 
-  /** The detail page's save, accepted with nothing assigned unless given. */
-  function review(
+  /**
+   * The detail page's save, accepted with nothing assigned unless given, from
+   * a form loaded just now (the stored updatedAt) unless given.
+   */
+  async function review(
     call: Call,
     applicationId: number,
     overrides: Partial<Parameters<Actions["saveVolunteerReview"]>[0]> = {},
   ) {
+    const [row] = await integrationDb!
+      .select({ updatedAt: volunteerApplications.updatedAt })
+      .from(volunteerApplications)
+      .where(eq(volunteerApplications.id, applicationId));
     return actions.saveVolunteerReview({
       festivalId: call.festivalId,
       applicationId,
@@ -321,6 +328,7 @@ describeDatabase("volunteer admin", () => {
       roleId: null,
       shiftIds: [],
       adminNotes: "",
+      loadedUpdatedAt: (row?.updatedAt ?? new Date()).toISOString(),
       ...overrides,
     });
   }
@@ -637,6 +645,9 @@ describeDatabase("volunteer admin", () => {
           roleId: null,
           shiftIds: [],
           adminNotes: "x",
+          loadedUpdatedAt: (
+            await storedApplication(applicationId)
+          ).updatedAt.toISOString(),
         }),
       ).toEqual(NOT_FOUND);
       expect(await storedApplication(applicationId)).toMatchObject({
@@ -696,6 +707,78 @@ describeDatabase("volunteer admin", () => {
       expect(
         await review(call, applicationId, { adminNotes: "a".repeat(2001) }),
       ).toEqual({ success: false, message: "Es demasiado largo" });
+    });
+
+    it("refuses a save from a form loaded before another change, and keeps that change", async () => {
+      const call = await createCall();
+      const [s0, s1] = call.shiftIds as [number, number];
+      const applicationId = await insertApplication(call, {
+        status: "accepted",
+        assignedRoleId: call.roleIds[0]!,
+        available: [s0, s1],
+        assigned: [s0],
+      });
+      // Loaded a minute ago, so the next write cannot share its millisecond.
+      await integrationDb!
+        .update(volunteerApplications)
+        .set({ updatedAt: new Date(Date.now() - 60_000) })
+        .where(eq(volunteerApplications.id, applicationId));
+      const loaded = (await queries.fetchVolunteerApplicationDetail(
+        call.festivalId,
+        applicationId,
+      ))!;
+      expect(loaded.assignedShiftIds).toEqual([s0]);
+
+      // Meanwhile, the shift screen adds s1.
+      expect(
+        await actions.assignVolunteerShift({
+          festivalId: call.festivalId,
+          shiftId: s1,
+          applicationId,
+        }),
+      ).toMatchObject({ success: true });
+      const changed = await storedApplication(applicationId);
+
+      // The stale tab only edits the notes but sends its old shifts.
+      expect(
+        await review(call, applicationId, {
+          roleId: loaded.assignedRoleId,
+          shiftIds: loaded.assignedShiftIds,
+          adminNotes: "Solo notas",
+          loadedUpdatedAt: loaded.updatedAt.toISOString(),
+        }),
+      ).toEqual({
+        success: false,
+        message:
+          "Alguien más cambió esta postulación. Actualizá la página para ver los cambios.",
+      });
+      expect(await assignedShiftIds(applicationId)).toEqual(
+        [s0, s1].sort((a, b) => a - b),
+      );
+      expect(await storedApplication(applicationId)).toMatchObject({
+        adminNotes: null,
+        updatedAt: changed.updatedAt,
+      });
+
+      // Reloaded, the same save goes through.
+      const reloaded = (await queries.fetchVolunteerApplicationDetail(
+        call.festivalId,
+        applicationId,
+      ))!;
+      expect(
+        await review(call, applicationId, {
+          roleId: reloaded.assignedRoleId,
+          shiftIds: reloaded.assignedShiftIds,
+          adminNotes: "Solo notas",
+          loadedUpdatedAt: reloaded.updatedAt.toISOString(),
+        }),
+      ).toEqual(SAVED);
+      expect(await assignedShiftIds(applicationId)).toEqual(
+        [s0, s1].sort((a, b) => a - b),
+      );
+      expect(await storedApplication(applicationId)).toMatchObject({
+        adminNotes: "Solo notas",
+      });
     });
   });
 
@@ -1419,7 +1502,7 @@ describeDatabase("volunteer admin", () => {
       ).toBeNull();
     });
 
-    it("counts who is available (not rejected) and who is assigned (accepted only)", async () => {
+    it("counts who is available (not rejected), who is assigned (accepted only) and who can still fill it", async () => {
       const call = await createCall();
       const [s0, s1] = call.shiftIds as [number, number];
       await insertApplication(call, { status: "pending", available: [s0] });
@@ -1435,20 +1518,30 @@ describeDatabase("volunteer admin", () => {
         available: [s1],
         assigned: [s1],
       });
+      // Assigned without marking it: counts as assigned, not as available.
+      await insertApplication(call, {
+        status: "accepted",
+        available: [],
+        assigned: [s0],
+      });
 
       const admin = (await queries.fetchVolunteerAdminCall(call.festivalId))!;
       const byId = new Map(admin.shifts.map((shift) => [shift.id, shift]));
       expect(byId.get(s0)).toMatchObject({
         availableCount: 3,
-        assignedCount: 0,
+        assignedCount: 1,
+        unassignedAvailableCount: 3,
       });
+      // Both who marked it are assigned to it, whatever their status.
       expect(byId.get(s1)).toMatchObject({
         availableCount: 2,
         assignedCount: 1,
+        unassignedAvailableCount: 0,
       });
       expect(byId.get(call.shiftIds[3]!)).toMatchObject({
         availableCount: 0,
         assignedCount: 0,
+        unassignedAvailableCount: 0,
       });
       expect(admin.shifts.map((shift) => shift.id)).toEqual(call.shiftIds);
     });
@@ -1518,6 +1611,8 @@ describeDatabase("volunteer admin", () => {
         neededHeadcount: 4,
         availableCount: 4,
         assignedCount: 1,
+        // The candidates: zoe marked it but is already assigned.
+        unassignedAvailableCount: 3,
       });
       expect(detail.assignees).toEqual([
         {
@@ -1576,7 +1671,11 @@ describeDatabase("volunteer admin", () => {
         other.shiftIds[3]!,
       ))!;
       expect(empty).toMatchObject({
-        shift: { availableCount: 0, assignedCount: 0 },
+        shift: {
+          availableCount: 0,
+          assignedCount: 0,
+          unassignedAvailableCount: 0,
+        },
         assignees: [],
         candidates: [],
       });

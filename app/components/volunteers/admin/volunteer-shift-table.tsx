@@ -183,6 +183,8 @@ export default function VolunteerShiftTable({
   const isSaving = form.formState.isSubmitting;
 
   function open(target: Exclude<Editing, null>) {
+    // The form is shared: switching mid-save would let that save close the next editor.
+    if (isSaving) return;
     setEditing(target);
     form.reset(formValues(target));
   }
@@ -443,7 +445,7 @@ export default function VolunteerShiftTable({
           description="El cupo es cuántas personas necesitás en ese turno. Un turno desactivado no aparece en el formulario."
           addLabel="Agregar turno"
           onAdd={() => open("new")}
-          addDisabled={editing === "new"}
+          addDisabled={editing === "new" || isSaving}
         />
         <CardContent className="min-w-0 p-4 pt-0 md:px-0 md:pb-2">
           <Table
@@ -511,6 +513,7 @@ export default function VolunteerShiftTable({
                         size="sm"
                         aria-label={`Editar ${shift.label}, ${spokenDay(shift.startsAt)}`}
                         onClick={() => open(shift.id)}
+                        disabled={isSaving}
                       >
                         Editar
                       </Button>
@@ -586,6 +589,7 @@ export default function VolunteerShiftTable({
                     className="min-h-11 w-full"
                     aria-label={`Editar ${shift.label}, ${spokenDay(shift.startsAt)}`}
                     onClick={() => open(shift.id)}
+                    disabled={isSaving}
                   >
                     Editar
                   </Button>

@@ -89,6 +89,8 @@ const SHIFTS: VolunteerAdminCall["shifts"] = (
   isActive: true,
   availableCount: available,
   assignedCount: assigned,
+  // As if everyone assigned had marked it.
+  unassignedAvailableCount: Math.max(available - assigned, 0),
 }));
 
 const PENDING: VolunteerApplicationDetail = {

@@ -97,6 +97,12 @@ export const volunteerReviewInputSchema = z.object({
     .trim()
     .max(VOLUNTEER_ADMIN_NOTES_MAX_LENGTH, "Es demasiado largo")
     .transform((value) => (value ? value : null)),
+  /**
+   * The application's updatedAt as the form loaded it (ISO). A save is
+   * refused when the row changed since, so a stale tab cannot overwrite
+   * someone else's assignment, role or status.
+   */
+  loadedUpdatedAt: z.iso.datetime(),
 });
 export type VolunteerReviewInput = z.input<typeof volunteerReviewInputSchema>;
 

@@ -95,6 +95,7 @@ function shift(
     isActive: true,
     availableCount: 5,
     assignedCount: 3,
+    unassignedAvailableCount: 2,
     ...overrides,
   };
 }
@@ -123,6 +124,7 @@ function app(overrides: Partial<Application> = {}): Application {
     adminNotes: null,
     reviewedBy: null,
     reviewedAt: null,
+    updatedAt: new Date("2026-11-21T14:12:00.123Z"),
     ...overrides,
   };
 }
@@ -273,6 +275,7 @@ describe("VolunteerReviewForm", () => {
       roleId: 3,
       shiftIds: [1, 3],
       adminNotes: "Llega tarde el viernes",
+      loadedUpdatedAt: "2026-11-21T14:12:00.123Z",
     });
     expect(mocks.success).toHaveBeenCalledWith("Cambios guardados.");
   });
@@ -306,6 +309,25 @@ describe("VolunteerReviewForm", () => {
     fireEvent.click(saveButton());
     await waitFor(() => expect(mocks.error).toHaveBeenCalledWith("No."));
     expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+
+  it("keeps the form as typed when someone else changed the application", async () => {
+    const stale =
+      "Alguien más cambió esta postulación. Actualizá la página para ver los cambios.";
+    mocks.save.mockResolvedValue({ success: false, message: stale });
+    renderForm({ adminNotes: "" });
+    fireEvent.change(screen.getByLabelText("Notas internas"), {
+      target: { value: "Algo" },
+    });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(mocks.error).toHaveBeenCalledWith(stale));
+    expect(mocks.save).toHaveBeenCalledWith(
+      expect.objectContaining({ loadedUpdatedAt: "2026-11-21T14:12:00.123Z" }),
+    );
+    expect(mocks.refresh).not.toHaveBeenCalled();
+    expect(
+      (screen.getByLabelText("Notas internas") as HTMLTextAreaElement).value,
+    ).toBe("Algo");
   });
 
   it("shows the last review under the button", () => {

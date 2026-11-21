@@ -84,6 +84,7 @@ function detail(
       isActive: true,
       availableCount: 29,
       assignedCount: 7,
+      unassignedAvailableCount: 22,
     },
     assignees: [assignee(1), assignee(2, { assignedRoleName: null })],
     candidates: [
