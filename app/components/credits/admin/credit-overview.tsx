@@ -8,6 +8,9 @@ import {
 import Link from "next/link";
 
 import CreditAmount from "@/app/components/credits/credit-amount";
+import StatTile, {
+  type StatTileTone,
+} from "@/app/components/molecules/stat-tile";
 import {
   Card,
   CardContent,
@@ -34,7 +37,8 @@ import {
 import { getUserName } from "@/app/lib/users/utils";
 import { cn } from "@/lib/utils";
 
-function StatTile({
+/** A credit figure as a dashboard tile; `tone` only once it is above zero. */
+function CreditStatTile({
   label,
   amount,
   hint,
@@ -43,35 +47,15 @@ function StatTile({
   label: string;
   amount: number;
   hint: string;
-  tone?: "red" | "amber";
+  tone?: StatTileTone;
 }) {
   return (
-    <Card
-      className={cn(
-        "h-full",
-        tone === "red" && amount > 0 && "border-red-300 dark:border-red-800",
-        tone === "amber" &&
-          amount > 0 &&
-          "border-amber-300 dark:border-amber-800",
-      )}
-    >
-      <CardContent className="flex flex-col gap-0.5 p-3">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          {label}
-        </span>
-        <CreditAmount
-          amount={amount}
-          className={cn(
-            "font-display text-2xl font-semibold tabular-nums leading-tight",
-            tone === "red" && amount > 0 && "text-red-600 dark:text-red-400",
-            tone === "amber" &&
-              amount > 0 &&
-              "text-amber-600 dark:text-amber-400",
-          )}
-        />
-        <span className="text-xs text-muted-foreground">{hint}</span>
-      </CardContent>
-    </Card>
+    <StatTile
+      label={label}
+      value={<CreditAmount amount={amount} />}
+      hint={hint}
+      tone={tone && amount > 0 ? tone : undefined}
+    />
   );
 }
 
@@ -195,7 +179,7 @@ export default async function CreditOverview() {
         aria-label="Indicadores de créditos"
         className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4"
       >
-        <StatTile
+        <CreditStatTile
           label="En manos de participantes"
           amount={overview.outstanding}
           hint={plural(
@@ -204,12 +188,12 @@ export default async function CreditOverview() {
             "cuentas con saldo",
           )}
         />
-        <StatTile
+        <CreditStatTile
           label="Retenidos"
           amount={overview.activeHolds.amount}
           hint={`${plural(overview.activeHolds.count, "función activada", "funciones activadas")}, sin cobrar todavía`}
         />
-        <StatTile
+        <CreditStatTile
           label="En revisión"
           amount={overview.underReview.amount}
           hint={`${plural(overview.underReview.count, "comprobante", "comprobantes")}${
@@ -219,7 +203,7 @@ export default async function CreditOverview() {
           }`}
           tone="amber"
         />
-        <StatTile
+        <CreditStatTile
           label="Adeudado"
           amount={overview.debtTotal}
           hint={plural(

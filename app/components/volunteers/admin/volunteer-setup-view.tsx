@@ -1,13 +1,10 @@
-import { ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
 
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import VolunteerCallSettingsForm from "@/app/components/volunteers/admin/volunteer-call-settings-form";
 import VolunteerRoleTable from "@/app/components/volunteers/admin/volunteer-role-table";
 import VolunteerShiftTable from "@/app/components/volunteers/admin/volunteer-shift-table";
-import {
-  volunteerAdminPath,
-  type VolunteerAdminCall,
-} from "@/app/lib/volunteers/admin-definitions";
+import type { VolunteerAdminCall } from "@/app/lib/volunteers/admin-definitions";
 import { VOLUNTEERS_PATH } from "@/app/lib/volunteers/definitions";
 
 /**
@@ -29,14 +26,9 @@ export default function VolunteerSetupView({
 
   return (
     <div className="container flex min-w-0 flex-col gap-4 p-3 pb-10 md:p-6">
-      <Link
-        href={volunteerAdminPath(festivalId)}
-        data-installed-hidden=""
-        className="inline-flex min-h-8 items-center gap-1 self-start font-semibold text-primary underline-offset-2 hover:underline focus-visible:underline"
-      >
-        <ArrowLeftIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
-        Voluntarios
-      </Link>
+      <PageBreadcrumbs
+        labels={{ [`/dashboard/festivals/${festivalId}`]: call.festival.name }}
+      />
 
       <div className="min-w-0">
         <h1 className="text-2xl font-bold md:text-3xl" data-installed-title="">

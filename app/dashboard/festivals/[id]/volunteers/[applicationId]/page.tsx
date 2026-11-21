@@ -48,6 +48,7 @@ export default async function VolunteerApplicationPage(props: {
       />
       <VolunteerApplicationDetailView
         festivalId={festivalId}
+        festivalName={call.festival.name}
         application={application}
         roles={call.roles}
         shifts={call.shifts}

@@ -51,7 +51,10 @@ describe("VolunteerCoverageCard", () => {
     expect(first.getByText("Vie 18 dic · 15:00–19:00")).toBeTruthy();
     expect(first.getByText("Montaje")).toBeTruthy();
     expect(first.getByText("4 de 8")).toBeTruthy();
-    expect(first.getByRole("img", { name: "4 de 8 asignados" })).toBeTruthy();
+    const meter = first.getByRole("progressbar", { name: "4 de 8 asignados" });
+    expect((meter.firstElementChild as HTMLElement).style.transform).toBe(
+      "translateX(-50%)",
+    );
     expect(first.getByText("Faltan 4")).toBeTruthy();
     expect(
       within(rows[2]).getByText("Faltan 8, solo 9 disponibles").className,

@@ -1,12 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import VolunteerApplicationDetailView from "@/app/components/volunteers/admin/volunteer-application-detail-view";
 import type {
   VolunteerAdminCall,
   VolunteerApplicationDetail,
 } from "@/app/lib/volunteers/admin-definitions";
+
+import { VolunteerAdminStoryContext } from "./volunteer-admin-story-context";
 
 /**
  * /dashboard/festivals/[id]/volunteers/[applicationId] with v11's roles and
@@ -147,27 +148,14 @@ const ACCEPTED_OVER_LIMIT: VolunteerApplicationDetail = {
   reviewedAt: at("2026-11-20T22:15:00Z"),
 };
 
-// Storybook's app-router mock lacks the layout context Next 16.4's
-// `useRouter` reads (see stories/home/home-history-card.stories.tsx).
-const storyRouter = {
-  back: fn(),
-  forward: fn(),
-  refresh: fn(),
-  push: fn(),
-  replace: fn(),
-  prefetch: fn(),
-} as unknown as React.ContextType<typeof AppRouterContext>;
-
 const meta = {
   title: "Volunteers/Admin/Detail",
   parameters: { layout: "fullscreen", nextjs: { appDirectory: false } },
   decorators: [
     (Story) => (
-      <AppRouterContext.Provider value={storyRouter}>
-        <div className="-m-6">
-          <Story />
-        </div>
-      </AppRouterContext.Provider>
+      <div className="-m-6">
+        <Story />
+      </div>
     ),
   ],
 } satisfies Meta;
@@ -177,13 +165,19 @@ type Story = StoryObj<typeof meta>;
 
 function Detail({ application }: { application: VolunteerApplicationDetail }) {
   return (
-    <VolunteerApplicationDetailView
-      festivalId={11}
-      application={application}
-      roles={ROLES}
-      shifts={SHIFTS}
-      today={TODAY}
-    />
+    <VolunteerAdminStoryContext
+      path={`/dashboard/festivals/11/volunteers/${application.id}`}
+      title={application.fullName}
+    >
+      <VolunteerApplicationDetailView
+        festivalId={11}
+        festivalName="Glitter v11"
+        application={application}
+        roles={ROLES}
+        shifts={SHIFTS}
+        today={TODAY}
+      />
+    </VolunteerAdminStoryContext>
   );
 }
 

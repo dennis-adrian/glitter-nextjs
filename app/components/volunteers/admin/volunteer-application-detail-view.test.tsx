@@ -1,15 +1,22 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/lib/volunteers/admin-actions", () => ({
   saveVolunteerReview: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), back: vi.fn() }),
+  usePathname: () => "/dashboard/festivals/619/volunteers/42",
 }));
 
+import { buildAppNavigation } from "@/app/components/navbar/app-navigation";
+import {
+  ScreenBarProvider,
+  ScreenTitle,
+  usePublishScreenContext,
+} from "@/app/components/navbar/screen-bar";
 import VolunteerApplicationDetailView, {
   formatAppliedOn,
   volunteerDetailMeta,
@@ -26,6 +33,18 @@ beforeEach(() => {
     },
   );
 });
+
+const viewer = { role: "admin", status: "verified" } as const;
+
+/** The navbar's published context, which PageBreadcrumbs reads. */
+function Navbar() {
+  usePublishScreenContext({
+    viewer,
+    tabs: buildAppNavigation({ viewer }).tabs,
+    activeFestival: null,
+  });
+  return null;
+}
 
 afterEach(() => {
   cleanup();
@@ -84,28 +103,35 @@ describe("volunteerDetailMeta", () => {
 describe("VolunteerApplicationDetailView", () => {
   it("renders the header, the back link and the three cards", () => {
     render(
-      <VolunteerApplicationDetailView
-        festivalId={619}
-        application={application}
-        roles={[
-          {
-            id: 1,
-            name: "Montaje",
-            description: "",
-            sortOrder: 1,
-            isActive: true,
-            choiceCount: 1,
-          },
-        ]}
-        shifts={[]}
-        today={TODAY}
-      />,
+      <ScreenBarProvider>
+        <Navbar />
+        <ScreenTitle title={application.fullName} />
+        <VolunteerApplicationDetailView
+          festivalId={619}
+          festivalName="Glitter v11"
+          application={application}
+          roles={[
+            {
+              id: 1,
+              name: "Montaje",
+              description: "",
+              sortOrder: 1,
+              isActive: true,
+              choiceCount: 1,
+            },
+          ]}
+          shifts={[]}
+          today={TODAY}
+        />
+      </ScreenBarProvider>,
     );
-    const back = screen.getByRole("link", { name: "Voluntarios" });
+    const trail = screen.getByRole("navigation", { name: "Ruta" });
+    expect(trail.hasAttribute("data-installed-hidden")).toBe(true);
+    // The phone's single link up, then the desktop trail.
+    const [back] = within(trail).getAllByRole("link", { name: "Voluntarios" });
     expect(back.getAttribute("href")).toBe(
       "/dashboard/festivals/619/volunteers",
     );
-    expect(back.hasAttribute("data-installed-hidden")).toBe(true);
     const title = screen.getByRole("heading", {
       level: 1,
       name: application.fullName,

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useId, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { Banner } from "@/app/components/ui/banner";
 import { Button } from "@/app/components/ui/button";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { Label } from "@/app/components/ui/label";
@@ -36,7 +37,10 @@ import {
   VOLUNTEER_MAX_SHIFTS_PER_DAY,
   type VolunteerApplicationStatus,
 } from "@/app/lib/volunteers/definitions";
-import { formatShiftWhen } from "@/app/lib/volunteers/format";
+import {
+  compareShiftsByStart,
+  formatShiftWhen,
+} from "@/app/lib/volunteers/format";
 
 /** The role select's value for "Sin asignar": Radix refuses an empty one. */
 const NO_ROLE = "none";
@@ -44,9 +48,6 @@ const NO_ROLE = "none";
 function laPaz(date: Date) {
   return DateTime.fromJSDate(date, { zone: STORE_TIMEZONE }).setLocale("es");
 }
-
-const byTime = (a: VolunteerShiftCoverage, b: VolunteerShiftCoverage) =>
-  a.startsAt.getTime() - b.startsAt.getTime() || a.id - b.id;
 
 /**
  * The shifts the form offers, in time order: first the ones the application
@@ -65,7 +66,7 @@ export function reviewShiftGroups(
       (shift) =>
         shift.isActive || application.assignedShiftIds.includes(shift.id),
     )
-    .sort(byTime);
+    .sort(compareShiftsByStart);
   const first = (shift: VolunteerShiftCoverage) =>
     application.assignedShiftIds.includes(shift.id) ||
     application.availableShiftIds.includes(shift.id);
@@ -125,7 +126,7 @@ export function reviewWarning(
   const overDays = daysOverShiftLimit(selected);
   const notMarked = selected
     .filter((shift) => !availableShiftIds.includes(shift.id))
-    .sort(byTime);
+    .sort(compareShiftsByStart);
   if (overDays.length === 0 && notMarked.length === 0) return null;
 
   if (overDays.length > 0) {
@@ -418,17 +419,11 @@ export default function VolunteerReviewForm({
       </fieldset>
 
       {warning && (
-        <p
-          id={warningId}
-          role="status"
-          className="flex min-w-0 items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
-        >
-          <TriangleAlertIcon
-            aria-hidden="true"
-            className="mt-0.5 h-4 w-4 shrink-0"
-          />
-          <span className="min-w-0 break-words">{warning}</span>
-        </p>
+        <div id={warningId} role="status" className="min-w-0">
+          <Banner variant="warning" icon={TriangleAlertIcon}>
+            <span className="break-words">{warning}</span>
+          </Banner>
+        </div>
       )}
 
       <div className="flex min-w-0 flex-col gap-1.5">

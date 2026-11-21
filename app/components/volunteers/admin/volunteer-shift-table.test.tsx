@@ -211,7 +211,7 @@ describe("VolunteerShiftTable", () => {
     expect(mocks.refresh).toHaveBeenCalled();
   });
 
-  it("refuses an empty cupo instead of saving it as 0", () => {
+  it("refuses an empty cupo instead of saving it as 0", async () => {
     render(
       <VolunteerShiftTable
         festivalId={9}
@@ -225,7 +225,7 @@ describe("VolunteerShiftTable", () => {
     });
     fireEvent.click(desktop().getByRole("button", { name: "Guardar" }));
 
-    expect(desktop().getByText("Indicá el cupo.")).toBeTruthy();
+    expect(await desktop().findByText("Indicá el cupo.")).toBeTruthy();
     expect(mocks.save).not.toHaveBeenCalled();
   });
 
@@ -260,7 +260,7 @@ describe("VolunteerShiftTable", () => {
     fireEvent.click(desktop().getByRole("button", { name: "Guardar" }));
 
     expect(
-      desktop().getByText("El fin tiene que ser posterior al inicio."),
+      await desktop().findByText("El fin tiene que ser posterior al inicio."),
     ).toBeTruthy();
     expect(desktop().getByLabelText("Hora de fin")).toHaveProperty(
       "ariaInvalid",

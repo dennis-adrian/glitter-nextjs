@@ -1,7 +1,8 @@
 import { DateTime } from "luxon";
-import { MessageCircleIcon, PhoneIcon } from "lucide-react";
+import { PhoneIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
+import BrandIcon from "@/app/components/brand-icon";
 import { Badge } from "@/app/components/ui/badge";
 import { STORE_TIMEZONE } from "@/app/lib/formatters";
 import {
@@ -10,14 +11,10 @@ import {
   whatsappHref,
   type VolunteerApplicationDetail,
 } from "@/app/lib/volunteers/admin-definitions";
+import { formatYears } from "@/app/lib/volunteers/format";
 
 const linkClass =
   "font-medium text-primary underline-offset-2 hover:underline focus-visible:underline";
-
-/** "22 años", or "1 año". */
-export function formatYears(years: number) {
-  return `${years} ${years === 1 ? "año" : "años"}`;
-}
 
 /** "03/05/2002 · 24 años" on La Paz's calendar; the raw value if odd. */
 export function formatVolunteerBirthdate(
@@ -46,7 +43,7 @@ function PhoneLinks({ phone, name }: { phone: string; name: string }) {
           className={iconLink}
           aria-label={`Escribir por WhatsApp a ${name}`}
         >
-          <MessageCircleIcon aria-hidden="true" className="h-4 w-4" />
+          <BrandIcon brand="whatsapp" />
         </a>
       )}
       <a

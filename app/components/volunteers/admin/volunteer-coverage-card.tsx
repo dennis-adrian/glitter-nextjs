@@ -5,6 +5,7 @@ import {
   CardDescription,
   CardHeader,
 } from "@/app/components/ui/card";
+import { Progress } from "@/app/components/ui/progress";
 import {
   Table,
   TableBody,
@@ -19,6 +20,7 @@ import {
   type VolunteerShiftCoverage,
 } from "@/app/lib/volunteers/admin-definitions";
 import {
+  compareShiftsByStart,
   formatShiftWhen,
   formatShiftWhenShort,
 } from "@/app/lib/volunteers/format";
@@ -36,29 +38,24 @@ function assignedOf(shift: VolunteerShiftCoverage) {
 
 /** The assigned share of the cupo as a bar; empty while there is no cupo. */
 export function CoverageMeter({ shift }: { shift: VolunteerShiftCoverage }) {
-  const ratio =
+  const percent =
     shift.neededHeadcount > 0
-      ? Math.min(shift.assignedCount / shift.neededHeadcount, 1)
+      ? Math.round(
+          Math.min(shift.assignedCount / shift.neededHeadcount, 1) * 100,
+        )
       : 0;
   return (
-    <div
-      role="img"
+    <Progress
+      value={percent}
       aria-label={`${assignedOf(shift)} asignados`}
-      className="h-2 w-full overflow-hidden rounded-full bg-muted"
-    >
-      <div
-        className="h-full rounded-full bg-primary"
-        style={{ width: `${Math.round(ratio * 100)}%` }}
-      />
-    </div>
+      className="bg-muted"
+    />
   );
 }
 
 /** Active shifts in time order: the order the festival runs them. */
 export function coverageShifts(shifts: readonly VolunteerShiftCoverage[]) {
-  return shifts
-    .filter((shift) => shift.isActive)
-    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime() || a.id - b.id);
+  return shifts.filter((shift) => shift.isActive).sort(compareShiftsByStart);
 }
 
 /**

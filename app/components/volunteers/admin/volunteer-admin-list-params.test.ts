@@ -1,12 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  clearVolunteerFiltersHref,
   formatShiftList,
   formatShiftStartShort,
-  shiftFilterLabel,
   volunteerAgeAndPhone,
-  volunteerListHref,
   volunteerStatusHref,
 } from "@/app/components/volunteers/admin/volunteer-admin-list-params";
 import type { VolunteerAdminShift } from "@/app/lib/volunteers/admin-definitions";
@@ -38,29 +35,7 @@ const SHIFTS = [
   shift(2, "2026-12-19T14:00:00Z"),
 ];
 
-describe("volunteerListHref", () => {
-  it("applies the change and goes back to the first page", () => {
-    expect(
-      volunteerListHref(
-        BASE,
-        { status: "accepted", offset: "50", limit: "50" },
-        { roleId: "3" },
-      ),
-    ).toBe(`${BASE}?status=accepted&limit=50&roleId=3`);
-  });
-
-  it("drops a parameter set to null, and keeps an offset it is given", () => {
-    expect(
-      volunteerListHref(BASE, { roleId: "3", shiftId: "4" }, { roleId: null }),
-    ).toBe(`${BASE}?shiftId=4`);
-    expect(volunteerListHref(BASE, { query: "ana" }, { offset: "25" })).toBe(
-      `${BASE}?query=ana&offset=25`,
-    );
-    expect(volunteerListHref(BASE, { offset: "25" }, { offset: null })).toBe(
-      BASE,
-    );
-  });
-
+describe("volunteerStatusHref", () => {
   it("links the status chips, with Todas as the default", () => {
     expect(
       volunteerStatusHref(BASE, { status: "pending", query: "ana" }, "all"),
@@ -70,16 +45,21 @@ describe("volunteerListHref", () => {
     );
   });
 
-  it("clears the search and filters but keeps the status", () => {
+  it("keeps the search, filters and page size, and starts over", () => {
     expect(
-      clearVolunteerFiltersHref(BASE, {
-        status: "accepted",
-        query: "ana",
-        roleId: "1",
-        shiftId: "2",
-        offset: "25",
-      }),
-    ).toBe(`${BASE}?status=accepted`);
+      volunteerStatusHref(
+        BASE,
+        {
+          status: "accepted",
+          query: "ana",
+          roleId: "1",
+          shiftId: "2",
+          limit: "50",
+          offset: "25",
+        },
+        "pending",
+      ),
+    ).toBe(`${BASE}?query=ana&roleId=1&shiftId=2&limit=50&status=pending`);
   });
 });
 
@@ -111,14 +91,7 @@ describe("formatShiftList", () => {
   });
 });
 
-describe("labels", () => {
-  it("names a gone shift by its id", () => {
-    expect(shiftFilterLabel(SHIFTS, 1, true)).toBe(
-      "Vie 18 dic · 15:00–19:00 (Turno 1)",
-    );
-    expect(shiftFilterLabel(SHIFTS, 77)).toBe("Turno #77");
-  });
-
+describe("volunteerAgeAndPhone", () => {
   it("joins the age and the phone", () => {
     const today = new Date("2026-11-21T16:00:00Z");
     expect(

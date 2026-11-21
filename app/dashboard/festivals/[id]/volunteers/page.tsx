@@ -39,6 +39,14 @@ export default async function VolunteerApplicationsPage(props: {
 
   const call = await fetchVolunteerAdminCall(festivalId);
   if (!call) notFound();
+  // A role or shift the call no longer has has no option in its filter, so
+  // the list must not narrow by it either.
+  if (!call.roles.some((role) => role.id === filters.roleId)) {
+    filters.roleId = undefined;
+  }
+  if (!call.shifts.some((shift) => shift.id === filters.shiftId)) {
+    filters.shiftId = undefined;
+  }
   const page = call.settings
     ? await fetchVolunteerApplicationsPage(festivalId, filters)
     : null;

@@ -7,8 +7,11 @@ import {
   siYoutube,
   type SimpleIcon,
 } from "simple-icons";
-
-import { cn } from "@/app/lib/utils";
+// tailwind-merge rather than `cn` from app/lib/utils: that module reaches
+// app/lib/users/utils, which reads BRAND_ICONS at load, so importing it here
+// closes a cycle that leaves BRAND_ICONS uninitialised for whichever side
+// loads first.
+import { twMerge } from "tailwind-merge";
 
 /**
  * The brand marks the app shows, all from Simple Icons
@@ -47,7 +50,7 @@ export default function BrandIcon({
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 24 24"
       fill="currentColor"
-      className={cn("size-4 shrink-0", className)}
+      className={twMerge("size-4 shrink-0", className)}
       aria-hidden="true"
     >
       <path d={BRANDS[brand].path} />

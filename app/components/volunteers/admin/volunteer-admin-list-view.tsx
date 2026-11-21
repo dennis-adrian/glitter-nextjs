@@ -145,15 +145,11 @@ export default function VolunteerAdminListView({
                 searchParams={searchParams}
                 filters={filters}
                 counts={page.counts}
-                roles={call.roles}
-                shifts={call.shifts}
               />
             </CardHeader>
             <CardContent className="p-0 md:p-6 md:pt-0">
               <VolunteerApplicationsList
                 festivalId={festivalId}
-                basePath={basePath}
-                searchParams={searchParams}
                 items={page.items}
                 total={page.total}
                 filters={filters}

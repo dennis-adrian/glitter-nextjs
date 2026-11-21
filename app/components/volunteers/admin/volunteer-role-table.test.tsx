@@ -151,14 +151,16 @@ describe("VolunteerRoleTable", () => {
     );
   });
 
-  it("asks for the name and description of a new role", () => {
+  it("asks for the name and description of a new role", async () => {
     render(<VolunteerRoleTable festivalId={9} roles={[]} />);
 
     expect(desktop().getByText(/Todavía no hay roles/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Agregar rol" }));
     fireEvent.click(desktop().getByRole("button", { name: "Guardar" }));
 
-    expect(desktop().getByText("Escribí el nombre del rol.")).toBeTruthy();
+    expect(
+      await desktop().findByText("Escribí el nombre del rol."),
+    ).toBeTruthy();
     expect(desktop().getByText("Escribí una descripción corta.")).toBeTruthy();
     expect(mocks.save).not.toHaveBeenCalled();
   });

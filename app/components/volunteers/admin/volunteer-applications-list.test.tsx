@@ -1,12 +1,23 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const nav = vi.hoisted(() => ({
+  push: vi.fn(),
+  search: new URLSearchParams(),
+}));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => ({ push: nav.push, refresh: vi.fn() }),
   usePathname: () => "/dashboard/festivals/619/volunteers",
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => nav.search,
 }));
 vi.mock("@/app/lib/volunteers/admin-actions", () => ({
   updateVolunteerApplicationStatus: vi.fn(),
@@ -14,7 +25,6 @@ vi.mock("@/app/lib/volunteers/admin-actions", () => ({
 
 import VolunteerApplicationsList, {
   volunteerApplicationsEmptyMessage,
-  volunteerApplicationsSummary,
 } from "@/app/components/volunteers/admin/volunteer-applications-list";
 import type { RawSearchParams } from "@/app/lib/credits/admin-definitions";
 import {
@@ -104,11 +114,17 @@ function renderList(
   searchParams: RawSearchParams = {},
   total = items.length,
 ) {
+  nav.search = new URLSearchParams(
+    Object.entries(searchParams).flatMap(([key, value]) =>
+      (Array.isArray(value) ? value : value ? [value] : []).map((v) => [
+        key,
+        v,
+      ]),
+    ),
+  );
   return render(
     <VolunteerApplicationsList
       festivalId={619}
-      basePath={BASE}
-      searchParams={searchParams}
       items={items}
       total={total}
       filters={VolunteerApplicationsSearchSchema.parse(searchParams)}
@@ -119,7 +135,21 @@ function renderList(
   );
 }
 
-afterEach(cleanup);
+/** DataTable's phone list: a card per application, below md. */
+function phoneCards() {
+  const table = screen.getByRole("table");
+  const list = screen
+    .getAllByRole("list")
+    .find((candidate) => !table.contains(candidate));
+  if (!list) throw new Error("no phone list");
+  return list;
+}
+
+afterEach(() => {
+  cleanup();
+  nav.push.mockReset();
+  vi.useRealTimers();
+});
 
 describe("VolunteerApplicationsList", () => {
   it("renders a table row per application", () => {
@@ -190,7 +220,7 @@ describe("VolunteerApplicationsList", () => {
         assignedShiftIds: [2],
       }),
     ]);
-    const cards = within(screen.getByRole("list", { name: "Postulaciones" }))
+    const cards = within(phoneCards())
       .getAllByRole("listitem")
       .map((card) => within(card));
     const name = cards[0].getByRole("link", {
@@ -216,74 +246,75 @@ describe("VolunteerApplicationsList", () => {
 
   it("shows the empty state for the chip, or for the filters", () => {
     renderList([]);
+    // Once in the table and once in the phone list.
     expect(
-      screen.getByText("Todavía no llegó ninguna postulación."),
-    ).toBeTruthy();
-    expect(screen.queryByRole("table")).toBeNull();
+      screen.getAllByText("Todavía no llegó ninguna postulación."),
+    ).toHaveLength(2);
     cleanup();
 
     renderList([], { status: "pending", query: "ana" });
     expect(
-      screen.getByText(
+      screen.getAllByText(
         "Ninguna postulación coincide con la búsqueda y los filtros.",
       ),
-    ).toBeTruthy();
+    ).toHaveLength(2);
+    expect(
+      (
+        screen.getByRole("searchbox", {
+          name: "Buscar por nombre, celular o correo",
+        }) as HTMLInputElement
+      ).value,
+    ).toBe("ana");
   });
 
   it("says the page ran out, not that there is nothing, past the last page", () => {
     renderList([], { offset: "50" }, 3);
     expect(
-      screen.getByText("No hay más postulaciones en esta página."),
-    ).toBeTruthy();
+      screen.getAllByText("No hay más postulaciones en esta página."),
+    ).toHaveLength(2);
   });
 
-  it("pages with Anterior and Siguiente, keeping the filters", () => {
+  it("pages through the URL, keeping the filters", () => {
     renderList([item()], { roleId: "1", offset: "25" }, 60);
-    const pages = within(screen.getByRole("navigation", { name: "Páginas" }));
-    expect(
-      pages.getByRole("link", { name: "Anterior" }).getAttribute("href"),
-    ).toBe(`${BASE}?roleId=1`);
-    expect(
-      pages.getByRole("link", { name: "Siguiente" }).getAttribute("href"),
-    ).toBe(`${BASE}?roleId=1&offset=50`);
-    expect(
-      screen.getByText(
-        "Mostrando 26 de 60 postulaciones con Fotografía y redes sociales como rol preferido",
-      ),
-    ).toBeTruthy();
-    cleanup();
-
-    renderList([item()]);
-    const only = within(screen.getByRole("navigation", { name: "Páginas" }));
-    expect(
-      (only.getByRole("button", { name: "Anterior" }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(true);
-    expect(
-      (only.getByRole("button", { name: "Siguiente" }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(true);
-    expect(screen.getByText("Mostrando 1 de 1 postulación")).toBeTruthy();
-  });
-});
-
-describe("volunteerApplicationsSummary", () => {
-  it("names both filters", () => {
-    expect(
-      volunteerApplicationsSummary({
-        shown: 5,
-        total: 9,
-        offset: 0,
-        filters: VolunteerApplicationsSearchSchema.parse({
-          roleId: "1",
-          shiftId: "1",
-        }),
-        roles,
-        shifts,
-      }),
-    ).toBe(
-      "Mostrando 5 de 9 postulaciones con Fotografía y redes sociales como rol preferido y Vie 18 dic · 15:00–19:00 (Montaje) como turno disponible",
+    expect(screen.getByText("26–50 de 60")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Página siguiente" }));
+    expect(nav.push).toHaveBeenCalledWith(
+      `${BASE}?roleId=1&offset=50&limit=25`,
+      { scroll: false },
     );
+  });
+
+  it("pushes the search after a pause, back on the first page", () => {
+    vi.useFakeTimers();
+    renderList([item()], { status: "pending", offset: "25" }, 30);
+    fireEvent.change(
+      screen.getByRole("searchbox", {
+        name: "Buscar por nombre, celular o correo",
+      }),
+      { target: { value: " 7000 " } },
+    );
+    expect(nav.push).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(450);
+    });
+    expect(nav.push).toHaveBeenCalledWith(`${BASE}?status=pending&query=7000`, {
+      scroll: false,
+    });
+  });
+
+  it("filters by shift and role through shiftId and roleId", () => {
+    renderList([item()], { shiftId: "2", roleId: "1" });
+    // The trigger names the value; a removable chip repeats it in full.
+    const [shiftTrigger] = screen.getAllByRole("button", {
+      name: /^Turno disponible/,
+    });
+    expect(shiftTrigger.textContent).toContain(
+      "Sáb 19 dic · 13:30–17:30 — Festival (turno A)",
+    );
+    const [roleTrigger] = screen.getAllByRole("button", {
+      name: /^Rol preferido/,
+    });
+    expect(roleTrigger.textContent).toContain("Fotografía y redes sociales");
   });
 });
 

@@ -1,9 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import VolunteerSetupView from "@/app/components/volunteers/admin/volunteer-setup-view";
 import type { VolunteerAdminCall } from "@/app/lib/volunteers/admin-definitions";
+
+import { VolunteerAdminStoryContext } from "./volunteer-admin-story-context";
 
 /**
  * /dashboard/festivals/[id]/volunteers/setup with v11's roles and shifts, for
@@ -130,28 +131,17 @@ const CALL: VolunteerAdminCall = {
   },
 };
 
-// Storybook's app-router mock lacks the layout context Next 16.4's
-// `useRouter` reads (see stories/home/home-history-card.stories.tsx).
-const storyRouter = {
-  back: fn(),
-  forward: fn(),
-  refresh: fn(),
-  push: fn(),
-  replace: fn(),
-  prefetch: fn(),
-} as unknown as React.ContextType<typeof AppRouterContext>;
-
 const meta = {
   title: "Volunteers/Admin/Setup",
   component: VolunteerSetupView,
   parameters: { layout: "fullscreen", nextjs: { appDirectory: false } },
   decorators: [
     (Story) => (
-      <AppRouterContext.Provider value={storyRouter}>
+      <VolunteerAdminStoryContext path="/dashboard/festivals/11/volunteers/setup">
         <div className="-m-6 min-h-screen bg-background">
           <Story />
         </div>
-      </AppRouterContext.Provider>
+      </VolunteerAdminStoryContext>
     ),
   ],
   args: { call: CALL },

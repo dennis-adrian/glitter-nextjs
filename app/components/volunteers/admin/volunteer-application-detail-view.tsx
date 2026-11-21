@@ -1,8 +1,8 @@
-import { ArrowLeftIcon, MessageCircleIcon } from "lucide-react";
 import { DateTime } from "luxon";
-import Link from "next/link";
 import type { ReactNode } from "react";
 
+import BrandIcon from "@/app/components/brand-icon";
+import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
 import { Badge } from "@/app/components/ui/badge";
 import { buttonVariants } from "@/app/components/ui/button";
 import {
@@ -12,9 +12,7 @@ import {
   CardHeader,
 } from "@/app/components/ui/card";
 import VolunteerApplicationAnswers from "@/app/components/volunteers/admin/volunteer-application-answers";
-import VolunteerApplicationContact, {
-  formatYears,
-} from "@/app/components/volunteers/admin/volunteer-application-contact";
+import VolunteerApplicationContact from "@/app/components/volunteers/admin/volunteer-application-contact";
 import VolunteerReviewForm from "@/app/components/volunteers/admin/volunteer-review-form";
 import VolunteerStatusBadge from "@/app/components/volunteers/admin/volunteer-status-badge";
 import { STORE_TIMEZONE } from "@/app/lib/formatters";
@@ -23,12 +21,12 @@ import {
   VOLUNTEER_ADMIN_COPY,
   VOLUNTEER_REFERRAL_ADMIN_LABELS,
   ageOn,
-  volunteerAdminPath,
   whatsappHref,
   type VolunteerAdminRole,
   type VolunteerApplicationDetail,
   type VolunteerShiftCoverage,
 } from "@/app/lib/volunteers/admin-definitions";
+import { formatYears } from "@/app/lib/volunteers/format";
 
 /** "21 nov", La Paz's calendar. */
 export function formatAppliedOn(date: Date) {
@@ -90,12 +88,15 @@ function DetailCard({
  */
 export default function VolunteerApplicationDetailView({
   festivalId,
+  festivalName,
   application,
   roles,
   shifts,
   today,
 }: {
   festivalId: number;
+  /** Names the festival's crumb in the trail. */
+  festivalName: string;
   application: VolunteerApplicationDetail;
   roles: VolunteerAdminRole[];
   shifts: VolunteerShiftCoverage[];
@@ -107,14 +108,9 @@ export default function VolunteerApplicationDetailView({
 
   return (
     <div className="container flex min-w-0 flex-col gap-4 p-3 pb-10 md:p-6">
-      <Link
-        href={volunteerAdminPath(festivalId)}
-        data-installed-hidden=""
-        className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-semibold text-primary underline-offset-2 hover:underline focus-visible:underline md:min-h-8"
-      >
-        <ArrowLeftIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
-        Voluntarios
-      </Link>
+      <PageBreadcrumbs
+        labels={{ [`/dashboard/festivals/${festivalId}`]: festivalName }}
+      />
 
       <div className="flex min-w-0 flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between">
         <div className="flex min-w-0 flex-col gap-2 md:flex-1">
@@ -142,10 +138,7 @@ export default function VolunteerApplicationDetailView({
               "min-h-11 gap-2 md:min-h-10",
             )}
           >
-            <MessageCircleIcon
-              aria-hidden="true"
-              className="h-4 w-4 shrink-0"
-            />
+            <BrandIcon brand="whatsapp" />
             Escribir por WhatsApp
           </a>
         )}

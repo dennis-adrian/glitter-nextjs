@@ -8,7 +8,10 @@ import {
   type VolunteerAdminShift,
   type VolunteerApplicationDetail,
 } from "@/app/lib/volunteers/admin-definitions";
-import { formatShiftWhen } from "@/app/lib/volunteers/format";
+import {
+  compareShiftsByStart,
+  formatShiftWhen,
+} from "@/app/lib/volunteers/format";
 
 function roleName(roles: VolunteerAdminRole[], id: number) {
   const role = roles.find((candidate) => candidate.id === id);
@@ -59,7 +62,7 @@ export default function VolunteerApplicationAnswers({
 }) {
   const available = shifts
     .filter((shift) => application.availableShiftIds.includes(shift.id))
-    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime() || a.id - b.id);
+    .sort(compareShiftsByStart);
   const activeCount = shifts.filter((shift) => shift.isActive).length;
 
   return (

@@ -1,6 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import { fn } from "storybook/test";
 
 import VolunteerAdminListView from "@/app/components/volunteers/admin/volunteer-admin-list-view";
 import type { RawSearchParams } from "@/app/lib/credits/admin-definitions";
@@ -11,6 +9,8 @@ import {
   type VolunteerApplicationsPage,
 } from "@/app/lib/volunteers/admin-definitions";
 import type { VolunteerApplicationStatus } from "@/app/lib/volunteers/definitions";
+
+import { VolunteerAdminStoryContext } from "./volunteer-admin-story-context";
 
 /**
  * /dashboard/festivals/[id]/volunteers with v11's roles and shifts, for
@@ -231,39 +231,26 @@ function List({
   call?: VolunteerAdminCall;
 }) {
   return (
-    <div className="-m-6">
-      <VolunteerAdminListView
-        call={call}
-        page={page}
-        filters={VolunteerApplicationsSearchSchema.parse(searchParams)}
-        searchParams={searchParams}
-        today={TODAY}
-      />
-    </div>
+    <VolunteerAdminStoryContext
+      path={`/dashboard/festivals/${call.festival.id}/volunteers`}
+      searchParams={searchParams}
+    >
+      <div className="-m-6">
+        <VolunteerAdminListView
+          call={call}
+          page={page}
+          filters={VolunteerApplicationsSearchSchema.parse(searchParams)}
+          searchParams={searchParams}
+          today={TODAY}
+        />
+      </div>
+    </VolunteerAdminStoryContext>
   );
 }
-
-// Storybook's app-router mock lacks the layout context Next 16.4's
-// `useRouter` reads (see stories/home/home-history-card.stories.tsx).
-const storyRouter = {
-  back: fn(),
-  forward: fn(),
-  refresh: fn(),
-  push: fn(),
-  replace: fn(),
-  prefetch: fn(),
-} as unknown as React.ContextType<typeof AppRouterContext>;
 
 const meta = {
   title: "Volunteers/Admin/List",
   parameters: { layout: "fullscreen", nextjs: { appDirectory: false } },
-  decorators: [
-    (Story) => (
-      <AppRouterContext.Provider value={storyRouter}>
-        <Story />
-      </AppRouterContext.Provider>
-    ),
-  ],
 } satisfies Meta;
 
 export default meta;

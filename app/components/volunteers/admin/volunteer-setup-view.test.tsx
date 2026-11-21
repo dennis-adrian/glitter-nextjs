@@ -1,17 +1,35 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/lib/volunteers/admin-actions", () => ({}));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), back: vi.fn() }),
+  usePathname: () => "/dashboard/festivals/9/volunteers/setup",
 }));
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
 }));
 
+import { buildAppNavigation } from "@/app/components/navbar/app-navigation";
+import {
+  ScreenBarProvider,
+  usePublishScreenContext,
+} from "@/app/components/navbar/screen-bar";
 import VolunteerSetupView from "@/app/components/volunteers/admin/volunteer-setup-view";
+
+const viewer = { role: "admin", status: "verified" } as const;
+
+/** The navbar's published context, which PageBreadcrumbs reads. */
+function Navbar() {
+  usePublishScreenContext({
+    viewer,
+    tabs: buildAppNavigation({ viewer }).tabs,
+    activeFestival: null,
+  });
+  return null;
+}
 
 afterEach(cleanup);
 
@@ -28,11 +46,21 @@ const CALL = {
 
 describe("VolunteerSetupView", () => {
   it("links back to the list and to the public page", () => {
-    render(<VolunteerSetupView call={CALL} />);
+    render(
+      <ScreenBarProvider>
+        <Navbar />
+        <VolunteerSetupView call={CALL} />
+      </ScreenBarProvider>,
+    );
 
-    const back = screen.getByRole("link", { name: "Voluntarios" });
+    const trail = screen.getByRole("navigation", { name: "Ruta" });
+    expect(trail.hasAttribute("data-installed-hidden")).toBe(true);
+    // The phone's single link up, then the desktop trail.
+    const [back] = within(trail).getAllByRole("link", { name: "Voluntarios" });
     expect(back.getAttribute("href")).toBe("/dashboard/festivals/9/volunteers");
-    expect(back.hasAttribute("data-installed-hidden")).toBe(true);
+    expect(
+      within(trail).getByRole("link", { name: "Glitter v11" }),
+    ).toBeTruthy();
     expect(
       screen.getByRole("heading", { level: 1, name: "Roles, turnos y fechas" }),
     ).toBeTruthy();
