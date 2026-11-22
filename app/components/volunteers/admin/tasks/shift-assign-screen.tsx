@@ -130,6 +130,17 @@ export default function VolunteerShiftAssignScreen({
   const [chosen, setChosen] = useState<Map<number, number | undefined>>(
     () => new Map(),
   );
+  // A refresh can drop someone ticked (assigned meanwhile, no longer
+  // marking it): their pick goes too, so the count and the save cover only
+  // the rows shown.
+  const [seenCandidates, setSeenCandidates] = useState(detail.candidates);
+  if (seenCandidates !== detail.candidates) {
+    setSeenCandidates(detail.candidates);
+    const shown = new Set(accepted.map((candidate) => candidate.applicationId));
+    if ([...chosen.keys()].some((id) => !shown.has(id))) {
+      setChosen(new Map([...chosen].filter(([id]) => shown.has(id))));
+    }
+  }
 
   const toggle = (candidate: VolunteerShiftCandidate, checked: boolean) =>
     setChosen((current) => {
@@ -344,7 +355,7 @@ export default function VolunteerShiftAssignScreen({
                     <ChoiceRow
                       id={`shift-candidate-${candidate.applicationId}`}
                       checked={checked}
-                      disabled={!detail.shift.isActive}
+                      disabled={isSaving || !detail.shift.isActive}
                       onCheckedChange={(value) => toggle(candidate, value)}
                       label={candidate.fullName}
                       below={
@@ -354,6 +365,7 @@ export default function VolunteerShiftAssignScreen({
                             onValueChange={(value) =>
                               setRole(candidate.applicationId, Number(value))
                             }
+                            disabled={isSaving}
                           >
                             <SelectTrigger
                               aria-label={`Rol de ${candidate.fullName}`}

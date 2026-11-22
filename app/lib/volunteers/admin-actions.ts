@@ -141,8 +141,19 @@ function revalidateCall(festivalId: number) {
   revalidatePath(VOLUNTEERS_PATH, "layout");
 }
 
-function reviewedBy(profileId: number) {
-  const now = new Date();
+/**
+ * An application's next updatedAt, given the one its row lock read: now, or
+ * 1 ms past `current` when the clock has not passed it (two writes in one
+ * millisecond, a server whose clock is behind). Strictly increasing, so the
+ * updatedAt a screen loaded, or an undo holds, never matches a later write.
+ */
+function nextRevision(current: Date) {
+  return new Date(Math.max(Date.now(), current.getTime() + 1));
+}
+
+/** Who reviewed it, and its next revision (see nextRevision). */
+function reviewedBy(profileId: number, current: Date) {
+  const now = nextRevision(current);
   return { reviewedByUserId: profileId, reviewedAt: now, updatedAt: now };
 }
 
@@ -191,17 +202,19 @@ export async function updateVolunteerApplicationStatus(
   const { festivalId, applicationId, status } = parsed.data;
 
   try {
-    const [updated] = await db
-      .update(volunteerApplications)
-      .set({ status, ...reviewedBy(profile.id) })
-      .where(
-        and(
-          eq(volunteerApplications.id, applicationId),
-          eq(volunteerApplications.festivalId, festivalId),
-        ),
-      )
-      .returning({ id: volunteerApplications.id });
-    if (!updated) return refused(VOLUNTEER_ADMIN_COPY.notFound);
+    // Locked like every other write, for its next revision.
+    await db.transaction(async (tx) => {
+      const application = await lockApplication(tx, festivalId, applicationId);
+      await tx
+        .update(volunteerApplications)
+        .set({ status, ...reviewedBy(profile.id, application.updatedAt) })
+        .where(
+          and(
+            eq(volunteerApplications.id, applicationId),
+            eq(volunteerApplications.festivalId, festivalId),
+          ),
+        );
+    });
   } catch (error) {
     return failure(error, "Error updating a volunteer status", festivalId);
   }
@@ -360,7 +373,7 @@ export async function saveVolunteerReview(
           status,
           adminNotes,
           ...(assigning ? { assignedRoleId: roleId } : {}),
-          ...reviewedBy(profile.id),
+          ...reviewedBy(profile.id, application.updatedAt),
         })
         .where(
           and(
@@ -529,7 +542,7 @@ export async function assignVolunteerShift(
         .set({
           ...(decision.accept ? { status: "accepted" as const } : {}),
           assignedRoleId,
-          ...reviewedBy(profile.id),
+          ...reviewedBy(profile.id, application.updatedAt),
         })
         .where(
           and(
@@ -590,7 +603,11 @@ export async function unassignVolunteerShift(
   let outcome: { fullName: string; changed: boolean };
   try {
     outcome = await db.transaction(async (tx) => {
-      const { fullName } = await lockApplication(tx, festivalId, applicationId);
+      const { fullName, updatedAt } = await lockApplication(
+        tx,
+        festivalId,
+        applicationId,
+      );
       const removed = await tx
         .delete(volunteerApplicationAssignedShifts)
         .where(
@@ -605,7 +622,7 @@ export async function unassignVolunteerShift(
 
       await tx
         .update(volunteerApplications)
-        .set(reviewedBy(profile.id))
+        .set(reviewedBy(profile.id, updatedAt))
         .where(
           and(
             eq(volunteerApplications.id, applicationId),
@@ -1091,7 +1108,7 @@ export async function decideVolunteerApplication(
       ) {
         throw new Refusal(VOLUNTEER_ADMIN_COPY.staleReview);
       }
-      const review = reviewedBy(profile.id);
+      const review = reviewedBy(profile.id, application.updatedAt);
       await tx
         .update(volunteerApplications)
         .set({ status, ...review })
@@ -1168,7 +1185,8 @@ export async function addVolunteerNote(
  * is inactive, when they have none), so a role changed elsewhere since the
  * screen loaded is kept. The screen offers accepted people who marked the
  * shift; someone who no longer marks it is refused (the person screen is
- * where an unmarked shift is given). The server applies the same status rule
+ * where an unmarked shift is given), and someone already on it is left as
+ * they are, role included. The server applies the same status rule
  * as the single "Asignar" (decideShiftAssignment), so
  * VOLUNTEER_ASSIGN_AUTO_ACCEPTS keeps deciding what happens to anyone else.
  * More than VOLUNTEER_MAX_SHIFTS_PER_DAY that day saves, with a warning
@@ -1228,6 +1246,15 @@ export async function assignVolunteersToShift(
         if (decision.kind === "refuse") {
           throw new Refusal(`${application.fullName}: ${decision.message}`);
         }
+        // Assigned to it since the screen loaded: nothing changes, as with
+        // the single "Asignar".
+        if (await holdsShift(tx, person.applicationId, shiftId)) continue;
+        if (!(await marksShift(tx, person.applicationId, shiftId))) {
+          throw new Refusal(
+            `${application.fullName} ya no puede cubrir este turno. Actualizá la página.`,
+          );
+        }
+
         let roleId: number | null;
         if (person.roleId === undefined) {
           roleId =
@@ -1246,25 +1273,18 @@ export async function assignVolunteersToShift(
           roleId = person.roleId;
         }
 
-        if (!(await holdsShift(tx, person.applicationId, shiftId))) {
-          if (!(await marksShift(tx, person.applicationId, shiftId))) {
-            throw new Refusal(
-              `${application.fullName} ya no puede cubrir este turno. Actualizá la página.`,
-            );
-          }
-          await tx.insert(volunteerApplicationAssignedShifts).values({
-            applicationId: person.applicationId,
-            shiftId,
-            festivalId,
-          });
-          assigned += 1;
-        }
+        await tx.insert(volunteerApplicationAssignedShifts).values({
+          applicationId: person.applicationId,
+          shiftId,
+          festivalId,
+        });
+        assigned += 1;
         await tx
           .update(volunteerApplications)
           .set({
             ...(decision.accept ? { status: "accepted" as const } : {}),
             assignedRoleId: roleId,
-            ...reviewedBy(profile.id),
+            ...reviewedBy(profile.id, application.updatedAt),
           })
           .where(
             and(
@@ -1347,7 +1367,10 @@ export async function saveVolunteerPersonAssignment(
       });
       await tx
         .update(volunteerApplications)
-        .set({ assignedRoleId: roleId, ...reviewedBy(profile.id) })
+        .set({
+          assignedRoleId: roleId,
+          ...reviewedBy(profile.id, application.updatedAt),
+        })
         .where(
           and(
             eq(volunteerApplications.id, applicationId),
@@ -1496,7 +1519,7 @@ export async function updateVolunteerAvailability(
       // Bumps updatedAt, so a screen loaded before this refuses to save.
       await tx
         .update(volunteerApplications)
-        .set({ updatedAt: new Date() })
+        .set({ updatedAt: nextRevision(application.updatedAt) })
         .where(
           and(
             eq(volunteerApplications.id, applicationId),
