@@ -1,11 +1,11 @@
 import type { RawSearchParams } from "@/app/lib/credits/admin-definitions";
 import {
   ageOn,
-  volunteerAdminPath,
   type VolunteerAdminShift,
   type VolunteerApplicationsFilters,
   type VolunteerStatusFilter,
 } from "@/app/lib/volunteers/admin-definitions";
+import { volunteerAllApplicationsPath } from "@/app/lib/volunteers/admin-tasks";
 import {
   compareShiftsByStart,
   formatShiftStartShort,
@@ -122,7 +122,11 @@ export function volunteerAgeAndPhone(
   return parts.filter(Boolean).join(" · ");
 }
 
-/** The list's Cobertura view, where phones come back to from a shift. */
+/** The full list's Cobertura view. */
 export function volunteerCoverageHref(festivalId: number) {
-  return volunteerViewHref(volunteerAdminPath(festivalId), {}, "cobertura");
+  return volunteerViewHref(
+    volunteerAllApplicationsPath(festivalId),
+    {},
+    "cobertura",
+  );
 }

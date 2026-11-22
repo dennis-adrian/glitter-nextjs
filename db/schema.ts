@@ -8696,6 +8696,11 @@ export const volunteerApplicationAvailableShifts = pgTable(
     shiftId: integer("shift_id").notNull(),
     /** The application's festival; the shift must belong to it too. */
     festivalId: integer("festival_id").notNull(),
+    /**
+     * False for the shifts the applicant marked on the form; true for one an
+     * admin added since (volunteer_availability_changes says who and when).
+     */
+    addedByAdmin: boolean("added_by_admin").default(false).notNull(),
   },
   (t) => [
     primaryKey({ columns: [t.applicationId, t.shiftId] }),
@@ -8741,6 +8746,93 @@ export const volunteerApplicationAssignedShifts = pgTable(
       columns: [t.shiftId, t.festivalId],
       foreignColumns: [volunteerShifts.id, volunteerShifts.festivalId],
     }),
+  ],
+);
+
+/**
+ * Every admin change to the shifts an applicant can cover: who, when, what
+ * was added and removed, the assignments the removal took with it, and an
+ * optional reason ("lo pidió por WhatsApp"). Shift ids, not foreign keys:
+ * shifts are never deleted, and the log reads as it was.
+ */
+export const volunteerAvailabilityChanges = pgTable(
+  "volunteer_availability_changes",
+  {
+    id: serial("id").primaryKey(),
+    applicationId: integer("application_id").notNull(),
+    festivalId: integer("festival_id").notNull(),
+    changedByUserId: integer("changed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    addedShiftIds: integer("added_shift_ids")
+      .array()
+      .default(sql`'{}'::int[]`)
+      .notNull(),
+    removedShiftIds: integer("removed_shift_ids")
+      .array()
+      .default(sql`'{}'::int[]`)
+      .notNull(),
+    /** Removed shifts the applicant was assigned to; unassigned on save. */
+    unassignedShiftIds: integer("unassigned_shift_ids")
+      .array()
+      .default(sql`'{}'::int[]`)
+      .notNull(),
+    reason: text("reason"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("volunteer_availability_changes_application_idx").on(
+      t.applicationId,
+      t.createdAt,
+    ),
+    foreignKey({
+      name: "volunteer_availability_changes_application_fk",
+      columns: [t.applicationId, t.festivalId],
+      foreignColumns: [
+        volunteerApplications.id,
+        volunteerApplications.festivalId,
+      ],
+    }).onDelete("cascade"),
+    check(
+      "volunteer_availability_changes_reason_length",
+      sql`char_length(${t.reason}) <= 300`,
+    ),
+  ],
+);
+
+/**
+ * The team's internal notes on an application, one row per note, oldest
+ * first. Older notes live in volunteer_applications.admin_notes.
+ */
+export const volunteerApplicationNotes = pgTable(
+  "volunteer_application_notes",
+  {
+    id: serial("id").primaryKey(),
+    applicationId: integer("application_id").notNull(),
+    festivalId: integer("festival_id").notNull(),
+    authorUserId: integer("author_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("volunteer_application_notes_application_idx").on(
+      t.applicationId,
+      t.createdAt,
+    ),
+    foreignKey({
+      name: "volunteer_application_notes_application_fk",
+      columns: [t.applicationId, t.festivalId],
+      foreignColumns: [
+        volunteerApplications.id,
+        volunteerApplications.festivalId,
+      ],
+    }).onDelete("cascade"),
+    check(
+      "volunteer_application_notes_body_length",
+      sql`char_length(${t.body}) between 1 and 2000`,
+    ),
   ],
 );
 

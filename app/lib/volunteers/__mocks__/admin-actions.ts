@@ -23,3 +23,14 @@ export const assignVolunteerShift = saved("Turno asignado.");
 export const unassignVolunteerShift = saved(
   "Quitamos a la persona de este turno.",
 );
+export const decideVolunteerApplication = async () => ({
+  success: true as const,
+  message: "Aceptaste a la persona",
+  previousStatus: "pending" as const,
+});
+export const addVolunteerNote = saved("Nota guardada.");
+export const assignVolunteersToShift = saved("Asignaste 2 personas.");
+export const saveVolunteerPersonAssignment = saved("Asignación guardada.");
+export const updateVolunteerAvailability = saved("Turnos actualizados.");
+export const loadVolunteerReviewPage = async () => [];
+export const loadVolunteerPeoplePage = async () => [];
