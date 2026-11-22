@@ -511,6 +511,7 @@ export async function fetchVolunteerShiftDetail(
         applicationId: volunteerApplications.id,
         fullName: volunteerApplications.fullName,
         status: volunteerApplications.status,
+        assignedRoleId: volunteerApplications.assignedRoleId,
         assignedRoleName: assignedRole.name,
       })
       .from(volunteerApplicationAssignedShifts)
@@ -537,8 +538,12 @@ export async function fetchVolunteerShiftDetail(
         applicationId: volunteerApplications.id,
         fullName: volunteerApplications.fullName,
         status: volunteerApplications.status,
+        firstChoiceRoleId: volunteerApplications.firstChoiceRoleId,
+        secondChoiceRoleId: volunteerApplications.secondChoiceRoleId,
         firstChoiceRoleName: firstChoiceRole.name,
         secondChoiceRoleName: secondChoiceRole.name,
+        assignedRoleId: volunteerApplications.assignedRoleId,
+        assignedRoleName: assignedRole.name,
       })
       .from(volunteerApplicationAvailableShifts)
       .innerJoin(
@@ -555,6 +560,10 @@ export async function fetchVolunteerShiftDetail(
       .innerJoin(
         secondChoiceRole,
         eq(secondChoiceRole.id, volunteerApplications.secondChoiceRoleId),
+      )
+      .leftJoin(
+        assignedRole,
+        eq(assignedRole.id, volunteerApplications.assignedRoleId),
       )
       .where(
         and(

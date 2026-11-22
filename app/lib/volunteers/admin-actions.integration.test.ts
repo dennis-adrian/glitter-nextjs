@@ -460,6 +460,50 @@ describeDatabase("volunteer admin", () => {
       expect((await storedApplication(applicationId)).status).toBe("pending");
     });
 
+    it("refuses an undo once someone else decided since", async () => {
+      const call = await createCall();
+      const applicationId = await insertApplication(call);
+      const first = await actions.decideVolunteerApplication({
+        festivalId: call.festivalId,
+        applicationId,
+        status: "accepted",
+      });
+      expect(first.success).toBe(true);
+      // Another admin decides before the undo, leaving a later updatedAt
+      // than the first decision's (pinned, not left to the clock).
+      const second = await actions.decideVolunteerApplication({
+        festivalId: call.festivalId,
+        applicationId,
+        status: "rejected",
+        expectedUpdatedAt: first.success ? first.decidedAt : undefined,
+      });
+      expect(second).toMatchObject({
+        success: true,
+        previousStatus: "accepted",
+      });
+      await integrationDb!
+        .update(volunteerApplications)
+        .set({
+          updatedAt: new Date(
+            new Date(first.success ? first.decidedAt : 0).getTime() + 60_000,
+          ),
+        })
+        .where(eq(volunteerApplications.id, applicationId));
+      expect(
+        await actions.decideVolunteerApplication({
+          festivalId: call.festivalId,
+          applicationId,
+          status: "pending",
+          expectedUpdatedAt: first.success ? first.decidedAt : undefined,
+        }),
+      ).toEqual({
+        success: false,
+        message:
+          "Alguien más cambió esta postulación. Actualizá la página para ver los cambios.",
+      });
+      expect((await storedApplication(applicationId)).status).toBe("rejected");
+    });
+
     it("refuses an unknown status with the schema's message", async () => {
       const call = await createCall();
       const applicationId = await insertApplication(call);
@@ -1614,7 +1658,7 @@ describeDatabase("volunteer admin", () => {
         // The candidates: zoe marked it but is already assigned.
         unassignedAvailableCount: 3,
       });
-      expect(detail.assignees).toEqual([
+      expect(detail.assignees).toMatchObject([
         {
           applicationId: assignedWaitlist,
           fullName: "Álvaro Choque",
@@ -1628,7 +1672,7 @@ describeDatabase("volunteer admin", () => {
           assignedRoleName: "Fotografía",
         },
       ]);
-      expect(detail.candidates).toEqual([
+      expect(detail.candidates).toMatchObject([
         {
           applicationId: acceptedNone,
           fullName: "Mateo Ríos",
@@ -2087,6 +2131,442 @@ describeDatabase("volunteer admin", () => {
         availableShiftIds: [s0, s3].sort((a, b) => a - b),
         assignedShiftIds: [],
       });
+    });
+  });
+
+  describe("by task: Revisar and Asignar", () => {
+    let taskQueries: typeof import("@/app/lib/volunteers/admin-task-queries");
+    beforeAll(async () => {
+      taskQueries = await import("@/app/lib/volunteers/admin-task-queries");
+    });
+
+    async function updatedAtOf(applicationId: number) {
+      return (await storedApplication(applicationId)).updatedAt.toISOString();
+    }
+
+    async function availableOf(applicationId: number) {
+      const rows = await integrationDb!
+        .select({
+          shiftId: volunteerApplicationAvailableShifts.shiftId,
+          addedByAdmin: volunteerApplicationAvailableShifts.addedByAdmin,
+        })
+        .from(volunteerApplicationAvailableShifts)
+        .where(
+          eq(volunteerApplicationAvailableShifts.applicationId, applicationId),
+        )
+        .orderBy(asc(volunteerApplicationAvailableShifts.shiftId));
+      return rows;
+    }
+
+    it("orders the pending ones by each sort", async () => {
+      const call = await createCall();
+      // Shift counts follow neither date order, so each sort is distinct.
+      const old = await insertApplication(call, {
+        fullName: "Antigua",
+        createdAt: new Date("2026-11-01T12:00:00Z"),
+        available: [call.shiftIds[0]!, call.shiftIds[1]!],
+      });
+      const recent = await insertApplication(call, {
+        fullName: "Nueva",
+        createdAt: new Date("2026-11-10T12:00:00Z"),
+        available: [call.shiftIds[0]!],
+      });
+      const middle = await insertApplication(call, {
+        fullName: "Media",
+        createdAt: new Date("2026-11-05T12:00:00Z"),
+        available: call.shiftIds,
+      });
+      await insertApplication(call, { status: "accepted" });
+
+      expect(
+        await taskQueries.fetchPendingReviewIds(call.festivalId, "antiguas"),
+      ).toEqual([old, middle, recent]);
+      expect(
+        await taskQueries.fetchPendingReviewIds(call.festivalId, "nuevas"),
+      ).toEqual([recent, middle, old]);
+      expect(
+        await taskQueries.fetchPendingReviewIds(call.festivalId, "turnos"),
+      ).toEqual([middle, old, recent]);
+
+      // The next batch leaves out what is shown, wherever it sits now.
+      const page = await taskQueries.fetchPendingReviewPage(
+        call.festivalId,
+        "antiguas",
+        [old],
+        1,
+      );
+      expect(page).toEqual([
+        expect.objectContaining({
+          id: middle,
+          fullName: "Media",
+          firstChoiceRoleName: "Acreditación",
+          availableCount: 4,
+        }),
+      ]);
+
+      // A decision on a shown row does not make the next batch skip one.
+      await integrationDb!
+        .update(volunteerApplications)
+        .set({ status: "accepted" })
+        .where(eq(volunteerApplications.id, old));
+      expect(
+        (
+          await taskQueries.fetchPendingReviewPage(
+            call.festivalId,
+            "antiguas",
+            [old, middle],
+            20,
+          )
+        ).map((item) => item.id),
+      ).toEqual([recent]);
+    });
+
+    it("decides with the typed note, and undoes", async () => {
+      const call = await createCall();
+      const applicationId = await insertApplication(call, {
+        fullName: "Lucía Mamani",
+      });
+
+      const decided = await actions.decideVolunteerApplication({
+        festivalId: call.festivalId,
+        applicationId,
+        status: "accepted",
+        note: "  Muy buena entrevista  ",
+      });
+      expect(decided).toEqual({
+        success: true,
+        message: "Aceptaste a Lucía Mamani",
+        previousStatus: "pending",
+        decidedAt: (
+          await storedApplication(applicationId)
+        ).updatedAt.toISOString(),
+      });
+      expect((await storedApplication(applicationId)).status).toBe("accepted");
+      const notes = await taskQueries.fetchVolunteerNotes(
+        call.festivalId,
+        applicationId,
+      );
+      expect(notes).toEqual([
+        expect.objectContaining({
+          body: "Muy buena entrevista",
+          authorName: "Fede Festival",
+        }),
+      ]);
+
+      const undone = await actions.decideVolunteerApplication({
+        festivalId: call.festivalId,
+        applicationId,
+        status: "pending",
+        expectedUpdatedAt: decided.success ? decided.decidedAt : undefined,
+      });
+      expect(undone).toMatchObject({
+        success: true,
+        previousStatus: "accepted",
+      });
+      expect((await storedApplication(applicationId)).status).toBe("pending");
+    });
+
+    it("loads list batches, and throws rather than ending the list when refused", async () => {
+      const call = await createCall();
+      const first = await insertApplication(call, {
+        createdAt: new Date("2026-11-01T12:00:00Z"),
+      });
+      const second = await insertApplication(call, {
+        createdAt: new Date("2026-11-02T12:00:00Z"),
+      });
+      expect(
+        (
+          await actions.loadVolunteerReviewPage({
+            festivalId: call.festivalId,
+            sort: "antiguas",
+            seenIds: [first],
+          })
+        ).map((item) => item.id),
+      ).toEqual([second]);
+
+      requireAdminOrFestivalAdmin.mockResolvedValue(null);
+      await expect(
+        actions.loadVolunteerReviewPage({
+          festivalId: call.festivalId,
+          sort: "antiguas",
+          seenIds: [],
+        }),
+      ).rejects.toThrow();
+      await expect(
+        actions.loadVolunteerPeoplePage({
+          festivalId: call.festivalId,
+          seenIds: [],
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("refuses a decision from someone who is not an admin", async () => {
+      const call = await createCall();
+      const applicationId = await insertApplication(call);
+      requireAdminOrFestivalAdmin.mockResolvedValue(null);
+      expect(
+        await actions.decideVolunteerApplication({
+          festivalId: call.festivalId,
+          applicationId,
+          status: "rejected",
+        }),
+      ).toEqual(UNAUTHORIZED);
+      expect((await storedApplication(applicationId)).status).toBe("pending");
+    });
+
+    it("adds a signed note, scoped by festival", async () => {
+      const call = await createCall();
+      const other = await createCall();
+      const applicationId = await insertApplication(call);
+      expect(
+        await actions.addVolunteerNote({
+          festivalId: other.festivalId,
+          applicationId,
+          body: "No",
+        }),
+      ).toEqual(NOT_FOUND);
+      expect(
+        await actions.addVolunteerNote({
+          festivalId: call.festivalId,
+          applicationId,
+          body: "Llamar el lunes",
+        }),
+      ).toEqual({ success: true, message: "Nota guardada." });
+      expect(
+        (
+          await taskQueries.fetchVolunteerNotes(call.festivalId, applicationId)
+        ).map((note) => note.body),
+      ).toEqual(["Llamar el lunes"]);
+    });
+
+    it("assigns several people to a shift with their roles, warning past the daily limit", async () => {
+      const call = await createCall();
+      const [morning, afternoon, night] = call.shiftIds;
+      const ana = await insertApplication(call, {
+        fullName: "Ana",
+        status: "accepted",
+        available: [night!],
+      });
+      const bruno = await insertApplication(call, {
+        fullName: "Bruno",
+        status: "accepted",
+        assignedRoleId: call.roleIds[1]!,
+        available: [morning!, afternoon!, night!],
+        assigned: [morning!, afternoon!],
+      });
+
+      const result = await actions.assignVolunteersToShift({
+        festivalId: call.festivalId,
+        shiftId: night!,
+        people: [
+          { applicationId: ana, roleId: call.roleIds[2]! },
+          { applicationId: bruno, roleId: call.roleIds[1]! },
+        ],
+      });
+      expect(result).toEqual({
+        success: true,
+        message: "Asignaste 2 personas.",
+        warning:
+          "Asignaste 2 personas. Bruno quedó con más de 2 turnos el sábado 19 de diciembre.",
+      });
+      expect(await assignedShiftIds(ana)).toEqual([night]);
+      expect((await storedApplication(ana)).assignedRoleId).toBe(
+        call.roleIds[2],
+      );
+      expect(await assignedShiftIds(bruno)).toEqual(
+        [morning!, afternoon!, night!].sort((a, b) => a - b),
+      );
+    });
+
+    it("refuses the whole batch when someone was not accepted", async () => {
+      const call = await createCall();
+      const shiftId = call.shiftIds[0]!;
+      const accepted = await insertApplication(call, { status: "accepted" });
+      const rejected = await insertApplication(call, {
+        fullName: "Rita",
+        status: "rejected",
+      });
+      const result = await actions.assignVolunteersToShift({
+        festivalId: call.festivalId,
+        shiftId,
+        people: [
+          { applicationId: accepted, roleId: call.roleIds[0]! },
+          { applicationId: rejected, roleId: call.roleIds[0]! },
+        ],
+      });
+      expect(result).toEqual({
+        success: false,
+        message: "Rita: No se puede asignar una postulación no aceptada.",
+      });
+      expect(await assignedShiftIds(accepted)).toEqual([]);
+    });
+
+    it("saves one person's role and shifts, refusing a stale screen", async () => {
+      const call = await createCall();
+      const applicationId = await insertApplication(call, {
+        status: "accepted",
+        available: call.shiftIds,
+      });
+      // Loaded at a pinned past revision, so the save's own updatedAt is
+      // later whatever the clock does.
+      await integrationDb!
+        .update(volunteerApplications)
+        .set({ updatedAt: new Date("2026-11-01T12:00:00Z") })
+        .where(eq(volunteerApplications.id, applicationId));
+      const loadedUpdatedAt = await updatedAtOf(applicationId);
+      const saved = await actions.saveVolunteerPersonAssignment({
+        festivalId: call.festivalId,
+        applicationId,
+        roleId: call.roleIds[0]!,
+        shiftIds: [call.shiftIds[0]!, call.shiftIds[3]!],
+        loadedUpdatedAt,
+      });
+      expect(saved).toEqual({ success: true, message: "Asignación guardada." });
+      expect(await assignedShiftIds(applicationId)).toEqual([
+        call.shiftIds[0],
+        call.shiftIds[3],
+      ]);
+
+      expect(
+        await actions.saveVolunteerPersonAssignment({
+          festivalId: call.festivalId,
+          applicationId,
+          roleId: null,
+          shiftIds: [],
+          loadedUpdatedAt,
+        }),
+      ).toEqual({
+        success: false,
+        message:
+          "Alguien más cambió esta postulación. Actualizá la página para ver los cambios.",
+      });
+    });
+
+    it("edits the shifts someone can cover, unassigning a removed one and logging it", async () => {
+      const call = await createCall();
+      const [first, second, third] = call.shiftIds;
+      const applicationId = await insertApplication(call, {
+        status: "accepted",
+        available: [first!, second!],
+        assigned: [first!],
+      });
+
+      const result = await actions.updateVolunteerAvailability({
+        festivalId: call.festivalId,
+        applicationId,
+        shiftIds: [second!, third!],
+        reason: "Lo pidió por WhatsApp",
+        loadedUpdatedAt: await updatedAtOf(applicationId),
+      });
+      expect(result).toEqual({
+        success: true,
+        message: "Turnos actualizados.",
+      });
+      expect(await availableOf(applicationId)).toEqual([
+        { shiftId: second, addedByAdmin: false },
+        { shiftId: third, addedByAdmin: true },
+      ]);
+      expect(await assignedShiftIds(applicationId)).toEqual([]);
+      expect(
+        await taskQueries.fetchAdminAddedShiftIds(
+          call.festivalId,
+          applicationId,
+        ),
+      ).toEqual([third]);
+
+      const [change] = await integrationDb!
+        .select()
+        .from(schema.volunteerAvailabilityChanges)
+        .where(
+          eq(schema.volunteerAvailabilityChanges.applicationId, applicationId),
+        );
+      expect(change).toMatchObject({
+        changedByUserId: REVIEWER.id,
+        addedShiftIds: [third],
+        removedShiftIds: [first],
+        unassignedShiftIds: [first],
+        reason: "Lo pidió por WhatsApp",
+      });
+    });
+
+    it("refuses to add an inactive shift to someone's availability", async () => {
+      const call = await createCall();
+      const applicationId = await insertApplication(call, {
+        available: [call.shiftIds[0]!],
+      });
+      await integrationDb!
+        .update(volunteerShifts)
+        .set({ isActive: false })
+        .where(eq(volunteerShifts.id, call.shiftIds[1]!));
+      expect(
+        await actions.updateVolunteerAvailability({
+          festivalId: call.festivalId,
+          applicationId,
+          shiftIds: [call.shiftIds[0]!, call.shiftIds[1]!],
+          loadedUpdatedAt: await updatedAtOf(applicationId),
+        }),
+      ).toEqual(SHIFT_UNAVAILABLE);
+    });
+
+    it("counts what the task screens show", async () => {
+      const call = await createCall();
+      const [morning] = call.shiftIds;
+      const assignedPerson = await insertApplication(call, {
+        fullName: "Ana",
+        status: "accepted",
+        assignedRoleId: call.roleIds[1]!,
+        available: [morning!],
+        assigned: [morning!],
+      });
+      const withoutShifts = await insertApplication(call, {
+        fullName: "Zoe",
+        status: "accepted",
+        available: [morning!],
+      });
+      await insertApplication(call, { available: [morning!] });
+
+      const task = await taskQueries.fetchVolunteerTaskCall(call.festivalId);
+      const shift = task!.shifts.find((s) => s.id === morning)!;
+      expect(shift).toMatchObject({
+        assignedCount: 1,
+        acceptedUnassignedCount: 1,
+        pendingAvailableCount: 1,
+        assignedRoleIds: [call.roleIds[1]],
+      });
+      expect(task!.acceptedWithoutShifts).toBe(1);
+      expect(
+        task!.roles.find((role) => role.id === call.roleIds[1])!.acceptedCount,
+      ).toBe(1);
+      expect(
+        await taskQueries.fetchAcceptedPeopleIds(call.festivalId, {
+          withoutShifts: true,
+        }),
+      ).toEqual([withoutShifts]);
+      const people = await taskQueries.fetchAcceptedPeoplePage(
+        call.festivalId,
+        [],
+        10,
+      );
+      expect(people.map((person) => person.id)).toEqual([
+        withoutShifts,
+        assignedPerson,
+      ]);
+      // node-postgres decodes the int[] aggregates as arrays of numbers.
+      expect(people[1]).toMatchObject({
+        availableShiftIds: [morning],
+        assignedShiftIds: [morning],
+      });
+      expect(people[0]).toMatchObject({
+        availableShiftIds: [morning],
+        assignedShiftIds: [],
+      });
+      expect(
+        await taskQueries.fetchAcceptedPeoplePage(
+          call.festivalId,
+          [withoutShifts],
+          10,
+        ),
+      ).toEqual([expect.objectContaining({ id: assignedPerson })]);
     });
   });
 });

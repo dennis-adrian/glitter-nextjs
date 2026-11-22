@@ -65,7 +65,7 @@ describe("VolunteerAdminListView", () => {
       />,
     );
     expect(
-      screen.getByRole("heading", { level: 1, name: "Voluntarios" }),
+      screen.getByRole("heading", { level: 1, name: "Todas las postulaciones" }),
     ).toBeTruthy();
     expect(
       screen
@@ -102,7 +102,7 @@ describe("VolunteerAdminListView", () => {
     expect(applications.getAttribute("aria-current")).toBe("page");
     expect(coverage.getAttribute("aria-current")).toBeNull();
     expect(coverage.getAttribute("href")).toBe(
-      "/dashboard/festivals/11/volunteers?status=pending&view=cobertura",
+      "/dashboard/festivals/11/volunteers/todas?status=pending&view=cobertura",
     );
     const coverageCard = () =>
       screen.getByRole("region", { name: "Cobertura por turno" });
@@ -128,7 +128,7 @@ describe("VolunteerAdminListView", () => {
     ).toBe("page");
     expect(
       screen.getByRole("link", { name: "Postulaciones" }).getAttribute("href"),
-    ).toBe("/dashboard/festivals/11/volunteers?status=pending");
+    ).toBe("/dashboard/festivals/11/volunteers/todas?status=pending");
     expect(coverageCard().className).not.toContain("max-md:hidden");
     expect(applicationsCard().className).toContain("max-md:hidden");
   });

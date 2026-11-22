@@ -1,45 +1,56 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
-import { z } from "zod";
+import { notFound } from "next/navigation";
 
 import { ScreenTitle } from "@/app/components/navbar/screen-bar";
-import { volunteerCoverageHref } from "@/app/components/volunteers/admin/volunteer-admin-list-params";
-import VolunteerShiftDetailView from "@/app/components/volunteers/admin/volunteer-shift-detail-view";
-import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
-import { POSTGRES_INT_MAX } from "@/app/lib/volunteers/admin-definitions";
+import VolunteerShiftAssignScreen from "@/app/components/volunteers/admin/tasks/shift-assign-screen";
+import { AssignByShiftLayout } from "@/app/components/volunteers/admin/tasks/task-layouts";
 import { fetchVolunteerShiftDetail } from "@/app/lib/volunteers/admin-queries";
+import {
+  loadVolunteerTaskPage,
+  parsePageId,
+} from "@/app/lib/volunteers/admin-task-page";
+import {
+  volunteerAssignPath,
+  volunteerReviewHref,
+} from "@/app/lib/volunteers/admin-tasks";
 import { formatShiftWhen } from "@/app/lib/volunteers/format";
-
-const ParamsSchema = z.object({
-  id: z.coerce.number().int().positive().max(POSTGRES_INT_MAX),
-  shiftId: z.coerce.number().int().positive().max(POSTGRES_INT_MAX),
-});
 
 export const metadata: Metadata = { title: "Turno" };
 
 /**
- * One volunteer shift: how full it is, who is assigned to it, and who marked
- * it and could still cover it, with "Asignar" and "Quitar" on each.
+ * One shift, to add people to it: who is assigned and the accepted people
+ * who marked it. Beside the Asignar list from lg.
  */
 export default async function VolunteerShiftPage(props: {
   params: Promise<{ id: string; shiftId: string }>;
 }) {
-  if (!(await requireAdminOrFestivalAdmin())) redirect("/");
-
-  const parsed = ParamsSchema.safeParse(await props.params);
-  if (!parsed.success) notFound();
-  const { id: festivalId, shiftId } = parsed.data;
-
-  const detail = await fetchVolunteerShiftDetail(festivalId, shiftId);
-  if (!detail) notFound();
+  const params = await props.params;
+  const { festivalId, call } = await loadVolunteerTaskPage(params.id);
+  const shiftId = parsePageId(params.shiftId);
+  const shift = call.shifts.find((candidate) => candidate.id === shiftId);
+  const detail = shift
+    ? await fetchVolunteerShiftDetail(festivalId, shiftId)
+    : null;
+  if (!shift || !detail) notFound();
+  const backHref = volunteerAssignPath(festivalId);
 
   return (
     <>
-      <ScreenTitle
-        title={formatShiftWhen(detail.shift)}
-        backHref={volunteerCoverageHref(festivalId)}
+      <ScreenTitle title={formatShiftWhen(detail.shift)} backHref={backHref} />
+      <AssignByShiftLayout
+        call={call}
+        selectedId={shiftId}
+        listOnPhone={false}
+        detail={
+          <VolunteerShiftAssignScreen
+            festivalId={festivalId}
+            detail={detail}
+            roles={call.roles}
+            backHref={backHref}
+            reviewHref={volunteerReviewHref(festivalId, "antiguas")}
+          />
+        }
       />
-      <VolunteerShiftDetailView detail={detail} />
     </>
   );
 }
