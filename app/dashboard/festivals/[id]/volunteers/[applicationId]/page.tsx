@@ -6,7 +6,10 @@ import VolunteerPersonScreen from "@/app/components/volunteers/admin/tasks/perso
 import VolunteerReviewScreen from "@/app/components/volunteers/admin/tasks/review-screen";
 import { ReviewLayout } from "@/app/components/volunteers/admin/tasks/task-layouts";
 import type { RawSearchParams } from "@/app/lib/credits/admin-definitions";
-import { volunteerApplicationAdminPath } from "@/app/lib/volunteers/admin-definitions";
+import {
+  volunteerApplicationAdminPath,
+  volunteerShiftAdminPath,
+} from "@/app/lib/volunteers/admin-definitions";
 import { fetchVolunteerApplicationDetail } from "@/app/lib/volunteers/admin-queries";
 import {
   loadVolunteerTaskPage,
@@ -19,11 +22,13 @@ import {
   fetchVolunteerNotes,
 } from "@/app/lib/volunteers/admin-task-queries";
 import {
+  parseVolunteerPersonEntry,
   parseVolunteerReviewSort,
   reviewPosition,
   VOLUNTEER_LIST_BATCH,
   volunteerAssignPath,
   volunteerPeoplePath,
+  volunteerPersonHref,
   volunteerReviewHref,
 } from "@/app/lib/volunteers/admin-tasks";
 
@@ -57,14 +62,26 @@ export default async function VolunteerApplicationPage(props: {
     const withoutShifts = application.assignedShiftIds.length === 0;
     const ids = await fetchAcceptedPeopleIds(festivalId, { withoutShifts });
     const position = reviewPosition(ids, applicationId);
+    // Back where it was opened from: Por persona or one shift's screen;
+    // opened from elsewhere, the mockups' default for its group.
+    const entry = parseVolunteerPersonEntry(searchParams.desde);
+    const back =
+      entry?.kind === "turno"
+        ? {
+            href: volunteerShiftAdminPath(festivalId, entry.shiftId),
+            label: "Asignar",
+          }
+        : entry?.kind === "personas" || withoutShifts
+          ? { href: volunteerPeoplePath(festivalId), label: "Por persona" }
+          : { href: volunteerAssignPath(festivalId), label: "Asignar" };
     const href = (id: number | null) =>
-      id === null ? null : volunteerApplicationAdminPath(festivalId, id);
+      id === null ? null : volunteerPersonHref(festivalId, id, entry);
+    const self = volunteerPersonHref(festivalId, applicationId, entry);
+    const withParam = (param: string) =>
+      `${self}${self.includes("?") ? "&" : "?"}${param}`;
     return (
       <>
-        <ScreenTitle
-          title={application.fullName}
-          backHref={volunteerPeoplePath(festivalId)}
-        />
+        <ScreenTitle title={application.fullName} backHref={back.href} />
         <VolunteerPersonScreen
           key={application.id}
           festivalId={festivalId}
@@ -83,15 +100,11 @@ export default async function VolunteerApplicationPage(props: {
                   nextHref: href(position.nextId),
                 }
           }
-          backHref={
-            withoutShifts
-              ? volunteerPeoplePath(festivalId)
-              : volunteerAssignPath(festivalId)
-          }
-          backLabel={withoutShifts ? "Por persona" : "Asignar"}
+          backHref={back.href}
+          backLabel={back.label}
           assigning={withoutShifts || searchParams.asignar !== undefined}
-          summaryHref={path}
-          assignHref={`${path}?asignar=1`}
+          summaryHref={self}
+          assignHref={withParam("asignar=1")}
           decisionHref={`${path}?revisar=1`}
         />
       </>

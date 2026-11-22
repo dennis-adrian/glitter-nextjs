@@ -7,7 +7,6 @@ import { useCallback } from "react";
 import { Badge } from "@/app/components/ui/badge";
 import InfiniteList from "@/app/components/volunteers/admin/tasks/infinite-list";
 import { loadVolunteerPeoplePage } from "@/app/lib/volunteers/admin-actions";
-import { volunteerApplicationAdminPath } from "@/app/lib/volunteers/admin-definitions";
 import type {
   VolunteerPersonItem,
   VolunteerTaskShift,
@@ -16,6 +15,8 @@ import {
   busiestDayOverLimit,
   formatWeekdayName,
   plural,
+  volunteerPersonHref,
+  VOLUNTEER_LIST_BATCH,
 } from "@/app/lib/volunteers/admin-tasks";
 import {
   compareShiftsByStart,
@@ -40,7 +41,7 @@ function PersonCard({
   const over = busiestDayOverLimit(held);
   return (
     <Link
-      href={volunteerApplicationAdminPath(festivalId, person.id)}
+      href={volunteerPersonHref(festivalId, person.id, { kind: "personas" })}
       className="flex min-w-0 items-center gap-3 rounded-lg border bg-card px-4 py-3 text-card-foreground shadow-xs transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
     >
       <span className="flex min-w-0 flex-1 flex-col gap-1">
@@ -114,6 +115,7 @@ export default function VolunteerPeopleList({
       ) : (
         <InfiniteList
           initialItems={items}
+          batchSize={VOLUNTEER_LIST_BATCH}
           loadMore={loadMore}
           loadingLabel="Cargando más personas"
           className="gap-2"

@@ -29,7 +29,6 @@ import {
 } from "@/app/lib/volunteers/admin-actions";
 import {
   defaultAssignedRoleId,
-  volunteerApplicationAdminPath,
   type VolunteerShiftCandidate,
   type VolunteerShiftDetail,
 } from "@/app/lib/volunteers/admin-definitions";
@@ -37,7 +36,11 @@ import type {
   VolunteerTaskCall,
   VolunteerTaskShift,
 } from "@/app/lib/volunteers/admin-task-queries";
-import { coveragePercent, plural } from "@/app/lib/volunteers/admin-tasks";
+import {
+  coveragePercent,
+  plural,
+  volunteerPersonHref,
+} from "@/app/lib/volunteers/admin-tasks";
 import { VOLUNTEER_MAX_SHIFTS_PER_DAY } from "@/app/lib/volunteers/definitions";
 import { formatShiftWhen } from "@/app/lib/volunteers/format";
 
@@ -276,9 +279,10 @@ export default function VolunteerShiftAssignScreen({
                       className="flex min-w-0 items-center justify-between gap-2 border-t py-1.5"
                     >
                       <Link
-                        href={volunteerApplicationAdminPath(
+                        href={volunteerPersonHref(
                           festivalId,
                           person.applicationId,
+                          { kind: "turno", shiftId: shift.id },
                         )}
                         className="min-w-0 font-semibold break-words wrap-anywhere text-primary"
                       >

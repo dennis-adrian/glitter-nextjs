@@ -35,6 +35,46 @@ export const volunteerAvailabilityPath = (
   applicationId: number,
 ) => `${volunteerAdminPath(festivalId)}/${applicationId}/disponibilidad`;
 
+/**
+ * Where a person's screen was opened from, so its back link returns there:
+ * "Por persona", or one shift's screen. Carried as `?desde=personas` or
+ * `?desde=turno-12`, and kept while flipping.
+ */
+export type VolunteerPersonEntry =
+  | { kind: "personas" }
+  | { kind: "turno"; shiftId: number };
+
+export function parseVolunteerPersonEntry(
+  raw: unknown,
+): VolunteerPersonEntry | null {
+  if (raw === "personas") return { kind: "personas" };
+  if (typeof raw === "string") {
+    const match = /^turno-(\d{1,10})$/.exec(raw);
+    const shiftId = match ? Number(match[1]) : NaN;
+    if (
+      Number.isSafeInteger(shiftId) &&
+      shiftId > 0 &&
+      shiftId <= 2_147_483_647
+    ) {
+      return { kind: "turno", shiftId };
+    }
+  }
+  return null;
+}
+
+/** A person's screen, remembering where it was opened from. */
+export function volunteerPersonHref(
+  festivalId: number,
+  applicationId: number,
+  entry: VolunteerPersonEntry | null = null,
+) {
+  const path = `${volunteerAdminPath(festivalId)}/${applicationId}`;
+  if (!entry) return path;
+  return entry.kind === "personas"
+    ? `${path}?desde=personas`
+    : `${path}?desde=turno-${entry.shiftId}`;
+}
+
 /* ------------------------------------------------------------------ */
 /* Revisar: sort and order                                             */
 /* ------------------------------------------------------------------ */

@@ -189,8 +189,11 @@ function AssignmentForm({
   const [isSaving, startSaving] = useTransition();
 
   const marked = new Set(application.availableShiftIds);
+  // An inactive shift stays listed while it is assigned, ticked or not,
+  // so unticking it can be undone.
+  const assigned = new Set(application.assignedShiftIds);
   const assignable = shifts.filter(
-    (shift) => shift.isActive || selected.has(shift.id),
+    (shift) => shift.isActive || assigned.has(shift.id),
   );
   const markedShiftsList = shiftsByNeed(
     assignable
@@ -234,6 +237,7 @@ function AssignmentForm({
       key={shift.id}
       id={`assign-shift-${shift.id}`}
       checked={selected.has(shift.id)}
+      disabled={isSaving}
       onCheckedChange={(checked) => toggle(shift.id, checked)}
       label={formatShiftWhenShort(shift)}
       aside={<CoverageBadge shift={shift} />}
@@ -252,6 +256,7 @@ function AssignmentForm({
           <Select
             value={roleId === null ? undefined : String(roleId)}
             onValueChange={(value) => setRoleId(Number(value))}
+            disabled={isSaving}
           >
             <SelectTrigger
               id="person-role"
@@ -284,6 +289,7 @@ function AssignmentForm({
                 variant="link"
                 wrap
                 className="h-auto px-0"
+                disabled={isSaving}
                 onClick={() => setShowOthers(true)}
               >
                 {otherShifts.length === 1
@@ -410,6 +416,20 @@ export default function VolunteerPersonScreen({
     </SectionCard>
   );
   const birthdate = formatBirthdate(application.birthdate);
+  const changeDecision = (
+    <div className="flex">
+      <Link
+        href={decisionHref}
+        className={buttonVariants({
+          variant: "link",
+          wrap: true,
+          className: "px-0",
+        })}
+      >
+        Cambiar decisión
+      </Link>
+    </div>
+  );
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-2xl min-w-0 flex-col gap-3 px-3 pt-2 md:pb-6">
@@ -474,6 +494,7 @@ export default function VolunteerPersonScreen({
                 ]}
               />
             </SectionCard>
+            {changeDecision}
           </AssignmentForm>
         </>
       ) : (
@@ -559,18 +580,7 @@ export default function VolunteerPersonScreen({
             )}
           </SectionCard>
           {notesCard}
-          <div className="flex">
-            <Link
-              href={decisionHref}
-              className={buttonVariants({
-                variant: "link",
-                wrap: true,
-                className: "px-0",
-              })}
-            >
-              Cambiar decisión
-            </Link>
-          </div>
+          {changeDecision}
 
           {whatsapp && (
             <BottomBar>

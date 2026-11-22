@@ -469,12 +469,26 @@ describeDatabase("volunteer admin", () => {
         status: "accepted",
       });
       expect(first.success).toBe(true);
-      // Another admin changes it before the undo.
-      await actions.decideVolunteerApplication({
+      // Another admin decides before the undo, leaving a later updatedAt
+      // than the first decision's (pinned, not left to the clock).
+      const second = await actions.decideVolunteerApplication({
         festivalId: call.festivalId,
         applicationId,
         status: "rejected",
+        expectedUpdatedAt: first.success ? first.decidedAt : undefined,
       });
+      expect(second).toMatchObject({
+        success: true,
+        previousStatus: "accepted",
+      });
+      await integrationDb!
+        .update(volunteerApplications)
+        .set({
+          updatedAt: new Date(
+            new Date(first.success ? first.decidedAt : 0).getTime() + 60_000,
+          ),
+        })
+        .where(eq(volunteerApplications.id, applicationId));
       expect(
         await actions.decideVolunteerApplication({
           festivalId: call.festivalId,
@@ -2146,20 +2160,21 @@ describeDatabase("volunteer admin", () => {
 
     it("orders the pending ones by each sort", async () => {
       const call = await createCall();
+      // Shift counts follow neither date order, so each sort is distinct.
       const old = await insertApplication(call, {
         fullName: "Antigua",
         createdAt: new Date("2026-11-01T12:00:00Z"),
-        available: [call.shiftIds[0]!],
+        available: [call.shiftIds[0]!, call.shiftIds[1]!],
       });
       const recent = await insertApplication(call, {
         fullName: "Nueva",
         createdAt: new Date("2026-11-10T12:00:00Z"),
-        available: call.shiftIds,
+        available: [call.shiftIds[0]!],
       });
       const middle = await insertApplication(call, {
         fullName: "Media",
         createdAt: new Date("2026-11-05T12:00:00Z"),
-        available: [call.shiftIds[0]!, call.shiftIds[1]!],
+        available: call.shiftIds,
       });
       await insertApplication(call, { status: "accepted" });
 
@@ -2171,7 +2186,7 @@ describeDatabase("volunteer admin", () => {
       ).toEqual([recent, middle, old]);
       expect(
         await taskQueries.fetchPendingReviewIds(call.festivalId, "turnos"),
-      ).toEqual([recent, middle, old]);
+      ).toEqual([middle, old, recent]);
 
       // The next batch leaves out what is shown, wherever it sits now.
       const page = await taskQueries.fetchPendingReviewPage(
@@ -2185,7 +2200,7 @@ describeDatabase("volunteer admin", () => {
           id: middle,
           fullName: "Media",
           firstChoiceRoleName: "Acreditación",
-          availableCount: 2,
+          availableCount: 4,
         }),
       ]);
 
@@ -2358,6 +2373,12 @@ describeDatabase("volunteer admin", () => {
         status: "accepted",
         available: call.shiftIds,
       });
+      // Loaded at a pinned past revision, so the save's own updatedAt is
+      // later whatever the clock does.
+      await integrationDb!
+        .update(volunteerApplications)
+        .set({ updatedAt: new Date("2026-11-01T12:00:00Z") })
+        .where(eq(volunteerApplications.id, applicationId));
       const loadedUpdatedAt = await updatedAtOf(applicationId);
       const saved = await actions.saveVolunteerPersonAssignment({
         festivalId: call.festivalId,

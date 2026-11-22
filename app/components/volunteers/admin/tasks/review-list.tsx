@@ -22,6 +22,7 @@ import {
   VOLUNTEER_REVIEW_SORTS,
   volunteerReviewHref,
   type VolunteerReviewSort,
+  VOLUNTEER_LIST_BATCH,
 } from "@/app/lib/volunteers/admin-tasks";
 import { formatYears } from "@/app/lib/volunteers/format";
 
@@ -169,6 +170,7 @@ export default function VolunteerReviewList({
       ) : (
         <InfiniteList
           initialItems={items}
+          batchSize={VOLUNTEER_LIST_BATCH}
           loadMore={loadMore}
           loadingLabel="Cargando más postulaciones"
           className="gap-2 lg:gap-0"

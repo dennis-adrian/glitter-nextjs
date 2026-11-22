@@ -181,3 +181,24 @@ describe("volunteerShiftBatchInputSchema", () => {
     ).toBe(false);
   });
 });
+
+describe("person entry", () => {
+  it("round-trips where a person's screen was opened from", async () => {
+    const { parseVolunteerPersonEntry, volunteerPersonHref } =
+      await import("@/app/lib/volunteers/admin-tasks");
+    expect(parseVolunteerPersonEntry("personas")).toEqual({ kind: "personas" });
+    expect(parseVolunteerPersonEntry("turno-12")).toEqual({
+      kind: "turno",
+      shiftId: 12,
+    });
+    expect(parseVolunteerPersonEntry("turno-0")).toBeNull();
+    expect(parseVolunteerPersonEntry("turno-99999999999")).toBeNull();
+    expect(parseVolunteerPersonEntry(["personas"])).toBeNull();
+    expect(volunteerPersonHref(3, 9, { kind: "turno", shiftId: 12 })).toBe(
+      "/dashboard/festivals/3/volunteers/9?desde=turno-12",
+    );
+    expect(volunteerPersonHref(3, 9)).toBe(
+      "/dashboard/festivals/3/volunteers/9",
+    );
+  });
+});
