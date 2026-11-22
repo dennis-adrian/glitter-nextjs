@@ -21,6 +21,7 @@ import {
   type VolunteerApplicationsFilters as Filters,
   type VolunteerApplicationsPage,
 } from "@/app/lib/volunteers/admin-definitions";
+import { volunteerAllApplicationsPath } from "@/app/lib/volunteers/admin-tasks";
 import { formatCloseDate } from "@/app/lib/volunteers/format";
 
 /** The CSV of every application (route handler beside this page). */
@@ -116,7 +117,7 @@ export default function VolunteerAdminListView({
   today?: Date;
 }) {
   const festivalId = call.festival.id;
-  const basePath = volunteerAdminPath(festivalId);
+  const basePath = volunteerAllApplicationsPath(festivalId);
   const setupPath = volunteerSetupAdminPath(festivalId);
 
   return (
@@ -127,7 +128,7 @@ export default function VolunteerAdminListView({
             className="text-2xl font-bold md:text-3xl"
             data-installed-title=""
           >
-            Voluntarios
+            Todas las postulaciones
           </h1>
           <p className="mt-1 break-words text-muted-foreground">
             {volunteerListDescription(call, today)}

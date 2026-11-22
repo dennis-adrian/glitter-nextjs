@@ -215,6 +215,7 @@ export type VolunteerShiftAssignee = {
   fullName: string;
   /** Only accepted ones count toward the coverage. */
   status: VolunteerApplicationStatus;
+  assignedRoleId: number | null;
   assignedRoleName: string | null;
 };
 
@@ -223,8 +224,12 @@ export type VolunteerShiftCandidate = {
   applicationId: number;
   fullName: string;
   status: Exclude<VolunteerApplicationStatus, "rejected">;
+  firstChoiceRoleId: number;
+  secondChoiceRoleId: number;
   firstChoiceRoleName: string;
   secondChoiceRoleName: string;
+  assignedRoleId: number | null;
+  assignedRoleName: string | null;
   /** Other shifts they are assigned to on this shift's La Paz day. */
   shiftsThatDay: number;
 };
