@@ -2266,6 +2266,40 @@ describeDatabase("volunteer admin", () => {
       expect((await storedApplication(applicationId)).status).toBe("pending");
     });
 
+    it("loads list batches, and throws rather than ending the list when refused", async () => {
+      const call = await createCall();
+      const first = await insertApplication(call, {
+        createdAt: new Date("2026-11-01T12:00:00Z"),
+      });
+      const second = await insertApplication(call, {
+        createdAt: new Date("2026-11-02T12:00:00Z"),
+      });
+      expect(
+        (
+          await actions.loadVolunteerReviewPage({
+            festivalId: call.festivalId,
+            sort: "antiguas",
+            seenIds: [first],
+          })
+        ).map((item) => item.id),
+      ).toEqual([second]);
+
+      requireAdminOrFestivalAdmin.mockResolvedValue(null);
+      await expect(
+        actions.loadVolunteerReviewPage({
+          festivalId: call.festivalId,
+          sort: "antiguas",
+          seenIds: [],
+        }),
+      ).rejects.toThrow();
+      await expect(
+        actions.loadVolunteerPeoplePage({
+          festivalId: call.festivalId,
+          seenIds: [],
+        }),
+      ).rejects.toThrow();
+    });
+
     it("refuses a decision from someone who is not an admin", async () => {
       const call = await createCall();
       const applicationId = await insertApplication(call);

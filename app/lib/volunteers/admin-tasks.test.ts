@@ -202,3 +202,19 @@ describe("person entry", () => {
     );
   });
 });
+
+describe("person group", () => {
+  it("keeps the group previous/next flips through in the link", async () => {
+    const { parseVolunteerPersonGroup, volunteerPersonHref } =
+      await import("@/app/lib/volunteers/admin-tasks");
+    expect(parseVolunteerPersonGroup("sin-turnos")).toBe("sin-turnos");
+    expect(parseVolunteerPersonGroup("todas")).toBe("todas");
+    expect(parseVolunteerPersonGroup("x")).toBeNull();
+    expect(volunteerPersonHref(3, 9, { kind: "personas" }, "todas")).toBe(
+      "/dashboard/festivals/3/volunteers/9?desde=personas&grupo=todas",
+    );
+    expect(volunteerPersonHref(3, 9, null, "sin-turnos")).toBe(
+      "/dashboard/festivals/3/volunteers/9?grupo=sin-turnos",
+    );
+  });
+});

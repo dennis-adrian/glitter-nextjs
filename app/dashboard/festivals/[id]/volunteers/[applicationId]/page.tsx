@@ -23,6 +23,7 @@ import {
 } from "@/app/lib/volunteers/admin-task-queries";
 import {
   parseVolunteerPersonEntry,
+  parseVolunteerPersonGroup,
   parseVolunteerReviewSort,
   reviewPosition,
   VOLUNTEER_LIST_BATCH,
@@ -60,7 +61,14 @@ export default async function VolunteerApplicationPage(props: {
 
   if (application.status === "accepted" && searchParams.revisar === undefined) {
     const withoutShifts = application.assignedShiftIds.length === 0;
-    const ids = await fetchAcceptedPeopleIds(festivalId, { withoutShifts });
+    // The group flipping started in, kept by the links; on first arrival,
+    // the person's own.
+    const group =
+      parseVolunteerPersonGroup(searchParams.grupo) ??
+      (withoutShifts ? "sin-turnos" : "todas");
+    const ids = await fetchAcceptedPeopleIds(festivalId, {
+      withoutShifts: group === "sin-turnos",
+    });
     const position = reviewPosition(ids, applicationId);
     // Back where it was opened from: Por persona or one shift's screen;
     // opened from elsewhere, the mockups' default for its group.
@@ -75,7 +83,7 @@ export default async function VolunteerApplicationPage(props: {
           ? { href: volunteerPeoplePath(festivalId), label: "Por persona" }
           : { href: volunteerAssignPath(festivalId), label: "Asignar" };
     const href = (id: number | null) =>
-      id === null ? null : volunteerPersonHref(festivalId, id, entry);
+      id === null ? null : volunteerPersonHref(festivalId, id, entry, group);
     const self = volunteerPersonHref(festivalId, applicationId, entry);
     const withParam = (param: string) =>
       `${self}${self.includes("?") ? "&" : "?"}${param}`;
@@ -93,9 +101,10 @@ export default async function VolunteerApplicationPage(props: {
             position.position === 0
               ? null
               : {
-                  label: withoutShifts
-                    ? `${position.position} de ${position.total} sin turnos`
-                    : `${position.position} de ${position.total}`,
+                  label:
+                    group === "sin-turnos"
+                      ? `${position.position} de ${position.total} sin turnos`
+                      : `${position.position} de ${position.total}`,
                   previousHref: href(position.previousId),
                   nextHref: href(position.nextId),
                 }

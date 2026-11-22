@@ -81,15 +81,12 @@ function CandidateLine({ candidate }: { candidate: VolunteerShiftCandidate }) {
 export default function VolunteerShiftAssignScreen({
   festivalId,
   detail,
-  shift,
   roles,
   backHref,
   reviewHref,
 }: {
   festivalId: number;
   detail: VolunteerShiftDetail;
-  /** The shift as the Asignar list counts it. */
-  shift: VolunteerTaskShift;
   roles: VolunteerTaskCall["roles"];
   backHref: string;
   /** Revisar, for "Revisarlas". */
@@ -107,6 +104,22 @@ export default function VolunteerShiftAssignScreen({
   const pending = detail.candidates.filter(
     (candidate) => candidate.status === "pending",
   ).length;
+  // The badge, counts, bar and "Nadie en" all come from this one read of
+  // the shift, so they never disagree.
+  const shift: VolunteerTaskShift = {
+    ...detail.shift,
+    acceptedUnassignedCount: accepted.length,
+    pendingAvailableCount: pending,
+    assignedRoleIds: [
+      ...new Set(
+        detail.assignees.flatMap((assignee) =>
+          assignee.status === "accepted" && assignee.assignedRoleId !== null
+            ? [assignee.assignedRoleId]
+            : [],
+        ),
+      ),
+    ],
+  };
 
   const initialRole = (candidate: VolunteerShiftCandidate) =>
     candidate.assignedRoleId ?? defaultAssignedRoleId(candidate, activeRoleIds);

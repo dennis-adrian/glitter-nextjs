@@ -51,7 +51,6 @@ export default async function VolunteerAssignPage(props: {
           <VolunteerShiftAssignScreen
             festivalId={festivalId}
             detail={detail}
-            shift={first}
             roles={call.roles}
             backHref={volunteerAssignPath(festivalId)}
             reviewHref={volunteerReviewHref(festivalId, "antiguas")}

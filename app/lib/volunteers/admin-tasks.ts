@@ -62,17 +62,41 @@ export function parseVolunteerPersonEntry(
   return null;
 }
 
-/** A person's screen, remembering where it was opened from. */
+/**
+ * Which accepted people previous/next goes through: those without shifts
+ * ("1 de 3 sin turnos") or everyone. Carried as `?grupo=` once flipping
+ * starts, so both directions keep the same list even when a neighbour is in
+ * the other group.
+ */
+export type VolunteerPersonGroup = "sin-turnos" | "todas";
+
+export function parseVolunteerPersonGroup(
+  raw: unknown,
+): VolunteerPersonGroup | null {
+  return raw === "sin-turnos" || raw === "todas" ? raw : null;
+}
+
+/**
+ * A person's screen, remembering where it was opened from and, while
+ * flipping, which group it flips through.
+ */
 export function volunteerPersonHref(
   festivalId: number,
   applicationId: number,
   entry: VolunteerPersonEntry | null = null,
+  group: VolunteerPersonGroup | null = null,
 ) {
   const path = `${volunteerAdminPath(festivalId)}/${applicationId}`;
-  if (!entry) return path;
-  return entry.kind === "personas"
-    ? `${path}?desde=personas`
-    : `${path}?desde=turno-${entry.shiftId}`;
+  const params = new URLSearchParams();
+  if (entry) {
+    params.set(
+      "desde",
+      entry.kind === "personas" ? "personas" : `turno-${entry.shiftId}`,
+    );
+  }
+  if (group) params.set("grupo", group);
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
 }
 
 /* ------------------------------------------------------------------ */

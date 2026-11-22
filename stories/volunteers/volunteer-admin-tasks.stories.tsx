@@ -421,7 +421,6 @@ const shiftScreen = (
   <VolunteerShiftAssignScreen
     festivalId={FESTIVAL_ID}
     detail={SHIFT_DETAIL}
-    shift={SHIFTS[4]!}
     roles={ROLES}
     backHref={`${BASE}/asignar`}
     reviewHref={BASE}

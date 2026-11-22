@@ -1498,13 +1498,21 @@ export async function updateVolunteerAvailability(
 /* Infinite lists (reads)                                              */
 /* ------------------------------------------------------------------ */
 
-/** The next batch of Revisar's list; empty when refused. */
+/**
+ * Refused or malformed: throws, so the list offers to try again instead of
+ * taking it for the end (an empty batch).
+ */
+class ListPageRefused extends Error {}
+
+/** The next batch of Revisar's list; throws when refused. */
 export async function loadVolunteerReviewPage(
   input: VolunteerReviewPageInput,
 ): Promise<VolunteerReviewItem[]> {
-  if (!(await requireAdminOrFestivalAdmin())) return [];
+  if (!(await requireAdminOrFestivalAdmin())) {
+    throw new ListPageRefused(VOLUNTEER_ADMIN_COPY.unauthorized);
+  }
   const parsed = volunteerReviewPageInputSchema.safeParse(input);
-  if (!parsed.success) return [];
+  if (!parsed.success) throw new ListPageRefused("Invalid list page request");
   const { festivalId, sort, seenIds } = parsed.data;
   return fetchPendingReviewPage(
     festivalId,
@@ -1514,13 +1522,15 @@ export async function loadVolunteerReviewPage(
   );
 }
 
-/** The next batch of "Por persona"; empty when refused. */
+/** The next batch of "Por persona"; throws when refused. */
 export async function loadVolunteerPeoplePage(
   input: VolunteerListPageInput,
 ): Promise<VolunteerPersonItem[]> {
-  if (!(await requireAdminOrFestivalAdmin())) return [];
+  if (!(await requireAdminOrFestivalAdmin())) {
+    throw new ListPageRefused(VOLUNTEER_ADMIN_COPY.unauthorized);
+  }
   const parsed = volunteerListPageInputSchema.safeParse(input);
-  if (!parsed.success) return [];
+  if (!parsed.success) throw new ListPageRefused("Invalid list page request");
   const { festivalId, seenIds } = parsed.data;
   return fetchAcceptedPeoplePage(festivalId, seenIds, VOLUNTEER_LIST_BATCH);
 }
