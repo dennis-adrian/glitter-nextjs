@@ -22,7 +22,7 @@ export default async function VolunteerPeoplePage(props: {
     (await props.params).id,
   );
   const items = call.settings
-    ? await fetchAcceptedPeoplePage(festivalId, 0, VOLUNTEER_LIST_BATCH)
+    ? await fetchAcceptedPeoplePage(festivalId, [], VOLUNTEER_LIST_BATCH)
     : [];
 
   return (

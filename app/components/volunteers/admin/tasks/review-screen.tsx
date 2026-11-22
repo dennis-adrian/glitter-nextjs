@@ -217,7 +217,7 @@ export default function VolunteerReviewScreen({
         return;
       }
       setNote("");
-      const { previousStatus } = result;
+      const { previousStatus, decidedAt } = result;
       const decidedHref = volunteerReviewHref(festivalId, sort, application.id);
       toast(result.message, {
         action: {
@@ -227,6 +227,7 @@ export default function VolunteerReviewScreen({
               festivalId,
               applicationId: application.id,
               status: previousStatus,
+              expectedUpdatedAt: decidedAt,
             });
             if (!undo.success) {
               toast.error(undo.message);

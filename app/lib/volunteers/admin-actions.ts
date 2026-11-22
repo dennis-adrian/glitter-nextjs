@@ -1033,6 +1033,8 @@ export type VolunteerDecisionResult =
       success: true;
       message: string;
       previousStatus: VolunteerApplicationStatus;
+      /** The updatedAt it left (ISO), for "Deshacer". */
+      decidedAt: string;
     }
   | { success: false; message: string };
 
@@ -1056,15 +1058,28 @@ export async function decideVolunteerApplication(
         "Revisá los datos e intentá de nuevo.",
     };
   }
-  const { festivalId, applicationId, status, note } = parsed.data;
+  const { festivalId, applicationId, status, note, expectedUpdatedAt } =
+    parsed.data;
 
-  let outcome: { fullName: string; previousStatus: VolunteerApplicationStatus };
+  let outcome: {
+    fullName: string;
+    previousStatus: VolunteerApplicationStatus;
+    decidedAt: Date;
+  };
   try {
     outcome = await db.transaction(async (tx) => {
       const application = await lockApplication(tx, festivalId, applicationId);
+      if (
+        expectedUpdatedAt !== undefined &&
+        application.updatedAt.getTime() !==
+          new Date(expectedUpdatedAt).getTime()
+      ) {
+        throw new Refusal(VOLUNTEER_ADMIN_COPY.staleReview);
+      }
+      const review = reviewedBy(profile.id);
       await tx
         .update(volunteerApplications)
-        .set({ status, ...reviewedBy(profile.id) })
+        .set({ status, ...review })
         .where(
           and(
             eq(volunteerApplications.id, applicationId),
@@ -1082,6 +1097,7 @@ export async function decideVolunteerApplication(
       return {
         fullName: application.fullName,
         previousStatus: application.status,
+        decidedAt: review.updatedAt,
       };
     });
   } catch (error) {
@@ -1098,6 +1114,7 @@ export async function decideVolunteerApplication(
     success: true,
     message: `${DECISION_VERBS[status]} ${outcome.fullName}`,
     previousStatus: outcome.previousStatus,
+    decidedAt: outcome.decidedAt.toISOString(),
   };
 }
 
@@ -1488,8 +1505,13 @@ export async function loadVolunteerReviewPage(
   if (!(await requireAdminOrFestivalAdmin())) return [];
   const parsed = volunteerReviewPageInputSchema.safeParse(input);
   if (!parsed.success) return [];
-  const { festivalId, sort, offset } = parsed.data;
-  return fetchPendingReviewPage(festivalId, sort, offset, VOLUNTEER_LIST_BATCH);
+  const { festivalId, sort, seenIds } = parsed.data;
+  return fetchPendingReviewPage(
+    festivalId,
+    sort,
+    seenIds,
+    VOLUNTEER_LIST_BATCH,
+  );
 }
 
 /** The next batch of "Por persona"; empty when refused. */
@@ -1499,6 +1521,6 @@ export async function loadVolunteerPeoplePage(
   if (!(await requireAdminOrFestivalAdmin())) return [];
   const parsed = volunteerListPageInputSchema.safeParse(input);
   if (!parsed.success) return [];
-  const { festivalId, offset } = parsed.data;
-  return fetchAcceptedPeoplePage(festivalId, offset, VOLUNTEER_LIST_BATCH);
+  const { festivalId, seenIds } = parsed.data;
+  return fetchAcceptedPeoplePage(festivalId, seenIds, VOLUNTEER_LIST_BATCH);
 }

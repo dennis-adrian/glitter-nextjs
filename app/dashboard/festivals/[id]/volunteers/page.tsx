@@ -32,7 +32,7 @@ export default async function VolunteerReviewPage(props: {
 
   const [items, order] = call.settings
     ? await Promise.all([
-        fetchPendingReviewPage(festivalId, sort, 0, VOLUNTEER_LIST_BATCH),
+        fetchPendingReviewPage(festivalId, sort, [], VOLUNTEER_LIST_BATCH),
         fetchPendingReviewIds(festivalId, sort),
       ])
     : [[], []];
@@ -55,6 +55,7 @@ export default async function VolunteerReviewPage(props: {
       detail={
         application && (
           <VolunteerReviewScreen
+            key={application.id}
             festivalId={festivalId}
             application={application}
             roles={call.roles}

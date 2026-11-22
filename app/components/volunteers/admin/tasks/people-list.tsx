@@ -96,7 +96,7 @@ export default function VolunteerPeopleList({
   shifts: VolunteerTaskShift[];
 }) {
   const loadMore = useCallback(
-    (offset: number) => loadVolunteerPeoplePage({ festivalId, offset }),
+    (seenIds: number[]) => loadVolunteerPeoplePage({ festivalId, seenIds }),
     [festivalId],
   );
   return (

@@ -140,7 +140,8 @@ export default function VolunteerReviewList({
   className?: string;
 }) {
   const loadMore = useCallback(
-    (offset: number) => loadVolunteerReviewPage({ festivalId, sort, offset }),
+    (seenIds: number[]) =>
+      loadVolunteerReviewPage({ festivalId, sort, seenIds }),
     [festivalId, sort],
   );
 

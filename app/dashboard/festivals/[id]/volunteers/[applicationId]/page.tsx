@@ -66,6 +66,7 @@ export default async function VolunteerApplicationPage(props: {
           backHref={volunteerPeoplePath(festivalId)}
         />
         <VolunteerPersonScreen
+          key={application.id}
           festivalId={festivalId}
           application={application}
           roles={call.roles}
@@ -98,7 +99,7 @@ export default async function VolunteerApplicationPage(props: {
   }
 
   const [items, order] = await Promise.all([
-    fetchPendingReviewPage(festivalId, sort, 0, VOLUNTEER_LIST_BATCH),
+    fetchPendingReviewPage(festivalId, sort, [], VOLUNTEER_LIST_BATCH),
     fetchPendingReviewIds(festivalId, sort),
   ]);
 
@@ -116,6 +117,7 @@ export default async function VolunteerApplicationPage(props: {
         listOnPhone={false}
         detail={
           <VolunteerReviewScreen
+            key={application.id}
             festivalId={festivalId}
             application={application}
             roles={call.roles}

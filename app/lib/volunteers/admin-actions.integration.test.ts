@@ -460,6 +460,36 @@ describeDatabase("volunteer admin", () => {
       expect((await storedApplication(applicationId)).status).toBe("pending");
     });
 
+    it("refuses an undo once someone else decided since", async () => {
+      const call = await createCall();
+      const applicationId = await insertApplication(call);
+      const first = await actions.decideVolunteerApplication({
+        festivalId: call.festivalId,
+        applicationId,
+        status: "accepted",
+      });
+      expect(first.success).toBe(true);
+      // Another admin changes it before the undo.
+      await actions.decideVolunteerApplication({
+        festivalId: call.festivalId,
+        applicationId,
+        status: "rejected",
+      });
+      expect(
+        await actions.decideVolunteerApplication({
+          festivalId: call.festivalId,
+          applicationId,
+          status: "pending",
+          expectedUpdatedAt: first.success ? first.decidedAt : undefined,
+        }),
+      ).toEqual({
+        success: false,
+        message:
+          "Alguien más cambió esta postulación. Actualizá la página para ver los cambios.",
+      });
+      expect((await storedApplication(applicationId)).status).toBe("rejected");
+    });
+
     it("refuses an unknown status with the schema's message", async () => {
       const call = await createCall();
       const applicationId = await insertApplication(call);
@@ -2143,10 +2173,11 @@ describeDatabase("volunteer admin", () => {
         await taskQueries.fetchPendingReviewIds(call.festivalId, "turnos"),
       ).toEqual([recent, middle, old]);
 
+      // The next batch leaves out what is shown, wherever it sits now.
       const page = await taskQueries.fetchPendingReviewPage(
         call.festivalId,
         "antiguas",
-        1,
+        [old],
         1,
       );
       expect(page).toEqual([
@@ -2157,6 +2188,22 @@ describeDatabase("volunteer admin", () => {
           availableCount: 2,
         }),
       ]);
+
+      // A decision on a shown row does not make the next batch skip one.
+      await integrationDb!
+        .update(volunteerApplications)
+        .set({ status: "accepted" })
+        .where(eq(volunteerApplications.id, old));
+      expect(
+        (
+          await taskQueries.fetchPendingReviewPage(
+            call.festivalId,
+            "antiguas",
+            [old, middle],
+            20,
+          )
+        ).map((item) => item.id),
+      ).toEqual([recent]);
     });
 
     it("decides with the typed note, and undoes", async () => {
@@ -2175,6 +2222,9 @@ describeDatabase("volunteer admin", () => {
         success: true,
         message: "Aceptaste a Lucía Mamani",
         previousStatus: "pending",
+        decidedAt: (
+          await storedApplication(applicationId)
+        ).updatedAt.toISOString(),
       });
       expect((await storedApplication(applicationId)).status).toBe("accepted");
       const notes = await taskQueries.fetchVolunteerNotes(
@@ -2192,6 +2242,7 @@ describeDatabase("volunteer admin", () => {
         festivalId: call.festivalId,
         applicationId,
         status: "pending",
+        expectedUpdatedAt: decided.success ? decided.decidedAt : undefined,
       });
       expect(undone).toMatchObject({
         success: true,
@@ -2405,7 +2456,8 @@ describeDatabase("volunteer admin", () => {
     it("counts what the task screens show", async () => {
       const call = await createCall();
       const [morning] = call.shiftIds;
-      await insertApplication(call, {
+      const assignedPerson = await insertApplication(call, {
+        fullName: "Ana",
         status: "accepted",
         assignedRoleId: call.roleIds[1]!,
         available: [morning!],
@@ -2437,10 +2489,29 @@ describeDatabase("volunteer admin", () => {
       ).toEqual([withoutShifts]);
       const people = await taskQueries.fetchAcceptedPeoplePage(
         call.festivalId,
-        0,
+        [],
         10,
       );
-      expect(people[0]!.id).toBe(withoutShifts);
+      expect(people.map((person) => person.id)).toEqual([
+        withoutShifts,
+        assignedPerson,
+      ]);
+      // node-postgres decodes the int[] aggregates as arrays of numbers.
+      expect(people[1]).toMatchObject({
+        availableShiftIds: [morning],
+        assignedShiftIds: [morning],
+      });
+      expect(people[0]).toMatchObject({
+        availableShiftIds: [morning],
+        assignedShiftIds: [],
+      });
+      expect(
+        await taskQueries.fetchAcceptedPeoplePage(
+          call.festivalId,
+          [withoutShifts],
+          10,
+        ),
+      ).toEqual([expect.objectContaining({ id: assignedPerson })]);
     });
   });
 });

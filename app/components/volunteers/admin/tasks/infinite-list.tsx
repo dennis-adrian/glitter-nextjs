@@ -14,7 +14,10 @@ import { cn } from "@/app/lib/utils";
 /**
  * A list that loads its next batch as the end scrolls into view, with a
  * skeleton card while it does. No "load more" button: the sentinel is the
- * only trigger. Starts over when the server sends a new first batch.
+ * only trigger. Each batch is asked for by the ids already shown, not an
+ * offset, so rows leaving or joining the list meanwhile never make it skip
+ * one. Starts over when the server sends a new first batch, ignoring batches
+ * asked for before that.
  */
 export default function InfiniteList<T extends { id: number }>({
   initialItems,
@@ -29,8 +32,8 @@ export default function InfiniteList<T extends { id: number }>({
   initialItems: T[];
   /** How many there are in all; loading stops once they are all shown. */
   total: number;
-  /** The batch starting at `offset`. */
-  loadMore: (offset: number) => Promise<T[]>;
+  /** The next batch, leaving out `seenIds`. */
+  loadMore: (seenIds: number[]) => Promise<T[]>;
   renderItem: (item: T) => ReactNode;
   className?: string;
   itemClassName?: string;
@@ -41,6 +44,8 @@ export default function InfiniteList<T extends { id: number }>({
   const [exhausted, setExhausted] = useState(false);
   const [isLoading, startLoading] = useTransition();
   const sentinel = useRef<HTMLDivElement>(null);
+  /** Bumped on every reset; a batch from an older one is dropped. */
+  const generation = useRef(0);
 
   // A new sort or a refreshed first batch starts the list over.
   const [seenInitial, setSeenInitial] = useState(initialItems);
@@ -49,6 +54,9 @@ export default function InfiniteList<T extends { id: number }>({
     setItems(initialItems);
     setExhausted(false);
   }
+  useEffect(() => {
+    generation.current += 1;
+  }, [initialItems]);
 
   const hasMore = !exhausted && items.length < total;
 
@@ -60,15 +68,21 @@ export default function InfiniteList<T extends { id: number }>({
         if (!entries.some((entry) => entry.isIntersecting) || isLoading) {
           return;
         }
+        const asked = generation.current;
+        const seenIds = items.map((item) => item.id);
         startLoading(async () => {
-          const next = await loadMore(items.length);
-          if (next.length === 0) {
+          const next = await loadMore(seenIds);
+          if (asked !== generation.current) return;
+          const seen = new Set(seenIds);
+          const fresh = next.filter((item) => !seen.has(item.id));
+          // Nothing new: the end, so the sentinel cannot ask again forever.
+          if (fresh.length === 0) {
             setExhausted(true);
             return;
           }
           setItems((current) => {
-            const seen = new Set(current.map((item) => item.id));
-            return [...current, ...next.filter((item) => !seen.has(item.id))];
+            const shown = new Set(current.map((item) => item.id));
+            return [...current, ...fresh.filter((item) => !shown.has(item.id))];
           });
         });
       },
@@ -76,7 +90,7 @@ export default function InfiniteList<T extends { id: number }>({
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [hasMore, isLoading, items.length, loadMore]);
+  }, [hasMore, isLoading, items, loadMore]);
 
   return (
     <>

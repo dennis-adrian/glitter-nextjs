@@ -364,6 +364,12 @@ export const volunteerDecisionInputSchema = z.object({
   applicationId: id,
   status: z.enum(["pending", "accepted", "waitlist", "rejected"]),
   note: noteBody.optional().transform((value) => value || null),
+  /**
+   * "Deshacer": the updatedAt the decision being undone left (ISO). Refused
+   * when the application changed since, so an undo never overwrites a later
+   * decision.
+   */
+  expectedUpdatedAt: z.iso.datetime().optional(),
 });
 export type VolunteerDecisionInput = z.input<
   typeof volunteerDecisionInputSchema
@@ -427,9 +433,14 @@ export type VolunteerAvailabilityInput = z.input<
   typeof volunteerAvailabilityInputSchema
 >;
 
+/**
+ * The next batch of an infinite list: the rows already shown are left out,
+ * so rows that leave or join the list meanwhile never make it skip or repeat
+ * one.
+ */
 export const volunteerListPageInputSchema = z.object({
   festivalId: id,
-  offset: z.coerce.number().int().min(0).max(100_000),
+  seenIds: z.array(id).max(5000),
 });
 export const volunteerReviewPageInputSchema =
   volunteerListPageInputSchema.extend({ sort: z.enum(VOLUNTEER_REVIEW_SORTS) });

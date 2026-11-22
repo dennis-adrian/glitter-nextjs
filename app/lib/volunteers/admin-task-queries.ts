@@ -1,6 +1,15 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  notInArray,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import { getUserName } from "@/app/lib/users/utils";
@@ -248,11 +257,18 @@ export type VolunteerReviewItem = {
   availableCount: number;
 };
 
-/** One batch of Revisar's list. */
+/** The rows already shown, left out of the next batch. */
+function excluding(ids: readonly number[]) {
+  return ids.length > 0
+    ? notInArray(volunteerApplications.id, [...ids])
+    : undefined;
+}
+
+/** One batch of Revisar's list, in its order, without `seenIds`. */
 export async function fetchPendingReviewPage(
   festivalId: number,
   sort: VolunteerReviewSort,
-  offset: number,
+  seenIds: readonly number[],
   limit: number,
 ): Promise<VolunteerReviewItem[]> {
   return db
@@ -269,10 +285,9 @@ export async function fetchPendingReviewPage(
       firstChoiceRole,
       eq(firstChoiceRole.id, volunteerApplications.firstChoiceRoleId),
     )
-    .where(pendingOf(festivalId))
+    .where(and(pendingOf(festivalId), excluding(seenIds)))
     .orderBy(...reviewOrder(sort))
-    .limit(limit)
-    .offset(offset);
+    .limit(limit);
 }
 
 /** Accepted people: those without shifts first, then by name. */
@@ -319,10 +334,10 @@ export type VolunteerPersonItem = {
   assignedShiftIds: number[];
 };
 
-/** One batch of "Por persona". */
+/** One batch of "Por persona", in its order, without `seenIds`. */
 export async function fetchAcceptedPeoplePage(
   festivalId: number,
-  offset: number,
+  seenIds: readonly number[],
   limit: number,
 ): Promise<VolunteerPersonItem[]> {
   return db
@@ -343,10 +358,9 @@ export async function fetchAcceptedPeoplePage(
       assignedRole,
       eq(assignedRole.id, volunteerApplications.assignedRoleId),
     )
-    .where(acceptedOf(festivalId))
+    .where(and(acceptedOf(festivalId), excluding(seenIds)))
     .orderBy(...peopleOrder())
-    .limit(limit)
-    .offset(offset);
+    .limit(limit);
 }
 
 export type VolunteerNote = {
