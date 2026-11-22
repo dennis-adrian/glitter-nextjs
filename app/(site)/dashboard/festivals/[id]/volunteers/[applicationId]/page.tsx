@@ -1,57 +1,154 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
-import { z } from "zod";
+import { notFound } from "next/navigation";
 
 import { ScreenTitle } from "@/app/components/navbar/screen-bar";
-import VolunteerApplicationDetailView from "@/app/components/volunteers/admin/volunteer-application-detail-view";
-import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
+import VolunteerPersonScreen from "@/app/components/volunteers/admin/tasks/person-screen";
+import VolunteerReviewScreen from "@/app/components/volunteers/admin/tasks/review-screen";
+import { ReviewLayout } from "@/app/components/volunteers/admin/tasks/task-layouts";
+import type { RawSearchParams } from "@/app/lib/credits/admin-definitions";
 import {
-  POSTGRES_INT_MAX,
-  volunteerAdminPath,
+  volunteerApplicationAdminPath,
+  volunteerShiftAdminPath,
 } from "@/app/lib/volunteers/admin-definitions";
+import { fetchVolunteerApplicationDetail } from "@/app/lib/volunteers/admin-queries";
 import {
-  fetchVolunteerAdminCall,
-  fetchVolunteerApplicationDetail,
-} from "@/app/lib/volunteers/admin-queries";
-
-const ParamsSchema = z.object({
-  id: z.coerce.number().int().positive().max(POSTGRES_INT_MAX),
-  applicationId: z.coerce.number().int().positive().max(POSTGRES_INT_MAX),
-});
+  loadVolunteerTaskPage,
+  parsePageId,
+} from "@/app/lib/volunteers/admin-task-page";
+import {
+  fetchAcceptedPeopleIds,
+  fetchPendingReviewIds,
+  fetchPendingReviewPage,
+  fetchVolunteerNotes,
+} from "@/app/lib/volunteers/admin-task-queries";
+import {
+  parseVolunteerPersonEntry,
+  parseVolunteerPersonGroup,
+  parseVolunteerReviewSort,
+  reviewPosition,
+  VOLUNTEER_LIST_BATCH,
+  volunteerAssignPath,
+  volunteerPeoplePath,
+  volunteerPersonHref,
+  volunteerReviewHref,
+} from "@/app/lib/volunteers/admin-tasks";
 
 export const metadata: Metadata = { title: "Postulación" };
 
 /**
- * One volunteer application: how to reach the applicant, what they chose,
- * and the team's decision, assignment and notes.
+ * One application. Pending (or waitlisted, or not accepted): Revisar's
+ * screen, flipping through the pending ones in `orden`'s order, beside the
+ * list from lg. Accepted: the person's assignment and contact, or, without
+ * shifts or with `asignar`, "Darle rol y turnos". `revisar` opens Revisar's
+ * screen on an accepted one ("Cambiar decisión").
  */
 export default async function VolunteerApplicationPage(props: {
   params: Promise<{ id: string; applicationId: string }>;
+  searchParams: Promise<RawSearchParams>;
 }) {
-  if (!(await requireAdminOrFestivalAdmin())) redirect("/");
+  const params = await props.params;
+  const { festivalId, call } = await loadVolunteerTaskPage(params.id);
+  const applicationId = parsePageId(params.applicationId);
+  const searchParams = await props.searchParams;
+  const sort = parseVolunteerReviewSort(searchParams.orden);
 
-  const parsed = ParamsSchema.safeParse(await props.params);
-  if (!parsed.success) notFound();
-  const { id: festivalId, applicationId } = parsed.data;
-
-  const [call, application] = await Promise.all([
-    fetchVolunteerAdminCall(festivalId),
+  const [application, notes] = await Promise.all([
     fetchVolunteerApplicationDetail(festivalId, applicationId),
+    fetchVolunteerNotes(festivalId, applicationId),
   ]);
-  if (!call || !application) notFound();
+  if (!application) notFound();
+  const path = volunteerApplicationAdminPath(festivalId, applicationId);
+
+  if (application.status === "accepted" && searchParams.revisar === undefined) {
+    const withoutShifts = application.assignedShiftIds.length === 0;
+    // The group flipping started in, kept by the links; on first arrival,
+    // the person's own.
+    const group =
+      parseVolunteerPersonGroup(searchParams.grupo) ??
+      (withoutShifts ? "sin-turnos" : "todas");
+    const ids = await fetchAcceptedPeopleIds(festivalId, {
+      withoutShifts: group === "sin-turnos",
+    });
+    const position = reviewPosition(ids, applicationId);
+    // Back where it was opened from: Por persona or one shift's screen;
+    // opened from elsewhere, the mockups' default for its group.
+    const entry = parseVolunteerPersonEntry(searchParams.desde);
+    const back =
+      entry?.kind === "turno"
+        ? {
+            href: volunteerShiftAdminPath(festivalId, entry.shiftId),
+            label: "Asignar",
+          }
+        : entry?.kind === "personas" || withoutShifts
+          ? { href: volunteerPeoplePath(festivalId), label: "Por persona" }
+          : { href: volunteerAssignPath(festivalId), label: "Asignar" };
+    const href = (id: number | null) =>
+      id === null ? null : volunteerPersonHref(festivalId, id, entry, group);
+    const self = volunteerPersonHref(festivalId, applicationId, entry);
+    const withParam = (param: string) =>
+      `${self}${self.includes("?") ? "&" : "?"}${param}`;
+    return (
+      <>
+        <ScreenTitle title={application.fullName} backHref={back.href} />
+        <VolunteerPersonScreen
+          key={application.id}
+          festivalId={festivalId}
+          application={application}
+          roles={call.roles}
+          shifts={call.shifts}
+          notes={notes}
+          flip={
+            position.position === 0
+              ? null
+              : {
+                  label:
+                    group === "sin-turnos"
+                      ? `${position.position} de ${position.total} sin turnos`
+                      : `${position.position} de ${position.total}`,
+                  previousHref: href(position.previousId),
+                  nextHref: href(position.nextId),
+                }
+          }
+          backHref={back.href}
+          backLabel={back.label}
+          assigning={withoutShifts || searchParams.asignar !== undefined}
+          summaryHref={self}
+          assignHref={withParam("asignar=1")}
+          decisionHref={`${path}?revisar=1`}
+        />
+      </>
+    );
+  }
+
+  const [items, order] = await Promise.all([
+    fetchPendingReviewPage(festivalId, sort, [], VOLUNTEER_LIST_BATCH),
+    fetchPendingReviewIds(festivalId, sort),
+  ]);
 
   return (
     <>
       <ScreenTitle
         title={application.fullName}
-        backHref={volunteerAdminPath(festivalId)}
+        backHref={volunteerReviewHref(festivalId, sort)}
       />
-      <VolunteerApplicationDetailView
-        festivalId={festivalId}
-        festivalName={call.festival.name}
-        application={application}
-        roles={call.roles}
-        shifts={call.shifts}
+      <ReviewLayout
+        call={call}
+        sort={sort}
+        items={items}
+        selectedId={applicationId}
+        listOnPhone={false}
+        detail={
+          <VolunteerReviewScreen
+            key={application.id}
+            festivalId={festivalId}
+            application={application}
+            roles={call.roles}
+            shifts={call.shifts}
+            notes={notes}
+            order={order}
+            sort={sort}
+          />
+        }
       />
     </>
   );

@@ -1,5 +1,5 @@
-import ScreenSkeleton from "@/app/components/skeletons/screen-skeleton";
+import { VolunteerTaskSkeleton } from "@/app/components/volunteers/admin/tasks/task-layouts";
 
 export default function Loading() {
-  return <ScreenSkeleton variant="table" />;
+  return <VolunteerTaskSkeleton />;
 }
