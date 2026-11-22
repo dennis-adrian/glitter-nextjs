@@ -88,7 +88,7 @@ function commercialSignature(
 }
 
 function revalidateBundleViews() {
-  revalidatePath("/merch", "layout");
+  revalidatePath("/(site)/(routes)/(storefront)/merch", "layout");
   revalidatePath("/(site)/dashboard/store/bundles", "layout");
 }
 

@@ -769,7 +769,7 @@ export async function startPaidCheckout(
     return { success: false, message: outcome.message };
   }
 
-  revalidatePath("/programs", "layout");
+  revalidatePath("/(site)/(routes)/programs", "layout");
   revalidatePath("/(site)/dashboard/programs", "layout");
 
   if (outcome.kind === "replayed") {

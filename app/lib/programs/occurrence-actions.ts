@@ -95,7 +95,7 @@ function blankToNull(value: string | null | undefined): string | null {
 
 function revalidatePrograms() {
   revalidatePath("/(site)/dashboard/programs", "layout");
-  revalidatePath("/programs", "layout");
+  revalidatePath("/(site)/(routes)/programs", "layout");
 }
 
 export async function createOccurrence(input: OccurrenceInput) {

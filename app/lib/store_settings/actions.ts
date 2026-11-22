@@ -49,9 +49,9 @@ export async function updateStoreSettings(input: UpdateStoreSettingsInput) {
     .where(eq(storeSettings.id, current.id));
 
   expireSharedCache(SHARED_CACHE_TAGS.storeSettings);
-  revalidatePath("/merch", "layout");
-  revalidatePath("/supplies", "layout");
-  revalidatePath("/checkout", "layout");
+  revalidatePath("/(site)/(routes)/(storefront)/merch", "layout");
+  revalidatePath("/(site)/(routes)/(storefront)/supplies", "layout");
+  revalidatePath("/(site)/(routes)/checkout", "layout");
   revalidatePath("/dashboard/store/settings");
 
   return { success: true, message: "Configuración actualizada" } as const;

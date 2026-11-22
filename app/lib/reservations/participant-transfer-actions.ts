@@ -111,8 +111,8 @@ export async function transferReservationParticipationAction(input: unknown) {
       revalidatePath("/(site)/dashboard/reservations/[id]/edit", "page");
       revalidatePath("/(site)/dashboard/festivals/[id]/reservations", "page");
       revalidatePath("/(site)/dashboard/festivals/[id]/payments", "page");
-      revalidatePath("/profiles", "layout");
-      revalidatePath("/my_participations", "layout");
+      revalidatePath("/(site)/(routes)/profiles", "layout");
+      revalidatePath("/(site)/(routes)/my_participations", "layout");
       revalidatePath("/my_history");
     } catch (error) {
       console.error("[participant-transfer] revalidatePath failed", error);

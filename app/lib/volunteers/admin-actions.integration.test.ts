@@ -440,7 +440,7 @@ describeDatabase("volunteer admin", () => {
         before.updatedAt.getTime(),
       );
       expect(revalidatePath).toHaveBeenCalledWith(
-        `/dashboard/festivals/${call.festivalId}/volunteers`,
+        "/(site)/dashboard/festivals/[id]/volunteers",
         "layout",
       );
     });
@@ -548,7 +548,7 @@ describeDatabase("volunteer admin", () => {
         [s0, s3].sort((a, b) => a - b),
       );
       expect(revalidatePath).toHaveBeenCalledWith(
-        `/dashboard/festivals/${call.festivalId}/volunteers`,
+        "/(site)/dashboard/festivals/[id]/volunteers",
         "layout",
       );
     });
@@ -868,7 +868,7 @@ describeDatabase("volunteer admin", () => {
         [s0, s3].sort((a, b) => a - b),
       );
       expect(revalidatePath).toHaveBeenCalledWith(
-        `/dashboard/festivals/${call.festivalId}/volunteers`,
+        "/(site)/dashboard/festivals/[id]/volunteers",
         "layout",
       );
     });
@@ -1108,7 +1108,10 @@ describeDatabase("volunteer admin", () => {
         inductionDate: null,
         inductionTime: null,
       });
-      expect(revalidatePath).toHaveBeenCalledWith("/voluntarios", "layout");
+      expect(revalidatePath).toHaveBeenCalledWith(
+        "/(site)/(routes)/voluntarios",
+        "layout",
+      );
 
       await actions.updateVolunteerCallSettings({
         festivalId: call.festivalId,
@@ -1248,7 +1251,10 @@ describeDatabase("volunteer admin", () => {
         { id: r2, sortOrder: 2 },
         { id: r1, sortOrder: 3 },
       ]);
-      expect(revalidatePath).toHaveBeenCalledWith("/voluntarios", "layout");
+      expect(revalidatePath).toHaveBeenCalledWith(
+        "/(site)/(routes)/voluntarios",
+        "layout",
+      );
 
       // At either end nothing moves.
       expect(await move(r0, "up")).toMatchObject({ success: true });

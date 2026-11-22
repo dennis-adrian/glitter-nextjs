@@ -383,7 +383,7 @@ export async function registerForFreeSession(
       return { success: false, message: outcome.message };
     }
 
-    revalidatePath("/programs", "layout");
+    revalidatePath("/(site)/(routes)/programs", "layout");
     revalidatePath("/(site)/dashboard/programs", "layout");
 
     if (outcome.kind === "replayed") {

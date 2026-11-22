@@ -288,11 +288,8 @@ describeDatabase("site links dashboard actions", () => {
       expect(nextCache.revalidateTag).toHaveBeenCalledWith("site-links", {
         expire: 0,
       });
-      expect(revalidatePathMock).toHaveBeenCalledWith("/links", "page");
-      expect(revalidatePathMock).toHaveBeenCalledWith(
-        "/(site)/dashboard/links",
-        "page",
-      );
+      expect(revalidatePathMock).toHaveBeenCalledWith("/links");
+      expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/links");
     });
 
     it("turns a bare email into a mailto", async () => {
@@ -880,7 +877,7 @@ describeDatabase("site links dashboard actions", () => {
         },
       });
       expect(await settings()).toHaveLength(1);
-      expect(revalidatePathMock).toHaveBeenCalledWith("/links", "page");
+      expect(revalidatePathMock).toHaveBeenCalledWith("/links");
 
       // And the position, saved after, keeps the header.
       await actions.setSocialPosition("top");
@@ -1250,7 +1247,7 @@ describeDatabase("site links dashboard actions", () => {
       expect(nextCache.revalidateTag).toHaveBeenCalledWith("site-links", {
         expire: 0,
       });
-      expect(revalidatePathMock).toHaveBeenCalledWith("/links", "page");
+      expect(revalidatePathMock).toHaveBeenCalledWith("/links");
       expect(await visibleLinks()).toMatchObject([
         { label: "Quiz nuevo", imageUrl: null },
       ]);

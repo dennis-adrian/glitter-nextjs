@@ -40,7 +40,7 @@ export async function changeReservationStandAction(input: unknown) {
       revalidatePath("/(site)/dashboard/reservations/[id]/edit", "page");
       revalidatePath("/(site)/dashboard/festivals/[id]/reservations", "page");
       revalidatePath("/(site)/dashboard/festivals/[id]/payments", "page");
-      revalidatePath("/profiles", "layout");
+      revalidatePath("/(site)/(routes)/profiles", "layout");
     } catch (error) {
       console.error("[stand-change] revalidatePath failed", error);
     }

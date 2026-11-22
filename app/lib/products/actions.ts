@@ -91,7 +91,7 @@ type ProductTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 function revalidateStorefrontPaths() {
   revalidatePath("/store");
-  revalidatePath("/merch", "layout");
+  revalidatePath("/(site)/(routes)/(storefront)/merch", "layout");
   revalidatePath("/supplies");
 }
 

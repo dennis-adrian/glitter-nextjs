@@ -81,7 +81,7 @@ export async function saveMerchCollection(input: CollectionInput) {
           );
       return saved.id;
     });
-    revalidatePath("/merch", "layout");
+    revalidatePath("/(site)/(routes)/(storefront)/merch", "layout");
     revalidatePath("/(site)/dashboard/store/collections", "layout");
     revalidatePath("/(site)/dashboard/store/products", "layout");
     return { success: true, message: "Colección guardada.", collectionId };

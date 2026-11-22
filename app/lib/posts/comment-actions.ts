@@ -79,7 +79,7 @@ export async function addComment(
       body: parsed.data.body,
       parentId: parentId ?? null,
     });
-    revalidatePath(`/blog/${post.slug}`, "page");
+    revalidatePath(`/blog/${post.slug}`);
     return { success: true };
   } catch (error) {
     console.error("addComment", error);
@@ -105,7 +105,7 @@ export async function hideComment(commentId: number): Promise<ActionResult> {
     const post = await db.query.posts.findFirst({
       where: eq(posts.id, row.postId),
     });
-    if (post) revalidatePath(`/blog/${post.slug}`, "page");
+    if (post) revalidatePath(`/blog/${post.slug}`);
     return { success: true };
   } catch (error) {
     console.error("hideComment", error);
@@ -142,7 +142,7 @@ export async function deleteOwnComment(
     const post = await db.query.posts.findFirst({
       where: eq(posts.id, row.postId),
     });
-    if (post) revalidatePath(`/blog/${post.slug}`, "page");
+    if (post) revalidatePath(`/blog/${post.slug}`);
     return { success: true };
   } catch (error) {
     console.error("deleteOwnComment", error);

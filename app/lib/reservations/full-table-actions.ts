@@ -45,7 +45,7 @@ const deactivateSchema = schema.extend({
 
 function revalidateReservationEntry() {
   try {
-    revalidatePath("/profiles", "layout");
+    revalidatePath("/(site)/(routes)/profiles", "layout");
   } catch (error) {
     console.error("[full-table] revalidatePath failed", error);
   }

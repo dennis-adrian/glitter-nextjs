@@ -20,7 +20,7 @@ function canManageBanners(
 
 function invalidateBanners() {
   revalidatePath("/(site)", "page");
-  revalidatePath("/portal", "page");
+  revalidatePath("/(site)/(routes)/portal", "page");
   revalidatePath("/(site)/dashboard/banners", "layout");
 }
 
