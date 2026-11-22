@@ -31,12 +31,15 @@ export default async function LinksPage() {
   // cache, expired by every dashboard write, so a visit reads no database.
   await connection();
   const { links, socialPosition, header } = await fetchLinksPage();
+  // The page's own landmark: outside the site's layout, no `main` wraps it.
   return (
-    <LinksPageView
-      links={links}
-      socialPosition={socialPosition}
-      header={header}
-      className="min-h-dvh"
-    />
+    <main>
+      <LinksPageView
+        links={links}
+        socialPosition={socialPosition}
+        header={header}
+        className="min-h-dvh"
+      />
+    </main>
   );
 }

@@ -10,7 +10,6 @@ import InstalledAppMark from "@/app/components/installed-app-mark";
 import Navbar from "@/app/components/navbar/navbar";
 import { ScreenBarProvider } from "@/app/components/navbar/screen-bar";
 import ScrollToTopOnNavigation from "@/app/components/navbar/scroll-to-top";
-import ServiceWorkerMessages from "@/app/components/notifications/service-worker-messages";
 import PostHogAuthIdentify from "@/app/components/providers/posthog-identify";
 import StaleDeploymentListener from "@/app/components/providers/stale-deployment-listener";
 import { Toaster } from "@/components/ui/sonner";
@@ -31,9 +30,6 @@ export default function SiteChrome({
     <>
       <InstalledAppHead />
       <InstalledAppMark />
-      {/* Outside every Suspense boundary: a tapped notification's message
-          can arrive as soon as the page loads. */}
-      <ServiceWorkerMessages />
       <Suspense fallback={<div className="min-h-screen" />}>
         <ClerkProvider
           localization={esMX}

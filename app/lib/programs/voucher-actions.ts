@@ -255,7 +255,7 @@ export async function submitPurchaseVoucher(
     }
 
     revalidatePath(`/programs/purchases/${data.purchaseId}`);
-    revalidatePath("/dashboard/programs", "layout");
+    revalidatePath("/(site)/dashboard/programs", "layout");
 
     let buyerEmail = outcome.purchase.guestEmail;
     let buyerName = outcome.purchase.guestName ?? "Cliente";

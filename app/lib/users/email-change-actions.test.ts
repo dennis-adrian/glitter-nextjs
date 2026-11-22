@@ -1089,7 +1089,7 @@ describe("changeUserEmail", () => {
 
       expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/users");
       expect(revalidatePathMock).toHaveBeenCalledWith(
-        "/dashboard/users/[profileId]",
+        "/(site)/dashboard/users/[profileId]",
         "page",
       );
     });

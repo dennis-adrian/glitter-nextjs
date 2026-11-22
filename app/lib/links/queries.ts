@@ -54,13 +54,23 @@ type LinksPageRows = {
 
 /**
  * The rows `/links` is built from, shared across requests. Every write from
- * the dashboard expires them at once (`invalidateLinks` in actions.ts); the
- * lifetime only bounds a change made some other way.
+ * the dashboard expires them at once (`invalidateLinks` in actions.ts).
+ *
+ * The lifetime is short on purpose. A read that started before a save
+ * committed and ends after the expiry is stored as new (the cache dates an
+ * entry by when it is written), so it would serve the rows from before the
+ * save; half a minute bounds that, and any change made outside the dashboard.
+ * At most one read per lifetime still reaches the database, however many
+ * visits there are.
  *
  * The schedules are not applied here: the rows stay the same while links come
  * and go on their schedule, and the page applies them each time it renders.
- * A failed read throws, so a cached page is kept rather than replaced with an
- * empty one.
+ *
+ * A failed read throws. While an entry is only past its lifetime, the cache
+ * keeps serving it and refreshes it in the background. Once a write (or a
+ * `revalidatePath` of the whole site) has expired it, a visit waits on the
+ * database, and a failure there reaches the error page rather than a page
+ * of no links that looks as if Glitter had none.
  */
 const readLinksPageRows = sharedCache(
   async (): Promise<LinksPageRows> => {
@@ -96,7 +106,7 @@ const readLinksPageRows = sharedCache(
   "links-page",
   {
     tags: [SHARED_CACHE_TAGS.siteLinks],
-    revalidate: 300,
+    revalidate: 30,
     // The schedule's dates come back from the cache as strings.
     revive: (rows) => ({
       ...rows,

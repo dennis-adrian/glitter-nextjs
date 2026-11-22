@@ -290,7 +290,7 @@ describeDatabase("site links dashboard actions", () => {
       });
       expect(revalidatePathMock).toHaveBeenCalledWith("/links", "page");
       expect(revalidatePathMock).toHaveBeenCalledWith(
-        "/dashboard/links",
+        "/(site)/dashboard/links",
         "page",
       );
     });

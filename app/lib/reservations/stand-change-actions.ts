@@ -37,9 +37,9 @@ export async function changeReservationStandAction(input: unknown) {
   const result = await changeReservationStand(parsed.data);
   if (result.success) {
     try {
-      revalidatePath("/dashboard/reservations/[id]/edit", "page");
-      revalidatePath("/dashboard/festivals/[id]/reservations", "page");
-      revalidatePath("/dashboard/festivals/[id]/payments", "page");
+      revalidatePath("/(site)/dashboard/reservations/[id]/edit", "page");
+      revalidatePath("/(site)/dashboard/festivals/[id]/reservations", "page");
+      revalidatePath("/(site)/dashboard/festivals/[id]/payments", "page");
       revalidatePath("/profiles", "layout");
     } catch (error) {
       console.error("[stand-change] revalidatePath failed", error);

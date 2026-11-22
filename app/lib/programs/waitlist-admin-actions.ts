@@ -211,7 +211,7 @@ export async function inviteFromWaitlist(
       return { success: false, message: outcome.message };
     }
 
-    revalidatePath("/dashboard/programs", "layout");
+    revalidatePath("/(site)/dashboard/programs", "layout");
     revalidatePath("/programs", "layout");
 
     if (!outcome.contact) {
@@ -337,7 +337,7 @@ export async function removeFromWaitlist(
       };
     }
 
-    revalidatePath("/dashboard/programs", "layout");
+    revalidatePath("/(site)/dashboard/programs", "layout");
     revalidatePath("/programs", "layout");
 
     return { success: true, message: "Registro retirado de la lista" };

@@ -104,9 +104,9 @@ export async function downgradeFullTableReservationAction(input: unknown) {
   if (result.success) {
     revalidateReservationEntry();
     try {
-      revalidatePath("/dashboard/reservations/[id]/edit", "page");
-      revalidatePath("/dashboard/festivals/[id]/reservations", "page");
-      revalidatePath("/dashboard/festivals/[id]/payments", "page");
+      revalidatePath("/(site)/dashboard/reservations/[id]/edit", "page");
+      revalidatePath("/(site)/dashboard/festivals/[id]/reservations", "page");
+      revalidatePath("/(site)/dashboard/festivals/[id]/payments", "page");
     } catch (error) {
       console.error("[full-table] revalidatePath failed", error);
     }
@@ -134,9 +134,9 @@ export async function upgradeFullTableReservationAction(input: unknown) {
   if (result.success) {
     revalidateReservationEntry();
     try {
-      revalidatePath("/dashboard/reservations/[id]/edit", "page");
-      revalidatePath("/dashboard/festivals/[id]/reservations", "page");
-      revalidatePath("/dashboard/festivals/[id]/payments", "page");
+      revalidatePath("/(site)/dashboard/reservations/[id]/edit", "page");
+      revalidatePath("/(site)/dashboard/festivals/[id]/reservations", "page");
+      revalidatePath("/(site)/dashboard/festivals/[id]/payments", "page");
     } catch (error) {
       console.error("[full-table] revalidatePath failed", error);
     }

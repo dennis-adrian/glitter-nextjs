@@ -770,7 +770,7 @@ export async function startPaidCheckout(
   }
 
   revalidatePath("/programs", "layout");
-  revalidatePath("/dashboard/programs", "layout");
+  revalidatePath("/(site)/dashboard/programs", "layout");
 
   if (outcome.kind === "replayed") {
     return {

@@ -965,7 +965,7 @@ export async function archiveFestival(festivalId: number) {
   }
 
   expireFestivalCaches();
-  revalidatePath("/dashboard/festivals", "layout");
+  revalidatePath("/(site)/dashboard/festivals", "layout");
   revalidatePath(`/festivals/${festivalId}`, "layout");
   return { success: true, message: "Festival archivado" };
 }

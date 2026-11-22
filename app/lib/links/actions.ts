@@ -58,7 +58,8 @@ function canManageLinks(role: string | null | undefined) {
 function invalidateLinks() {
   expireSharedCache(SHARED_CACHE_TAGS.siteLinks);
   revalidatePath(LINKS_PATH, "page");
-  revalidatePath(LINKS_ADMIN_PATH, "page");
+  // Typed paths name the page file, route group included.
+  revalidatePath(`/(site)${LINKS_ADMIN_PATH}`, "page");
 }
 
 /**

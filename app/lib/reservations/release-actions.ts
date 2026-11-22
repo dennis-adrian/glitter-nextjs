@@ -36,7 +36,7 @@ export async function releaseReservationAction(input: unknown) {
       // views of that festival are stale.
       revalidatePath("/profiles", "layout");
       revalidatePath("/my_participations", "page");
-      revalidatePath("/dashboard/festivals/[id]/reservations", "page");
+      revalidatePath("/(site)/dashboard/festivals/[id]/reservations", "page");
     } catch (error) {
       console.error("[release] revalidatePath failed", error);
     }

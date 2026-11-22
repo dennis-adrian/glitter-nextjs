@@ -136,7 +136,7 @@ async function applyWorkingToMain(
 
 function invalidatePosts(opts: { slugs?: string[] } = {}) {
   revalidatePath("/blog", "layout");
-  revalidatePath("/dashboard/blog", "layout");
+  revalidatePath("/(site)/dashboard/blog", "layout");
   revalidatePath("/portal/blog", "layout");
   for (const slug of opts.slugs ?? []) {
     revalidatePath(`/blog/${slug}`, "page");
@@ -145,7 +145,7 @@ function invalidatePosts(opts: { slugs?: string[] } = {}) {
 
 function invalidateCategories() {
   revalidatePath("/blog", "layout");
-  revalidatePath("/dashboard/blog/categories", "page");
+  revalidatePath("/(site)/dashboard/blog/categories", "page");
 }
 
 function invalidateTags() {

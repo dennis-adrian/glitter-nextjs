@@ -1,6 +1,7 @@
 import { Analytics } from "@vercel/analytics/react";
 import type { Metadata, Viewport } from "next";
 
+import ServiceWorkerMessages from "@/app/components/notifications/service-worker-messages";
 import { ThemeProvider } from "@/app/components/theme-provider";
 import { figtree, gabarito } from "@/ui/fonts";
 
@@ -63,6 +64,10 @@ export default function RootLayout({
     // so it can switch that off while it jumps to the top of a new route.
     <html lang="es" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body className={`${figtree.variable} ${gabarito.variable} font-sans`}>
+        {/* On every page, /links and the 404 included: a tapped
+            notification's message can reach any window of the installed
+            app, and arrive as soon as the page loads. */}
+        <ServiceWorkerMessages />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

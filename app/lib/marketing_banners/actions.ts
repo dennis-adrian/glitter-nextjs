@@ -19,9 +19,9 @@ function canManageBanners(
 }
 
 function invalidateBanners() {
-  revalidatePath("/", "page");
+  revalidatePath("/(site)", "page");
   revalidatePath("/portal", "page");
-  revalidatePath("/dashboard/banners", "layout");
+  revalidatePath("/(site)/dashboard/banners", "layout");
 }
 
 /** Dashboard `/dashboard/banners`; layout also restricts access — this check runs before any DB read. */

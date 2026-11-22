@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import NotFoundMessage from "@/app/components/not-found-message";
 import { buttonVariants } from "@/app/components/ui/button";
 
@@ -14,10 +12,15 @@ import { buttonVariants } from "@/app/components/ui/button";
  */
 export default function NotFound() {
   return (
-    <NotFoundMessage>
-      <Link href="/" className={buttonVariants({ wrap: true })}>
-        Ir al inicio
-      </Link>
-    </NotFoundMessage>
+    <main>
+      <NotFoundMessage>
+        {/* A full load on purpose: the site's layout, with Clerk and its
+            header, is not mounted here, and should render on the server. */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- see above */}
+        <a href="/" className={buttonVariants({ wrap: true })}>
+          Ir al inicio
+        </a>
+      </NotFoundMessage>
+    </main>
   );
 }
