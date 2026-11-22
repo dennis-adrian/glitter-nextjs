@@ -2552,6 +2552,41 @@ describeDatabase("volunteer admin", () => {
       );
     });
 
+    it("names who was picked a role deactivated since, and assigns no one", async () => {
+      const call = await createCall();
+      const shiftId = call.shiftIds[0]!;
+      const ana = await insertApplication(call, {
+        fullName: "Ana",
+        status: "accepted",
+      });
+      const bruno = await insertApplication(call, {
+        fullName: "Bruno",
+        status: "accepted",
+      });
+      expect(
+        await actions.setVolunteerRoleActive({
+          festivalId: call.festivalId,
+          id: call.roleIds[2]!,
+          isActive: false,
+        }),
+      ).toMatchObject({ success: true });
+      expect(
+        await actions.assignVolunteersToShift({
+          festivalId: call.festivalId,
+          shiftId,
+          people: [
+            { applicationId: ana },
+            { applicationId: bruno, roleId: call.roleIds[2]! },
+          ],
+        }),
+      ).toEqual({
+        success: false,
+        message: "Bruno: Ese rol ya no está disponible. Actualizá la página.",
+      });
+      expect(await assignedShiftIds(ana)).toEqual([]);
+      expect(await assignedShiftIds(bruno)).toEqual([]);
+    });
+
     it("saves one person's role and shifts, refusing a stale screen", async () => {
       const call = await createCall();
       const applicationId = await insertApplication(call, {

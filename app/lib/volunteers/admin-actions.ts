@@ -1267,7 +1267,7 @@ export async function assignVolunteersToShift(
               !role ||
               (!role.isActive && person.roleId !== application.assignedRoleId)
             ) {
-              throw new Refusal(ROLE_UNAVAILABLE);
+              throw new Refusal(`${application.fullName}: ${ROLE_UNAVAILABLE}`);
             }
           }
           roleId = person.roleId;

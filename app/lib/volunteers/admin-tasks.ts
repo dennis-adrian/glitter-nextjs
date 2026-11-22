@@ -448,7 +448,8 @@ export type VolunteerNoteInput = z.input<typeof volunteerNoteInputSchema>;
 
 /**
  * "Asignar N personas" on one shift, each with the role picked for them;
- * `roleId` left out (not picked) keeps the role they have when it is saved.
+ * `roleId` left out (the role shown left as it was) keeps the role they have
+ * when it is saved.
  */
 export const volunteerShiftBatchInputSchema = z.object({
   festivalId: id,
