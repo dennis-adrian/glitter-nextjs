@@ -114,7 +114,6 @@ export default function VolunteerPeopleList({
       ) : (
         <InfiniteList
           initialItems={items}
-          total={total}
           loadMore={loadMore}
           loadingLabel="Cargando más personas"
           className="gap-2"

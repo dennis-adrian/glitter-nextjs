@@ -21,7 +21,6 @@ import { cn } from "@/app/lib/utils";
  */
 export default function InfiniteList<T extends { id: number }>({
   initialItems,
-  total,
   loadMore,
   renderItem,
   className,
@@ -30,8 +29,6 @@ export default function InfiniteList<T extends { id: number }>({
   skeletonClassName,
 }: {
   initialItems: T[];
-  /** How many there are in all; loading stops once they are all shown. */
-  total: number;
   /** The next batch, leaving out `seenIds`. */
   loadMore: (seenIds: number[]) => Promise<T[]>;
   renderItem: (item: T) => ReactNode;
@@ -58,7 +55,9 @@ export default function InfiniteList<T extends { id: number }>({
     generation.current += 1;
   }, [initialItems]);
 
-  const hasMore = !exhausted && items.length < total;
+  // Not capped by the count at page load: rows that arrive meanwhile are
+  // still reached. A batch with nothing new ends the list.
+  const hasMore = !exhausted;
 
   useEffect(() => {
     const node = sentinel.current;

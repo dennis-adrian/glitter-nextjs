@@ -169,7 +169,6 @@ export default function VolunteerReviewList({
       ) : (
         <InfiniteList
           initialItems={items}
-          total={total}
           loadMore={loadMore}
           loadingLabel="Cargando más postulaciones"
           className="gap-2 lg:gap-0"

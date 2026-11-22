@@ -30,7 +30,10 @@ export default async function VolunteerAvailabilityPage(props: {
   return (
     <>
       <ScreenTitle title="Turnos que puede" backHref={backHref} />
+      {/* Remounts on every revision, so the selection and the
+          loadedUpdatedAt it saves against always come from the same one. */}
       <VolunteerAvailabilityForm
+        key={application.updatedAt.getTime()}
         festivalId={festivalId}
         application={application}
         shifts={call.shifts}

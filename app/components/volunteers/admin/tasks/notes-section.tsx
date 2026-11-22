@@ -90,6 +90,9 @@ export function NoteComposer({
         placeholder="Agregar una nota"
         maxLength={VOLUNTEER_NOTE_MAX_LENGTH}
         value={value}
+        // Read-only while saving, so nothing typed meanwhile is cleared.
+        readOnly={isSaving}
+        aria-busy={isSaving}
         onChange={(event) => onChange(event.target.value)}
         className="max-w-160"
       />
