@@ -169,6 +169,9 @@ export default function VolunteerReviewList({
         </p>
       ) : (
         <InfiniteList
+          // Another sort is another list: a batch still loading for the old
+          // one lands on an unmounted list and is dropped.
+          key={sort}
           initialItems={items}
           batchSize={VOLUNTEER_LIST_BATCH}
           loadMore={loadMore}

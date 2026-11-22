@@ -437,6 +437,20 @@ async function holdsShift(tx: Tx, applicationId: number, shiftId: number) {
   return Boolean(row);
 }
 
+/** Whether the application marked the shift as one it can cover. */
+async function marksShift(tx: Tx, applicationId: number, shiftId: number) {
+  const [row] = await tx
+    .select({ shiftId: volunteerApplicationAvailableShifts.shiftId })
+    .from(volunteerApplicationAvailableShifts)
+    .where(
+      and(
+        eq(volunteerApplicationAvailableShifts.applicationId, applicationId),
+        eq(volunteerApplicationAvailableShifts.shiftId, shiftId),
+      ),
+    );
+  return Boolean(row);
+}
+
 /**
  * The shift screen's "Asignar": adds one active shift of the festival to an
  * application, keeping its other shifts. A pending or waitlisted application
@@ -1040,7 +1054,8 @@ export type VolunteerDecisionResult =
 
 /**
  * Revisar's "No aceptar", "En espera" and "Aceptar", and their "Deshacer"
- * (back to the status it had). Saves the note being typed with it. The
+ * (back to the status it had), refused when the application changed since
+ * `expectedUpdatedAt`. Saves the note being typed with it. The
  * applicant hears nothing: no email, no notice. An assignment outlives the
  * change, as everywhere in the admin.
  */
@@ -1148,11 +1163,16 @@ export async function addVolunteerNote(
 
 /**
  * The shift screen's "Asignar N personas", in one transaction: each person
- * gets the shift (keeping their others) and the role chosen beside them. The
- * screen offers accepted people only; the server applies the same rule as
- * the single "Asignar" (decideShiftAssignment), so VOLUNTEER_ASSIGN_AUTO_ACCEPTS
- * keeps deciding what happens to anyone else. More than
- * VOLUNTEER_MAX_SHIFTS_PER_DAY that day saves, with a warning naming them.
+ * gets the shift (keeping their others) and the role picked beside them, or,
+ * not picked, the role they have now (their 1st choice, or 2nd when the 1st
+ * is inactive, when they have none), so a role changed elsewhere since the
+ * screen loaded is kept. The screen offers accepted people who marked the
+ * shift; someone who no longer marks it is refused (the person screen is
+ * where an unmarked shift is given). The server applies the same status rule
+ * as the single "Asignar" (decideShiftAssignment), so
+ * VOLUNTEER_ASSIGN_AUTO_ACCEPTS keeps deciding what happens to anyone else.
+ * More than VOLUNTEER_MAX_SHIFTS_PER_DAY that day saves, with a warning
+ * naming them.
  */
 export async function assignVolunteersToShift(
   input: VolunteerShiftBatchInput,
@@ -1181,29 +1201,15 @@ export async function assignVolunteersToShift(
       if (!shift) throw new Refusal(SHIFT_NOT_FOUND);
       if (!shift.isActive) throw new Refusal(SHIFT_INACTIVE);
 
-      const roleIds = [
-        ...new Set(
-          people.flatMap((person) =>
-            person.roleId === null ? [] : [person.roleId],
-          ),
-        ),
-      ];
-      const roles =
-        roleIds.length === 0
-          ? []
-          : await tx
-              .select({
-                id: volunteerRoles.id,
-                isActive: volunteerRoles.isActive,
-              })
-              .from(volunteerRoles)
-              .where(
-                and(
-                  inArray(volunteerRoles.id, roleIds),
-                  eq(volunteerRoles.festivalId, festivalId),
-                ),
-              );
+      // A festival has a handful: all of them, for picks and defaults alike.
+      const roles = await tx
+        .select({ id: volunteerRoles.id, isActive: volunteerRoles.isActive })
+        .from(volunteerRoles)
+        .where(eq(volunteerRoles.festivalId, festivalId));
       const roleById = new Map(roles.map((role) => [role.id, role]));
+      const activeRoleIds = new Set(
+        roles.filter((role) => role.isActive).map((role) => role.id),
+      );
 
       const day = laPazDay(shift.startsAt);
       const overLimit: string[] = [];
@@ -1222,17 +1228,30 @@ export async function assignVolunteersToShift(
         if (decision.kind === "refuse") {
           throw new Refusal(`${application.fullName}: ${decision.message}`);
         }
-        if (person.roleId !== null) {
-          const role = roleById.get(person.roleId);
-          if (
-            !role ||
-            (!role.isActive && person.roleId !== application.assignedRoleId)
-          ) {
-            throw new Refusal(ROLE_UNAVAILABLE);
+        let roleId: number | null;
+        if (person.roleId === undefined) {
+          roleId =
+            application.assignedRoleId ??
+            defaultAssignedRoleId(application, activeRoleIds);
+        } else {
+          if (person.roleId !== null) {
+            const role = roleById.get(person.roleId);
+            if (
+              !role ||
+              (!role.isActive && person.roleId !== application.assignedRoleId)
+            ) {
+              throw new Refusal(ROLE_UNAVAILABLE);
+            }
           }
+          roleId = person.roleId;
         }
 
         if (!(await holdsShift(tx, person.applicationId, shiftId))) {
+          if (!(await marksShift(tx, person.applicationId, shiftId))) {
+            throw new Refusal(
+              `${application.fullName} ya no puede cubrir este turno. Actualizá la página.`,
+            );
+          }
           await tx.insert(volunteerApplicationAssignedShifts).values({
             applicationId: person.applicationId,
             shiftId,
@@ -1244,7 +1263,7 @@ export async function assignVolunteersToShift(
           .update(volunteerApplications)
           .set({
             ...(decision.accept ? { status: "accepted" as const } : {}),
-            assignedRoleId: person.roleId,
+            assignedRoleId: roleId,
             ...reviewedBy(profile.id),
           })
           .where(

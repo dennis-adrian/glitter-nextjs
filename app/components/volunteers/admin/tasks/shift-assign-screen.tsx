@@ -123,14 +123,18 @@ export default function VolunteerShiftAssignScreen({
 
   const initialRole = (candidate: VolunteerShiftCandidate) =>
     candidate.assignedRoleId ?? defaultAssignedRoleId(candidate, activeRoleIds);
-  const [chosen, setChosen] = useState<Map<number, number | null>>(
+  /**
+   * The ticked people, each with the role picked for them; undefined until
+   * one is picked, so the save keeps the role they have by then.
+   */
+  const [chosen, setChosen] = useState<Map<number, number | undefined>>(
     () => new Map(),
   );
 
   const toggle = (candidate: VolunteerShiftCandidate, checked: boolean) =>
     setChosen((current) => {
       const next = new Map(current);
-      if (checked) next.set(candidate.applicationId, initialRole(candidate));
+      if (checked) next.set(candidate.applicationId, undefined);
       else next.delete(candidate.applicationId);
       return next;
     });
@@ -142,10 +146,9 @@ export default function VolunteerShiftAssignScreen({
       const result = await assignVolunteersToShift({
         festivalId,
         shiftId: shift.id,
-        people: [...chosen.entries()].map(([applicationId, roleId]) => ({
-          applicationId,
-          roleId,
-        })),
+        people: [...chosen.entries()].map(([applicationId, roleId]) =>
+          roleId === undefined ? { applicationId } : { applicationId, roleId },
+        ),
       });
       if (!result.success) {
         toast.error(result.message);
@@ -334,7 +337,8 @@ export default function VolunteerShiftAssignScreen({
             <ul className="flex flex-col gap-2">
               {accepted.map((candidate) => {
                 const checked = chosen.has(candidate.applicationId);
-                const roleId = chosen.get(candidate.applicationId) ?? null;
+                const roleId =
+                  chosen.get(candidate.applicationId) ?? initialRole(candidate);
                 return (
                   <li key={candidate.applicationId}>
                     <ChoiceRow

@@ -49,6 +49,8 @@ export default async function VolunteerAssignPage(props: {
         first &&
         detail && (
           <VolunteerShiftAssignScreen
+            // A refresh can put another shift first: its picks start empty.
+            key={first.id}
             festivalId={festivalId}
             detail={detail}
             roles={call.roles}

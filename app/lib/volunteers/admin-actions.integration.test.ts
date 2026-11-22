@@ -2401,6 +2401,69 @@ describeDatabase("volunteer admin", () => {
       expect(await assignedShiftIds(accepted)).toEqual([]);
     });
 
+    it("keeps the role someone has when none was picked", async () => {
+      const call = await createCall();
+      const shiftId = call.shiftIds[0]!;
+      // Given a role on their own screen after the shift screen loaded.
+      const ana = await insertApplication(call, {
+        fullName: "Ana",
+        status: "accepted",
+        assignedRoleId: call.roleIds[2]!,
+      });
+      // No role yet: their 1st choice.
+      const bruno = await insertApplication(call, {
+        fullName: "Bruno",
+        status: "accepted",
+        firstChoice: 1,
+        secondChoice: 2,
+      });
+      expect(
+        await actions.assignVolunteersToShift({
+          festivalId: call.festivalId,
+          shiftId,
+          people: [{ applicationId: ana }, { applicationId: bruno }],
+        }),
+      ).toEqual({ success: true, message: "Asignaste 2 personas." });
+      expect((await storedApplication(ana)).assignedRoleId).toBe(
+        call.roleIds[2],
+      );
+      expect((await storedApplication(bruno)).assignedRoleId).toBe(
+        call.roleIds[1],
+      );
+      expect(await assignedShiftIds(ana)).toEqual([shiftId]);
+      expect(await assignedShiftIds(bruno)).toEqual([shiftId]);
+    });
+
+    it("refuses the whole batch when someone no longer marks the shift", async () => {
+      const call = await createCall();
+      const shiftId = call.shiftIds[1]!;
+      const dora = await insertApplication(call, {
+        status: "accepted",
+        available: [shiftId],
+      });
+      // Unmarked since the shift screen loaded.
+      const carla = await insertApplication(call, {
+        fullName: "Carla",
+        status: "accepted",
+        available: [call.shiftIds[0]!],
+      });
+      expect(
+        await actions.assignVolunteersToShift({
+          festivalId: call.festivalId,
+          shiftId,
+          people: [
+            { applicationId: dora, roleId: call.roleIds[0]! },
+            { applicationId: carla, roleId: call.roleIds[0]! },
+          ],
+        }),
+      ).toEqual({
+        success: false,
+        message: "Carla ya no puede cubrir este turno. Actualizá la página.",
+      });
+      expect(await assignedShiftIds(dora)).toEqual([]);
+      expect(await assignedShiftIds(carla)).toEqual([]);
+    });
+
     it("saves one person's role and shifts, refusing a stale screen", async () => {
       const call = await createCall();
       const applicationId = await insertApplication(call, {

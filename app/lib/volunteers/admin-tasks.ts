@@ -429,9 +429,9 @@ export const volunteerDecisionInputSchema = z.object({
   status: z.enum(["pending", "accepted", "waitlist", "rejected"]),
   note: noteBody.optional().transform((value) => value || null),
   /**
-   * "Deshacer": the updatedAt the decision being undone left (ISO). Refused
-   * when the application changed since, so an undo never overwrites a later
-   * decision.
+   * The updatedAt the screen loaded, or, for "Deshacer", the one the decision
+   * being undone left (ISO). Refused when the application changed since, so
+   * neither a stale screen nor an undo overwrites a later decision.
    */
   expectedUpdatedAt: z.iso.datetime().optional(),
 });
@@ -446,12 +446,15 @@ export const volunteerNoteInputSchema = z.object({
 });
 export type VolunteerNoteInput = z.input<typeof volunteerNoteInputSchema>;
 
-/** "Asignar N personas" on one shift, each with the role they get. */
+/**
+ * "Asignar N personas" on one shift, each with the role picked for them;
+ * `roleId` left out (not picked) keeps the role they have when it is saved.
+ */
 export const volunteerShiftBatchInputSchema = z.object({
   festivalId: id,
   shiftId: id,
   people: z
-    .array(z.object({ applicationId: id, roleId: id.nullable() }))
+    .array(z.object({ applicationId: id, roleId: id.nullable().optional() }))
     .min(1, "Elegí al menos una persona.")
     .max(100)
     .refine(
