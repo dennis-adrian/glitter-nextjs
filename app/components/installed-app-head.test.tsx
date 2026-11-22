@@ -21,9 +21,8 @@ vi.mock("@clerk/nextjs", () => ({
 }));
 vi.mock("@clerk/localizations", () => ({ esMX: {} }));
 vi.mock("@vercel/analytics/react", () => ({ Analytics: () => null }));
-vi.mock("@/app/components/theme-provider", () => ({
-  ThemeProvider: ({ children }: { children: ReactNode }) => children,
-}));
+// The real ThemeProvider: next-themes renders its own script ahead of the
+// page, and the order below is checked against it.
 vi.mock("@/app/components/providers/posthog-identify", () => ({
   default: () => null,
 }));
@@ -207,11 +206,19 @@ describe("the site's layouts", () => {
     </RootLayout>
   );
 
-  it("marks the installed app's window first in <body>, before anything paints", async () => {
+  it("marks the installed app's window at the top of <body>, before anything paints", async () => {
     const body = await shellBody(sitePage, MARK_INSTALLED_APP_SCRIPT);
-    const first = body.firstElementChild;
-    expect(first?.tagName).toBe("SCRIPT");
-    expect(first?.textContent).toBe(MARK_INSTALLED_APP_SCRIPT);
+    const elements = [...body.children];
+    const mark = elements.findIndex(
+      (element) => element.textContent === MARK_INSTALLED_APP_SCRIPT,
+    );
+    // The theme's script comes first, so the real provider is in the tree.
+    expect(mark).toBeGreaterThan(0);
+    expect(elements[mark].tagName).toBe("SCRIPT");
+    // Only scripts ahead of it (the theme's), nothing that paints.
+    expect(elements.slice(0, mark).map((element) => element.tagName)).toEqual(
+      elements.slice(0, mark).map(() => "SCRIPT"),
+    );
   });
 
   it("sends the install tags in <head> before anything that waits for data", async () => {

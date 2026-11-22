@@ -1,18 +1,10 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 
 import LinksPageView from "@/app/components/links/links-page-view";
 import { getEnvLabel } from "@/app/lib/config";
 import { linksPageMetadata } from "@/app/lib/links/metadata";
 import { fetchLinksPage } from "@/app/lib/links/queries";
-
-/*
- * Served from the cache, not built per visit. A change saved in
- * `/dashboard/links` expires the page and its rows at once; this lifetime is
- * what puts a scheduled link on (or takes it off) the page within about half
- * a minute of its time: the first visit after it gets the page as it was and
- * rebuilds it, the next gets the new one.
- */
-export const revalidate = 30;
 
 /** The header the dashboard set names the page, here and when it is shared. */
 export async function generateMetadata(): Promise<Metadata> {
@@ -29,6 +21,11 @@ export async function generateMetadata(): Promise<Metadata> {
  * of its own from Instagram's in-app browser.
  */
 export default async function LinksPage() {
+  // Rendered for each visit, so a scheduled link comes and goes at its
+  // time even after a quiet spell (a cached page would show the last
+  // visitor's links to the next one). The rows themselves come from the
+  // cache, expired by every dashboard write, so a visit reads no database.
+  await connection();
   const { links, socialPosition, header } = await fetchLinksPage();
   return (
     <LinksPageView

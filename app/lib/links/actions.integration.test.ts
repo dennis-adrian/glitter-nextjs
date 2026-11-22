@@ -1231,6 +1231,37 @@ describeDatabase("site links dashboard actions", () => {
       expect((await visibleLinks()).map((row) => row.kind)).toEqual(["social"]);
     });
 
+    it("still shows a write on the page when cleaning up its old image fails", async () => {
+      const IMAGE = "https://abc123.ufs.sh/f/miniatura-1";
+      const base = { label: "Quiz", href: "/quiz", icon: "link" };
+      await actions.createSiteLink({ ...base, imageUrl: IMAGE });
+      const [link] = await rowsOf("link");
+      expect((await visibleLinks())[0].imageUrl).toBe(IMAGE);
+
+      removeLinkImageMock.mockRejectedValue(new Error("UploadThing caído"));
+      nextCache.revalidateTag.mockClear();
+      revalidatePathMock.mockClear();
+
+      // The write lands, the cleanup after it throws…
+      await expect(
+        actions.updateSiteLink(link.id, { ...base, label: "Quiz nuevo" }),
+      ).rejects.toThrow("UploadThing caído");
+      // …and the page shows it all the same.
+      expect(nextCache.revalidateTag).toHaveBeenCalledWith("site-links", {
+        expire: 0,
+      });
+      expect(revalidatePathMock).toHaveBeenCalledWith("/links", "page");
+      expect(await visibleLinks()).toMatchObject([
+        { label: "Quiz nuevo", imageUrl: null },
+      ]);
+
+      nextCache.revalidateTag.mockClear();
+      await expect(actions.deleteSiteLink(link.id)).resolves.toEqual({
+        success: true,
+      });
+      expect(await visibleLinks()).toEqual([]);
+    });
+
     it("puts a scheduled link on and off the page at its time, from the cached rows", async () => {
       const start = new Date("2026-11-20T12:00:00.000Z");
       vi.useFakeTimers({ toFake: ["Date"] });

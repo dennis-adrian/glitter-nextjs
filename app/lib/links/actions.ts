@@ -52,7 +52,8 @@ function canManageLinks(role: string | null | undefined) {
 
 /**
  * Puts a change on `/links` at once: expires the cached rows the page is
- * built from, then the page itself. Called after the write has committed.
+ * built from, then the page itself. Called right after the write has
+ * committed, before any cleanup that could fail and skip it.
  */
 function invalidateLinks() {
   expireSharedCache(SHARED_CACHE_TAGS.siteLinks);
@@ -399,12 +400,12 @@ export async function updateSiteLink(
     .where(and(eq(siteLinks.id, id), eq(siteLinks.kind, "link")))
     .returning({ id: siteLinks.id });
   if (!updated) return { success: false, message: "Enlace no encontrado." };
+  // The page changes first: a cleanup that fails must not leave it stale.
+  invalidateLinks();
   // The thumbnail it had is no longer shown anywhere.
   if (previous?.imageUrl && previous.imageUrl !== input.imageUrl) {
     await removeUnusedLinkImage(previous.imageUrl);
   }
-
-  invalidateLinks();
   return { success: true };
 }
 
@@ -440,8 +441,8 @@ export async function deleteSiteLink(id: number): Promise<ActionResult> {
   if (deleted.length === 0) {
     return { success: false, message: "Enlace no encontrado." };
   }
-  await removeUnusedLinkImage(deleted[0].imageUrl);
   invalidateLinks();
+  await removeUnusedLinkImage(deleted[0].imageUrl);
   return { success: true };
 }
 
@@ -577,10 +578,10 @@ export async function updateLinksHeader(
       target: siteLinksSettings.id,
       set: { ...header, updatedAt: new Date() },
     });
+  invalidateLinks();
   // The picture it had is no longer shown anywhere.
   if (previous?.avatarUrl && previous.avatarUrl !== avatarUrl) {
     await removeUnusedLinkImage(previous.avatarUrl);
   }
-  invalidateLinks();
   return { success: true };
 }

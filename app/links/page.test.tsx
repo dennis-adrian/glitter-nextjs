@@ -4,10 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_LINKS_HEADER } from "@/app/lib/links/definitions";
 
 const fetchLinksPageMock = vi.hoisted(() => vi.fn());
+const connectionMock = vi.hoisted(() => vi.fn(async () => undefined));
 
 vi.mock("@/app/lib/links/queries", () => ({
   fetchLinksPage: fetchLinksPageMock,
 }));
+vi.mock("next/server", () => ({ connection: connectionMock }));
 vi.mock("@/app/lib/config", () => ({ getEnvLabel: () => "[Dev]" }));
 
 import LinksPage, * as page from "@/app/links/page";
@@ -30,10 +32,12 @@ describe("/links", () => {
     header: { ...DEFAULT_LINKS_HEADER, title: "Glitter links" },
   });
 
-  it("is rebuilt from the cache often enough for a schedule to land within a minute", () => {
-    expect(page.revalidate).toBeGreaterThan(0);
-    expect(page.revalidate).toBeLessThanOrEqual(30);
-    expect(page).not.toHaveProperty("dynamic");
+  it("is rendered per visit, so schedules hold after a quiet spell", async () => {
+    // A cached (ISR) page would serve the last visitor's links to the next.
+    expect(page).not.toHaveProperty("revalidate");
+    connectionMock.mockClear();
+    await LinksPage();
+    expect(connectionMock).toHaveBeenCalled();
   });
 
   it("titles itself from the header", async () => {

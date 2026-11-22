@@ -17,9 +17,10 @@ import { Toaster } from "@/components/ui/sonner";
 
 /**
  * The site around a page: the installed app's tags, Clerk, the navbar (with
- * the app shell inside it), the page in `main`, and the footer. The `(site)`
- * group's layout wraps every page in it; the root 404 wraps its message in it
- * too, since it renders outside that group.
+ * the app shell inside it), the page in `main`, and the footer. Only the
+ * `(site)` group's layout renders it. The root 404 (`app/not-found.tsx`)
+ * must not: Next sends that file with every page, `/links` included, so
+ * wrapping it here would put Clerk and the navbar back on every page.
  */
 export default function SiteChrome({
   children,
