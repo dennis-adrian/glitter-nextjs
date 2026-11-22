@@ -40,8 +40,15 @@ describe("/links", () => {
     expect(connectionMock).toHaveBeenCalled();
   });
 
-  it("titles itself from the header", async () => {
+  it("titles itself from the header, never at build time", async () => {
+    connectionMock.mockClear();
+    fetchLinksPageMock.mockClear();
     const metadata = await page.generateMetadata();
+    // Before the read, or the build prerenders it from the database.
+    expect(connectionMock).toHaveBeenCalled();
+    expect(connectionMock.mock.invocationCallOrder[0]).toBeLessThan(
+      fetchLinksPageMock.mock.invocationCallOrder[0],
+    );
     expect(metadata.title).toEqual({
       absolute: "[Dev] Glitter links | Productora Glitter",
     });

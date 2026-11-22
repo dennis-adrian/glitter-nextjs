@@ -8,6 +8,10 @@ import { fetchLinksPage } from "@/app/lib/links/queries";
 
 /** The header the dashboard set names the page, here and when it is shared. */
 export async function generateMetadata(): Promise<Metadata> {
+  // Ahead of the read, like the page's own: Next runs this first, and
+  // without it `next build` would try to prerender the page and read the
+  // database (and fail the build where there is none).
+  await connection();
   const { header } = await fetchLinksPage();
   return linksPageMetadata(header, getEnvLabel());
 }
