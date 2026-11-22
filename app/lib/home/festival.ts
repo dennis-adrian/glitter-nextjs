@@ -1,29 +1,21 @@
+import {
+  festivalDayRuns,
+  formatFestivalDayRuns,
+} from "@/app/lib/festival-days";
 import { formatDisplayDate } from "@/app/lib/formatters";
 import type { HubStatus } from "@/app/lib/participations/hub-status";
 
 /**
  * "14 y 15 de noviembre", "14 al 16 de noviembre", "31 de octubre y 1 de
- * noviembre": the festival's days as a person says them, in Bolivia time.
+ * noviembre", "18 al 20 y 27 de diciembre": the festival's days as a person
+ * says them, in Bolivia time, without bridging a gap between days.
  */
 export function formatFestivalDays(
   dates: readonly { startDate: Date }[],
 ): string {
-  const days = [...dates]
-    .map((date) => date.startDate)
-    .sort((a, b) => a.getTime() - b.getTime());
-  if (days.length === 0) return "";
-
-  const day = (date: Date) => formatDisplayDate(date, { day: "numeric" });
-  const month = (date: Date) => formatDisplayDate(date, { month: "long" });
-  const first = days[0];
-  const last = days[days.length - 1];
-
-  if (days.length === 1) return `${day(first)} de ${month(first)}`;
-  const joiner = days.length === 2 ? "y" : "al";
-  if (month(first) === month(last)) {
-    return `${day(first)} ${joiner} ${day(last)} de ${month(last)}`;
-  }
-  return `${day(first)} de ${month(first)} ${joiner} ${day(last)} de ${month(last)}`;
+  return formatFestivalDayRuns(
+    festivalDayRuns(dates.map((date) => date.startDate)),
+  );
 }
 
 /** "faltan 21 días", "falta 1 día", or nothing once it started. */

@@ -6,12 +6,22 @@ const sanctionFindFirstMock = vi.hoisted(() => vi.fn());
 const userFindFirstMock = vi.hoisted(() => vi.fn());
 const mirrorMock = vi.hoisted(() => vi.fn());
 const dbMock = vi.hoisted(() => ({}) as Record<string, unknown>);
+// What the hydration reads back, under its lock, as the profile's address.
+const lockedEmail = vi.hoisted(() => ({ rows: [] as { email: string }[] }));
+const selectMock = vi.hoisted(() =>
+  vi.fn(() => ({
+    from: () => ({
+      where: () => ({ limit: () => ({ for: async () => lockedEmail.rows }) }),
+    }),
+  })),
+);
 
 vi.mock("@/db", () => ({
   db: Object.assign(dbMock, {
     // Hydration commits the snapshot and its inbox copy in one transaction.
     transaction: (callback: (tx: unknown) => unknown) => callback(dbMock),
     update: updateMock,
+    select: selectMock,
     query: {
       sanctions: {
         findFirst: sanctionFindFirstMock,
@@ -268,6 +278,7 @@ describe("disciplinary notification worker", () => {
       sanctionInfractions: [],
     });
     userFindFirstMock.mockResolvedValue(payload.profile);
+    lockedEmail.rows = [{ email: payload.profile.email }];
     sendEmailMock.mockResolvedValue({
       data: { id: "email-2" },
       error: null,
@@ -296,5 +307,83 @@ describe("disciplinary notification worker", () => {
       userId: payload.profile.id,
       payload: preparedPayload,
     });
+  });
+  it("hydrates a retry with the address the profile has under the lock", async () => {
+    const retryJob = {
+      ...job,
+      id: 93,
+      deduplicationKey: "sanction:12:expired",
+      userId: null,
+      entityType: "sanction",
+      entityId: 12,
+      notificationKind: "expired",
+      recipientEmail: "",
+      payload: {
+        entityType: "sanction_enqueue_retry",
+        sanctionId: 12,
+        kind: "expired",
+        participantNote: null,
+        festivalName: null,
+        reservationEligibleAt: null,
+      },
+    };
+    const moved = "participant.nueva@example.com";
+    const writtenValues: Array<Record<string, unknown>> = [];
+    mockUpdateResults(
+      [
+        [retryJob],
+        [
+          {
+            ...retryJob,
+            userId: payload.profile.id,
+            recipientEmail: moved,
+            payload: {
+              entityType: "sanction",
+              kind: "expired",
+              profile: { ...payload.profile, email: moved },
+              sanctionId: 12,
+              typeLabel: "Ban",
+              statusLabel: "Expirada",
+              scopeLabel: "Global",
+              infractionLabels: [],
+              participantNote: null,
+              festivalName: null,
+              reservationEligibleAt: null,
+            },
+          },
+        ],
+        [{ id: retryJob.id }],
+      ],
+      writtenValues,
+    );
+    sanctionFindFirstMock.mockResolvedValue({
+      id: 12,
+      userId: payload.profile.id,
+      type: "ban",
+      status: "expired",
+      festivalScope: "global",
+      sanctionInfractions: [],
+    });
+    // The snapshot read the old address; an email change committed since.
+    userFindFirstMock.mockResolvedValue(payload.profile);
+    lockedEmail.rows = [{ email: moved }];
+    sendEmailMock.mockResolvedValue({ data: { id: "email-3" }, error: null });
+
+    await expect(
+      attemptDisciplinaryNotificationJob(retryJob.id),
+    ).resolves.toMatchObject({ success: true, outcome: "completed" });
+
+    expect(writtenValues[1]).toMatchObject({
+      recipientEmail: moved,
+      payload: { profile: { email: moved } },
+    });
+    expect(mirrorMock).toHaveBeenCalledWith(
+      dbMock,
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          profile: expect.objectContaining({ email: moved }),
+        }),
+      }),
+    );
   });
 });

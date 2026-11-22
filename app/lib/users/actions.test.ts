@@ -1109,4 +1109,20 @@ describe("createUserProfile", () => {
       imageUrl: "https://img.clerk.com/ana",
     });
   });
+
+  it("snapshots the primary address, not the first one listed", async () => {
+    clerkUserMock.mockResolvedValue({
+      ...CLERK_USER,
+      emailAddresses: [
+        { emailAddress: "vieja@example.com" },
+        { emailAddress: "ana@example.com" },
+      ],
+      primaryEmailAddress: { emailAddress: "ana@example.com" },
+    });
+    const inserted = captureInsert();
+
+    await expect(createUserProfile()).resolves.toMatchObject({ success: true });
+
+    expect(inserted[0]).toMatchObject({ email: "ana@example.com" });
+  });
 });

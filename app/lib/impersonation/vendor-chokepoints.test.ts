@@ -10,43 +10,75 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { viewState, refuseMock, clerk, sendNotificationMock } = vi.hoisted(
-  () => {
-    const viewState = { viewing: true };
-    class Refusal extends Error {
-      readonly code = "IMPERSONATION_READ_ONLY";
-    }
-    return {
-      viewState,
-      refuseMock: vi.fn(async () => {
-        if (viewState.viewing) throw new Refusal("solo lectura");
-      }),
-      clerk: {
-        getUser: vi.fn(async () => ({ id: "user_ana" })),
-        deleteUser: vi.fn(async () => ({})),
-      },
-      sendNotificationMock: vi.fn(async () => ({ statusCode: 201, headers: {} })),
-    };
-  },
-);
+const {
+  viewState,
+  refuseMock,
+  clerk,
+  clerkEmails,
+  clerkSessions,
+  sendNotificationMock,
+} = vi.hoisted(() => {
+  const viewState = { viewing: true };
+  class Refusal extends Error {
+    readonly code = "IMPERSONATION_READ_ONLY";
+  }
+  return {
+    viewState,
+    refuseMock: vi.fn(async () => {
+      if (viewState.viewing) throw new Refusal("solo lectura");
+    }),
+    clerk: {
+      getUser: vi.fn(async () => ({ id: "user_ana" })),
+      deleteUser: vi.fn(async () => ({})),
+      getUserList: vi.fn(async () => ({ data: [], totalCount: 0 })),
+      deleteUserExternalAccount: vi.fn(async () => ({})),
+    },
+    clerkEmails: {
+      createEmailAddress: vi.fn(async () => ({ id: "idn_new" })),
+      updateEmailAddress: vi.fn(async () => ({})),
+      deleteEmailAddress: vi.fn(async () => ({})),
+    },
+    clerkSessions: {
+      getSessionList: vi.fn(async () => ({ data: [], totalCount: 0 })),
+      revokeSession: vi.fn(async () => ({})),
+    },
+    sendNotificationMock: vi.fn(async () => ({
+      statusCode: 201,
+      headers: {},
+    })),
+  };
+});
 
 vi.mock("@/db/write-guard", () => ({ refuseDuringView: refuseMock }));
 vi.mock("@clerk/nextjs/server", () => ({
-  clerkClient: async () => ({ users: clerk }),
+  clerkClient: async () => ({
+    users: clerk,
+    emailAddresses: clerkEmails,
+    sessions: clerkSessions,
+  }),
 }));
 vi.mock("web-push", () => ({
   default: { sendNotification: sendNotificationMock },
 }));
 
 import { guardUTApi } from "@/app/server/uploadthing";
-import { deleteClerkUser } from "@/app/lib/users/clerk";
+import {
+  changeClerkUserEmail,
+  deleteClerkUser,
+  revokeClerkSessionsBefore,
+} from "@/app/lib/users/clerk";
 import { sendPush } from "@/app/vendors/web-push";
 
 beforeEach(() => {
   viewState.viewing = true;
   refuseMock.mockClear();
-  clerk.getUser.mockClear();
-  clerk.deleteUser.mockClear();
+  for (const mock of [
+    ...Object.values(clerk),
+    ...Object.values(clerkEmails),
+    ...Object.values(clerkSessions),
+  ]) {
+    mock.mockClear();
+  }
   sendNotificationMock.mockClear();
 });
 
@@ -126,6 +158,43 @@ describe("Clerk during a view", () => {
       status: "deleted",
     });
     expect(clerk.deleteUser).toHaveBeenCalledWith("user_ana");
+  });
+});
+
+describe("Clerk email change during a view", () => {
+  it("refuses before Clerk is asked", async () => {
+    await expect(
+      changeClerkUserEmail("user_ana", "nueva@example.com"),
+    ).rejects.toMatchObject({ code: "IMPERSONATION_READ_ONLY" });
+    for (const mock of [
+      ...Object.values(clerk),
+      ...Object.values(clerkEmails),
+    ]) {
+      expect(mock).not.toHaveBeenCalled();
+    }
+  });
+});
+
+describe("Clerk sessions during a view", () => {
+  it("refuses to close sessions before Clerk is asked", async () => {
+    await expect(
+      revokeClerkSessionsBefore("user_ana", Date.now()),
+    ).rejects.toMatchObject({ code: "IMPERSONATION_READ_ONLY" });
+    for (const mock of Object.values(clerkSessions)) {
+      expect(mock).not.toHaveBeenCalled();
+    }
+  });
+
+  it("closes them outside a view", async () => {
+    viewState.viewing = false;
+    clerkSessions.getSessionList.mockResolvedValueOnce({
+      data: [{ id: "sess_old", createdAt: 1 }],
+      totalCount: 1,
+    } as never);
+    await expect(
+      revokeClerkSessionsBefore("user_ana", Date.now()),
+    ).resolves.toEqual({ revoked: 1, failed: 0 });
+    expect(clerkSessions.revokeSession).toHaveBeenCalledWith("sess_old");
   });
 });
 

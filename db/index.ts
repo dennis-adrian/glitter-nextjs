@@ -40,6 +40,14 @@ function redactQueryParams(query: string, params: unknown[]): unknown[] {
     );
   }
 
+  // A volunteer application is a stranger's name, birth date, phones, email
+  // and free text, and nothing in its params is worth reading in a log.
+  if (/volunteer_applications/i.test(query)) {
+    return params.map((param) =>
+      typeof param === "string" ? "[REDACTED_VOLUNTEER]" : param,
+    );
+  }
+
   if (!/external_participants/i.test(query)) {
     return params;
   }

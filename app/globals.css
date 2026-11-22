@@ -920,6 +920,19 @@ html:has([data-vaul-drawer], [data-drawer-ghost]) {
   }
 }
 
+/* A bare page ([data-bare-page], such as the volunteer application form)
+ * stands alone: no site header, and with it no announcement strip, sidebar or
+ * tab bar, which all live inside the navbar's box. The sidebar is still in
+ * the document, so the room `main` leaves for it is taken back. (/links needs
+ * none of this: it sits outside the (site) group and has no header at all.) */
+body:has([data-bare-page]) > [data-site-navbar] {
+  display: none;
+}
+
+body:has([data-bare-page]):has([data-app-sidebar]) > main {
+  margin-left: 0;
+}
+
 body:has([data-app-tabbar]) {
   @variant standalone {
     @variant max-lg {

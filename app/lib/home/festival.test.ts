@@ -18,10 +18,59 @@ describe("formatFestivalDays", () => {
 
   it("uses «al» for a longer run and names both months across a month", () => {
     expect(
-      formatFestivalDays([day("2026-11-14"), day("2026-11-15"), day("2026-11-16")]),
+      formatFestivalDays([
+        day("2026-11-14"),
+        day("2026-11-15"),
+        day("2026-11-16"),
+      ]),
     ).toBe("14 al 16 de noviembre");
     expect(formatFestivalDays([day("2026-10-31"), day("2026-11-01")])).toBe(
       "31 de octubre y 1 de noviembre",
+    );
+  });
+
+  it("never bridges a gap between days", () => {
+    expect(
+      formatFestivalDays([
+        day("2026-12-12"),
+        day("2026-12-13"),
+        day("2026-12-19"),
+      ]),
+    ).toBe("12, 13 y 19 de diciembre");
+    expect(
+      formatFestivalDays([
+        day("2026-12-27"),
+        day("2026-12-18"),
+        day("2026-12-19"),
+        day("2026-12-20"),
+      ]),
+    ).toBe("18 al 20 y 27 de diciembre");
+    expect(formatFestivalDays([day("2026-12-19"), day("2026-12-21")])).toBe(
+      "19 y 21 de diciembre",
+    );
+  });
+
+  it("names the earlier month first when runs cross a month", () => {
+    expect(
+      formatFestivalDays([
+        day("2026-11-28"),
+        day("2026-12-05"),
+        day("2026-12-06"),
+      ]),
+    ).toBe("28 de noviembre, 5 y 6 de diciembre");
+    expect(
+      formatFestivalDays([
+        day("2026-11-29"),
+        day("2026-11-30"),
+        day("2026-12-01"),
+        day("2026-12-05"),
+      ]),
+    ).toBe("29 de noviembre al 1 de diciembre y 5 de diciembre");
+  });
+
+  it("counts a repeated day once", () => {
+    expect(formatFestivalDays([day("2026-11-14"), day("2026-11-14")])).toBe(
+      "14 de noviembre",
     );
   });
 

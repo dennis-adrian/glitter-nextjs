@@ -228,6 +228,18 @@ describe("the links manager", () => {
     expect(preview.queryByText("Correo")).toBeNull();
   });
 
+  it("never marks the dashboard as the bare page, with its preview in it", () => {
+    // `[data-bare-page]` takes the site header off whatever page holds it
+    // (app/globals.css). The preview of /links must not carry it.
+    renderManager();
+    expect(document.querySelector("[data-bare-page]")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Vista previa/ }));
+    expect(
+      within(screen.getByRole("dialog")).getByText("Productora Glitter"),
+    ).toBeTruthy();
+    expect(document.querySelector("[data-bare-page]")).toBeNull();
+  });
+
   describe("the position picker and the saved position", () => {
     const manager = (position: "top" | "bottom", links = LINKS) => (
       <LinksManager

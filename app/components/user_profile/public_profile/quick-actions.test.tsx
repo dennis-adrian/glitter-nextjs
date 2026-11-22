@@ -2,6 +2,9 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // The modals import server actions; the menu is what is under test.
+vi.mock("@/app/components/users/form/change-email-modal", () => ({
+  ChangeEmailModal: () => null,
+}));
 vi.mock("@/app/components/users/form/delete-profile-modal", () => ({
   DeleteProfileModal: () => null,
 }));
@@ -53,9 +56,15 @@ afterEach(cleanup);
 
 describe("ProfileQuickActions lifecycle entries", () => {
   it.each([
-    ["pending", ["Verificar", "Rechazar", "Eliminar"]],
-    ["verified", ["Deshabilitar", "Pausar cuenta", "Eliminar"]],
-    ["paused", ["Deshabilitar", "Reactivar cuenta", "Eliminar"]],
+    ["pending", ["Verificar", "Rechazar", "Cambiar correo", "Eliminar"]],
+    [
+      "verified",
+      ["Deshabilitar", "Pausar cuenta", "Cambiar correo", "Eliminar"],
+    ],
+    [
+      "paused",
+      ["Deshabilitar", "Reactivar cuenta", "Cambiar correo", "Eliminar"],
+    ],
   ] as const)(
     "shows them disabled with the reason to a festival admin (%s profile)",
     (status, entries) => {
@@ -69,9 +78,15 @@ describe("ProfileQuickActions lifecycle entries", () => {
   );
 
   it.each([
-    ["pending", ["Verificar", "Rechazar", "Eliminar"]],
-    ["verified", ["Deshabilitar", "Pausar cuenta", "Eliminar"]],
-    ["paused", ["Deshabilitar", "Reactivar cuenta", "Eliminar"]],
+    ["pending", ["Verificar", "Rechazar", "Cambiar correo", "Eliminar"]],
+    [
+      "verified",
+      ["Deshabilitar", "Pausar cuenta", "Cambiar correo", "Eliminar"],
+    ],
+    [
+      "paused",
+      ["Deshabilitar", "Reactivar cuenta", "Cambiar correo", "Eliminar"],
+    ],
   ] as const)(
     "leaves them enabled for an admin (%s profile)",
     (status, entries) => {
