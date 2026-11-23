@@ -123,14 +123,51 @@ export default function VolunteerShiftAssignScreen({
 
   const initialRole = (candidate: VolunteerShiftCandidate) =>
     candidate.assignedRoleId ?? defaultAssignedRoleId(candidate, activeRoleIds);
-  const [chosen, setChosen] = useState<Map<number, number | null>>(
+  /** Active roles, and an inactive one only as the one they already have. */
+  const offers = (
+    candidate: VolunteerShiftCandidate,
+    role: VolunteerTaskCall["roles"][number],
+  ) => role.isActive || role.id === candidate.assignedRoleId;
+  /**
+   * The ticked people, each with the role picked for them. Undefined until a
+   * role other than the one shown is picked (choosing the shown one again
+   * fires no change), so the save keeps the role they have by then.
+   */
+  const [chosen, setChosen] = useState<Map<number, number | undefined>>(
     () => new Map(),
   );
+  // A refresh can drop someone ticked (assigned meanwhile, no longer
+  // marking it), and a role picked for them (deactivated meanwhile): those
+  // picks go, so the count, the selects and the save match what is shown.
+  const [seen, setSeen] = useState({ candidates: detail.candidates, roles });
+  if (seen.candidates !== detail.candidates || seen.roles !== roles) {
+    setSeen({ candidates: detail.candidates, roles });
+    const shown = new Map(
+      accepted.map((candidate) => [candidate.applicationId, candidate]),
+    );
+    const kept = new Map<number, number | undefined>();
+    for (const [applicationId, roleId] of chosen) {
+      const candidate = shown.get(applicationId);
+      if (!candidate) continue;
+      const stillOffered =
+        roleId === undefined ||
+        roles.some((role) => role.id === roleId && offers(candidate, role));
+      kept.set(applicationId, stillOffered ? roleId : undefined);
+    }
+    if (
+      kept.size !== chosen.size ||
+      [...kept].some(
+        ([applicationId, roleId]) => chosen.get(applicationId) !== roleId,
+      )
+    ) {
+      setChosen(kept);
+    }
+  }
 
   const toggle = (candidate: VolunteerShiftCandidate, checked: boolean) =>
     setChosen((current) => {
       const next = new Map(current);
-      if (checked) next.set(candidate.applicationId, initialRole(candidate));
+      if (checked) next.set(candidate.applicationId, undefined);
       else next.delete(candidate.applicationId);
       return next;
     });
@@ -142,10 +179,9 @@ export default function VolunteerShiftAssignScreen({
       const result = await assignVolunteersToShift({
         festivalId,
         shiftId: shift.id,
-        people: [...chosen.entries()].map(([applicationId, roleId]) => ({
-          applicationId,
-          roleId,
-        })),
+        people: [...chosen.entries()].map(([applicationId, roleId]) =>
+          roleId === undefined ? { applicationId } : { applicationId, roleId },
+        ),
       });
       if (!result.success) {
         toast.error(result.message);
@@ -199,7 +235,7 @@ export default function VolunteerShiftAssignScreen({
           ? 1
           : 2;
     return roles
-      .filter((role) => role.isActive || role.id === candidate.assignedRoleId)
+      .filter((role) => offers(candidate, role))
       .sort((a, b) => rank(a.id) - rank(b.id))
       .map((role) => ({
         id: role.id,
@@ -334,13 +370,14 @@ export default function VolunteerShiftAssignScreen({
             <ul className="flex flex-col gap-2">
               {accepted.map((candidate) => {
                 const checked = chosen.has(candidate.applicationId);
-                const roleId = chosen.get(candidate.applicationId) ?? null;
+                const roleId =
+                  chosen.get(candidate.applicationId) ?? initialRole(candidate);
                 return (
                   <li key={candidate.applicationId}>
                     <ChoiceRow
                       id={`shift-candidate-${candidate.applicationId}`}
                       checked={checked}
-                      disabled={!detail.shift.isActive}
+                      disabled={isSaving || !detail.shift.isActive}
                       onCheckedChange={(value) => toggle(candidate, value)}
                       label={candidate.fullName}
                       below={
@@ -350,10 +387,11 @@ export default function VolunteerShiftAssignScreen({
                             onValueChange={(value) =>
                               setRole(candidate.applicationId, Number(value))
                             }
+                            disabled={isSaving}
                           >
                             <SelectTrigger
                               aria-label={`Rol de ${candidate.fullName}`}
-                              className="h-auto min-h-10 w-full text-left whitespace-normal"
+                              className="h-auto min-h-10 w-full text-left whitespace-normal break-words [&>span]:line-clamp-none"
                             >
                               <SelectValue placeholder="Elegí un rol" />
                             </SelectTrigger>

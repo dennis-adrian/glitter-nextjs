@@ -504,6 +504,52 @@ describeDatabase("volunteer admin", () => {
       expect((await storedApplication(applicationId)).status).toBe("rejected");
     });
 
+    it("never repeats an updatedAt, so an undo after a write in the same millisecond is refused", async () => {
+      const call = await createCall();
+      const applicationId = await insertApplication(call);
+      const inserted = (await storedApplication(applicationId)).updatedAt;
+      // Every write below reads one clock, behind the row's: writes in one
+      // millisecond, or a server whose clock is behind.
+      vi.useFakeTimers({ toFake: ["Date"] });
+      try {
+        vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+        const first = await actions.decideVolunteerApplication({
+          festivalId: call.festivalId,
+          applicationId,
+          status: "accepted",
+        });
+        expect(first).toMatchObject({
+          success: true,
+          decidedAt: new Date(inserted.getTime() + 1).toISOString(),
+        });
+        // Another admin decides in the same millisecond.
+        expect(
+          await actions.decideVolunteerApplication({
+            festivalId: call.festivalId,
+            applicationId,
+            status: "rejected",
+          }),
+        ).toMatchObject({ success: true });
+        expect(
+          await actions.decideVolunteerApplication({
+            festivalId: call.festivalId,
+            applicationId,
+            status: "pending",
+            expectedUpdatedAt: first.success ? first.decidedAt : undefined,
+          }),
+        ).toEqual({
+          success: false,
+          message:
+            "Alguien más cambió esta postulación. Actualizá la página para ver los cambios.",
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+      const stored = await storedApplication(applicationId);
+      expect(stored.status).toBe("rejected");
+      expect(stored.updatedAt.getTime()).toBe(inserted.getTime() + 2);
+    });
+
     it("refuses an unknown status with the schema's message", async () => {
       const call = await createCall();
       const applicationId = await insertApplication(call);
@@ -2405,6 +2451,146 @@ describeDatabase("volunteer admin", () => {
         message: "Rita: No se puede asignar una postulación no aceptada.",
       });
       expect(await assignedShiftIds(accepted)).toEqual([]);
+    });
+
+    it("keeps the role someone has when none was picked", async () => {
+      const call = await createCall();
+      const shiftId = call.shiftIds[0]!;
+      // Given a role on their own screen after the shift screen loaded.
+      const ana = await insertApplication(call, {
+        fullName: "Ana",
+        status: "accepted",
+        assignedRoleId: call.roleIds[2]!,
+      });
+      // No role yet: their 1st choice.
+      const bruno = await insertApplication(call, {
+        fullName: "Bruno",
+        status: "accepted",
+        firstChoice: 1,
+        secondChoice: 2,
+      });
+      expect(
+        await actions.assignVolunteersToShift({
+          festivalId: call.festivalId,
+          shiftId,
+          people: [{ applicationId: ana }, { applicationId: bruno }],
+        }),
+      ).toEqual({ success: true, message: "Asignaste 2 personas." });
+      expect((await storedApplication(ana)).assignedRoleId).toBe(
+        call.roleIds[2],
+      );
+      expect((await storedApplication(bruno)).assignedRoleId).toBe(
+        call.roleIds[1],
+      );
+      expect(await assignedShiftIds(ana)).toEqual([shiftId]);
+      expect(await assignedShiftIds(bruno)).toEqual([shiftId]);
+    });
+
+    it("refuses the whole batch when someone no longer marks the shift", async () => {
+      const call = await createCall();
+      const shiftId = call.shiftIds[1]!;
+      const dora = await insertApplication(call, {
+        status: "accepted",
+        available: [shiftId],
+      });
+      // Unmarked since the shift screen loaded.
+      const carla = await insertApplication(call, {
+        fullName: "Carla",
+        status: "accepted",
+        available: [call.shiftIds[0]!],
+      });
+      expect(
+        await actions.assignVolunteersToShift({
+          festivalId: call.festivalId,
+          shiftId,
+          people: [
+            { applicationId: dora, roleId: call.roleIds[0]! },
+            { applicationId: carla, roleId: call.roleIds[0]! },
+          ],
+        }),
+      ).toEqual({
+        success: false,
+        message: "Carla ya no puede cubrir este turno. Actualizá la página.",
+      });
+      expect(await assignedShiftIds(dora)).toEqual([]);
+      expect(await assignedShiftIds(carla)).toEqual([]);
+    });
+
+    it("leaves someone assigned to the shift since the screen loaded as they are", async () => {
+      const call = await createCall();
+      const shiftId = call.shiftIds[0]!;
+      const held = await insertApplication(call, {
+        fullName: "Elena",
+        status: "accepted",
+        assignedRoleId: call.roleIds[0]!,
+        assigned: [shiftId],
+      });
+      const before = await storedApplication(held);
+      const other = await insertApplication(call, { status: "accepted" });
+      expect(
+        await actions.assignVolunteersToShift({
+          festivalId: call.festivalId,
+          shiftId,
+          people: [
+            { applicationId: held, roleId: call.roleIds[2]! },
+            { applicationId: other, roleId: call.roleIds[1]! },
+          ],
+        }),
+      ).toEqual({ success: true, message: "Asignaste 1 persona." });
+      const after = await storedApplication(held);
+      expect(after.assignedRoleId).toBe(call.roleIds[0]);
+      expect(after.updatedAt).toEqual(before.updatedAt);
+      expect(after.reviewedAt).toEqual(before.reviewedAt);
+      expect(await assignedShiftIds(held)).toEqual([shiftId]);
+      expect((await storedApplication(other)).assignedRoleId).toBe(
+        call.roleIds[1],
+      );
+
+      expect(
+        await actions.assignVolunteersToShift({
+          festivalId: call.festivalId,
+          shiftId,
+          people: [{ applicationId: held, roleId: call.roleIds[2]! }],
+        }),
+      ).toEqual({ success: true, message: "Asignaste 0 personas." });
+      expect((await storedApplication(held)).assignedRoleId).toBe(
+        call.roleIds[0],
+      );
+    });
+
+    it("names who was picked a role deactivated since, and assigns no one", async () => {
+      const call = await createCall();
+      const shiftId = call.shiftIds[0]!;
+      const ana = await insertApplication(call, {
+        fullName: "Ana",
+        status: "accepted",
+      });
+      const bruno = await insertApplication(call, {
+        fullName: "Bruno",
+        status: "accepted",
+      });
+      expect(
+        await actions.setVolunteerRoleActive({
+          festivalId: call.festivalId,
+          id: call.roleIds[2]!,
+          isActive: false,
+        }),
+      ).toMatchObject({ success: true });
+      expect(
+        await actions.assignVolunteersToShift({
+          festivalId: call.festivalId,
+          shiftId,
+          people: [
+            { applicationId: ana },
+            { applicationId: bruno, roleId: call.roleIds[2]! },
+          ],
+        }),
+      ).toEqual({
+        success: false,
+        message: "Bruno: Ese rol ya no está disponible. Actualizá la página.",
+      });
+      expect(await assignedShiftIds(ana)).toEqual([]);
+      expect(await assignedShiftIds(bruno)).toEqual([]);
     });
 
     it("saves one person's role and shifts, refusing a stale screen", async () => {

@@ -65,7 +65,8 @@ function PersonCard({
           <>
             <span className="break-words text-muted-foreground">
               {person.assignedRoleName ?? "Sin rol"} ·{" "}
-              {plural(held.length, "turno", "turnos")} de {marked} que puede
+              {plural(held.length, "turno asignado", "turnos asignados")} ·
+              puede {plural(marked, "turno", "turnos")}
             </span>
             <span className="break-words">
               {held.map(formatShiftStartShort).join(" · ")}

@@ -260,7 +260,7 @@ function AssignmentForm({
           >
             <SelectTrigger
               id="person-role"
-              className="h-auto min-h-10 w-full text-left whitespace-normal"
+              className="h-auto min-h-10 w-full text-left whitespace-normal break-words [&>span]:line-clamp-none"
             >
               <SelectValue placeholder="Elegí un rol" />
             </SelectTrigger>

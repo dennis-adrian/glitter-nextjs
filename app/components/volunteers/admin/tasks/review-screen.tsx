@@ -211,6 +211,8 @@ export default function VolunteerReviewScreen({
         applicationId: application.id,
         status,
         note,
+        // Refused if someone decided it since this screen loaded.
+        expectedUpdatedAt: application.updatedAt.toISOString(),
       });
       if (!result.success) {
         toast.error(result.message);
