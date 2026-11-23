@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
+import { inSiteChrome } from "@/app/lib/site-chrome";
+
 import { announceNotificationsChanged } from "@/app/components/notifications/notification-events";
 import {
   SENSITIVE_PUSH_BODY,
@@ -145,9 +147,14 @@ async function freshSession(): Promise<boolean> {
   ]);
 }
 
-/** Goes to `href` inside the app, or with a full load of `fallback`. */
+/**
+ * Goes to `href` inside the app, or with a full load of `fallback`. Always
+ * the full load outside the site's layout (`/links`, the root 404): Clerk is
+ * not there to renew the session, and the site's header renders on the
+ * server that way.
+ */
 async function go(page: PageState, href: string, fallback: string) {
-  if (await freshSession()) {
+  if (inSiteChrome() && (await freshSession())) {
     page.router.push(href);
     return true;
   }
@@ -250,6 +257,9 @@ function offerArrivals(
   mayBeMore = false,
 ) {
   if (page.leaving) return;
+  // No toasts are mounted outside the site's layout: leave them unoffered,
+  // for a page that can show them.
+  if (!inSiteChrome()) return;
   if (window.location.pathname === "/my_notifications") return;
   const opened = openedNotificationId(document.cookie);
   const fresh: Arrival[] = [];

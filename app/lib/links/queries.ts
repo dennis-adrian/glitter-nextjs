@@ -59,9 +59,11 @@ type LinksPageRows = {
  * The lifetime is short on purpose. A read that started before a save
  * committed and ends after the expiry is stored as new (the cache dates an
  * entry by when it is written), so it would serve the rows from before the
- * save; half a minute bounds that, and any change made outside the dashboard.
- * At most one read per lifetime still reaches the database, however many
- * visits there are.
+ * save, as would a change made outside the dashboard. The lifetime bounds
+ * that, though not strictly: past it, the next visit still gets the old rows
+ * once while they are read again in the background, however late it comes,
+ * and the visit after it gets the new ones. At most one read per lifetime
+ * reaches the database, however many visits there are.
  *
  * The schedules are not applied here: the rows stay the same while links come
  * and go on their schedule, and the page applies them each time it renders.

@@ -1228,7 +1228,7 @@ describeDatabase("site links dashboard actions", () => {
       expect((await visibleLinks()).map((row) => row.kind)).toEqual(["social"]);
     });
 
-    it("still shows a write on the page when cleaning up its old image fails", async () => {
+    it("reports and shows a write when cleaning up its old image fails", async () => {
       const IMAGE = "https://abc123.ufs.sh/f/miniatura-1";
       const base = { label: "Quiz", href: "/quiz", icon: "link" };
       await actions.createSiteLink({ ...base, imageUrl: IMAGE });
@@ -1239,11 +1239,12 @@ describeDatabase("site links dashboard actions", () => {
       nextCache.revalidateTag.mockClear();
       revalidatePathMock.mockClear();
 
-      // The write lands, the cleanup after it throws…
+      // The write lands and is reported saved: the cleanup after it is
+      // best-effort…
       await expect(
         actions.updateSiteLink(link.id, { ...base, label: "Quiz nuevo" }),
-      ).rejects.toThrow("UploadThing caído");
-      // …and the page shows it all the same.
+      ).resolves.toEqual({ success: true });
+      // …and the page shows it.
       expect(nextCache.revalidateTag).toHaveBeenCalledWith("site-links", {
         expire: 0,
       });

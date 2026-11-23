@@ -208,16 +208,19 @@ describe("the site's layouts", () => {
 
   it("marks the installed app's window at the top of <body>, before anything paints", async () => {
     const body = await shellBody(sitePage, MARK_INSTALLED_APP_SCRIPT);
-    const elements = [...body.children];
-    const mark = elements.findIndex(
-      (element) => element.textContent === MARK_INSTALLED_APP_SCRIPT,
+    // Every node, text included: anything ahead of the mark could paint.
+    const nodes = [...body.childNodes];
+    const mark = nodes.findIndex(
+      (node) => node.textContent === MARK_INSTALLED_APP_SCRIPT,
     );
     // The theme's script comes first, so the real provider is in the tree.
     expect(mark).toBeGreaterThan(0);
-    expect(elements[mark].tagName).toBe("SCRIPT");
-    // Only scripts ahead of it (the theme's), nothing that paints.
-    expect(elements.slice(0, mark).map((element) => element.tagName)).toEqual(
-      elements.slice(0, mark).map(() => "SCRIPT"),
+    expect(nodes[mark].nodeName).toBe("SCRIPT");
+    // Only scripts ahead of it (the theme's), nothing that paints. The
+    // notification handler renders ahead of it too, and renders nothing
+    // (checked in service-worker-messages.test.tsx).
+    expect(nodes.slice(0, mark).map((node) => node.nodeName)).toEqual(
+      nodes.slice(0, mark).map(() => "SCRIPT"),
     );
   });
 

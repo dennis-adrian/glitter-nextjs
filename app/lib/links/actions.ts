@@ -67,9 +67,21 @@ function invalidateLinks() {
  * Deletes an image a write just let go of, unless a link or the header still
  * shows it: the actions accept any stored file, so two rows can hold the
  * same one. Runs after the write, so the row that dropped it is not counted.
+ *
+ * Best-effort: the write it follows has already been saved, so a failure
+ * here is logged and the save still reports success. The file is left
+ * behind, as when the storage refuses to delete it.
  */
 async function removeUnusedLinkImage(url: string | null | undefined) {
   if (!url) return;
+  try {
+    await removeLinkImageIfUnused(url);
+  } catch (error) {
+    console.error("link image: cleanup failed", error);
+  }
+}
+
+async function removeLinkImageIfUnused(url: string) {
   const [link] = await db
     .select({ id: siteLinks.id })
     .from(siteLinks)
