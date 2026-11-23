@@ -88,8 +88,8 @@ function commercialSignature(
 }
 
 function revalidateBundleViews() {
-  revalidatePath("/merch", "layout");
-  revalidatePath("/dashboard/store/bundles", "layout");
+  revalidatePath("/(site)/(routes)/(storefront)/merch", "layout");
+  revalidatePath("/(site)/dashboard/store/bundles", "layout");
 }
 
 export async function saveMerchBundle(

@@ -379,7 +379,7 @@ export async function changeUserEmail(
       : null;
 
     revalidatePath("/dashboard/users");
-    revalidatePath("/dashboard/users/[profileId]", "page");
+    revalidatePath("/(site)/dashboard/users/[profileId]", "page");
 
     const { description, needsFollowUp } = describeOutcome({
       unlinkedProviders: clerk.unlinkedProviders,

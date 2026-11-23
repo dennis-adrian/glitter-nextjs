@@ -21,7 +21,7 @@ vi.mock("@/app/lib/volunteers/admin-queries", () => ({
   fetchVolunteerApplicationsForExport,
 }));
 
-import { GET } from "@/app/dashboard/festivals/[id]/volunteers/export/route";
+import { GET } from "@/app/(site)/dashboard/festivals/[id]/volunteers/export/route";
 
 /** An instant from La Paz wall-clock time (UTC-4, no DST). */
 function laPaz(isoLocal: string) {

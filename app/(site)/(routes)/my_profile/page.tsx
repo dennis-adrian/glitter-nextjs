@@ -1,0 +1,45 @@
+import TryAgainForm from "@/app/(site)/(routes)/my_profile/try-again-form";
+import UserProfile from "@/app/components/pages/user-profile";
+import { UserProfileSkeleton } from "@/app/components/user_profile/skeleton";
+import { getViewerClerkId } from "@/app/lib/impersonation/viewer";
+import { cachedFetchUserProfileByClerkId } from "@/app/lib/users/queries";
+import { InfoIcon } from "lucide-react";
+import Link from "next/link";
+import { Suspense } from "react";
+
+export default async function Page() {
+  const clerkId = await getViewerClerkId();
+  if (!clerkId) return null;
+
+  const profile = await cachedFetchUserProfileByClerkId(clerkId);
+  if (!profile) {
+    return (
+      <div className="container p-3 md:p-6 flex flex-col gap-2">
+        <div className="flex flex-col gap-2 text-center items-center mt-40">
+          <InfoIcon className="w-16 h-16 text-amber-500" />
+          <h1 className="text-2xl font-bold">
+            No encontramos los datos de tu perfil
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Esto puede ser un error temporal. Intentá de nuevo con los mismos
+            datos o contactate con nuestro equipo de soporte en{" "}
+            <Link
+              className="underline text-blue-500 dark:text-blue-400"
+              href="mailto:soporte@productoraglitter.com"
+            >
+              soporte@productoraglitter.com
+            </Link>
+            .
+          </p>
+          <TryAgainForm />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Suspense fallback={<UserProfileSkeleton />}>
+      <UserProfile profile={profile} />
+    </Suspense>
+  );
+}

@@ -8,7 +8,6 @@ import { MailIcon } from "lucide-react";
 
 import GlitterLogo from "@/app/components/landing/glitter-logo";
 import BrandIcon from "@/app/components/brand-icon";
-import { LINKS_PATH } from "@/app/lib/links/definitions";
 import {
   VOLUNTEER_APPLY_PATH,
   VOLUNTEERS_PATH,
@@ -41,8 +40,6 @@ export default function Footer({
 
   if (signedIn) return null;
   if (pathname === "/") return null;
-  // The links page already is the list of socials and contact.
-  if (pathname === LINKS_PATH) return null;
   // The volunteer form is a focused flow with its own chrome.
   if (pathname === VOLUNTEER_APPLY_PATH) return null;
   // Admin screens are sized to the viewport; the site footer only pushes

@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import "@/env";
 
 import { REMOTE_IMAGE_HOST_PATTERNS } from "@/app/lib/images/remote-hosts";
+import { LEGACY_SHARE_IMAGE_ROUTES } from "@/app/lib/share-image-routes";
 
 const nextConfig: NextConfig = {
   async rewrites() {
@@ -18,6 +19,10 @@ const nextConfig: NextConfig = {
         source: "/presentaciones-en-vivo",
         destination: "/live-acts",
       },
+      ...LEGACY_SHARE_IMAGE_ROUTES.map(({ source, destination }) => ({
+        source,
+        destination,
+      })),
     ];
   },
   skipTrailingSlashRedirect: true,

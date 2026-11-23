@@ -9,6 +9,7 @@ const router = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 import { onNotificationsChanged } from "@/app/components/notifications/notification-events";
+import { SITE_CHROME_ATTRIBUTE } from "@/app/lib/site-chrome";
 import ServiceWorkerMessages, {
   pageLoad,
 } from "@/app/components/notifications/service-worker-messages";
@@ -37,6 +38,7 @@ let store: Map<string, string>;
 /** Whether the worker has made its cache yet; reading must not make it. */
 let cacheExists: boolean;
 let container: FakeContainer;
+let siteChrome: HTMLElement;
 /** The display mode an installed app reports, on any platform. */
 let standalone = false;
 let assign: ReturnType<typeof vi.spyOn>;
@@ -133,6 +135,10 @@ beforeEach(() => {
     matches: standalone && query === "(display-mode: standalone)",
   }));
   window.history.pushState({}, "", "/");
+  // A page of the site, with Clerk and the toasts (SiteChrome's marker).
+  siteChrome = document.createElement("div");
+  siteChrome.setAttribute(SITE_CHROME_ATTRIBUTE, "");
+  document.body.append(siteChrome);
   Object.defineProperty(document, "visibilityState", {
     configurable: true,
     value: "visible",
@@ -147,6 +153,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  siteChrome.remove();
   cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -426,6 +433,50 @@ describe("going to a tapped notification", () => {
 
     await send(openMessage());
     expect(toastMock.dismiss).toHaveBeenCalledWith("item:41");
+  });
+});
+
+describe("outside the site's layout (/links, the root 404)", () => {
+  beforeEach(() => {
+    siteChrome.remove();
+    iPhoneApp();
+  });
+
+  it("opens a tap with a full load, as Clerk is not there to renew the session", async () => {
+    render(<ServiceWorkerMessages />);
+    await settle();
+    await send(openMessage());
+    await settle();
+    expect(router.push).not.toHaveBeenCalled();
+    expect(assign).toHaveBeenCalledWith("/my_notifications/41/open");
+  });
+
+  it("offers nothing where no toast can show, and keeps it for a page that can", async () => {
+    render(<ServiceWorkerMessages />);
+    await settle();
+    const arrival = {
+      type: SW_NOTIFICATION_RECEIVED,
+      arrival: {
+        id: 41,
+        title: "Notificación 41",
+        body: "",
+        url: "/my_notifications/41/open",
+        href: ITEM_PAGE,
+        at: Date.now(),
+      },
+    };
+    await send(arrival);
+    expect(toastMock).not.toHaveBeenCalled();
+
+    // Back inside the site, the same window offers it after all.
+    document.body.append(siteChrome);
+    await send(arrival);
+    expect(toastMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders nothing, so nothing paints ahead of the page", () => {
+    const { container: root } = render(<ServiceWorkerMessages />);
+    expect(root.childNodes).toHaveLength(0);
   });
 });
 

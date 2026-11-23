@@ -311,7 +311,7 @@ export async function reviewPurchase(
       return { success: false, message: outcome.message };
     }
 
-    revalidatePath("/dashboard/programs", "layout");
+    revalidatePath("/(site)/dashboard/programs", "layout");
     revalidatePath(`/programs/purchases/${data.purchaseId}`);
 
     /**

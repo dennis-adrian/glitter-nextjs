@@ -135,21 +135,21 @@ async function applyWorkingToMain(
 }
 
 function invalidatePosts(opts: { slugs?: string[] } = {}) {
-  revalidatePath("/blog", "layout");
-  revalidatePath("/dashboard/blog", "layout");
-  revalidatePath("/portal/blog", "layout");
+  revalidatePath("/(site)/(routes)/blog", "layout");
+  revalidatePath("/(site)/dashboard/blog", "layout");
+  revalidatePath("/(site)/(routes)/portal/blog", "layout");
   for (const slug of opts.slugs ?? []) {
-    revalidatePath(`/blog/${slug}`, "page");
+    revalidatePath(`/blog/${slug}`);
   }
 }
 
 function invalidateCategories() {
-  revalidatePath("/blog", "layout");
-  revalidatePath("/dashboard/blog/categories", "page");
+  revalidatePath("/(site)/(routes)/blog", "layout");
+  revalidatePath("/(site)/dashboard/blog/categories", "page");
 }
 
 function invalidateTags() {
-  revalidatePath("/blog", "layout");
+  revalidatePath("/(site)/(routes)/blog", "layout");
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];

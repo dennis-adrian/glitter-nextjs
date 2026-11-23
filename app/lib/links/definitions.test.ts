@@ -5,6 +5,7 @@ import {
   isFeaturedCard,
   isSafeIconSvg,
   isWithinSchedule,
+  linksShownAt,
   mailtoAddress,
   parseScheduleInput,
   scheduleLabel,
@@ -409,5 +410,46 @@ describe("isSafeIconSvg", () => {
     expect(
       isSafeIconSvg(`${open}<path d="${"M0 0".repeat(30000)}"/></svg>`),
     ).toBe(false);
+  });
+});
+
+describe("linksShownAt", () => {
+  const link = (
+    id: number,
+    visibleFrom: string | null,
+    visibleUntil: string | null,
+  ) => ({
+    id,
+    kind: "link",
+    label: `Enlace ${id}`,
+    href: "/store",
+    icon: "link",
+    iconSvg: null,
+    imageUrl: null,
+    layout: "classic",
+    visibleFrom: visibleFrom ? new Date(visibleFrom) : null,
+    visibleUntil: visibleUntil ? new Date(visibleUntil) : null,
+  });
+  const links = [
+    link(1, null, null),
+    link(2, "2026-11-20T12:30:00Z", null),
+    link(3, null, "2026-11-20T13:00:00Z"),
+    link(4, "2026-11-20T12:30:00Z", "2026-11-20T13:00:00Z"),
+  ];
+  const idsAt = (iso: string) =>
+    linksShownAt(links, new Date(iso)).map((shown) => shown.id);
+
+  it("keeps the links whose schedule runs at that instant, in order", () => {
+    expect(idsAt("2026-11-20T12:29:59Z")).toEqual([1, 3]);
+    expect(idsAt("2026-11-20T12:30:00Z")).toEqual([1, 2, 3, 4]);
+    expect(idsAt("2026-11-20T12:59:59Z")).toEqual([1, 2, 3, 4]);
+    expect(idsAt("2026-11-20T13:00:00Z")).toEqual([1, 2]);
+  });
+
+  it("leaves the schedule out of what the page gets", () => {
+    const [shown] = linksShownAt(links, new Date("2026-11-20T12:00:00Z"));
+    expect(shown).not.toHaveProperty("visibleFrom");
+    expect(shown).not.toHaveProperty("visibleUntil");
+    expect(shown).toMatchObject({ id: 1, label: "Enlace 1", href: "/store" });
   });
 });

@@ -4,6 +4,7 @@ import { and, asc, eq, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { expireSharedCache, SHARED_CACHE_TAGS } from "@/app/lib/cache/shared";
 import { libraryIconSvg } from "@/app/lib/links/icon-library";
 import {
   importLinkImage,
@@ -49,18 +50,38 @@ function canManageLinks(role: string | null | undefined) {
   return role === "admin" || role === "festival_admin";
 }
 
+/**
+ * Puts a change on `/links` at once: expires the cached rows the page is
+ * built from, then the page itself. Called right after the write has
+ * committed, before any cleanup that could fail and skip it.
+ */
 function invalidateLinks() {
-  revalidatePath(LINKS_PATH, "page");
-  revalidatePath(LINKS_ADMIN_PATH, "page");
+  expireSharedCache(SHARED_CACHE_TAGS.siteLinks);
+  // Literal addresses, so no type: a typed path would have to name the
+  // page's file, route group included.
+  revalidatePath(LINKS_PATH);
+  revalidatePath(LINKS_ADMIN_PATH);
 }
 
 /**
  * Deletes an image a write just let go of, unless a link or the header still
  * shows it: the actions accept any stored file, so two rows can hold the
  * same one. Runs after the write, so the row that dropped it is not counted.
+ *
+ * Best-effort: the write it follows has already been saved, so a failure
+ * here is logged and the save still reports success. The file is left
+ * behind, as when the storage refuses to delete it.
  */
 async function removeUnusedLinkImage(url: string | null | undefined) {
   if (!url) return;
+  try {
+    await removeLinkImageIfUnused(url);
+  } catch (error) {
+    console.error("link image: cleanup failed", error);
+  }
+}
+
+async function removeLinkImageIfUnused(url: string) {
   const [link] = await db
     .select({ id: siteLinks.id })
     .from(siteLinks)
@@ -393,12 +414,12 @@ export async function updateSiteLink(
     .where(and(eq(siteLinks.id, id), eq(siteLinks.kind, "link")))
     .returning({ id: siteLinks.id });
   if (!updated) return { success: false, message: "Enlace no encontrado." };
+  // The page changes first: a cleanup that fails must not leave it stale.
+  invalidateLinks();
   // The thumbnail it had is no longer shown anywhere.
   if (previous?.imageUrl && previous.imageUrl !== input.imageUrl) {
     await removeUnusedLinkImage(previous.imageUrl);
   }
-
-  invalidateLinks();
   return { success: true };
 }
 
@@ -434,8 +455,8 @@ export async function deleteSiteLink(id: number): Promise<ActionResult> {
   if (deleted.length === 0) {
     return { success: false, message: "Enlace no encontrado." };
   }
-  await removeUnusedLinkImage(deleted[0].imageUrl);
   invalidateLinks();
+  await removeUnusedLinkImage(deleted[0].imageUrl);
   return { success: true };
 }
 
@@ -571,10 +592,10 @@ export async function updateLinksHeader(
       target: siteLinksSettings.id,
       set: { ...header, updatedAt: new Date() },
     });
+  invalidateLinks();
   // The picture it had is no longer shown anywhere.
   if (previous?.avatarUrl && previous.avatarUrl !== avatarUrl) {
     await removeUnusedLinkImage(previous.avatarUrl);
   }
-  invalidateLinks();
   return { success: true };
 }

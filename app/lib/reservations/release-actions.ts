@@ -34,9 +34,9 @@ export async function releaseReservationAction(input: unknown) {
       // The stand is back on the map and the reservation is gone from their
       // participation, so both the participant's own pages and the admin
       // views of that festival are stale.
-      revalidatePath("/profiles", "layout");
-      revalidatePath("/my_participations", "page");
-      revalidatePath("/dashboard/festivals/[id]/reservations", "page");
+      revalidatePath("/(site)/(routes)/profiles", "layout");
+      revalidatePath("/(site)/(routes)/my_participations", "page");
+      revalidatePath("/(site)/dashboard/festivals/[id]/reservations", "page");
     } catch (error) {
       console.error("[release] revalidatePath failed", error);
     }

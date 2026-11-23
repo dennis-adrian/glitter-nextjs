@@ -46,9 +46,9 @@ vi.mock("next/navigation", () => ({
     throw new Error(`REDIRECT:${url}`);
   },
 }));
-import MerchPage from "@/app/(routes)/(storefront)/merch/page";
-import { generateMetadata } from "@/app/(routes)/(storefront)/merch/collections/[slug]/page";
-import CollectionOpenGraphImage from "@/app/(routes)/(storefront)/merch/collections/[slug]/opengraph-image";
+import MerchPage from "@/app/(site)/(routes)/(storefront)/merch/page";
+import { generateMetadata } from "@/app/(site)/(routes)/(storefront)/merch/collections/[slug]/page";
+import CollectionOpenGraphImage from "@/app/(site)/(routes)/(storefront)/merch/collections/[slug]/opengraph-image";
 
 it("provides collection-specific canonical and sharing metadata", async () => {
   const metadata = await generateMetadata({

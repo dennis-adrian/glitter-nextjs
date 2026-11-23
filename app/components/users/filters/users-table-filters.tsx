@@ -6,7 +6,7 @@ import Search from "@/app/components/ui/search";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { IncludeAdminsFilter } from "@/app/components/users/filters/include-admins-filter";
-import { SearchParamsSchema } from "@/app/dashboard/users/schemas";
+import { SearchParamsSchema } from "@/app/(site)/dashboard/users/schemas";
 import { profileStatusOptions, userCategoryOptions } from "@/app/lib/utils";
 import { SlidersHorizontalIcon, XIcon } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";

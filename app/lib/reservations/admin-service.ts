@@ -456,8 +456,8 @@ export async function cancelReservation(
     }
 
     scheduleReservationNotificationJobs(outcome.jobIds);
-    revalidatePath("/dashboard/festivals/[id]/reservations", "page");
-    revalidatePath("/dashboard/festivals/[id]/payments", "page");
+    revalidatePath("/(site)/dashboard/festivals/[id]/reservations", "page");
+    revalidatePath("/(site)/dashboard/festivals/[id]/payments", "page");
     return {
       success: true,
       message: "Reserva cancelada. El espacio quedó disponible.",
@@ -649,8 +649,8 @@ export async function updateReservationPartner(
 
     if (!outcome.success) return outcome;
 
-    revalidatePath("/dashboard/festivals/[id]/reservations", "page");
-    revalidatePath("/dashboard/festivals/[id]/payments", "page");
+    revalidatePath("/(site)/dashboard/festivals/[id]/reservations", "page");
+    revalidatePath("/(site)/dashboard/festivals/[id]/payments", "page");
     return { success: true, message: "Compañero actualizado" };
   } catch (error) {
     console.error("Error updating reservation partner", error);
@@ -900,8 +900,8 @@ export async function extendReservationPaymentDeadline(
     }
 
     scheduleReservationNotificationJobs(outcome.jobIds);
-    revalidatePath("/dashboard/festivals/[id]/reservations", "page");
-    revalidatePath("/dashboard/festivals/[id]/payments", "page");
+    revalidatePath("/(site)/dashboard/festivals/[id]/reservations", "page");
+    revalidatePath("/(site)/dashboard/festivals/[id]/payments", "page");
     return { success: true, message: "Plazo de pago extendido" };
   } catch (error) {
     console.error("Error extending reservation payment deadline", error);

@@ -1,16 +1,24 @@
 import "server-only";
 
 import { and, asc, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
+import { cache } from "react";
 
+import {
+  reviveTimestamps,
+  SHARED_CACHE_TAGS,
+  sharedCache,
+} from "@/app/lib/cache/shared";
 import { db } from "@/db";
 import { siteLinks, siteLinksSettings } from "@/db/schema";
 
 import {
   DEFAULT_LINKS_HEADER,
+  linksShownAt,
   toLinksHeader,
   toSocialPosition,
   type LinksHeader,
   type PublicSiteLink,
+  type ScheduledPublicSiteLink,
   type SocialPosition,
 } from "./definitions";
 
@@ -32,31 +40,103 @@ function isShownAt(now: Date) {
   );
 }
 
+/** What `/links` is built from, as the cache stores it. */
+type LinksPageRows = {
+  /** Every link switched on, each with its schedule, in the dashboard's order. */
+  links: ScheduledPublicSiteLink[];
+  settings: {
+    socialPosition: string;
+    title: string | null;
+    description: string | null;
+    avatarUrl: string | null;
+  } | null;
+};
+
 /**
- * The links and social icons `/links` shows, each kind in the order the
- * dashboard set.
+ * The rows `/links` is built from, shared across requests. Every write from
+ * the dashboard expires them at once (`invalidateLinks` in actions.ts).
+ *
+ * The lifetime is short on purpose. A read that started before a save
+ * committed and ends after the expiry is stored as new (the cache dates an
+ * entry by when it is written), so it would serve the rows from before the
+ * save, as would a change made outside the dashboard. The lifetime bounds
+ * that, though not strictly: past it, the next visit still gets the old rows
+ * once while they are read again in the background, however late it comes,
+ * and the visit after it gets the new ones. At most one read per lifetime
+ * reaches the database, however many visits there are.
+ *
+ * The schedules are not applied here: the rows stay the same while links come
+ * and go on their schedule, and the page applies them each time it renders.
+ *
+ * A failed read throws. While an entry is only past its lifetime, the cache
+ * keeps serving it and refreshes it in the background. Once a write (or a
+ * `revalidatePath` of the whole site) has expired it, a visit waits on the
+ * database, and a failure there reaches the error page rather than a page
+ * of no links that looks as if Glitter had none.
  */
-export async function fetchVisibleSiteLinks(): Promise<PublicSiteLink[]> {
-  try {
-    return await db
-      .select({
-        id: siteLinks.id,
-        kind: siteLinks.kind,
-        label: siteLinks.label,
-        href: siteLinks.href,
-        icon: siteLinks.icon,
-        iconSvg: siteLinks.iconSvg,
-        imageUrl: siteLinks.imageUrl,
-        layout: siteLinks.layout,
-      })
-      .from(siteLinks)
-      .where(isShownAt(new Date()))
-      .orderBy(asc(siteLinks.sortOrder), asc(siteLinks.id));
-  } catch (error) {
-    console.error("fetchVisibleSiteLinks", error);
-    return [];
-  }
-}
+const readLinksPageRows = sharedCache(
+  async (): Promise<LinksPageRows> => {
+    const [links, [settings]] = await Promise.all([
+      db
+        .select({
+          id: siteLinks.id,
+          kind: siteLinks.kind,
+          label: siteLinks.label,
+          href: siteLinks.href,
+          icon: siteLinks.icon,
+          iconSvg: siteLinks.iconSvg,
+          imageUrl: siteLinks.imageUrl,
+          layout: siteLinks.layout,
+          visibleFrom: siteLinks.visibleFrom,
+          visibleUntil: siteLinks.visibleUntil,
+        })
+        .from(siteLinks)
+        .where(eq(siteLinks.isVisible, true))
+        .orderBy(asc(siteLinks.sortOrder), asc(siteLinks.id)),
+      db
+        .select({
+          socialPosition: siteLinksSettings.socialPosition,
+          title: siteLinksSettings.title,
+          description: siteLinksSettings.description,
+          avatarUrl: siteLinksSettings.avatarUrl,
+        })
+        .from(siteLinksSettings)
+        .limit(1),
+    ]);
+    return { links, settings: settings ?? null };
+  },
+  "links-page",
+  {
+    tags: [SHARED_CACHE_TAGS.siteLinks],
+    revalidate: 30,
+    // The schedule's dates come back from the cache as strings.
+    revive: (rows) => ({
+      ...rows,
+      links: rows.links.map((link) => reviveTimestamps(link, siteLinks)),
+    }),
+  },
+);
+
+/**
+ * Everything `/links` shows, as of now: the links and social icons whose
+ * schedule lets them be shown (each kind in the order the dashboard set),
+ * where the social icons go, and the header. Read once per render, however
+ * many parts of the page (its metadata, its body) ask.
+ */
+export const fetchLinksPage = cache(
+  async (): Promise<{
+    links: PublicSiteLink[];
+    socialPosition: SocialPosition;
+    header: LinksHeader;
+  }> => {
+    const { links, settings } = await readLinksPageRows();
+    return {
+      links: linksShownAt(links, new Date()),
+      socialPosition: toSocialPosition(settings?.socialPosition),
+      header: toLinksHeader(settings),
+    };
+  },
+);
 
 /** Where the row of social icons goes. At the top until someone moves it. */
 export async function fetchSocialPosition(): Promise<SocialPosition> {
@@ -73,7 +153,8 @@ export async function fetchSocialPosition(): Promise<SocialPosition> {
 }
 
 /**
- * The page's settings: where the social icons go, and its header. The stock
+ * The page's settings, read from the database as they are now, for the
+ * dashboard: where the social icons go, and its header. The stock
  * ones until someone changes them, and if they cannot be read.
  */
 export async function fetchLinksSettings(): Promise<{

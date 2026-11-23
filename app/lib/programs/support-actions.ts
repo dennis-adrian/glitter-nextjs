@@ -192,7 +192,7 @@ export async function cancelPurchaseAsAdmin(
       return { success: false, message: outcome.message };
     }
 
-    revalidatePath("/dashboard/programs", "layout");
+    revalidatePath("/(site)/dashboard/programs", "layout");
     revalidatePath(`/programs/purchases/${data.purchaseId}`);
 
     return {
@@ -336,7 +336,7 @@ export async function resendPurchaseLink(
       return { success: false, message: outcome.message };
     }
 
-    revalidatePath("/dashboard/programs", "layout");
+    revalidatePath("/(site)/dashboard/programs", "layout");
     revalidatePath(`/programs/purchases/${data.purchaseId}`);
 
     // Isolated from the outer catch: the token is already rotated, so a mail

@@ -1,43 +1,31 @@
 import { Analytics } from "@vercel/analytics/react";
 import type { Metadata, Viewport } from "next";
-import { Suspense } from "react";
 
-import { esMX } from "@clerk/localizations";
-import { ClerkProvider } from "@clerk/nextjs";
-
-import PostHogAuthIdentify from "@/app/components/providers/posthog-identify";
-import StaleDeploymentListener from "@/app/components/providers/stale-deployment-listener";
-import { ThemeProvider } from "@/app/components/theme-provider";
-
-import { Toaster } from "@/components/ui/sonner";
-import { figtree, gabarito } from "@/ui/fonts";
-
-import CreditGiftCelebration from "@/app/components/credit_gifts/credit-gift-celebration";
-import InstalledAppHead from "@/app/components/installed-app-head";
-import InstalledAppMark from "@/app/components/installed-app-mark";
-import Navbar from "@/app/components/navbar/navbar";
-import { ScreenBarProvider } from "@/app/components/navbar/screen-bar";
-import ScrollToTopOnNavigation from "@/app/components/navbar/scroll-to-top";
 import ServiceWorkerMessages from "@/app/components/notifications/service-worker-messages";
-import FooterServer from "@/app/components/footer-server";
+import { ThemeProvider } from "@/app/components/theme-provider";
+import { figtree, gabarito } from "@/ui/fonts";
 
 import "./globals.css";
 import { getEnvLabel } from "./lib/config";
+import {
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  siteMetadataBase,
+  withEnvLabel,
+} from "./lib/site-metadata";
 import { THEME_COLORS } from "./lib/theme-colors";
-
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
 export const metadata: Metadata = {
   title: {
-    template: `${getEnvLabel()} %s | Productora Glitter`,
-    default: `${getEnvLabel()} Productora Glitter`,
+    template: withEnvLabel(`%s | ${SITE_NAME}`, getEnvLabel()),
+    default: withEnvLabel(SITE_NAME, getEnvLabel()),
   },
-  description: "Creamos festivales para que los artistas brillen",
+  description: SITE_DESCRIPTION,
   keywords: ["festival", "glitter", "artistas", "ilustración", "arte"],
-  metadataBase: new URL(baseUrl || "https://www.glitter.com.bo"),
+  metadataBase: siteMetadataBase(),
   openGraph: {
-    title: "Productora Glitter",
-    description: "Creamos festivales para que los artistas brillen",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
   },
   // No `appleWebApp` or apple icon here: InstalledAppHead renders those tags.
 };
@@ -58,6 +46,13 @@ export const viewport: Viewport = {
   ],
 };
 
+/**
+ * What every page shares, and nothing more: the document, the fonts, the
+ * theme and page-view analytics. The site's header, app shell, footer, Clerk
+ * and the installed app's pieces belong to the `(site)` group's layout, so a
+ * page outside it (`/links`, the link-in-bio page social profiles point to)
+ * neither renders nor queries them.
+ */
 export default function RootLayout({
   children,
 }: {
@@ -69,10 +64,9 @@ export default function RootLayout({
     // so it can switch that off while it jumps to the top of a new route.
     <html lang="es" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body className={`${figtree.variable} ${gabarito.variable} font-sans`}>
-        <InstalledAppHead />
-        <InstalledAppMark />
-        {/* Outside every Suspense boundary: a tapped notification's message
-            can arrive as soon as the page loads. */}
+        {/* On every page, /links and the 404 included: a tapped
+            notification's message can reach any window of the installed
+            app, and arrive as soon as the page loads. */}
         <ServiceWorkerMessages />
         <ThemeProvider
           attribute="class"
@@ -80,39 +74,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <Suspense fallback={<div className="min-h-screen" />}>
-            <ClerkProvider
-              localization={esMX}
-              appearance={{
-                variables: { fontFamily: "var(--font-figtree), sans-serif" },
-                elements: { headerTitle: "font-display" },
-              }}
-            >
-              {/* Lets a page give the installed app's top bar its title. */}
-              <ScreenBarProvider>
-                {/* Every new screen opens at its top, whatever the last
-                    one's scroll was. */}
-                <ScrollToTopOnNavigation />
-                <Suspense fallback={<div className="h-[76px] lg:h-[84px]" />}>
-                  <Navbar />
-                </Suspense>
-                <Suspense fallback={null}>
-                  <CreditGiftCelebration />
-                </Suspense>
-                <main className="min-h-[calc(100vh-76px-180px)] md:min-h-[calc(100vh-76px-290px)] lg:min-h-[calc(100vh-84px-290px)]">
-                  {children}
-                </main>
-                <Suspense fallback={<div className="h-[180px] md:h-[290px]" />}>
-                  <FooterServer />
-                </Suspense>
-              </ScreenBarProvider>
-              <PostHogAuthIdentify />
-              <Toaster richColors />
-              <StaleDeploymentListener />
-              <Analytics />
-            </ClerkProvider>
-          </Suspense>
+          {children}
         </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   );
