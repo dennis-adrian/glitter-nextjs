@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
-import { inSiteChrome } from "@/app/lib/site-chrome";
+import { inSiteChrome, SITE_CHROME_READY_EVENT } from "@/app/lib/site-chrome";
 
 import { announceNotificationsChanged } from "@/app/components/notifications/notification-events";
 import {
@@ -56,6 +56,8 @@ type PageState = {
   router: Router;
   taps: Set<string>;
   arrivals: Set<string>;
+  /** Arrivals that came while no toast could show, to offer once one can. */
+  unoffered: Arrival[];
   leaving: boolean;
 };
 
@@ -225,6 +227,47 @@ async function finishKeptTap(page: PageState): Promise<boolean> {
   return true;
 }
 
+/**
+ * When the oldest arrival this window could not offer came, kept for the
+ * window's life: leaving `/links` for the site is a full load, and the worker
+ * posts each arrival once.
+ */
+const UNOFFERED_SINCE_KEY = "glitter:unoffered-arrivals-since";
+
+function keepUnoffered(page: PageState, arrivals: Arrival[]) {
+  if (arrivals.length === 0) return;
+  // Also here: the worker keeps an arrival only after posting it.
+  page.unoffered.push(...arrivals);
+  try {
+    const kept = Number(sessionStorage.getItem(UNOFFERED_SINCE_KEY));
+    // Just before it: what is offered is what came after `since`.
+    const since = Math.min(...arrivals.map((arrival) => arrival.at - 1));
+    if (!kept || since < kept) {
+      sessionStorage.setItem(UNOFFERED_SINCE_KEY, String(since));
+    }
+  } catch {
+    // Without storage it waits for the next return to the app, as before.
+  }
+}
+
+/** What `keepUnoffered` kept, now to be offered; forgotten here. */
+function takeUnoffered(page: PageState): {
+  since: number | null;
+  arrivals: Arrival[];
+} {
+  const arrivals = page.unoffered;
+  page.unoffered = [];
+  let since: number | null = null;
+  try {
+    const kept = Number(sessionStorage.getItem(UNOFFERED_SINCE_KEY));
+    sessionStorage.removeItem(UNOFFERED_SINCE_KEY);
+    if (kept > 0) since = kept;
+  } catch {
+    // Only what this page kept itself.
+  }
+  return { since, arrivals };
+}
+
 function arrivalKey(arrival: Arrival) {
   return arrival.id != null ? `item:${arrival.id}` : `at:${arrival.at}`;
 }
@@ -257,9 +300,12 @@ function offerArrivals(
   mayBeMore = false,
 ) {
   if (page.leaving) return;
-  // No toasts are mounted outside the site's layout: leave them unoffered,
-  // for a page that can show them.
-  if (!inSiteChrome()) return;
+  // No toasts are mounted outside the site's layout (or not yet): keep them
+  // for when they are.
+  if (!inSiteChrome()) {
+    keepUnoffered(page, arrivals);
+    return;
+  }
   if (window.location.pathname === "/my_notifications") return;
   const opened = openedNotificationId(document.cookie);
   const fresh: Arrival[] = [];
@@ -304,15 +350,38 @@ function offerArrivals(
  * notification it was. Elsewhere a tap always says, and the device already
  * showed each one.
  */
-async function offerArrivalsSince(page: PageState, since: number) {
+async function offerArrivalsSince(
+  page: PageState,
+  since: number | null,
+  also: Arrival[] = [],
+) {
   if (!isIPhoneApp()) return;
-  const kept = parseArrivals(await readState(ARRIVALS_PATH));
-  const arrived = kept.filter((arrival) => arrival.at > since);
+  const kept =
+    since == null ? [] : parseArrivals(await readState(ARRIVALS_PATH));
+  const arrived = kept.filter((arrival) => since != null && arrival.at > since);
+  const keys = new Set(arrived.map(arrivalKey));
+  const extra = also.filter((arrival) => !keys.has(arrivalKey(arrival)));
   offerArrivals(
     page,
-    arrived,
+    [...arrived, ...extra],
     kept.length >= ARRIVALS_KEPT && arrived.length === kept.length,
   );
+}
+
+/** What came while no toast could show, with what came since `since`. */
+function offerUnoffered(page: PageState, since: number | null) {
+  const unoffered = inSiteChrome()
+    ? takeUnoffered(page)
+    : { since: null, arrivals: [] };
+  const from = earliest(since, unoffered.since);
+  if (from == null && unoffered.arrivals.length === 0) return;
+  void offerArrivalsSince(page, from, unoffered.arrivals);
+}
+
+function earliest(a: number | null, b: number | null) {
+  if (a == null) return b;
+  if (b == null) return a;
+  return Math.min(a, b);
 }
 
 /**
@@ -351,6 +420,7 @@ export default function ServiceWorkerMessages() {
       router,
       taps: new Set(),
       arrivals: new Set(),
+      unoffered: [],
       leaving: false,
     });
     page.router = router;
@@ -399,9 +469,11 @@ export default function ServiceWorkerMessages() {
 
     const onReturn = (since: number | null) => {
       void finishKeptTap(page).then((opened) => {
-        if (!opened && since != null) void offerArrivalsSince(page, since);
+        if (!opened) offerUnoffered(page, since);
       });
     };
+    // The site's toasts just mounted: offer what came while they were not.
+    const onSiteChromeReady = () => offerUnoffered(page, null);
     const onVisibility = () => {
       if (document.visibilityState === "hidden") {
         hiddenAt = Date.now();
@@ -423,12 +495,14 @@ export default function ServiceWorkerMessages() {
     container.startMessages?.();
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pageshow", onPageShow);
+    window.addEventListener(SITE_CHROME_READY_EVENT, onSiteChromeReady);
     // A cold start may land here instead of on the tap's link.
     onReturn(null);
     return () => {
       container.removeEventListener("message", onMessage);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener(SITE_CHROME_READY_EVENT, onSiteChromeReady);
     };
   }, [router]);
 

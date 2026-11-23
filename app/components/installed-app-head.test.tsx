@@ -213,12 +213,10 @@ describe("the site's layouts", () => {
     const mark = nodes.findIndex(
       (node) => node.textContent === MARK_INSTALLED_APP_SCRIPT,
     );
-    // The theme's script comes first, so the real provider is in the tree.
-    expect(mark).toBeGreaterThan(0);
+    // The root layout renders it first in <body>.
+    expect(mark).toBe(0);
     expect(nodes[mark].nodeName).toBe("SCRIPT");
-    // Only scripts ahead of it (the theme's), nothing that paints. The
-    // notification handler renders ahead of it too, and renders nothing
-    // (checked in service-worker-messages.test.tsx).
+    // Nothing that paints ahead of it.
     expect(nodes.slice(0, mark).map((node) => node.nodeName)).toEqual(
       nodes.slice(0, mark).map(() => "SCRIPT"),
     );

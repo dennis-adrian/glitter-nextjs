@@ -12,7 +12,7 @@ import { ScreenBarProvider } from "@/app/components/navbar/screen-bar";
 import ScrollToTopOnNavigation from "@/app/components/navbar/scroll-to-top";
 import PostHogAuthIdentify from "@/app/components/providers/posthog-identify";
 import StaleDeploymentListener from "@/app/components/providers/stale-deployment-listener";
-import { SITE_CHROME_ATTRIBUTE } from "@/app/lib/site-chrome";
+import SiteChromeReady from "@/app/components/site-chrome-ready";
 import { Toaster } from "@/components/ui/sonner";
 
 /**
@@ -31,9 +31,6 @@ export default function SiteChrome({
     <>
       <InstalledAppHead />
       <InstalledAppMark />
-      {/* Tells the notification handler (in the root layout) that Clerk and
-          the toasts are here. Paints nothing. */}
-      <div hidden {...{ [SITE_CHROME_ATTRIBUTE]: "" }} />
       <Suspense fallback={<div className="min-h-screen" />}>
         <ClerkProvider
           localization={esMX}
@@ -62,6 +59,9 @@ export default function SiteChrome({
           </ScreenBarProvider>
           <PostHogAuthIdentify />
           <Toaster richColors />
+          {/* After the Toaster: tells the notification handler (in the root
+              layout) that Clerk and the toasts are here, once they are. */}
+          <SiteChromeReady />
           <StaleDeploymentListener />
         </ClerkProvider>
       </Suspense>

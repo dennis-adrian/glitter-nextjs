@@ -7,6 +7,7 @@ import { figtree, gabarito } from "@/ui/fonts";
 
 import "./globals.css";
 import { getEnvLabel } from "./lib/config";
+import { MARK_INSTALLED_APP_SCRIPT } from "./lib/installed-app-mode";
 import {
   SITE_DESCRIPTION,
   SITE_NAME,
@@ -49,7 +50,7 @@ export const viewport: Viewport = {
 /**
  * What every page shares, and nothing more: the document, the fonts, the
  * theme and page-view analytics. The site's header, app shell, footer, Clerk
- * and the installed app's pieces belong to the `(site)` group's layout, so a
+ * and the installed app's tags (but not its window mark) belong to the `(site)` group's layout, so a
  * page outside it (`/links`, the link-in-bio page social profiles point to)
  * neither renders nor queries them.
  */
@@ -64,6 +65,13 @@ export default function RootLayout({
     // so it can switch that off while it jumps to the top of a new route.
     <html lang="es" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body className={`${figtree.variable} ${gabarito.variable} font-sans`}>
+        {/* Marks the installed app's window (data-installed-app) before
+            anything below paints, on every page, the root 404 included. Here,
+            in the layout that never remounts: React does not run a script it
+            inserts on the client. */}
+        <script
+          dangerouslySetInnerHTML={{ __html: MARK_INSTALLED_APP_SCRIPT }}
+        />
         {/* On every page, /links and the 404 included: a tapped
             notification's message can reach any window of the installed
             app, and arrive as soon as the page loads. */}

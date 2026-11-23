@@ -11,6 +11,8 @@ import {
   getPublishedLandingContent,
 } from "@/app/lib/landing_content/data";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { getEnvLabel } from "@/app/lib/config";
+import { withEnvLabel } from "@/app/lib/site-metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +37,9 @@ export async function generateMetadata({
       ? (await getLandingDraftOrFallback()).content
       : await getPublishedLandingContent();
   return {
-    title: content.seo.title,
+    // Whole: the SEO title already names the site, and the root layout's
+    // template would add " | Productora Glitter" again.
+    title: { absolute: withEnvLabel(content.seo.title, getEnvLabel()) },
     description: content.seo.description,
     openGraph: content.seo.shareImageUrl
       ? { images: [content.seo.shareImageUrl] }

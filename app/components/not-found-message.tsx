@@ -8,7 +8,7 @@ export default function NotFoundMessage({
     <div className="flex min-h-[70dvh] md:min-h-[50dvh] flex-col items-center justify-center bg-background px-4 text-center">
       <div className="mx-auto flex max-w-[500px] flex-col items-center justify-center space-y-6">
         <div className="relative h-40 w-40">
-          <div className="absolute inset-0 flex items-center justify-center rounded-full bg-muted text-[120px] font-bold opacity-10">
+          <div className="absolute inset-0 flex items-center justify-center rounded-full bg-muted text-[80px] font-bold opacity-10">
             404
           </div>
           <div className="absolute inset-0 flex items-center justify-center text-5xl font-bold">

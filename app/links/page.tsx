@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, ResolvingMetadata } from "next";
 import { connection } from "next/server";
 
 import LinksPageView from "@/app/components/links/links-page-view";
@@ -7,13 +7,19 @@ import { linksPageMetadata } from "@/app/lib/links/metadata";
 import { fetchLinksPage } from "@/app/lib/links/queries";
 
 /** The header the dashboard set names the page, here and when it is shared. */
-export async function generateMetadata(): Promise<Metadata> {
+export async function generateMetadata(
+  _props: unknown,
+  parent: ResolvingMetadata,
+): Promise<Metadata> {
   // Ahead of the read, like the page's own: Next runs this first, and
   // without it `next build` would try to prerender the page and read the
   // database (and fail the build where there is none).
   await connection();
   const { header } = await fetchLinksPage();
-  return linksPageMetadata(header, getEnvLabel());
+  // The site's picture under the hashed URL Next gives
+  // app/opengraph-image.png, not its bare path.
+  const [siteImage] = (await parent).openGraph?.images ?? [];
+  return linksPageMetadata(header, getEnvLabel(), siteImage);
 }
 
 /**

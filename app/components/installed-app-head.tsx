@@ -1,5 +1,4 @@
 import { installedAppName } from "@/app/lib/installable-app";
-import { MARK_INSTALLED_APP_SCRIPT } from "@/app/lib/installed-app-mode";
 import { LAUNCH_SCREENS } from "@/app/lib/launch-screens";
 
 /**
@@ -18,14 +17,13 @@ import { LAUNCH_SCREENS } from "@/app/lib/launch-screens";
  * whichever comes first in <head>; both name the same file and, on a
  * preview, both send cookies.
  *
- * It also renders the script that marks the installed app's window, first in
- * <body> so it runs before anything below it paints.
+ * The script that marks the installed app's window is the root layout's, not
+ * this: the `(site)` layout remounts when a navigation crosses into or out of
+ * the group, and React never runs a script it inserts on the client.
  */
 export default function InstalledAppHead() {
   return (
     <>
-      {/* Not moved into <head>; it stays where the root layout puts it. */}
-      <script dangerouslySetInnerHTML={{ __html: MARK_INSTALLED_APP_SCRIPT }} />
       {/* With cookies, so a preview behind Vercel's login can serve it, as
           Next's own link does there. */}
       <link

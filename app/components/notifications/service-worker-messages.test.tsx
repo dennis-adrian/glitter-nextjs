@@ -9,7 +9,10 @@ const router = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 import { onNotificationsChanged } from "@/app/components/notifications/notification-events";
-import { SITE_CHROME_ATTRIBUTE } from "@/app/lib/site-chrome";
+import {
+  SITE_CHROME_ATTRIBUTE,
+  SITE_CHROME_READY_EVENT,
+} from "@/app/lib/site-chrome";
 import ServiceWorkerMessages, {
   pageLoad,
 } from "@/app/components/notifications/service-worker-messages";
@@ -135,6 +138,7 @@ beforeEach(() => {
     matches: standalone && query === "(display-mode: standalone)",
   }));
   window.history.pushState({}, "", "/");
+  sessionStorage.clear();
   // A page of the site, with Clerk and the toasts (SiteChrome's marker).
   siteChrome = document.createElement("div");
   siteChrome.setAttribute(SITE_CHROME_ATTRIBUTE, "");
@@ -451,27 +455,55 @@ describe("outside the site's layout (/links, the root 404)", () => {
     expect(assign).toHaveBeenCalledWith("/my_notifications/41/open");
   });
 
-  it("offers nothing where no toast can show, and keeps it for a page that can", async () => {
+  const arrival = () => ({
+    id: 41,
+    title: "Notificación 41",
+    body: "",
+    url: "/my_notifications/41/open",
+    href: ITEM_PAGE,
+    at: Date.now(),
+  });
+
+  it("offers nothing where no toast can show, and offers it once the site's toasts mount", async () => {
     render(<ServiceWorkerMessages />);
     await settle();
-    const arrival = {
-      type: SW_NOTIFICATION_RECEIVED,
-      arrival: {
-        id: 41,
-        title: "Notificación 41",
-        body: "",
-        url: "/my_notifications/41/open",
-        href: ITEM_PAGE,
-        at: Date.now(),
-      },
-    };
-    await send(arrival);
+    // Posted once, before the worker keeps it.
+    await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrival() });
     expect(toastMock).not.toHaveBeenCalled();
 
-    // Back inside the site, the same window offers it after all.
+    // The site's layout mounts its toasts in this same document.
     document.body.append(siteChrome);
-    await send(arrival);
+    act(() => {
+      window.dispatchEvent(new Event(SITE_CHROME_READY_EVENT));
+    });
+    await settle();
     expect(toastMock).toHaveBeenCalledTimes(1);
+    expect(toastMock.mock.calls[0]?.[0]).toBe("Notificación 41");
+
+    // Only once.
+    act(() => {
+      window.dispatchEvent(new Event(SITE_CHROME_READY_EVENT));
+    });
+    await settle();
+    expect(toastMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers it on the site's page that a full load opens next", async () => {
+    const { unmount } = render(<ServiceWorkerMessages />);
+    await settle();
+    const arrived = arrival();
+    await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrived });
+    keep(ARRIVALS_PATH, [arrived]);
+    expect(toastMock).not.toHaveBeenCalled();
+    unmount();
+
+    // A full load into the site: a new page, the same window.
+    document.body.append(siteChrome);
+    render(<ServiceWorkerMessages />);
+    await settle();
+    await settle();
+    expect(toastMock).toHaveBeenCalledTimes(1);
+    expect(toastMock.mock.calls[0]?.[0]).toBe("Notificación 41");
   });
 
   it("renders nothing, so nothing paints ahead of the page", () => {

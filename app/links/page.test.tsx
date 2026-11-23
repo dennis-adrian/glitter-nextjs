@@ -43,7 +43,16 @@ describe("/links", () => {
   it("titles itself from the header, never at build time", async () => {
     connectionMock.mockClear();
     fetchLinksPageMock.mockClear();
-    const metadata = await page.generateMetadata();
+    const siteImage = {
+      url: new URL("https://www.glitter.com.bo/opengraph-image.png?abc123"),
+      width: 1200,
+      height: 630,
+      type: "image/png",
+    };
+    const metadata = await page.generateMetadata(
+      { params: Promise.resolve({}), searchParams: Promise.resolve({}) },
+      Promise.resolve({ openGraph: { images: [siteImage] } }) as never,
+    );
     // Before the read, or the build prerenders it from the database.
     expect(connectionMock).toHaveBeenCalled();
     expect(connectionMock.mock.invocationCallOrder[0]).toBeLessThan(
@@ -52,7 +61,11 @@ describe("/links", () => {
     expect(metadata.title).toEqual({
       absolute: "[Dev] Glitter links | Productora Glitter",
     });
-    expect(metadata.openGraph).toMatchObject({ title: "Glitter links" });
+    expect(metadata.openGraph).toMatchObject({
+      title: "Glitter links",
+      // Next's hashed URL for the site's picture, not its bare path.
+      images: [{ ...siteImage, alt: "Productora Glitter" }],
+    });
   });
 
   it("shows the header and the links", async () => {
