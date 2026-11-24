@@ -15,6 +15,7 @@ function hub(
   return {
     status,
     isConfirmed,
+    shouldSubmitProducts: true,
     reservation: isConfirmed ? { id: 41 } : null,
     festival: { festivalDates: [{ startDate: new Date() }] },
     activities: [{ id: 1 }],
@@ -89,6 +90,13 @@ describe("buildHubShortcuts", () => {
     expect(shortcuts.filter((s) => s.href === "/invoices")).toHaveLength(1);
   });
 
+  it("leaves out the products tile when no product images were asked for", () => {
+    const shortcuts = buildHubShortcuts(
+      hub("confirmed_reservation", { shouldSubmitProducts: false }),
+    );
+    expect(shortcuts.map((s) => s.key)).not.toContain("products");
+  });
+
   it("has nothing to open once the participation ended", () => {
     expect(buildHubShortcuts(hub("rejected_reservation"))).toEqual([]);
   });
@@ -144,6 +152,13 @@ describe("buildDesktopShortcuts", () => {
       "products",
       "terms",
     ]);
+    expect(
+      keys(
+        buildDesktopShortcuts(
+          hub("confirmed_reservation", { shouldSubmitProducts: false }),
+        ),
+      ),
+    ).toEqual(["reservation", "payments", "terms"]);
   });
 });
 

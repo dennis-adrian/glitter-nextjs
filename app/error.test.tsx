@@ -17,7 +17,7 @@ describe("RootError", () => {
     render(
       <RootError
         error={new UnrecognizedActionError("Server Action not found")}
-        reset={vi.fn()}
+        retry={vi.fn()}
       />,
     );
 
@@ -30,12 +30,14 @@ describe("RootError", () => {
 
   it("keeps the usual retry for any other failure", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    render(<RootError error={new Error("boom")} reset={vi.fn()} />);
+    const retry = vi.fn();
+    render(<RootError error={new Error("boom")} retry={retry} />);
 
     expect(screen.getByText("¡Algo salió mal!")).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "Intentar nuevamente" }),
-    ).toBeTruthy();
+    const button = screen.getByRole("button", { name: "Intentar nuevamente" });
+    // retry() fetches the page again; reset() would replay the failure.
+    button.click();
+    expect(retry).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("Hay una nueva versión de la app")).toBeNull();
   });
 });

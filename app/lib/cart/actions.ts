@@ -1791,9 +1791,9 @@ export async function checkoutCart(input?: {
       console.error("Failed to send order emails", emailError);
     }
 
-    revalidatePath("/store", "layout");
-    revalidatePath("/merch", "layout");
-    revalidatePath("/supplies", "layout");
+    revalidatePath("/(site)/(routes)/store", "layout");
+    revalidatePath("/(site)/(routes)/(storefront)/merch", "layout");
+    revalidatePath("/(site)/(routes)/(storefront)/supplies", "layout");
     return {
       success: true,
       message: "Orden creada correctamente.",

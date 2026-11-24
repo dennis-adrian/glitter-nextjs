@@ -174,7 +174,11 @@ export const landingPageContentSchema = z.strictObject({
   seo: z.strictObject({
     title: text(120),
     description: text(1000),
-    shareImageUrl: safeImageUrl.nullable(),
+    // Optional in the editor: an emptied field is no image.
+    shareImageUrl: z.preprocess(
+      (value) => (typeof value === "string" && !value.trim() ? null : value),
+      safeImageUrl.nullable(),
+    ),
   }),
   hero: z.strictObject({
     titleLead: text(120),
@@ -280,7 +284,18 @@ export const landingPageContentSchema = z.strictObject({
           z.strictObject({
             id,
             name: text(120),
-            image: image.nullable().default(null),
+            // Optional: a logo whose URL was emptied is no logo.
+            image: z.preprocess(
+              (value) =>
+                value &&
+                typeof value === "object" &&
+                "url" in value &&
+                typeof value.url === "string" &&
+                !value.url.trim()
+                  ? null
+                  : value,
+              image.nullable().default(null),
+            ),
             href: nullableHref,
           }),
         )

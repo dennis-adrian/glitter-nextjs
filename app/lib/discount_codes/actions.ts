@@ -619,7 +619,7 @@ export async function validateAndApplyDiscountCode({
     });
 
     if (result.success) {
-      revalidatePath("/dashboard/festivals/[id]/payments", "page");
+      revalidatePath("/(site)/dashboard/festivals/[id]/payments", "page");
     }
 
     return result;

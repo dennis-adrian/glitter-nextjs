@@ -19,7 +19,7 @@ import { infractionTypes } from "@/db/schema";
 function revalidateInfractionTypePaths() {
   revalidatePath("/dashboard/infractions");
   revalidatePath("/dashboard/infractions/types");
-  revalidatePath("/dashboard/festivals", "layout");
+  revalidatePath("/(site)/dashboard/festivals", "layout");
 }
 
 function getDatabaseErrorCode(error: unknown): string | undefined {

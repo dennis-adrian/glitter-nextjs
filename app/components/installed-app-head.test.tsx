@@ -12,7 +12,8 @@ vi.mock("@/app/lib/config", () => ({
   getEnvLabel: () => envLabel.value,
 }));
 
-// The root layout's providers and sections, reduced to what matters here:
+// The site layout's (SiteChrome's) providers and sections, reduced to what
+// matters here:
 // Clerk's provider and the navbar wait for data before they render.
 vi.mock("@clerk/nextjs", () => ({
   ClerkProvider: ({ children }: { children: ReactNode }) => (
@@ -21,9 +22,8 @@ vi.mock("@clerk/nextjs", () => ({
 }));
 vi.mock("@clerk/localizations", () => ({ esMX: {} }));
 vi.mock("@vercel/analytics/react", () => ({ Analytics: () => null }));
-vi.mock("@/app/components/theme-provider", () => ({
-  ThemeProvider: ({ children }: { children: ReactNode }) => children,
-}));
+// The real ThemeProvider: next-themes renders its own script ahead of the
+// page, and the order below is checked against it.
 vi.mock("@/app/components/providers/posthog-identify", () => ({
   default: () => null,
 }));
@@ -45,6 +45,7 @@ vi.mock("@/app/components/notifications/service-worker-messages", () => ({
 }));
 
 import InstalledAppHead from "@/app/components/installed-app-head";
+import SiteLayout from "@/app/(site)/layout";
 import RootLayout from "@/app/layout";
 import { MARK_INSTALLED_APP_SCRIPT } from "@/app/lib/installed-app-mode";
 import { LAUNCH_SCREENS } from "@/app/lib/launch-screens";
@@ -94,7 +95,7 @@ async function shellBody(document: ReactNode, marker: string) {
   return new DOMParser().parseFromString(html, "text/html").body;
 }
 
-/** These tags first in <body>, as the root layout renders them. */
+/** These tags first in <body>, as SiteChrome renders them. */
 function documentHead() {
   return shellHead(
     <html lang="es">
@@ -198,19 +199,32 @@ describe("InstalledAppHead", () => {
   });
 });
 
-describe("the root layout", () => {
-  it("marks the installed app's window first in <body>, before anything paints", async () => {
-    const body = await shellBody(
-      <RootLayout>{null}</RootLayout>,
-      MARK_INSTALLED_APP_SCRIPT,
+describe("the site's layouts", () => {
+  /** A page of the `(site)` group, inside the root layout. */
+  const sitePage = (
+    <RootLayout>
+      <SiteLayout>{null}</SiteLayout>
+    </RootLayout>
+  );
+
+  it("marks the installed app's window at the top of <body>, before anything paints", async () => {
+    const body = await shellBody(sitePage, MARK_INSTALLED_APP_SCRIPT);
+    // Every node, text included: anything ahead of the mark could paint.
+    const nodes = [...body.childNodes];
+    const mark = nodes.findIndex(
+      (node) => node.textContent === MARK_INSTALLED_APP_SCRIPT,
     );
-    const first = body.firstElementChild;
-    expect(first?.tagName).toBe("SCRIPT");
-    expect(first?.textContent).toBe(MARK_INSTALLED_APP_SCRIPT);
+    // The root layout renders it first in <body>.
+    expect(mark).toBe(0);
+    expect(nodes[mark].nodeName).toBe("SCRIPT");
+    // Nothing that paints ahead of it.
+    expect(nodes.slice(0, mark).map((node) => node.nodeName)).toEqual(
+      nodes.slice(0, mark).map(() => "SCRIPT"),
+    );
   });
 
   it("sends the install tags in <head> before anything that waits for data", async () => {
-    const head = await shellHead(<RootLayout>{null}</RootLayout>);
+    const head = await shellHead(sitePage);
     expect(head.querySelectorAll('link[rel="manifest"]')).toHaveLength(1);
     expect(head.querySelectorAll('link[rel="apple-touch-icon"]')).toHaveLength(
       1,
@@ -218,5 +232,19 @@ describe("the root layout", () => {
     expect(
       head.querySelectorAll('link[rel="apple-touch-startup-image"]'),
     ).toHaveLength(LAUNCH_SCREENS.length);
+  });
+
+  it("leaves the install tags off a page outside the group, such as /links", async () => {
+    const head = await shellHead(
+      <RootLayout>
+        <p>Enlaces</p>
+      </RootLayout>,
+    );
+    expect(head.querySelectorAll('link[rel="apple-touch-icon"]')).toHaveLength(
+      0,
+    );
+    expect(
+      head.querySelectorAll('link[rel="apple-touch-startup-image"]'),
+    ).toHaveLength(0);
   });
 });

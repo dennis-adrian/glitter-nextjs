@@ -1,0 +1,83 @@
+import { redirect } from "next/navigation";
+import { Suspense } from "react";
+import type { Metadata, ResolvingMetadata } from "next";
+
+import InstalledAppLandingGate from "@/app/components/landing/installed-app-landing-gate";
+import Landing from "@/app/components/landing/landing";
+import LandingSkeleton from "@/app/components/landing/skeleton";
+import { isSignedIn } from "@/app/lib/impersonation/viewer";
+import {
+  getLandingDraftOrFallback,
+  getPublishedLandingContent,
+} from "@/app/lib/landing_content/data";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { getEnvLabel } from "@/app/lib/config";
+import { withEnvLabel } from "@/app/lib/site-metadata";
+
+export const dynamic = "force-dynamic";
+
+type HomeProps = {
+  searchParams: Promise<{ preview?: string }>;
+};
+
+async function getLandingPreviewState(searchParams: HomeProps["searchParams"]) {
+  const preview = (await searchParams).preview === "landing-draft";
+  const profile = await getCurrentUserProfile();
+  const canPreview =
+    profile?.role === "admin" || profile?.role === "festival_admin";
+  return { preview, canPreview, profile };
+}
+
+export async function generateMetadata(
+  { searchParams }: HomeProps,
+  parent: ResolvingMetadata,
+): Promise<Metadata> {
+  const { preview, canPreview } = await getLandingPreviewState(searchParams);
+  const content =
+    preview && canPreview
+      ? (await getLandingDraftOrFallback()).content
+      : await getPublishedLandingContent();
+  return {
+    // Whole: the SEO title already names the site, and the root layout's
+    // template would add " | Productora Glitter" again.
+    title: { absolute: withEnvLabel(content.seo.title, getEnvLabel()) },
+    description: content.seo.description,
+    // Images only, so the share card's title and description come from the
+    // SEO ones above, not the root layout's; the site's picture (under
+    // Next's hashed URL) where the landing has none.
+    openGraph: {
+      images: content.seo.shareImageUrl
+        ? [content.seo.shareImageUrl]
+        : ((await parent).openGraph?.images ?? []),
+    },
+    ...(preview ? { robots: { index: false, follow: false } } : {}),
+  };
+}
+
+export default async function Home({ searchParams }: HomeProps) {
+  const { preview, canPreview, profile } =
+    await getLandingPreviewState(searchParams);
+  if (preview && canPreview) {
+    const draft = await getLandingDraftOrFallback();
+    return (
+      <Suspense fallback={<LandingSkeleton />}>
+        <Landing content={draft.content} preview />
+      </Suspense>
+    );
+  }
+  if (profile) {
+    redirect("/portal");
+  }
+
+  const landing = (
+    <Suspense fallback={<LandingSkeleton />}>
+      <Landing />
+    </Suspense>
+  );
+
+  // The installed app is for people with an account: without a session it
+  // shows sign in instead of the marketing landing.
+  if (await isSignedIn()) return landing;
+
+  return <InstalledAppLandingGate>{landing}</InstalledAppLandingGate>;
+}

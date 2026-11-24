@@ -796,7 +796,7 @@ function revalidateFestivalPages(
   expireFestivalCaches();
   revalidatePath("/dashboard/festivals");
   revalidatePath(`/dashboard/festivals/${festivalId}`);
-  revalidatePath(`/festivals/${festivalId}`, "layout");
+  revalidatePath("/(site)/(routes)/festivals/[id]", "layout");
   revalidatePath("/");
   for (const sanctionId of associatedSanctionIds) {
     revalidatePath(`/dashboard/sanctions/${sanctionId}`);
@@ -965,8 +965,8 @@ export async function archiveFestival(festivalId: number) {
   }
 
   expireFestivalCaches();
-  revalidatePath("/dashboard/festivals", "layout");
-  revalidatePath(`/festivals/${festivalId}`, "layout");
+  revalidatePath("/(site)/dashboard/festivals", "layout");
+  revalidatePath("/(site)/(routes)/festivals/[id]", "layout");
   return { success: true, message: "Festival archivado" };
 }
 
@@ -1189,7 +1189,7 @@ export async function updateFestivalParticipantTerms(
   expireFestivalCaches();
   revalidatePath("/dashboard/festivals");
   revalidatePath(`/dashboard/festivals/${festivalId}`);
-  revalidatePath("/festivals", "layout");
+  revalidatePath("/(site)/(routes)/festivals", "layout");
   return {
     success: true,
     message: participantTermsEnabled

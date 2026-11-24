@@ -44,8 +44,8 @@ const promoCodeAdminSchema = z
 export type PromoCodeAdminInput = z.input<typeof promoCodeAdminSchema>;
 
 function revalidatePromoCodes(programId: number) {
-  revalidatePath("/dashboard/programs", "layout");
-  revalidatePath("/programs", "layout");
+  revalidatePath("/(site)/dashboard/programs", "layout");
+  revalidatePath("/(site)/(routes)/programs", "layout");
   revalidatePath(`/dashboard/programs/${programId}`);
 }
 

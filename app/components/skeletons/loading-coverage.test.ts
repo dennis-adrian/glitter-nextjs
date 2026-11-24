@@ -33,6 +33,17 @@ function listPages(dir: string, out: string[] = []): string[] {
 }
 
 const pages = listPages(APP);
+
+/**
+ * Screens that render with no loading state on purpose, each with its reason.
+ * Keep this short: every entry is a screen a tap can open with nothing moving.
+ */
+const WITHOUT_LOADING_STATE: Record<string, string> = {
+  // The link-in-bio page, opened almost only by a full load from a social
+  // profile. Its data comes from the cache, and a loading.tsx would stream a
+  // spinner ahead of its links on every one of those loads.
+  links: "streams no spinner ahead of its links",
+};
 const hasLoading = (dir: string) =>
   fs.existsSync(path.join(dir, "loading.tsx"));
 const leadsToPage = (dir: string) =>
@@ -81,8 +92,17 @@ describe("loading states", () => {
     expect(pages.length).toBeGreaterThan(100);
   });
 
+  it("exempts only screens that exist and really have no loading state", () => {
+    for (const page of Object.keys(WITHOUT_LOADING_STATE)) {
+      const dir = path.join(APP, page);
+      expect(pages, page).toContain(dir);
+      expect(blankNavigations(dir), page).not.toEqual([]);
+    }
+  });
+
   it("shows something at once for every navigation into every screen", () => {
     const blank = pages
+      .filter((page) => !(path.relative(APP, page) in WITHOUT_LOADING_STATE))
       .map((page) => ({
         page: path.relative(APP, page),
         gaps: blankNavigations(page),

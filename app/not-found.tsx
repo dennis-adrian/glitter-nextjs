@@ -1,25 +1,26 @@
+import NotFoundMessage from "@/app/components/not-found-message";
+import { buttonVariants } from "@/app/components/ui/button";
+
+/**
+ * The 404 for an address no page answers, under the root layout alone.
+ *
+ * Next sends this file with every page of the app and loads what it imports,
+ * so it must stay light: no site header or footer (Clerk, the navbar), which
+ * `/links` must not carry. A link takes the visitor back to the site. A page
+ * of the site that calls `notFound()` gets `app/(site)/not-found.tsx`, inside
+ * the header and footer.
+ */
 export default function NotFound() {
   return (
-    <div className="flex min-h-[70dvh] md:min-h-[50dvh] flex-col items-center justify-center bg-background px-4 text-center">
-      <div className="mx-auto flex max-w-[500px] flex-col items-center justify-center space-y-6">
-        <div className="relative h-40 w-40">
-          <div className="absolute inset-0 flex items-center justify-center rounded-full bg-muted text-[120px] font-bold opacity-10">
-            404
-          </div>
-          <div className="absolute inset-0 flex items-center justify-center text-5xl font-bold">
-            404
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl">
-            No se encontraron resultados
-          </h1>
-          <p className="text-muted-foreground">
-            No pudimos encontrar lo que estás buscando.
-          </p>
-        </div>
-      </div>
-    </div>
+    <main>
+      <NotFoundMessage>
+        {/* A full load on purpose: the site's layout, with Clerk and its
+            header, is not mounted here, and should render on the server. */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- see above */}
+        <a href="/" className={buttonVariants({ wrap: true })}>
+          Ir al inicio
+        </a>
+      </NotFoundMessage>
+    </main>
   );
 }

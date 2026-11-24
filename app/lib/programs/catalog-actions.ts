@@ -77,8 +77,8 @@ function blankToNull(value: string | null | undefined): string | null {
 }
 
 function revalidateCatalog() {
-  revalidatePath("/dashboard/programs", "layout");
-  revalidatePath("/programs", "layout");
+  revalidatePath("/(site)/dashboard/programs", "layout");
+  revalidatePath("/(site)/(routes)/programs", "layout");
 }
 
 export async function createVenue(input: VenueInput) {

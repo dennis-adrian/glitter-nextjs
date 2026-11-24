@@ -4,6 +4,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
+import {
+  inSiteChrome,
+  SITE_CHROME_READY_EVENT,
+  siteToastsReady,
+} from "@/app/lib/site-chrome";
+
 import { announceNotificationsChanged } from "@/app/components/notifications/notification-events";
 import {
   SENSITIVE_PUSH_BODY,
@@ -45,15 +51,18 @@ const SESSION_WAIT_MS = 2_000;
 type Router = ReturnType<typeof useRouter>;
 
 /**
- * This page's side of the taps and arrivals. The taps it opened, so the
- * worker's message and the kept copy of one tap never open it twice; the
+ * This page's side of the taps and arrivals. The taps it opened, each with
+ * its open until the page has stayed or started reloading, so the worker's
+ * message and the kept copy of one tap never open it twice; the
  * items it offered or opened, so none is offered again (a retried push is
  * one item); and whether it is reloading, after which it offers nothing.
  */
 type PageState = {
   router: Router;
-  taps: Set<string>;
+  taps: Map<string, Promise<void>>;
   arrivals: Set<string>;
+  /** Arrivals that came while no toast could show, to offer once one can. */
+  unoffered: Arrival[];
   leaving: boolean;
 };
 
@@ -145,9 +154,14 @@ async function freshSession(): Promise<boolean> {
   ]);
 }
 
-/** Goes to `href` inside the app, or with a full load of `fallback`. */
+/**
+ * Goes to `href` inside the app, or with a full load of `fallback`. Always
+ * the full load outside the site's layout (`/links`, the root 404): Clerk is
+ * not there to renew the session, and the site's header renders on the
+ * server that way.
+ */
 async function go(page: PageState, href: string, fallback: string) {
-  if (await freshSession()) {
+  if (inSiteChrome() && (await freshSession())) {
     page.router.push(href);
     return true;
   }
@@ -162,16 +176,17 @@ async function go(page: PageState, href: string, fallback: string) {
  * loading state meanwhile. Through its open route with a full load when the
  * push is from before that, or the session could not be renewed in time.
  */
-function openItem(page: PageState, target: Target) {
+function openItem(page: PageState, target: Target): Promise<void> {
   if (target.id != null) toast.dismiss(`item:${target.id}`);
   if (target.id == null || target.href == null) {
     page.leaving = true;
     pageLoad.assign(target.url);
-    return;
+    return Promise.resolve();
   }
   page.arrivals.add(`item:${target.id}`);
   const { url } = target;
-  void go(page, target.href, url).then((inPlace) => {
+  // Settles once it is known whether the page stays or reloads.
+  return go(page, target.href, url).then((inPlace) => {
     if (!inPlace) return;
     // Read on the server through its open route, as a full load would be:
     // its path holds across deploys, and the request outlives a reload. It
@@ -186,11 +201,17 @@ function openItem(page: PageState, target: Target) {
   });
 }
 
-function openTap(page: PageState, tapId: string, target: Target) {
-  if (page.taps.has(tapId)) return;
-  page.taps.add(tapId);
+function openTap(
+  page: PageState,
+  tapId: string,
+  target: Target,
+): Promise<void> {
+  const opening = page.taps.get(tapId);
+  if (opening) return opening;
   void forgetLastTap();
-  openItem(page, target);
+  const opened = openItem(page, target);
+  page.taps.set(tapId, opened);
+  return opened;
 }
 
 /**
@@ -204,6 +225,7 @@ function openTap(page: PageState, tapId: string, target: Target) {
 async function finishKeptTap(page: PageState): Promise<boolean> {
   const tap = parseKeptTap(await readState(LAST_TAP_PATH));
   if (!tap) return false;
+  // Still opening, maybe: onReturn waits for every tap's open.
   if (page.taps.has(tap.tapId)) return true;
   const { pathname, search, hash } = window.location;
   const loaded =
@@ -214,8 +236,62 @@ async function finishKeptTap(page: PageState): Promise<boolean> {
     return false;
   }
   if (isSignInPage() || !canOpenHere()) return false;
-  openTap(page, tap.tapId, tap);
+  // Until the page has gone or stayed: what comes after depends on it.
+  await openTap(page, tap.tapId, tap);
   return true;
+}
+
+/**
+ * When the oldest arrival this window could not offer came, kept for the
+ * window's life: leaving `/links` for the site is a full load, and the worker
+ * posts each arrival once.
+ */
+const UNOFFERED_SINCE_KEY = "glitter:unoffered-arrivals-since";
+
+function keepUnoffered(page: PageState, arrivals: Arrival[]) {
+  if (arrivals.length === 0) return;
+  // Also here: the worker keeps an arrival only after posting it.
+  page.unoffered.push(...arrivals);
+  try {
+    const kept = Number(sessionStorage.getItem(UNOFFERED_SINCE_KEY));
+    // Just before it: what is offered is what came after `since`.
+    const since = Math.min(...arrivals.map((arrival) => arrival.at - 1));
+    if (!kept || since < kept) {
+      sessionStorage.setItem(UNOFFERED_SINCE_KEY, String(since));
+    }
+  } catch {
+    // Without storage, only this page keeps it.
+  }
+}
+
+/** What `keepUnoffered` kept, now to be offered; forgotten here. */
+/** A window of time whose arrivals a return could not offer yet. */
+function keepUnofferedSince(since: number) {
+  try {
+    const kept = Number(sessionStorage.getItem(UNOFFERED_SINCE_KEY));
+    if (!kept || since < kept) {
+      sessionStorage.setItem(UNOFFERED_SINCE_KEY, String(since));
+    }
+  } catch {
+    // Without storage the window is lost, as a return's always was.
+  }
+}
+
+function takeUnoffered(page: PageState): {
+  since: number | null;
+  arrivals: Arrival[];
+} {
+  const arrivals = page.unoffered;
+  page.unoffered = [];
+  let since: number | null = null;
+  try {
+    const kept = Number(sessionStorage.getItem(UNOFFERED_SINCE_KEY));
+    sessionStorage.removeItem(UNOFFERED_SINCE_KEY);
+    if (kept > 0) since = kept;
+  } catch {
+    // Only what this page kept itself.
+  }
+  return { since, arrivals };
 }
 
 function arrivalKey(arrival: Arrival) {
@@ -249,7 +325,17 @@ function offerArrivals(
   arrivals: Arrival[],
   mayBeMore = false,
 ) {
-  if (page.leaving) return;
+  // Kept for the next page: this one is reloading.
+  if (page.leaving) {
+    keepUnoffered(page, arrivals);
+    return;
+  }
+  // No toasts are mounted outside the site's layout (or not yet): keep them
+  // for when they are.
+  if (!siteToastsReady()) {
+    keepUnoffered(page, arrivals);
+    return;
+  }
   if (window.location.pathname === "/my_notifications") return;
   const opened = openedNotificationId(document.cookie);
   const fresh: Arrival[] = [];
@@ -270,7 +356,7 @@ function offerArrivals(
       id: arrivalKey(only),
       description,
       duration: ARRIVAL_TOAST_MS,
-      action: { label: "Ver", onClick: () => openItem(page, only) },
+      action: { label: "Ver", onClick: () => void openItem(page, only) },
     });
     return;
   }
@@ -294,15 +380,45 @@ function offerArrivals(
  * notification it was. Elsewhere a tap always says, and the device already
  * showed each one.
  */
-async function offerArrivalsSince(page: PageState, since: number) {
+async function offerArrivalsSince(
+  page: PageState,
+  since: number | null,
+  also: Arrival[] = [],
+) {
   if (!isIPhoneApp()) return;
-  const kept = parseArrivals(await readState(ARRIVALS_PATH));
-  const arrived = kept.filter((arrival) => arrival.at > since);
+  const kept =
+    since == null ? [] : parseArrivals(await readState(ARRIVALS_PATH));
+  const arrived = kept.filter((arrival) => since != null && arrival.at > since);
+  const keys = new Set(arrived.map(arrivalKey));
+  const extra = also.filter((arrival) => !keys.has(arrivalKey(arrival)));
   offerArrivals(
     page,
-    arrived,
+    [...arrived, ...extra],
     kept.length >= ARRIVALS_KEPT && arrived.length === kept.length,
   );
+}
+
+/** What came while no toast could show, with what came since `since`. */
+function offerUnoffered(page: PageState, since: number | null) {
+  // Kept for the next page if this one is going, or for the return to the
+  // app if it is in the background.
+  if (page.leaving || document.visibilityState !== "visible") {
+    // The return's window too: the next return starts from a later time.
+    if (since != null) keepUnofferedSince(since);
+    return;
+  }
+  const unoffered = siteToastsReady()
+    ? takeUnoffered(page)
+    : { since: null, arrivals: [] };
+  const from = earliest(since, unoffered.since);
+  if (from == null && unoffered.arrivals.length === 0) return;
+  void offerArrivalsSince(page, from, unoffered.arrivals);
+}
+
+function earliest(a: number | null, b: number | null) {
+  if (a == null) return b;
+  if (b == null) return a;
+  return Math.min(a, b);
 }
 
 /**
@@ -339,8 +455,9 @@ export default function ServiceWorkerMessages() {
     // open a tap again.
     const page = (stateRef.current ??= {
       router,
-      taps: new Set(),
+      taps: new Map(),
       arrivals: new Set(),
+      unoffered: [],
       leaving: false,
     });
     page.router = router;
@@ -379,7 +496,7 @@ export default function ServiceWorkerMessages() {
         url != null && tapId != null && (page.taps.has(tapId) || canOpenHere());
       event.ports[0]?.postMessage({ accepted });
       if (accepted) {
-        openTap(page, tapId, {
+        void openTap(page, tapId, {
           id: notificationId(data.id),
           url,
           href: sitePath(data.href),
@@ -387,10 +504,21 @@ export default function ServiceWorkerMessages() {
       }
     };
 
-    const onReturn = (since: number | null) => {
-      void finishKeptTap(page).then((opened) => {
-        if (!opened && since != null) void offerArrivalsSince(page, since);
+    const onReturn = (since: number | null) =>
+      finishKeptTap(page).then(async (opened) => {
+        // Any tap still opening (the worker's message may have opened it,
+        // and forgotten the kept copy) decides first whether the page stays.
+        await Promise.all(page.taps.values());
+        // After a tap, what was held back and every arrival kept since the
+        // oldest of it; not the window the tap's own return covers.
+        offerUnoffered(page, opened ? null : since);
       });
+    // The tap a cold start may land with goes first (set below).
+    let started: Promise<void> = Promise.resolve();
+    // The site's toasts just mounted: offer what came while they were not,
+    // once a kept tap has either kept this page or taken it away.
+    const onSiteChromeReady = () => {
+      void started.then(() => offerUnoffered(page, null));
     };
     const onVisibility = () => {
       if (document.visibilityState === "hidden") {
@@ -399,11 +527,11 @@ export default function ServiceWorkerMessages() {
       }
       const since = hiddenAt;
       hiddenAt = null;
-      onReturn(since);
+      void onReturn(since);
     };
     // Restored from the back/forward cache: a return, with no hidden time.
     const onPageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) onReturn(null);
+      if (event.persisted) void onReturn(null);
     };
 
     container.addEventListener("message", onMessage);
@@ -413,12 +541,14 @@ export default function ServiceWorkerMessages() {
     container.startMessages?.();
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pageshow", onPageShow);
+    window.addEventListener(SITE_CHROME_READY_EVENT, onSiteChromeReady);
     // A cold start may land here instead of on the tap's link.
-    onReturn(null);
+    started = onReturn(null);
     return () => {
       container.removeEventListener("message", onMessage);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener(SITE_CHROME_READY_EVENT, onSiteChromeReady);
     };
   }, [router]);
 

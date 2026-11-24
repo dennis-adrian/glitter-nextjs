@@ -23,7 +23,7 @@ import {
 
 function revalidateTermsPaths() {
   revalidatePath("/dashboard/terms");
-  revalidatePath("/festivals", "layout");
+  revalidatePath("/(site)/(routes)/festivals", "layout");
 }
 
 export async function getFestivalTermsAdminState() {

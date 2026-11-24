@@ -22,7 +22,7 @@ export function hubSectionAvailability(hub: ParticipationHub) {
 
 /**
  * The confirmed reservation's own pages, which live outside the hub: the
- * reservation, its payments, the product images and the festival's terms.
+ * reservation, its payments and, when asked of them, the product images.
  */
 function reservationShortcuts(hub: ParticipationHub): HubShortcut[] {
   return [
@@ -44,12 +44,17 @@ function reservationShortcuts(hub: ParticipationHub): HubShortcut[] {
       href: hub.links.invoices,
       icon: ReceiptTextIcon,
     },
-    {
-      key: "products",
-      label: "Productos",
-      href: hub.links.products,
-      icon: ImageIcon,
-    },
+    // Only the participants the team asked for product images.
+    ...(hub.shouldSubmitProducts
+      ? [
+          {
+            key: "products",
+            label: "Productos",
+            href: hub.links.products,
+            icon: ImageIcon,
+          },
+        ]
+      : []),
   ];
 }
 

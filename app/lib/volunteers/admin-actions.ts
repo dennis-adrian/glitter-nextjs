@@ -17,7 +17,6 @@ import {
   VOLUNTEER_ADMIN_COPY,
   VOLUNTEER_STATUS_LABELS,
   type VolunteerAdminResult,
-  volunteerAdminPath,
 } from "@/app/lib/volunteers/admin-definitions";
 import {
   type VolunteerActiveInput,
@@ -64,7 +63,6 @@ import {
 import {
   VOLUNTEER_MAX_SHIFTS_PER_DAY,
   type VolunteerApplicationStatus,
-  VOLUNTEERS_PATH,
 } from "@/app/lib/volunteers/definitions";
 import { db } from "@/db";
 import { isImpersonationReadOnlyError } from "@/db/write-guard";
@@ -131,14 +129,18 @@ function failure(
   return refused(VOLUNTEER_ADMIN_COPY.genericError);
 }
 
-function revalidateApplications(festivalId: number) {
-  revalidatePath(volunteerAdminPath(festivalId), "layout");
+/**
+ * Every festival's volunteer screens: a typed path names the route's folder
+ * (`[id]`, route group included), not one festival's address.
+ */
+function revalidateApplications() {
+  revalidatePath("/(site)/dashboard/festivals/[id]/volunteers", "layout");
 }
 
 /** Settings, roles and shifts also show on the public page. */
-function revalidateCall(festivalId: number) {
-  revalidatePath(volunteerAdminPath(festivalId), "layout");
-  revalidatePath(VOLUNTEERS_PATH, "layout");
+function revalidateCall() {
+  revalidatePath("/(site)/dashboard/festivals/[id]/volunteers", "layout");
+  revalidatePath("/(site)/(routes)/voluntarios", "layout");
 }
 
 /**
@@ -219,7 +221,7 @@ export async function updateVolunteerApplicationStatus(
     return failure(error, "Error updating a volunteer status", festivalId);
   }
 
-  revalidateApplications(festivalId);
+  revalidateApplications();
   return {
     success: true,
     message: `Estado actualizado: ${VOLUNTEER_STATUS_LABELS[status]}.`,
@@ -386,7 +388,7 @@ export async function saveVolunteerReview(
     return failure(error, "Error saving a volunteer review", festivalId);
   }
 
-  revalidateApplications(festivalId);
+  revalidateApplications();
   return withOverLimitWarning("Cambios guardados.", overLimit);
 }
 
@@ -579,7 +581,7 @@ export async function assignVolunteerShift(
       message: `Ese turno ya estaba asignado a ${outcome.fullName}.`,
     };
   }
-  revalidateApplications(festivalId);
+  revalidateApplications();
   const message = outcome.accepted
     ? `Turno asignado a ${outcome.fullName}. Su postulación pasó a Aceptada.`
     : `Turno asignado a ${outcome.fullName}.`;
@@ -641,7 +643,7 @@ export async function unassignVolunteerShift(
       message: `${outcome.fullName} ya no estaba en este turno.`,
     };
   }
-  revalidateApplications(festivalId);
+  revalidateApplications();
   return {
     success: true,
     message: `Quitamos a ${outcome.fullName} de este turno.`,
@@ -679,7 +681,7 @@ export async function updateVolunteerCallSettings(
     return failure(error, "Error saving volunteer call settings", festivalId);
   }
 
-  revalidateCall(festivalId);
+  revalidateCall();
   return { success: true, message: "Convocatoria guardada." };
 }
 
@@ -744,7 +746,7 @@ export async function saveVolunteerRole(
     return failure(error, "Error saving a volunteer role", festivalId);
   }
 
-  revalidateCall(festivalId);
+  revalidateCall();
   return {
     success: true,
     message: roleId === undefined ? "Rol creado." : "Rol actualizado.",
@@ -799,7 +801,7 @@ export async function moveVolunteerRole(
     return failure(error, "Error moving a volunteer role", festivalId);
   }
 
-  revalidateCall(festivalId);
+  revalidateCall();
   return { success: true, message: "Orden actualizado." };
 }
 
@@ -829,7 +831,7 @@ export async function setVolunteerRoleActive(
     return failure(error, "Error toggling a volunteer role", festivalId);
   }
 
-  revalidateCall(festivalId);
+  revalidateCall();
   return {
     success: true,
     message: isActive ? "Rol activado." : "Rol desactivado.",
@@ -1001,7 +1003,7 @@ export async function saveVolunteerShift(
     return failure(error, "Error saving a volunteer shift", festivalId);
   }
 
-  revalidateCall(festivalId);
+  revalidateCall();
   const message =
     shiftId === undefined ? "Turno creado." : "Turno actualizado.";
   if (overLimit.length === 0) return { success: true, message };
@@ -1040,7 +1042,7 @@ export async function setVolunteerShiftActive(
     return failure(error, "Error toggling a volunteer shift", festivalId);
   }
 
-  revalidateCall(festivalId);
+  revalidateCall();
   return {
     success: true,
     message: isActive ? "Turno activado." : "Turno desactivado.",
@@ -1141,7 +1143,7 @@ export async function decideVolunteerApplication(
     return { success: false, message: result.message };
   }
 
-  revalidateApplications(festivalId);
+  revalidateApplications();
   return {
     success: true,
     message: `${DECISION_VERBS[status]} ${outcome.fullName}`,
@@ -1174,7 +1176,7 @@ export async function addVolunteerNote(
     return failure(error, "Error adding a volunteer note", festivalId);
   }
 
-  revalidateApplications(festivalId);
+  revalidateApplications();
   return { success: true, message: "Nota guardada." };
 }
 
@@ -1316,7 +1318,7 @@ export async function assignVolunteersToShift(
     return failure(error, "Error assigning volunteers to a shift", festivalId);
   }
 
-  revalidateApplications(festivalId);
+  revalidateApplications();
   const message =
     outcome.assigned === 1
       ? "Asignaste 1 persona."
@@ -1382,7 +1384,7 @@ export async function saveVolunteerPersonAssignment(
     return failure(error, "Error saving a volunteer assignment", festivalId);
   }
 
-  revalidateApplications(festivalId);
+  revalidateApplications();
   return withOverLimitWarning("Asignación guardada.", overLimit);
 }
 
@@ -1532,7 +1534,7 @@ export async function updateVolunteerAvailability(
   }
 
   if (!changed) return { success: true, message: "No había cambios." };
-  revalidateApplications(festivalId);
+  revalidateApplications();
   return { success: true, message: "Turnos actualizados." };
 }
 
