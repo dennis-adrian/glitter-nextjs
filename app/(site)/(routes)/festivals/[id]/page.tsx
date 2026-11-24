@@ -92,8 +92,11 @@ export default async function Page({ params }: PageProps) {
           />
         </Suspense>
         {/* Outside the loading boundary, so a link to #mapa always finds it
-            where the map will be, even before the map has loaded. */}
-        <section id="mapa" tabIndex={-1} className="scroll-mt-24">
+            where the map will be, even before the map has loaded. A shared
+            filtered link carries #mapa, and the browser focuses the target
+            on load: the section is a landing spot, not a control, so it
+            draws no focus ring around the whole map. */}
+        <section id="mapa" tabIndex={-1} className="scroll-mt-24 outline-none">
           <Suspense fallback={<VisitorDiscoveryFallback />}>
             <FestivalVisitorDiscovery
               festivalId={festival.id}
