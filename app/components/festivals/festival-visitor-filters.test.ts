@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   filterFestivalParticipants,
   getMatchingStandIds,
+  getStandFilterMatchingStandIds,
   participantSearchEntryMatchesFilters,
   sortFestivalParticipants,
 } from "@/app/components/festivals/festival-visitor-filters";
@@ -248,6 +249,78 @@ describe("getMatchingStandIds", () => {
         standFilters: { status: "all", activities: ["stamp_passport"] },
       }),
     ).toEqual([24]);
+  });
+});
+
+describe("getStandFilterMatchingStandIds", () => {
+  function occupiedStand(
+    id: number,
+    userId: number,
+    {
+      displayName = "Pandora",
+      reservationStatus = "accepted",
+    }: { displayName?: string | null; reservationStatus?: string } = {},
+  ) {
+    return {
+      id,
+      status: "confirmed",
+      reservations: [
+        {
+          status: reservationStatus,
+          participants: [{ user: { id: userId, displayName } }],
+        },
+      ],
+    };
+  }
+
+  const occupantSectors = [
+    {
+      stands: [
+        occupiedStand(12, 1),
+        // No display name: no search entry, but the badge still shows.
+        occupiedStand(13, 3, { displayName: null }),
+        // Not yet accepted: occupies the stand and carries the badge.
+        occupiedStand(24, 3, { reservationStatus: "verification_payment" }),
+        // A rejected reservation no longer occupies the stand.
+        occupiedStand(25, 3, { reservationStatus: "rejected" }),
+        { id: 99, status: "available", reservations: [] },
+        { id: 100, status: "disabled", reservations: [] },
+      ],
+    },
+  ] as unknown as FestivalSectorWithStandsWithReservationsWithParticipants[];
+
+  function standFilterMatches(
+    standFilters: Parameters<
+      typeof getStandFilterMatchingStandIds
+    >[0]["standFilters"],
+  ) {
+    return getStandFilterMatchingStandIds({
+      sectors: occupantSectors,
+      standFilters,
+      activityUserIds,
+    });
+  }
+
+  it("returns null when no filter is active", () => {
+    expect(standFilterMatches(EMPTY_STAND_FILTERS)).toBeNull();
+  });
+
+  it("matches every stand whose occupants carry the badge", () => {
+    expect(
+      standFilterMatches({ status: "all", activities: ["stamp_passport"] }),
+    ).toEqual([13, 24]);
+  });
+
+  it("ors activities and ands them with status", () => {
+    expect(
+      standFilterMatches({
+        status: "occupied",
+        activities: ["coupon_book", "stamp_passport"],
+      }),
+    ).toEqual([12, 13, 24]);
+    expect(standFilterMatches({ status: "available", activities: [] })).toEqual(
+      [99],
+    );
   });
 });
 

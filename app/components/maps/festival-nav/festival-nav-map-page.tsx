@@ -5,10 +5,9 @@ import { useMemo, useState } from "react";
 import FestivalVisitorFilterSummary from "@/app/components/festivals/festival-visitor-filter-summary";
 import {
   countShownStands,
-  getMatchingStandIds,
+  getStandFilterMatchingStandIds,
 } from "@/app/components/festivals/festival-visitor-filters";
 import FestivalNavMap from "@/app/components/maps/festival-nav/festival-nav-map";
-import { buildParticipantSearchEntries } from "@/app/components/maps/festival-nav/festival-nav-participant-search";
 import type { CouponProof } from "@/app/components/maps/festival-nav/festival-nav-stand-drawer";
 import {
   useInitialFestivalMapUrlState,
@@ -68,21 +67,16 @@ export default function FestivalNavMapPage({
     initialUrlState.standFilters,
   );
 
-  const searchEntries = useMemo(
-    () => buildParticipantSearchEntries(sectors),
-    [sectors],
-  );
+  // Matched over each stand's occupants, the same rule the badges are drawn
+  // with, so every stand showing a selected marker stays lit.
   const matchingStandIds = useMemo(
     () =>
-      getMatchingStandIds({
+      getStandFilterMatchingStandIds({
         sectors,
-        searchEntries,
-        query: "",
-        category: "all",
         standFilters,
         activityUserIds,
       }),
-    [activityUserIds, searchEntries, sectors, standFilters],
+    [activityUserIds, sectors, standFilters],
   );
   const standCounts = useMemo(
     () => countShownStands(sectors, activeSectorIndex, matchingStandIds),
@@ -91,7 +85,17 @@ export default function FestivalNavMapPage({
 
   useSyncFestivalMapUrl(
     { query: "", sectorIndex: activeSectorIndex, standFilters },
-    { sectors, includeQuery: false },
+    {
+      sectors,
+      selectableStatuses,
+      selectableActivities,
+      includeQuery: false,
+      // A link to this page with other filters keeps it mounted.
+      onExternalChange: (next) => {
+        setActiveSectorIndex(next.sectorIndex);
+        setStandFilters(next.standFilters);
+      },
+    },
   );
 
   return (

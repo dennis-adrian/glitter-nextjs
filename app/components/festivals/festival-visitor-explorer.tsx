@@ -193,8 +193,21 @@ export default function FestivalVisitorExplorer({
   // ever was; the address bar follows a beat later, ready to be shared.
   useSyncFestivalMapUrl(
     { query, sectorIndex: activeSectorIndex, standFilters },
-    // `#mapa` is the festival page's map section, around this explorer.
-    { sectors, includeQuery: true, anchor: "mapa" },
+    {
+      sectors,
+      selectableStatuses,
+      selectableActivities,
+      includeQuery: true,
+      // `#mapa` is the festival page's map section, around this explorer.
+      anchor: "mapa",
+      // A link to this page with other filters keeps the explorer mounted.
+      onExternalChange: (next) => {
+        setQuery(next.query);
+        setActiveSectorIndex(next.sectorIndex);
+        setStandFilters(next.standFilters);
+        setParticipantLocateRequest(null);
+      },
+    },
   );
 
   const hasActiveFilters =

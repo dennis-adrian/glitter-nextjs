@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import {
@@ -17,9 +17,15 @@ import {
  */
 const URL_WRITE_DELAY_MS = 250;
 
+/** One string per URL, in the shape both Next's hooks and our writes produce. */
+function locationKey(pathname: string, search: string) {
+  return `${pathname}?${search.replace(/^\?/, "")}`;
+}
+
 /**
- * The filters a shared link opens with. Read once: from then on React state
- * leads and the URL only follows it, so a click never waits on the URL.
+ * The filters a shared link opens with. From then on React state leads and the
+ * URL only follows it, so a click never waits on the URL;
+ * `useSyncFestivalMapUrl` hands back any later URL it did not write itself.
  */
 export function useInitialFestivalMapUrlState(
   context: FestivalMapUrlContext,
@@ -34,39 +40,70 @@ export function useInitialFestivalMapUrlState(
 
 /**
  * Mirrors the map's filters into the address bar so the visitor can copy and
- * share it.
+ * share it, and picks up a URL someone else changed.
  *
- * Goes through `history.replaceState` on purpose: `router.replace` with new
- * search params asks the server to render the whole festival page again, which
- * is what made filtering take seconds. The native call only updates the URL
- * (Next keeps `useSearchParams` in step), and replacing rather than pushing
- * keeps the back button leaving the page instead of stepping through every
- * chip that was tapped.
+ * Writes go through `history.replaceState` on purpose: `router.replace` with
+ * new search params asks the server to render the whole festival page again,
+ * which is what made filtering take seconds. The native call only updates the
+ * URL (Next keeps `useSearchParams` in step), and replacing rather than
+ * pushing keeps the back button leaving the page instead of stepping through
+ * every chip that was tapped.
+ *
+ * Next keys the page by its route, not its search params or festival id, so a
+ * link to the same page with other filters (or to another festival) keeps this
+ * component mounted with the old state. Any URL this hook did not write is
+ * read back through `onExternalChange`.
  */
 export function useSyncFestivalMapUrl(
   { query, sectorIndex, standFilters }: FestivalMapUrlState,
   {
-    sectors,
-    includeQuery,
     anchor,
-  }: Pick<FestivalMapUrlContext, "sectors" | "includeQuery"> & {
+    onExternalChange,
+    ...context
+  }: FestivalMapUrlContext & {
     /**
      * Section id added as the hash while any filter is on, so whoever opens
      * the link lands on the filtered map instead of the top of the page.
      * An existing hash is left alone.
      */
     anchor?: string;
+    /** Called during render with the filters of a URL that came from elsewhere. */
+    onExternalChange: (state: FestivalMapUrlState) => void;
   },
 ) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const location = locationKey(pathname, searchParams.toString());
+  const [seenLocation, setSeenLocation] = useState(location);
+  const [ownLocation, setOwnLocation] = useState<string | null>(null);
+
+  // Adjusted during render rather than in an effect, so the page never paints
+  // the new URL with the old filters.
+  if (location !== seenLocation) {
+    setSeenLocation(location);
+    if (location !== ownLocation) {
+      onExternalChange(parseFestivalMapUrlState(searchParams, context));
+    }
+  }
+
+  const { sectors, includeQuery } = context;
+
   useEffect(() => {
-    const pathname = window.location.pathname;
+    const scheduledPathname = window.location.pathname;
+    const scheduledSearch = window.location.search;
     const state = { query, sectorIndex, standFilters };
 
     const timer = window.setTimeout(() => {
-      // Navigated away in the meantime: that URL belongs to another page.
-      if (window.location.pathname !== pathname) return;
+      // The URL moved on since this write was scheduled (another page, or a
+      // link to this one with other filters): it is not ours to overwrite.
+      if (
+        window.location.pathname !== scheduledPathname ||
+        window.location.search !== scheduledSearch
+      ) {
+        return;
+      }
 
-      const search = writeFestivalMapUrlState(window.location.search, state, {
+      const search = writeFestivalMapUrlState(scheduledSearch, state, {
         sectors,
         includeQuery,
       });
@@ -75,14 +112,21 @@ export function useSyncFestivalMapUrl(
           ? `#${anchor}`
           : window.location.hash;
 
-      if (search === window.location.search && hash === window.location.hash) {
+      if (search === scheduledSearch && hash === window.location.hash) {
         return;
       }
 
       try {
+        // Recorded first, so the render Next triggers for this URL already
+        // knows it came from here.
+        setOwnLocation(locationKey(scheduledPathname, search));
         // `null`, not the current state: Next only syncs its router with
         // calls that do not carry its own history entry.
-        window.history.replaceState(null, "", `${pathname}${search}${hash}`);
+        window.history.replaceState(
+          null,
+          "",
+          `${scheduledPathname}${search}${hash}`,
+        );
       } catch {
         // A throttled update only leaves the URL one step behind; the next
         // change writes it again.
