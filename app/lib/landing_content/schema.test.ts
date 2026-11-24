@@ -10,6 +10,33 @@ describe("landing page content schema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("reads an emptied share image as none, since it is optional", () => {
+    const content = structuredClone(DEFAULT_LANDING_PAGE_CONTENT);
+    (content.seo as { shareImageUrl: string | null }).shareImageUrl = "  ";
+    const result = parseLandingPageContent(content);
+    expect(result.success).toBe(true);
+    expect(result.data?.seo.shareImageUrl).toBeNull();
+  });
+
+  it("reads a partner logo whose URL was emptied as no logo", () => {
+    const content = structuredClone(
+      DEFAULT_LANDING_PAGE_CONTENT,
+    ) as unknown as {
+      sections: { partners: { items: Array<Record<string, unknown>> } };
+    };
+    content.sections.partners.items = [
+      {
+        id: "6f1c2b9e-3d4a-4e8b-9c1f-2a7d5e8b4c31",
+        name: "Aliado",
+        image: { url: " ", alt: "Aliado" },
+        href: null,
+      },
+    ];
+    const result = parseLandingPageContent(content);
+    if (!result.success) throw new Error(JSON.stringify(result.error.issues));
+    expect(result.data.sections.partners.items[0]?.image).toBeNull();
+  });
+
   it("rejects disallowed remote image URLs while keeping external navigation links", () => {
     const content = structuredClone(DEFAULT_LANDING_PAGE_CONTENT);
     content.hero.image.url = "https://example.com/hero.jpg";

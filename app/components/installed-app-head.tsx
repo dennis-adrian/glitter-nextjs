@@ -10,7 +10,8 @@ import { LAUNCH_SCREENS } from "@/app/lib/launch-screens";
  * metadata into <body> when the page has an async `generateMetadata` (the
  * home page does), and browsers read these only from <head>. React moves
  * these tags into <head> when they render before its first bytes go out, so
- * the root layout renders them itself, ahead of anything that waits for data.
+ * the site's layout (SiteChrome) renders them itself, ahead of anything that
+ * waits for data.
  *
  * Next still adds its own manifest link for app/manifest.ts: in <head> on
  * pages whose metadata is not streamed, in <body> on the rest. Browsers use

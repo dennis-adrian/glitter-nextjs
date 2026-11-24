@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import type { Metadata } from "next";
+import type { Metadata, ResolvingMetadata } from "next";
 
 import InstalledAppLandingGate from "@/app/components/landing/installed-app-landing-gate";
 import Landing from "@/app/components/landing/landing";
@@ -28,9 +28,10 @@ async function getLandingPreviewState(searchParams: HomeProps["searchParams"]) {
   return { preview, canPreview, profile };
 }
 
-export async function generateMetadata({
-  searchParams,
-}: HomeProps): Promise<Metadata> {
+export async function generateMetadata(
+  { searchParams }: HomeProps,
+  parent: ResolvingMetadata,
+): Promise<Metadata> {
   const { preview, canPreview } = await getLandingPreviewState(searchParams);
   const content =
     preview && canPreview
@@ -41,11 +42,14 @@ export async function generateMetadata({
     // template would add " | Productora Glitter" again.
     title: { absolute: withEnvLabel(content.seo.title, getEnvLabel()) },
     description: content.seo.description,
-    // Only with an image: an `openGraph` key, even undefined, replaces the
-    // site's inherited share tags.
-    ...(content.seo.shareImageUrl
-      ? { openGraph: { images: [content.seo.shareImageUrl] } }
-      : {}),
+    // Images only, so the share card's title and description come from the
+    // SEO ones above, not the root layout's; the site's picture (under
+    // Next's hashed URL) where the landing has none.
+    openGraph: {
+      images: content.seo.shareImageUrl
+        ? [content.seo.shareImageUrl]
+        : ((await parent).openGraph?.images ?? []),
+    },
     ...(preview ? { robots: { index: false, follow: false } } : {}),
   };
 }

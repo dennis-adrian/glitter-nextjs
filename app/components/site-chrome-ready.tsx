@@ -8,9 +8,11 @@ import {
 } from "@/app/lib/site-chrome";
 
 /**
- * Marks the page as inside the site's layout (see SITE_TOASTS_ATTRIBUTE).
- * Rendered after the Toaster: effects run in order, so by the time this one
- * does, the Toaster is listening. Renders nothing.
+ * Marks the site's toasts as listening (SITE_TOASTS_ATTRIBUTE) and sends
+ * SITE_CHROME_READY_EVENT. Being inside the site is the server-rendered
+ * SITE_CHROME_ATTRIBUTE marker, not this. Rendered after the Toaster, under
+ * the same parent: effects run in order, so by the time this one does, the
+ * Toaster is listening. Renders nothing.
  */
 export default function SiteChromeReady() {
   useEffect(() => {
