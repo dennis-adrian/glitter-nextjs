@@ -8,10 +8,10 @@ import { isStaleDeploymentError } from "@/app/lib/errors/action-error";
 
 export default function Error({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   useEffect(() => {
     // Optionally log the error to an error reporting service
@@ -26,7 +26,7 @@ export default function Error({
       <Button
         onClick={
           // Attempt to recover by trying to re-render the route
-          () => reset()
+          () => retry()
         }
       >
         Intenta de nuevo

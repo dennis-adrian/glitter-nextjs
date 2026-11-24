@@ -4,7 +4,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
-import { inSiteChrome, SITE_CHROME_READY_EVENT } from "@/app/lib/site-chrome";
+import {
+  inSiteChrome,
+  SITE_CHROME_READY_EVENT,
+  siteToastsReady,
+} from "@/app/lib/site-chrome";
 
 import { announceNotificationsChanged } from "@/app/components/notifications/notification-events";
 import {
@@ -246,7 +250,7 @@ function keepUnoffered(page: PageState, arrivals: Arrival[]) {
       sessionStorage.setItem(UNOFFERED_SINCE_KEY, String(since));
     }
   } catch {
-    // Without storage it waits for the next return to the app, as before.
+    // Without storage, only this page keeps it.
   }
 }
 
@@ -302,7 +306,7 @@ function offerArrivals(
   if (page.leaving) return;
   // No toasts are mounted outside the site's layout (or not yet): keep them
   // for when they are.
-  if (!inSiteChrome()) {
+  if (!siteToastsReady()) {
     keepUnoffered(page, arrivals);
     return;
   }
@@ -370,7 +374,9 @@ async function offerArrivalsSince(
 
 /** What came while no toast could show, with what came since `since`. */
 function offerUnoffered(page: PageState, since: number | null) {
-  const unoffered = inSiteChrome()
+  // Kept for the next page, if this one is going.
+  if (page.leaving) return;
+  const unoffered = siteToastsReady()
     ? takeUnoffered(page)
     : { since: null, arrivals: [] };
   const from = earliest(since, unoffered.since);
@@ -467,13 +473,19 @@ export default function ServiceWorkerMessages() {
       }
     };
 
-    const onReturn = (since: number | null) => {
-      void finishKeptTap(page).then((opened) => {
+    const onReturn = (since: number | null) =>
+      finishKeptTap(page).then((opened) => {
         if (!opened) offerUnoffered(page, since);
       });
+    // The tap a cold start may land with goes first (set below).
+    let started: Promise<void> = Promise.resolve();
+    // The site's toasts just mounted: offer what came while they were not,
+    // once the screen is on and no kept tap is taking this page away.
+    const onSiteChromeReady = () => {
+      void started.then(() => {
+        if (document.visibilityState === "visible") offerUnoffered(page, null);
+      });
     };
-    // The site's toasts just mounted: offer what came while they were not.
-    const onSiteChromeReady = () => offerUnoffered(page, null);
     const onVisibility = () => {
       if (document.visibilityState === "hidden") {
         hiddenAt = Date.now();
@@ -481,11 +493,11 @@ export default function ServiceWorkerMessages() {
       }
       const since = hiddenAt;
       hiddenAt = null;
-      onReturn(since);
+      void onReturn(since);
     };
     // Restored from the back/forward cache: a return, with no hidden time.
     const onPageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) onReturn(null);
+      if (event.persisted) void onReturn(null);
     };
 
     container.addEventListener("message", onMessage);
@@ -497,7 +509,7 @@ export default function ServiceWorkerMessages() {
     window.addEventListener("pageshow", onPageShow);
     window.addEventListener(SITE_CHROME_READY_EVENT, onSiteChromeReady);
     // A cold start may land here instead of on the tap's link.
-    onReturn(null);
+    started = onReturn(null);
     return () => {
       container.removeEventListener("message", onMessage);
       document.removeEventListener("visibilitychange", onVisibility);

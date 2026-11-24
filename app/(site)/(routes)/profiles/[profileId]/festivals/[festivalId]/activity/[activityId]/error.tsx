@@ -14,10 +14,10 @@ import { isStaleDeploymentError } from "@/app/lib/errors/action-error";
  */
 export default function FestivalActivityError({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   if (isStaleDeploymentError(error)) return <StaleDeploymentNotice />;
 
@@ -30,7 +30,7 @@ export default function FestivalActivityError({
           Ocurrió un error al consultar los datos. Intentá nuevamente. Si el
           problema continúa, escribinos y lo resolvemos.
         </p>
-        <Button type="button" variant="outline" onClick={reset}>
+        <Button type="button" variant="outline" onClick={retry}>
           Intentar nuevamente
         </Button>
       </div>

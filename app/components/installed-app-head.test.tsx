@@ -233,7 +233,7 @@ describe("the site's layouts", () => {
     ).toHaveLength(LAUNCH_SCREENS.length);
   });
 
-  it("leaves all of it off a page outside the group, such as /links", async () => {
+  it("leaves the install tags off a page outside the group, such as /links", async () => {
     const head = await shellHead(
       <RootLayout>
         <p>Enlaces</p>

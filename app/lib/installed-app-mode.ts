@@ -45,9 +45,10 @@ const BROWSER = JSON.stringify(INSTALLED_APP_MARK.browser);
 const STANDALONE = JSON.stringify(INSTALLED_APP_MARK.standalone);
 
 /**
- * Runs before the page paints (InstalledAppHead renders it at the top of
- * <body>, after only the theme's own script, ahead of anything visible): reads the launch fragment into sessionStorage, takes it off the
- * address, and marks <html>. Every page load of the window does this, so the
+ * Runs before the page paints (the root layout renders it first in <body>,
+ * on every page, ahead of anything visible; not InstalledAppHead, whose
+ * layout remounts and would insert it inert): reads the launch fragment
+ * into sessionStorage, takes it off the address, and marks <html>. Every page load of the window does this, so the
  * mark holds across reloads; InstalledAppMark keeps it across navigations.
  * Without storage, the fragment still marks the page it arrived on.
  */

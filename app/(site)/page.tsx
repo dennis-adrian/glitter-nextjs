@@ -41,9 +41,11 @@ export async function generateMetadata({
     // template would add " | Productora Glitter" again.
     title: { absolute: withEnvLabel(content.seo.title, getEnvLabel()) },
     description: content.seo.description,
-    openGraph: content.seo.shareImageUrl
-      ? { images: [content.seo.shareImageUrl] }
-      : undefined,
+    // Only with an image: an `openGraph` key, even undefined, replaces the
+    // site's inherited share tags.
+    ...(content.seo.shareImageUrl
+      ? { openGraph: { images: [content.seo.shareImageUrl] } }
+      : {}),
     ...(preview ? { robots: { index: false, follow: false } } : {}),
   };
 }

@@ -12,6 +12,7 @@ import { onNotificationsChanged } from "@/app/components/notifications/notificat
 import {
   SITE_CHROME_ATTRIBUTE,
   SITE_CHROME_READY_EVENT,
+  SITE_TOASTS_ATTRIBUTE,
 } from "@/app/lib/site-chrome";
 import ServiceWorkerMessages, {
   pageLoad,
@@ -142,6 +143,8 @@ beforeEach(() => {
   // A page of the site, with Clerk and the toasts (SiteChrome's marker).
   siteChrome = document.createElement("div");
   siteChrome.setAttribute(SITE_CHROME_ATTRIBUTE, "");
+  // Its toasts listening, as SiteChromeReady marks them.
+  siteChrome.setAttribute(SITE_TOASTS_ATTRIBUTE, "");
   document.body.append(siteChrome);
   Object.defineProperty(document, "visibilityState", {
     configurable: true,
@@ -464,46 +467,100 @@ describe("outside the site's layout (/links, the root 404)", () => {
     at: Date.now(),
   });
 
-  it("offers nothing where no toast can show, and offers it once the site's toasts mount", async () => {
-    render(<ServiceWorkerMessages />);
-    await settle();
-    // Posted once, before the worker keeps it.
-    await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrival() });
-    expect(toastMock).not.toHaveBeenCalled();
-
-    // The site's layout mounts its toasts in this same document.
+  /** The site's layout as the server sends it: its toasts not yet hydrated. */
+  function siteChromeHydrating() {
+    siteChrome.removeAttribute(SITE_TOASTS_ATTRIBUTE);
     document.body.append(siteChrome);
+  }
+
+  function toastsMount() {
+    siteChrome.setAttribute(SITE_TOASTS_ATTRIBUTE, "");
     act(() => {
       window.dispatchEvent(new Event(SITE_CHROME_READY_EVENT));
     });
+  }
+
+  it("offers nothing where no toast can show, and offers it once the site's toasts mount", async () => {
+    const { unmount } = render(<ServiceWorkerMessages />);
+    await settle();
+    // Posted once; the worker keeps it after posting.
+    const arrived = arrival();
+    await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrived });
+    keep(ARRIVALS_PATH, [arrived]);
+    expect(toastMock).not.toHaveBeenCalled();
+    expect(sessionStorage.length).toBe(1);
+
+    // The site's layout mounts its toasts in this same document.
+    siteChromeHydrating();
+    toastsMount();
     await settle();
     expect(toastMock).toHaveBeenCalledTimes(1);
     expect(toastMock.mock.calls[0]?.[0]).toBe("Notificación 41");
+    // Forgotten once offered, so no later page offers it again.
+    expect(sessionStorage.length).toBe(0);
 
-    // Only once.
-    act(() => {
-      window.dispatchEvent(new Event(SITE_CHROME_READY_EVENT));
-    });
+    unmount();
+    render(<ServiceWorkerMessages />);
+    await settle();
+    toastsMount();
     await settle();
     expect(toastMock).toHaveBeenCalledTimes(1);
   });
 
-  it("offers it on the site's page that a full load opens next", async () => {
+  it("offers it on the site's page that a full load opens next, once its toasts mount", async () => {
     const { unmount } = render(<ServiceWorkerMessages />);
     await settle();
     const arrived = arrival();
     await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrived });
     keep(ARRIVALS_PATH, [arrived]);
-    expect(toastMock).not.toHaveBeenCalled();
     unmount();
 
-    // A full load into the site: a new page, the same window.
-    document.body.append(siteChrome);
+    // A full load into the site: a new page, the same window, its layout
+    // still hydrating when this mounts.
+    siteChromeHydrating();
     render(<ServiceWorkerMessages />);
     await settle();
+    expect(toastMock).not.toHaveBeenCalled();
+
+    toastsMount();
     await settle();
     expect(toastMock).toHaveBeenCalledTimes(1);
     expect(toastMock.mock.calls[0]?.[0]).toBe("Notificación 41");
+  });
+
+  it("holds them while the app is in the background, for its return", async () => {
+    render(<ServiceWorkerMessages />);
+    await settle();
+    const arrived = arrival();
+    await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrived });
+    keep(ARRIVALS_PATH, [arrived]);
+
+    siteChromeHydrating();
+    setVisibility("hidden");
+    toastsMount();
+    await settle();
+    expect(toastMock).not.toHaveBeenCalled();
+
+    setVisibility("visible");
+    await settle();
+    await settle();
+    expect(toastMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens a kept tap in place while the site's layout still hydrates", async () => {
+    siteChromeHydrating();
+    keep(LAST_TAP_PATH, {
+      id: 41,
+      url: "/my_notifications/41/open",
+      href: ITEM_PAGE,
+      tapId: newTapId(),
+      at: Date.now(),
+    });
+    render(<ServiceWorkerMessages />);
+    await settle();
+    await settle();
+    expect(router.push).toHaveBeenCalledWith(ITEM_PAGE);
+    expect(assign).not.toHaveBeenCalled();
   });
 
   it("renders nothing, so nothing paints ahead of the page", () => {
