@@ -284,7 +284,18 @@ export const landingPageContentSchema = z.strictObject({
           z.strictObject({
             id,
             name: text(120),
-            image: image.nullable().default(null),
+            // Optional: a logo whose URL was emptied is no logo.
+            image: z.preprocess(
+              (value) =>
+                value &&
+                typeof value === "object" &&
+                "url" in value &&
+                typeof value.url === "string" &&
+                !value.url.trim()
+                  ? null
+                  : value,
+              image.nullable().default(null),
+            ),
             href: nullableHref,
           }),
         )

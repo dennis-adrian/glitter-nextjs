@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { toast, Toaster } from "sonner";
+import ts from "typescript";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import SiteChromeReady from "@/app/components/site-chrome-ready";
@@ -42,19 +43,28 @@ describe("SiteChromeReady", () => {
   });
 
   it("comes after the Toaster in the site's layout, under the same parent", () => {
-    const source = readFileSync(
-      path.join(__dirname, "site-chrome.tsx"),
-      "utf8",
+    const file = path.join(__dirname, "site-chrome.tsx");
+    const source = ts.createSourceFile(
+      file,
+      readFileSync(file, "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
     );
-    const toaster = source.indexOf("<Toaster");
-    const ready = source.indexOf("<SiteChromeReady");
-    expect(toaster).toBeGreaterThan(-1);
-    expect(ready).toBeGreaterThan(toaster);
-    // No element opens or closes between them: a Suspense boundary there
-    // could mount this ahead of the Toaster.
-    const between = source
-      .slice(toaster, ready)
-      .replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
-    expect(between).not.toMatch(/<\/?[A-Z][\w.]*(?![^>]*\/>)[^>]*>/);
+    const elements = new Map<string, ts.Node>();
+    const visit = (node: ts.Node) => {
+      if (ts.isJsxSelfClosingElement(node)) {
+        elements.set(node.tagName.getText(source), node);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+    const toaster = elements.get("Toaster");
+    const ready = elements.get("SiteChromeReady");
+    if (!toaster || !ready)
+      throw new Error("Toaster or SiteChromeReady missing");
+    // Siblings, so no Suspense boundary can mount one without the other.
+    expect(ready.parent).toBe(toaster.parent);
+    expect(ready.pos).toBeGreaterThan(toaster.pos);
   });
 });

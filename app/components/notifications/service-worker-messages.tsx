@@ -51,14 +51,15 @@ const SESSION_WAIT_MS = 2_000;
 type Router = ReturnType<typeof useRouter>;
 
 /**
- * This page's side of the taps and arrivals. The taps it opened, so the
- * worker's message and the kept copy of one tap never open it twice; the
+ * This page's side of the taps and arrivals. The taps it opened, each with
+ * its open until the page has stayed or started reloading, so the worker's
+ * message and the kept copy of one tap never open it twice; the
  * items it offered or opened, so none is offered again (a retried push is
  * one item); and whether it is reloading, after which it offers nothing.
  */
 type PageState = {
   router: Router;
-  taps: Set<string>;
+  taps: Map<string, Promise<void>>;
   arrivals: Set<string>;
   /** Arrivals that came while no toast could show, to offer once one can. */
   unoffered: Arrival[];
@@ -205,10 +206,12 @@ function openTap(
   tapId: string,
   target: Target,
 ): Promise<void> {
-  if (page.taps.has(tapId)) return Promise.resolve();
-  page.taps.add(tapId);
+  const opening = page.taps.get(tapId);
+  if (opening) return opening;
   void forgetLastTap();
-  return openItem(page, target);
+  const opened = openItem(page, target);
+  page.taps.set(tapId, opened);
+  return opened;
 }
 
 /**
@@ -222,6 +225,7 @@ function openTap(
 async function finishKeptTap(page: PageState): Promise<boolean> {
   const tap = parseKeptTap(await readState(LAST_TAP_PATH));
   if (!tap) return false;
+  // Still opening, maybe: onReturn waits for every tap's open.
   if (page.taps.has(tap.tapId)) return true;
   const { pathname, search, hash } = window.location;
   const loaded =
@@ -261,6 +265,18 @@ function keepUnoffered(page: PageState, arrivals: Arrival[]) {
 }
 
 /** What `keepUnoffered` kept, now to be offered; forgotten here. */
+/** A window of time whose arrivals a return could not offer yet. */
+function keepUnofferedSince(since: number) {
+  try {
+    const kept = Number(sessionStorage.getItem(UNOFFERED_SINCE_KEY));
+    if (!kept || since < kept) {
+      sessionStorage.setItem(UNOFFERED_SINCE_KEY, String(since));
+    }
+  } catch {
+    // Without storage the window is lost, as a return's always was.
+  }
+}
+
 function takeUnoffered(page: PageState): {
   since: number | null;
   arrivals: Arrival[];
@@ -386,7 +402,11 @@ async function offerArrivalsSince(
 function offerUnoffered(page: PageState, since: number | null) {
   // Kept for the next page if this one is going, or for the return to the
   // app if it is in the background.
-  if (page.leaving || document.visibilityState !== "visible") return;
+  if (page.leaving || document.visibilityState !== "visible") {
+    // The return's window too: the next return starts from a later time.
+    if (since != null) keepUnofferedSince(since);
+    return;
+  }
   const unoffered = siteToastsReady()
     ? takeUnoffered(page)
     : { since: null, arrivals: [] };
@@ -435,7 +455,7 @@ export default function ServiceWorkerMessages() {
     // open a tap again.
     const page = (stateRef.current ??= {
       router,
-      taps: new Set(),
+      taps: new Map(),
       arrivals: new Set(),
       unoffered: [],
       leaving: false,
@@ -485,8 +505,12 @@ export default function ServiceWorkerMessages() {
     };
 
     const onReturn = (since: number | null) =>
-      finishKeptTap(page).then((opened) => {
-        // After a tap, only what was held back: the rest came with it.
+      finishKeptTap(page).then(async (opened) => {
+        // Any tap still opening (the worker's message may have opened it,
+        // and forgotten the kept copy) decides first whether the page stays.
+        await Promise.all(page.taps.values());
+        // After a tap, what was held back and every arrival kept since the
+        // oldest of it; not the window the tap's own return covers.
         offerUnoffered(page, opened ? null : since);
       });
     // The tap a cold start may land with goes first (set below).

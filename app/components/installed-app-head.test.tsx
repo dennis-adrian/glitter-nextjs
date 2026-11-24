@@ -12,7 +12,8 @@ vi.mock("@/app/lib/config", () => ({
   getEnvLabel: () => envLabel.value,
 }));
 
-// The root layout's providers and sections, reduced to what matters here:
+// The site layout's (SiteChrome's) providers and sections, reduced to what
+// matters here:
 // Clerk's provider and the navbar wait for data before they render.
 vi.mock("@clerk/nextjs", () => ({
   ClerkProvider: ({ children }: { children: ReactNode }) => (
@@ -94,7 +95,7 @@ async function shellBody(document: ReactNode, marker: string) {
   return new DOMParser().parseFromString(html, "text/html").body;
 }
 
-/** These tags first in <body>, as the root layout renders them. */
+/** These tags first in <body>, as SiteChrome renders them. */
 function documentHead() {
   return shellHead(
     <html lang="es">
