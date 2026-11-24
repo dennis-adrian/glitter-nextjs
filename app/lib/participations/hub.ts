@@ -62,6 +62,8 @@ export type ParticipationHub = {
   isGastronomy: boolean;
   isConfirmed: boolean;
   hasReservation: boolean;
+  /** The team asked this participant for images of what they will sell. */
+  shouldSubmitProducts: boolean;
   availableStands: number;
   outstandingInvoiceCount: number;
   reservationCount: number;
@@ -240,6 +242,7 @@ export const loadParticipationHub = cache(
     const reservationIds = new Set(
       activeParticipations.map((participation) => participation.reservation.id),
     );
+    const shouldSubmitProducts = Boolean(profile.shouldSubmitProducts);
     const links = {
       terms: `${base}/terms`,
       reserve: `${base}/reservations/new`,
@@ -274,7 +277,7 @@ export const loadParticipationHub = cache(
         hasReservation,
         isConfirmed,
         reservationBlock,
-        shouldSubmitProducts: Boolean(profile.shouldSubmitProducts),
+        shouldSubmitProducts,
         teamCount,
         links,
         termsStale,
@@ -284,6 +287,7 @@ export const loadParticipationHub = cache(
       isGastronomy,
       isConfirmed,
       hasReservation,
+      shouldSubmitProducts,
       availableStands,
       outstandingInvoiceCount: invoiceCounts.outstandingInvoiceCount,
       reservationCount: invoiceCounts.reservationCount,
