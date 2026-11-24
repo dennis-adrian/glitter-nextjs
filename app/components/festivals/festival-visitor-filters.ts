@@ -213,3 +213,34 @@ export function getMatchingStandIds({
 
   return Array.from(matching);
 }
+
+/**
+ * Counted over what the map is actually drawing, so the number tracks the
+ * sector the visitor is looking at. -1 is every sector.
+ */
+export function countShownStands(
+  sectors: FestivalSectorWithStandsWithReservationsWithParticipants[],
+  activeSectorIndex: number,
+  matchingStandIds: number[] | null,
+): { shown: number; total: number } {
+  const scopedSectors =
+    activeSectorIndex === -1
+      ? sectors
+      : [sectors[activeSectorIndex]].filter(Boolean);
+  const scopedStandIds = scopedSectors.flatMap((sector) =>
+    sector.stands
+      .filter((stand) => stand.status !== "disabled")
+      .map((stand) => stand.id),
+  );
+
+  if (matchingStandIds == null) {
+    return { shown: scopedStandIds.length, total: scopedStandIds.length };
+  }
+
+  const matchingStandIdSet = new Set(matchingStandIds);
+  return {
+    shown: scopedStandIds.filter((standId) => matchingStandIdSet.has(standId))
+      .length,
+    total: scopedStandIds.length,
+  };
+}

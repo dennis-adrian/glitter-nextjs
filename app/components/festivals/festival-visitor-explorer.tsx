@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ParticipantCategoryFilter } from "@/app/components/festivals/festival-participant-category-filters";
 import FestivalVisitorFilterSummary from "@/app/components/festivals/festival-visitor-filter-summary";
 import {
+  countShownStands,
   filterFestivalParticipants,
   getMatchingStandIds,
 } from "@/app/components/festivals/festival-visitor-filters";
@@ -25,14 +26,17 @@ import type { CouponProof } from "@/app/components/maps/festival-nav/festival-na
 import type { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
 import type { FestivalActivity } from "@/app/lib/festivals/definitions";
 import {
+  useInitialFestivalMapUrlState,
+  useSyncFestivalMapUrl,
+} from "@/app/hooks/use-festival-map-url-state";
+import {
   EMPTY_STAND_FILTERS,
+  getSelectableStandActivities,
+  getSelectableStandStatuses,
   hasActiveStandFilters,
-  isStandActivityFilter,
-  isStandOccupied,
   type StandActivityFilter,
   type StandActivityUserIds,
   type StandFilters,
-  type StandStatusFilter,
 } from "@/app/lib/maps/stand-filters";
 
 type MapActivityData = {
@@ -60,13 +64,37 @@ export default function FestivalVisitorExplorer({
   activities: VisitorActivity[];
   mapActivityData: MapActivityData;
 }) {
-  const [query, setQuery] = useState("");
+  const selectableActivities = useMemo(
+    () =>
+      getSelectableStandActivities(
+        mapActivityData.activityTypes,
+        mapActivityData.activityUserIds,
+      ),
+    [mapActivityData],
+  );
+  const selectableStatuses = useMemo(
+    () =>
+      getSelectableStandStatuses(sectors.flatMap((sector) => sector.stands)),
+    [sectors],
+  );
+  // A shared link opens on the filters it was copied with.
+  const initialUrlState = useInitialFestivalMapUrlState({
+    sectors,
+    selectableStatuses,
+    selectableActivities,
+    includeQuery: true,
+  });
+
+  const [query, setQuery] = useState(initialUrlState.query);
   // Category filtering is built and tested but hidden for now; the state stays
   // so restoring the control is a matter of rendering it again.
   const [category] = useState<ParticipantCategoryFilter>("all");
-  const [standFilters, setStandFilters] =
-    useState<StandFilters>(EMPTY_STAND_FILTERS);
-  const [activeSectorIndex, setActiveSectorIndex] = useState(-1);
+  const [standFilters, setStandFilters] = useState<StandFilters>(
+    initialUrlState.standFilters,
+  );
+  const [activeSectorIndex, setActiveSectorIndex] = useState(
+    initialUrlState.sectorIndex,
+  );
   const [participantLocateRequest, setParticipantLocateRequest] =
     useState<ParticipantLocateRequest | null>(null);
   const locateRequestId = useRef(0);
@@ -117,32 +145,6 @@ export default function FestivalVisitorExplorer({
       ),
     [category, searchEntries],
   );
-  // A festival can run an activity nobody has an approved proof for yet. The
-  // chip still shows — the festival does run that activity — but it cannot be
-  // selected, since no stand carries the badge to filter on.
-  const selectableActivities = useMemo(
-    () =>
-      mapActivityData.activityTypes.filter(
-        (type): type is StandActivityFilter =>
-          isStandActivityFilter(type) &&
-          mapActivityData.activityUserIds[type].size > 0,
-      ),
-    [mapActivityData],
-  );
-  // Same reasoning for stand status: a sold-out festival has no free stand to
-  // show, so "Disponible" stays a color key rather than an empty filter.
-  const selectableStatuses = useMemo(() => {
-    const statuses: Exclude<StandStatusFilter, "all">[] = [];
-    const stands = sectors.flatMap((sector) => sector.stands);
-
-    if (stands.some((stand) => isStandOccupied(stand)))
-      statuses.push("occupied");
-    if (stands.some((stand) => stand.status === "available")) {
-      statuses.push("available");
-    }
-
-    return statuses;
-  }, [sectors]);
   // -1 is "all sectors": leave the list unscoped so query/category still
   // apply and confirmed participants without a stand stay visible.
   const activeSectorStandIds = useMemo(() => {
@@ -182,30 +184,18 @@ export default function FestivalVisitorExplorer({
       }),
     [mapActivityData, category, query, searchEntries, sectors, standFilters],
   );
-  // Counted over what the map is actually drawing, so the number tracks the
-  // sector the visitor is looking at.
-  const standCounts = useMemo(() => {
-    const scopedSectors =
-      activeSectorIndex === -1
-        ? sectors
-        : [sectors[activeSectorIndex]].filter(Boolean);
-    const scopedStandIds = scopedSectors.flatMap((sector) =>
-      sector.stands
-        .filter((stand) => stand.status !== "disabled")
-        .map((stand) => stand.id),
-    );
+  const standCounts = useMemo(
+    () => countShownStands(sectors, activeSectorIndex, matchingStandIds),
+    [activeSectorIndex, matchingStandIds, sectors],
+  );
 
-    if (matchingStandIds == null) {
-      return { shown: scopedStandIds.length, total: scopedStandIds.length };
-    }
-
-    const matchingStandIdSet = new Set(matchingStandIds);
-    return {
-      shown: scopedStandIds.filter((standId) => matchingStandIdSet.has(standId))
-        .length,
-      total: scopedStandIds.length,
-    };
-  }, [activeSectorIndex, matchingStandIds, sectors]);
+  // React state stays the source of truth, so filtering is as instant as it
+  // ever was; the address bar follows a beat later, ready to be shared.
+  useSyncFestivalMapUrl(
+    { query, sectorIndex: activeSectorIndex, standFilters },
+    // `#mapa` is the festival page's map section, around this explorer.
+    { sectors, includeQuery: true, anchor: "mapa" },
+  );
 
   const hasActiveFilters =
     query.trim().length > 0 ||

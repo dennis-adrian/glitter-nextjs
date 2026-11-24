@@ -82,3 +82,35 @@ export function toggleStandActivityFilter(
     ? activities.filter((value) => value !== activity)
     : [...activities, activity];
 }
+
+/**
+ * Statuses the map actually contains. A sold-out festival has no free stand
+ * to show, so "Disponible" stays a color key rather than an empty filter.
+ */
+export function getSelectableStandStatuses(
+  stands: Pick<StandBase, "status">[],
+): Exclude<StandStatusFilter, "all">[] {
+  const statuses: Exclude<StandStatusFilter, "all">[] = [];
+
+  if (stands.some((stand) => isStandOccupied(stand))) statuses.push("occupied");
+  if (stands.some((stand) => stand.status === "available")) {
+    statuses.push("available");
+  }
+
+  return statuses;
+}
+
+/**
+ * A festival can run an activity nobody has an approved proof for yet. The
+ * chip still shows — the festival does run that activity — but it cannot be
+ * selected, since no stand carries the badge to filter on.
+ */
+export function getSelectableStandActivities(
+  activityTypes: FestivalActivity["type"][],
+  activityUserIds: StandActivityUserIds,
+): StandActivityFilter[] {
+  return activityTypes.filter(
+    (type): type is StandActivityFilter =>
+      isStandActivityFilter(type) && activityUserIds[type].size > 0,
+  );
+}
