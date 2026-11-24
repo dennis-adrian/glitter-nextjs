@@ -41,13 +41,20 @@ describe("SiteChromeReady", () => {
     expect(siteToastsReady()).toBe(false);
   });
 
-  it("comes after the Toaster in the site's layout", () => {
+  it("comes after the Toaster in the site's layout, under the same parent", () => {
     const source = readFileSync(
       path.join(__dirname, "site-chrome.tsx"),
       "utf8",
     );
     const toaster = source.indexOf("<Toaster");
+    const ready = source.indexOf("<SiteChromeReady");
     expect(toaster).toBeGreaterThan(-1);
-    expect(source.indexOf("<SiteChromeReady")).toBeGreaterThan(toaster);
+    expect(ready).toBeGreaterThan(toaster);
+    // No element opens or closes between them: a Suspense boundary there
+    // could mount this ahead of the Toaster.
+    const between = source
+      .slice(toaster, ready)
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
+    expect(between).not.toMatch(/<\/?[A-Z][\w.]*(?![^>]*\/>)[^>]*>/);
   });
 });

@@ -563,6 +563,76 @@ describe("outside the site's layout (/links, the root 404)", () => {
     expect(assign).not.toHaveBeenCalled();
   });
 
+  it("holds a live arrival while the site's layout hydrates, for its toasts", async () => {
+    siteChromeHydrating();
+    render(<ServiceWorkerMessages />);
+    await settle();
+    await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrival() });
+    // Inside the site, but its Toaster is not listening yet.
+    expect(toastMock).not.toHaveBeenCalled();
+
+    toastsMount();
+    await settle();
+    expect(toastMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps held arrivals for the next page when a kept tap reloads this one", async () => {
+    const { unmount } = render(<ServiceWorkerMessages />);
+    await settle();
+    const arrived = arrival();
+    await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrived });
+    keep(ARRIVALS_PATH, [arrived]);
+    unmount();
+
+    // The next page lands with a kept tap whose session cannot be renewed,
+    // so the tap reloads; its toasts mount meanwhile.
+    vi.stubGlobal("Clerk", {
+      session: { getToken: () => Promise.reject(new Error("offline")) },
+    });
+    keep(LAST_TAP_PATH, {
+      id: 42,
+      url: "/my_notifications/42/open",
+      href: "/my_notifications/42",
+      tapId: newTapId(),
+      at: Date.now(),
+    });
+    siteChromeHydrating();
+    render(<ServiceWorkerMessages />);
+    toastsMount();
+    await settle();
+    await settle();
+    expect(assign).toHaveBeenCalledWith("/my_notifications/42/open");
+    expect(toastMock).not.toHaveBeenCalled();
+    // Still held, for the page the reload opens.
+    expect(sessionStorage.length).toBe(1);
+  });
+
+  it("holds them when the app goes to the background before the page mounts", async () => {
+    const { unmount } = render(<ServiceWorkerMessages />);
+    await settle();
+    const arrived = arrival();
+    await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrived });
+    keep(ARRIVALS_PATH, [arrived]);
+    unmount();
+
+    // The site's page loads with its toasts ready, behind the lock screen.
+    document.body.append(siteChrome);
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    });
+    render(<ServiceWorkerMessages />);
+    await settle();
+    await settle();
+    expect(toastMock).not.toHaveBeenCalled();
+    expect(sessionStorage.length).toBe(1);
+
+    setVisibility("visible");
+    await settle();
+    await settle();
+    expect(toastMock).toHaveBeenCalledTimes(1);
+  });
+
   it("renders nothing, so nothing paints ahead of the page", () => {
     const { container: root } = render(<ServiceWorkerMessages />);
     expect(root.childNodes).toHaveLength(0);

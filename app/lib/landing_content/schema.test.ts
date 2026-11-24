@@ -10,6 +10,14 @@ describe("landing page content schema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("reads an emptied share image as none, since it is optional", () => {
+    const content = structuredClone(DEFAULT_LANDING_PAGE_CONTENT);
+    (content.seo as { shareImageUrl: string | null }).shareImageUrl = "  ";
+    const result = parseLandingPageContent(content);
+    expect(result.success).toBe(true);
+    expect(result.data?.seo.shareImageUrl).toBeNull();
+  });
+
   it("rejects disallowed remote image URLs while keeping external navigation links", () => {
     const content = structuredClone(DEFAULT_LANDING_PAGE_CONTENT);
     content.hero.image.url = "https://example.com/hero.jpg";

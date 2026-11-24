@@ -174,7 +174,11 @@ export const landingPageContentSchema = z.strictObject({
   seo: z.strictObject({
     title: text(120),
     description: text(1000),
-    shareImageUrl: safeImageUrl.nullable(),
+    // Optional in the editor: an emptied field is no image.
+    shareImageUrl: z.preprocess(
+      (value) => (typeof value === "string" && !value.trim() ? null : value),
+      safeImageUrl.nullable(),
+    ),
   }),
   hero: z.strictObject({
     titleLead: text(120),
