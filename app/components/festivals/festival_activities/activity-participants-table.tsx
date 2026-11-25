@@ -12,6 +12,9 @@ import {
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import ProofImageModal from "./proof-image-modal";
 import TextProofModal from "./text-proof-modal";
+import MoveParticipantVariantMenu, {
+  type MoveTargetVariant,
+} from "./move-participant-variant-menu";
 
 type ParticipantWithDetail = ParticipantWithUserAndProofs & {
   detail: ActivityDetailsWithParticipants;
@@ -127,8 +130,28 @@ function proofStatusKey(proof: ParticipantProof | undefined) {
   return proof?.proofStatus ?? "sin_prueba";
 }
 
+function ParticipantMoveMenu({
+  participant,
+  variants,
+}: {
+  participant: ParticipantWithDetail;
+  variants: MoveTargetVariant[];
+}) {
+  if (participant.removedAt != null || variants.length < 2) return null;
+  return (
+    <MoveParticipantVariantMenu
+      participationId={participant.id}
+      participantName={participant.user.displayName ?? "Participante"}
+      participantCategory={participant.user.category ?? null}
+      currentDetailId={participant.detail.id}
+      variants={variants}
+    />
+  );
+}
+
 function buildColumns(
   materialLabel: string,
+  variants: MoveTargetVariant[],
 ): ColumnDef<ParticipantWithDetail>[] {
   const columnTitleLabel = capitalize(materialLabel);
 
@@ -225,13 +248,22 @@ function buildColumns(
       header: "",
       cell: ({ row }) => {
         const proof = getPrimaryProof(row.original.proofs);
-        if (!proof) return null;
         return (
-          <ParticipantProofViewer
-            proof={proof}
-            participantName={row.original.user.displayName ?? "Participante"}
-            materialLabel={materialLabel}
-          />
+          <div className="flex flex-wrap items-center justify-end gap-1">
+            {proof && (
+              <ParticipantProofViewer
+                proof={proof}
+                participantName={
+                  row.original.user.displayName ?? "Participante"
+                }
+                materialLabel={materialLabel}
+              />
+            )}
+            <ParticipantMoveMenu
+              participant={row.original}
+              variants={variants}
+            />
+          </div>
         );
       },
     },
@@ -241,13 +273,16 @@ function buildColumns(
 type ActivityParticipantsTableProps = {
   participants: ParticipantWithDetail[];
   materialLabel: string;
+  /** Every variant of the activity; with two or more, rows can be moved. */
+  variants?: MoveTargetVariant[];
 };
 
 export default function ActivityParticipantsTable({
   participants,
   materialLabel,
+  variants = [],
 }: ActivityParticipantsTableProps) {
-  const columns = buildColumns(materialLabel);
+  const columns = buildColumns(materialLabel, variants);
   const columnTitleLabel = capitalize(materialLabel);
 
   if (participants.length === 0) {
@@ -352,6 +387,10 @@ export default function ActivityParticipantsTable({
                     />
                   )}
                 </div>
+                <ParticipantMoveMenu
+                  participant={participant}
+                  variants={variants}
+                />
                 {participant.removedAt != null && participant.removalReason && (
                   <p className="text-xs text-muted-foreground italic text-right max-w-[160px]">
                     {participant.removalReason}

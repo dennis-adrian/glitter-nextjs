@@ -907,6 +907,181 @@ export async function restoreActivityParticipant(
   }
 }
 
+/**
+ * Moves an active participant to another variant of the same activity. The
+ * participation row keeps its id, so proofs, review state and votes travel
+ * with it. The target must have room (active participants plus outstanding
+ * waitlist reservations) and accept the participant's category. The freed
+ * slot in the source variant goes to the waitlist, as with a removal.
+ */
+export async function moveActivityParticipant(
+  participationId: number,
+  targetDetailId: number,
+): Promise<{ success: boolean; message: string }> {
+  const profile = await getAdminProfile();
+  if (!profile) {
+    return {
+      success: false,
+      message: "No tienes permisos para realizar esta acción",
+    };
+  }
+
+  type MoveResult =
+    | { success: false; message: string }
+    | {
+        success: true;
+        message: string;
+        activityId: number;
+        sourceDetailId: number;
+      };
+
+  try {
+    const result = await db.transaction(async (tx): Promise<MoveResult> => {
+      const [participation] = await tx
+        .select({
+          id: festivalActivityParticipants.id,
+          userId: festivalActivityParticipants.userId,
+          detailsId: festivalActivityParticipants.detailsId,
+          removedAt: festivalActivityParticipants.removedAt,
+          activityId: festivalActivityDetails.activityId,
+          userCategory: users.category,
+        })
+        .from(festivalActivityParticipants)
+        .innerJoin(
+          festivalActivityDetails,
+          eq(
+            festivalActivityDetails.id,
+            festivalActivityParticipants.detailsId,
+          ),
+        )
+        .innerJoin(users, eq(users.id, festivalActivityParticipants.userId))
+        .where(eq(festivalActivityParticipants.id, participationId))
+        .for("update", { of: festivalActivityParticipants });
+
+      if (!participation) {
+        return { success: false, message: "Participante no encontrado" };
+      }
+      if (participation.removedAt) {
+        return {
+          success: false,
+          message: "Restaurá al participante antes de moverlo de variante",
+        };
+      }
+      if (participation.detailsId === targetDetailId) {
+        return {
+          success: false,
+          message: "El participante ya está en esa variante",
+        };
+      }
+
+      // Locking the target serializes concurrent moves into it, so two moves
+      // cannot both take its last slot.
+      const [target] = await tx
+        .select({
+          id: festivalActivityDetails.id,
+          participationLimit: festivalActivityDetails.participationLimit,
+          category: festivalActivityDetails.category,
+        })
+        .from(festivalActivityDetails)
+        .where(
+          and(
+            eq(festivalActivityDetails.id, targetDetailId),
+            eq(festivalActivityDetails.activityId, participation.activityId),
+          ),
+        )
+        .for("update");
+
+      if (!target) {
+        return {
+          success: false,
+          message: "La variante de destino no pertenece a esta actividad",
+        };
+      }
+
+      if (target.category && participation.userCategory !== target.category) {
+        return {
+          success: false,
+          message:
+            "La categoría del participante no coincide con la de la variante de destino",
+        };
+      }
+
+      const [existing] = await tx
+        .select({ id: festivalActivityParticipants.id })
+        .from(festivalActivityParticipants)
+        .where(
+          and(
+            eq(festivalActivityParticipants.detailsId, targetDetailId),
+            eq(festivalActivityParticipants.userId, participation.userId),
+          ),
+        );
+      if (existing) {
+        return {
+          success: false,
+          message: "El participante ya tiene un registro en esa variante",
+        };
+      }
+
+      if (target.participationLimit) {
+        const now = new Date();
+        const [{ activeCount }] = await tx
+          .select({ activeCount: count() })
+          .from(festivalActivityParticipants)
+          .where(
+            and(
+              eq(festivalActivityParticipants.detailsId, targetDetailId),
+              isNull(festivalActivityParticipants.removedAt),
+            ),
+          );
+        const [{ reservedCount }] = await tx
+          .select({ reservedCount: count() })
+          .from(festivalActivityWaitlist)
+          .where(
+            and(
+              eq(festivalActivityWaitlist.notifiedForDetailId, targetDetailId),
+              gt(festivalActivityWaitlist.expiresAt, now),
+            ),
+          );
+        if (activeCount + reservedCount >= target.participationLimit) {
+          return {
+            success: false,
+            message: "La variante de destino no tiene cupos disponibles",
+          };
+        }
+      }
+
+      await tx
+        .update(festivalActivityParticipants)
+        .set({ detailsId: targetDetailId, updatedAt: new Date() })
+        .where(eq(festivalActivityParticipants.id, participationId));
+
+      return {
+        success: true,
+        message: "Participante movido de variante",
+        activityId: participation.activityId,
+        sourceDetailId: participation.detailsId,
+      };
+    });
+
+    if (!result.success) return result;
+
+    try {
+      await promoteFromWaitlist(result.activityId, result.sourceDetailId);
+    } catch (waitlistError) {
+      console.error("Error promoting from waitlist:", waitlistError);
+    }
+
+    revalidatePath("/dashboard");
+    return { success: true, message: result.message };
+  } catch (error) {
+    console.error("Error moving activity participant:", error);
+    return {
+      success: false,
+      message: "No se pudo mover al participante. Intentá nuevamente.",
+    };
+  }
+}
+
 export async function promoteWaitlistToVariant(
   activityId: number,
   targetDetailId: number,

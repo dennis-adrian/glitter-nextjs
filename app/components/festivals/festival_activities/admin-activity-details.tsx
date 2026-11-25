@@ -7,6 +7,7 @@ import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/
 import { getMaterialConfig } from "@/app/lib/festival_activites/helpers";
 import ActivityParticipantsTable from "./activity-participants-table";
 import ActivityWaitlistTable from "./activity-waitlist-table";
+import type { MoveTargetVariant } from "./move-participant-variant-menu";
 
 type ActivityDetailsProps = {
   activity: FestivalActivityWithDetailsAndParticipants;
@@ -19,6 +20,18 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
   );
   const showVariantHeaders = activity.details.length > 1;
   const { label: materialLabel } = getMaterialConfig(activity.type);
+  const variantLabel = (index: number, description: string | null) =>
+    `Variante ${index + 1}${description ? ` — ${description}` : ""}`;
+  const moveTargets: MoveTargetVariant[] = activity.details.map(
+    (detail, index) => ({
+      id: detail.id,
+      label: variantLabel(index, detail.description),
+      activeCount: detail.participants.filter((p) => p.removedAt == null)
+        .length,
+      participationLimit: detail.participationLimit,
+      category: detail.category,
+    }),
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -70,15 +83,15 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
             <div key={detail.id} className="flex flex-col gap-2">
               {showVariantHeaders && (
                 <h3 className="text-sm font-medium text-muted-foreground">
-                  Variante {index + 1}
-                  {detail.description ? ` — ${detail.description}` : ""} ·{" "}
-                  {limitLabel} participante
+                  {variantLabel(index, detail.description)} · {limitLabel}{" "}
+                  participante
                   {participants.length !== 1 ? "s" : ""}
                 </h3>
               )}
               <ActivityParticipantsTable
                 participants={participants}
                 materialLabel={materialLabel}
+                variants={moveTargets}
               />
             </div>
           );
