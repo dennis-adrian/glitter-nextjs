@@ -304,5 +304,162 @@ describeDatabase("credentials actions", () => {
       ).toEqual([{ quantity: 3 }]);
     });
   });
-});
+  describe("external participants", () => {
+    async function externalOn(festivalId: number, standCount: number) {
+      const { reservationId } = await createReservation(festivalId, { standCount });
+      const [external] = await integrationDb!
+        .insert(schema.externalParticipants)
+        .values({ displayName: `Externo ${randomUUID()}`, type: "sponsor" })
+        .returning({ id: schema.externalParticipants.id });
+      created.externals.push(external!.id);
+      await integrationDb!
+        .insert(schema.reservationExternalParticipants)
+        .values({ reservationId, externalParticipantId: external!.id });
+      return external!.id;
+    }
 
+    it("stores an override with the stands it was saved for, and clears it", async () => {
+      const festivalId = await createFestival();
+      const externalParticipantId = await externalOn(festivalId, 2);
+      expect(
+        await actions.setExternalCredentialQuantity({ festivalId, externalParticipantId, quantity: 3 }),
+      ).toEqual({ success: true, message: "Cantidad guardada: 3." });
+      const overrides = () =>
+        integrationDb!
+          .select({
+            quantity: schema.festivalExternalCredentialOverrides.quantity,
+            standsAtOverride: schema.festivalExternalCredentialOverrides.standsAtOverride,
+          })
+          .from(schema.festivalExternalCredentialOverrides)
+          .where(eq(schema.festivalExternalCredentialOverrides.festivalId, festivalId));
+      expect(await overrides()).toEqual([{ quantity: 3, standsAtOverride: 2 }]);
+
+      await actions.setExternalCredentialQuantity({ festivalId, externalParticipantId, quantity: 5 });
+      expect(await overrides()).toEqual([{ quantity: 5, standsAtOverride: 2 }]);
+
+      await actions.setExternalCredentialQuantity({ festivalId, externalParticipantId, quantity: null });
+      expect(await overrides()).toEqual([]);
+    });
+
+    it("refuses an external participant without a counted reservation here", async () => {
+      const festivalId = await createFestival();
+      const other = await createFestival();
+      const externalParticipantId = await externalOn(other, 1);
+      expect(
+        await actions.setExternalCredentialQuantity({ festivalId, externalParticipantId, quantity: 3 }),
+      ).toEqual({
+        success: false,
+        message:
+          "Ese participante externo no tiene una reserva que se cuente en este festival. Actualizá la página.",
+      });
+    });
+  });
+
+  describe("the Glitter team and one-off credentials", () => {
+    async function staffRow(name: string) {
+      const [row] = await integrationDb!
+        .select()
+        .from(schema.staffMembers)
+        .where(eq(schema.staffMembers.fullName, name));
+      if (row) created.staff.push(row.id);
+      return row!;
+    }
+    const selection = (festivalId: number) =>
+      integrationDb!
+        .select({ staffMemberId: schema.festivalStaffMembers.staffMemberId })
+        .from(schema.festivalStaffMembers)
+        .where(eq(schema.festivalStaffMembers.festivalId, festivalId));
+
+    it("adds to the roster ticked for the festival, edits, archives and restores", async () => {
+      const festivalId = await createFestival();
+      const name = `Daniela ${randomUUID()}`;
+      expect(
+        (await actions.createStaffMember({ festivalId, fullName: name, roleLabel: "Dirección" })).success,
+      ).toBe(true);
+      const member = await staffRow(name);
+      expect(await selection(festivalId)).toEqual([{ staffMemberId: member.id }]);
+
+      await actions.updateStaffMember({
+        festivalId,
+        staffMemberId: member.id,
+        fullName: `${name} Arce`,
+        roleLabel: "Producción",
+      });
+      const renamed = await staffRow(`${name} Arce`);
+      expect(renamed.roleLabel).toBe("Producción");
+
+      await actions.archiveStaffMember({ festivalId, staffMemberId: member.id });
+      expect((await staffRow(`${name} Arce`)).isActive).toBe(false);
+      // Archiving keeps them where they are already selected.
+      expect(await selection(festivalId)).toEqual([{ staffMemberId: member.id }]);
+
+      // Ticking an archived member elsewhere is refused; unticking always works.
+      const other = await createFestival();
+      expect(
+        await actions.setFestivalStaffMember({ festivalId: other, staffMemberId: member.id, selected: true }),
+      ).toEqual({
+        success: false,
+        message: "Esa persona está archivada. Restaurala antes de sumarla a esta edición.",
+      });
+      expect(
+        (await actions.setFestivalStaffMember({ festivalId, staffMemberId: member.id, selected: false }))
+          .success,
+      ).toBe(true);
+      expect(await selection(festivalId)).toEqual([]);
+
+      await actions.restoreStaffMember({ festivalId, staffMemberId: member.id });
+      expect(
+        (await actions.setFestivalStaffMember({ festivalId: other, staffMemberId: member.id, selected: true }))
+          .success,
+      ).toBe(true);
+      expect(await selection(other)).toEqual([{ staffMemberId: member.id }]);
+    });
+
+    it("keeps a one-off entry's id and name, and its festival", async () => {
+      const festivalId = await createFestival();
+      await actions.addExtraCredential({
+        festivalId,
+        extra: { kind: "unnamed", label: "Prensa", quantity: 6 },
+      });
+      await actions.addExtraCredential({
+        festivalId,
+        extra: { kind: "named", name: "Marcelo Peredo", label: "Fotografía" },
+      });
+      const extras = await integrationDb!
+        .select()
+        .from(schema.festivalExtraCredentials)
+        .where(eq(schema.festivalExtraCredentials.festivalId, festivalId))
+        .orderBy(schema.festivalExtraCredentials.id);
+      const [press, photo] = extras;
+      expect(
+        (await actions.updateExtraCredential({
+          festivalId,
+          extraCredentialId: press!.id,
+          label: "Prensa",
+          quantity: 8,
+        })).success,
+      ).toBe(true);
+      expect(
+        await actions.updateExtraCredential({
+          festivalId,
+          extraCredentialId: photo!.id,
+          label: "Foto",
+          quantity: 2,
+        }),
+      ).toEqual({ success: false, message: "Una credencial con nombre es siempre una." });
+      const other = await createFestival();
+      expect(
+        await actions.removeExtraCredential({ festivalId: other, extraCredentialId: press!.id }),
+      ).toEqual({ success: false, message: "No encontramos esa credencial. Actualizá la página." });
+
+      const [after] = await integrationDb!
+        .select()
+        .from(schema.festivalExtraCredentials)
+        .where(eq(schema.festivalExtraCredentials.id, press!.id));
+      expect(after).toMatchObject({ id: press!.id, quantity: 8 });
+      expect((await actions.removeExtraCredential({ festivalId, extraCredentialId: press!.id })).success).toBe(
+        true,
+      );
+    });
+  });
+});
