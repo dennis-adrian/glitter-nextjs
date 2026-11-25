@@ -2,6 +2,7 @@
 
 import { CredentialsProvider } from "@/app/components/festivals/credentials/credentials-context";
 import CredentialsHeader from "@/app/components/festivals/credentials/credentials-header";
+import CredentialsRulesForm from "@/app/components/festivals/credentials/credentials-rules-form";
 import CredentialsNamesView from "@/app/components/festivals/credentials/credentials-names-view";
 import CredentialsSummaryView from "@/app/components/festivals/credentials/credentials-summary-view";
 import CredentialsTabs from "@/app/components/festivals/credentials/credentials-tabs";
@@ -11,7 +12,7 @@ import type {
   CredentialTab,
 } from "@/app/lib/credentials/definitions";
 
-const TABS: readonly CredentialTab[] = ["resumen", "nombres"];
+const TABS: readonly CredentialTab[] = ["resumen", "nombres", "reglas"];
 
 /** The whole credentials page below the navbar; the server hands it the data. */
 export default function CredentialsScreen({
@@ -20,12 +21,15 @@ export default function CredentialsScreen({
   data,
   initialFilters,
   isAdmin,
+  participantsSeeRules,
 }: {
   festivalId: number;
   tab: CredentialTab;
   data: CredentialsData;
   initialFilters: CredentialFilters;
   isAdmin: boolean;
+  /** The flag is public, so participants' pages read the festival's rules. */
+  participantsSeeRules: boolean;
 }) {
   const current = TABS.includes(tab) ? tab : "resumen";
   return (
@@ -43,6 +47,9 @@ export default function CredentialsScreen({
           <CredentialsSummaryView groups={["external", "volunteer"]} />
         )}
         {current === "nombres" && <CredentialsNamesView />}
+        {current === "reglas" && (
+          <CredentialsRulesForm participantsSeeRules={participantsSeeRules} />
+        )}
       </div>
     </CredentialsProvider>
   );
