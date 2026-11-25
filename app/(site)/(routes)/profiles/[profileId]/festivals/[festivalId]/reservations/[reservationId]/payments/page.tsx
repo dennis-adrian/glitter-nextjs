@@ -1,5 +1,6 @@
 import { PaymentSummary } from "@/app/components/payments/payment-summary";
 import { ProductDetails } from "@/app/components/payments/product-details";
+import { fetchParticipantCredentialRules } from "@/app/lib/credentials/participant-rules";
 import {
   fetchInvoiceTenderSummary,
   fetchInvoicesByReservation,
@@ -36,9 +37,10 @@ export default async function Page(props: {
   const invoicesPromise = started(
     fetchInvoicesByReservation(validatedParams.data.reservationId),
   );
-  const [profile, festival] = await Promise.all([
+  const [profile, festival, credentialRules] = await Promise.all([
     getCurrentBaseProfile(),
     fetchBaseFestival(validatedParams.data.festivalId),
+    fetchParticipantCredentialRules(validatedParams.data.festivalId),
   ]);
   if (!festival || !profile) notFound();
   await protectRoute(profile, validatedParams.data.profileId);
@@ -74,7 +76,11 @@ export default async function Page(props: {
               key={invoice.id}
               className="grid grid-cols-1 md:grid-cols-2 gap-8"
             >
-              <ProductDetails festival={festival} invoice={invoice} />
+              <ProductDetails
+                festival={festival}
+                invoice={invoice}
+                credentialRules={credentialRules}
+              />
               {invoice.status === "verification_payment" ? (
                 <InvoiceUnderReviewPanel
                   invoice={invoice}
@@ -141,7 +147,11 @@ export default async function Page(props: {
               </h1>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="flex flex-col gap-6">
-                  <ProductDetails festival={festival} invoice={invoice} />
+                  <ProductDetails
+                festival={festival}
+                invoice={invoice}
+                credentialRules={credentialRules}
+              />
                   <PaymentSummary
                     invoice={invoice}
                     festivalId={validatedParams.data.festivalId}

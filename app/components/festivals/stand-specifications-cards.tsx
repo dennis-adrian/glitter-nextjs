@@ -6,12 +6,17 @@ import {
   FestivalSectorWithStands,
   FestivalSectorWithStandsWithReservationsWithParticipants,
 } from "@/app/lib/festival_sectors/definitions";
+import {
+  DEFAULT_CREDENTIAL_RULES,
+  type CredentialRules,
+} from "@/app/lib/credentials/definitions";
 import { use } from "react";
 
 export default function StandSpecificationsCards({
   profileCategory,
   festivalSectorsWithAllowedCategoriesPromise,
   fullSectors,
+  credentialRules = DEFAULT_CREDENTIAL_RULES,
 }: {
   profileCategory: UserCategory;
   festivalSectorsWithAllowedCategoriesPromise: Promise<
@@ -20,6 +25,7 @@ export default function StandSpecificationsCards({
     })[]
   >;
   fullSectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
+  credentialRules?: CredentialRules;
 }) {
   const festivalSectors = use(festivalSectorsWithAllowedCategoriesPromise);
 
@@ -35,6 +41,7 @@ export default function StandSpecificationsCards({
           sector={sector}
           category={profileCategory}
           fullSector={fullSectors.find((s) => s.id === sector.id)}
+          credentialRules={credentialRules}
         />
       ))}
     </div>

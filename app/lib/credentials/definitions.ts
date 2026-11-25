@@ -112,9 +112,9 @@ export const CREDENTIAL_NAMING_MODE_LABELS: Record<
   CredentialNamingMode,
   string
 > = {
-  one_per_participant: "Una con nombre por participante, el resto sin nombre",
-  all_named: "Todas con el nombre del participante",
-  none: "Ninguna lleva nombre",
+  one_per_participant: "Una por participante, el resto sin nombre",
+  all_named: "Todas, con el nombre del participante",
+  none: "Ninguna",
 };
 
 function plural(count: number, one: string, many: string) {

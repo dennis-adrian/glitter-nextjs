@@ -6,6 +6,7 @@ import {
   parseCredentialFilters,
   parseCredentialTab,
 } from "@/app/lib/credentials/definitions";
+import { isFeatureLaunched } from "@/app/lib/feature_flags/helpers";
 import { loadCredentialsPage } from "@/app/lib/credentials/page";
 import { fetchCredentialsData } from "@/app/lib/credentials/queries";
 import { db } from "@/db";
@@ -24,7 +25,10 @@ type PageProps = {
 export default async function CredentialsPage({ params, searchParams }: PageProps) {
   const [{ id }, search] = await Promise.all([params, searchParams]);
   const { profile, festivalId } = await loadCredentialsPage(id);
-  const data = await fetchCredentialsData(db, festivalId);
+  const [data, participantsSeeRules] = await Promise.all([
+    fetchCredentialsData(db, festivalId),
+    isFeatureLaunched("festival_credentials"),
+  ]);
   if (!data) notFound();
 
   return (
@@ -34,6 +38,7 @@ export default async function CredentialsPage({ params, searchParams }: PageProp
       data={data}
       initialFilters={parseCredentialFilters(search)}
       isAdmin={profile.role === "admin"}
+      participantsSeeRules={participantsSeeRules}
     />
   );
 }
