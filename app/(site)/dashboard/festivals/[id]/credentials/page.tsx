@@ -7,7 +7,7 @@ import {
   parseCredentialTab,
 } from "@/app/lib/credentials/definitions";
 import { isFeatureLaunched } from "@/app/lib/feature_flags/helpers";
-import { loadCredentialsPage } from "@/app/lib/credentials/page";
+import { loadCredentialsPage } from "@/app/lib/credentials/load-page";
 import { fetchCredentialsData } from "@/app/lib/credentials/queries";
 import { db } from "@/db";
 
