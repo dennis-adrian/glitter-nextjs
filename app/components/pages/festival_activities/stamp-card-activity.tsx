@@ -74,7 +74,9 @@ export default function StampCardActivityPage({
                   aspect ratio instead of filling a fixed box: width 0/height 0
                   plus w-full/h-auto sizes it to the column at its natural
                   ratio. Art taller than the max height is scaled down with
-                  object-contain, never cropped.
+                  object-contain, never cropped. There is no blur placeholder:
+                  with no known dimensions the image has no height until it
+                  loads, so a blur would never show.
                 */}
                 <Image
                   className="h-auto w-full max-h-[480px] object-contain"
@@ -83,8 +85,8 @@ export default function StampCardActivityPage({
                   width={0}
                   height={0}
                   sizes="(min-width: 768px) 360px, 300px"
-                  placeholder="blur"
-                  blurDataURL="/img/placeholders/placeholder-300x300.png"
+                  // Above the fold and usually the page's largest element.
+                  loading="eager"
                 />
                 <figcaption className="text-center text-sm text-muted-foreground italic mt-1 mb-2">
                   Arte promocional
@@ -126,14 +128,18 @@ export default function StampCardActivityPage({
         {activity.activityPrizeUrl && (
           <div className="flex flex-col gap-2 w-full items-center my-3">
             <Heading level={3}>Premio de la actividad</Heading>
-            <div className="relative w-full max-w-[240px] md:max-w-[320px] aspect-square">
+            <div className="w-full max-w-[240px] md:max-w-[320px]">
+              {/* Same as the promotional art: natural aspect ratio, never cropped. */}
               <Image
-                className="object-cover"
+                className="h-auto w-full max-h-[360px] md:max-h-[420px] object-contain"
                 src={activity.activityPrizeUrl}
                 alt="premio de la actividad"
-                fill
-                placeholder="blur"
-                blurDataURL="/img/placeholders/placeholder-300x300.png"
+                width={0}
+                height={0}
+                sizes="(min-width: 768px) 320px, 240px"
+                // On desktop it can reach the first screen and outsize wide,
+                // short art, making it the page's largest element.
+                loading="eager"
               />
             </div>
           </div>
