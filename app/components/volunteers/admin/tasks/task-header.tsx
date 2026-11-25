@@ -103,9 +103,120 @@ export function VolunteerStrip({
 const headerButton = "min-h-10";
 
 /**
- * The top of Revisar and Asignar: "Voluntarios", when the call closes, the
- * settings, export and every application (a "…" menu on phones), then the
- * task switch and `strip`.
+ * The part of the header no task changes: "Voluntarios", when the call
+ * closes, the settings, export and every application (a "…" menu on phones).
+ */
+export function VolunteerHeaderTop({
+  call,
+  now,
+}: {
+  call: VolunteerTaskCall;
+  now?: Date;
+}) {
+  const festivalId = call.festival.id;
+  const setupHref = volunteerSetupAdminPath(festivalId);
+  const allHref = volunteerAllApplicationsPath(festivalId);
+  const exportHref = call.settings ? volunteerExportHref(festivalId) : null;
+  const closeAt = call.settings?.applicationsCloseAt;
+
+  return (
+    <div className="flex min-w-0 items-start justify-between gap-2 lg:flex-wrap lg:items-end lg:gap-3">
+      <div className="min-w-0">
+        <h1
+          className="font-display text-2xl leading-8 font-bold lg:text-3xl"
+          data-installed-title=""
+        >
+          Voluntarios
+        </h1>
+        {closeAt && (
+          <>
+            <p className="mt-0.5 break-words text-muted-foreground lg:hidden">
+              {volunteerCloseLine(closeAt, now)}
+            </p>
+            <p className="mt-1 hidden break-words text-muted-foreground lg:block">
+              Postulaciones para {call.festival.name}.{" "}
+              {volunteerCloseLine(closeAt, now, { long: true })}
+            </p>
+          </>
+        )}
+      </div>
+      <VolunteerMoreOptionsMenu
+        setupHref={setupHref}
+        exportHref={exportHref}
+        allHref={allHref}
+        className="shrink-0 lg:hidden"
+      />
+      <div className="hidden min-w-0 flex-wrap items-center gap-2 lg:flex">
+        <Link
+          href={allHref}
+          className={buttonVariants({
+            variant: "ghost",
+            wrap: true,
+            className: headerButton,
+          })}
+        >
+          Todas las postulaciones
+        </Link>
+        <Link
+          href={setupHref}
+          className={buttonVariants({
+            variant: "outline",
+            wrap: true,
+            className: headerButton,
+          })}
+        >
+          Roles, turnos y fechas
+        </Link>
+        {exportHref && (
+          <a
+            href={exportHref}
+            download
+            className={buttonVariants({
+              variant: "secondary",
+              wrap: true,
+              className: headerButton,
+            })}
+          >
+            Exportar CSV
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** The task switch and, beside it on desktop, `strip`. */
+export function VolunteerTaskBar({
+  festivalId,
+  task,
+  pending,
+  places,
+  strip,
+}: {
+  festivalId: number;
+  task: VolunteerTask;
+  pending: number;
+  places: number;
+  strip?: ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-3.5 lg:flex-row lg:flex-wrap lg:items-center lg:gap-3">
+      <VolunteerTaskSwitch
+        festivalId={festivalId}
+        task={task}
+        pending={pending}
+        places={places}
+        className="lg:max-w-90 lg:flex-[0_1_22.5rem]"
+      />
+      {strip && <div className="min-w-0 lg:flex-[1_1_20rem]">{strip}</div>}
+    </div>
+  );
+}
+
+/**
+ * The top of Revisar and Asignar: `VolunteerHeaderTop`, then the task
+ * switch and `strip`. In the app the frame of both tasks composes the two
+ * parts itself, so switching tasks keeps the top.
  */
 export default function VolunteerTaskHeader({
   call,
@@ -120,88 +231,16 @@ export default function VolunteerTaskHeader({
   now?: Date;
   className?: string;
 }) {
-  const festivalId = call.festival.id;
-  const setupHref = volunteerSetupAdminPath(festivalId);
-  const allHref = volunteerAllApplicationsPath(festivalId);
-  const exportHref = call.settings ? volunteerExportHref(festivalId) : null;
-  const closeAt = call.settings?.applicationsCloseAt;
-  const { places } = remainingPlaces(call.shifts);
-
   return (
     <div className={cn("flex min-w-0 flex-col gap-3.5 lg:gap-4", className)}>
-      <div className="flex min-w-0 items-start justify-between gap-2 lg:flex-wrap lg:items-end lg:gap-3">
-        <div className="min-w-0">
-          <h1
-            className="font-display text-2xl leading-8 font-bold lg:text-3xl"
-            data-installed-title=""
-          >
-            Voluntarios
-          </h1>
-          {closeAt && (
-            <>
-              <p className="mt-0.5 break-words text-muted-foreground lg:hidden">
-                {volunteerCloseLine(closeAt, now)}
-              </p>
-              <p className="mt-1 hidden break-words text-muted-foreground lg:block">
-                Postulaciones para {call.festival.name}.{" "}
-                {volunteerCloseLine(closeAt, now, { long: true })}
-              </p>
-            </>
-          )}
-        </div>
-        <VolunteerMoreOptionsMenu
-          setupHref={setupHref}
-          exportHref={exportHref}
-          allHref={allHref}
-          className="shrink-0 lg:hidden"
-        />
-        <div className="hidden min-w-0 flex-wrap items-center gap-2 lg:flex">
-          <Link
-            href={allHref}
-            className={buttonVariants({
-              variant: "ghost",
-              wrap: true,
-              className: headerButton,
-            })}
-          >
-            Todas las postulaciones
-          </Link>
-          <Link
-            href={setupHref}
-            className={buttonVariants({
-              variant: "outline",
-              wrap: true,
-              className: headerButton,
-            })}
-          >
-            Roles, turnos y fechas
-          </Link>
-          {exportHref && (
-            <a
-              href={exportHref}
-              download
-              className={buttonVariants({
-                variant: "secondary",
-                wrap: true,
-                className: headerButton,
-              })}
-            >
-              Exportar CSV
-            </a>
-          )}
-        </div>
-      </div>
-
-      <div className="flex min-w-0 flex-col gap-3.5 lg:flex-row lg:flex-wrap lg:items-center lg:gap-3">
-        <VolunteerTaskSwitch
-          festivalId={festivalId}
-          task={task}
-          pending={call.statusTotals.pending}
-          places={places}
-          className="lg:max-w-90 lg:flex-[0_1_22.5rem]"
-        />
-        {strip && <div className="min-w-0 lg:flex-[1_1_20rem]">{strip}</div>}
-      </div>
+      <VolunteerHeaderTop call={call} now={now} />
+      <VolunteerTaskBar
+        festivalId={call.festival.id}
+        task={task}
+        pending={call.statusTotals.pending}
+        places={remainingPlaces(call.shifts).places}
+        strip={strip}
+      />
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import VolunteerPersonScreen from "@/app/components/volunteers/admin/tasks/person-screen";
 import VolunteerReviewScreen from "@/app/components/volunteers/admin/tasks/review-screen";
-import { ReviewLayout } from "@/app/components/volunteers/admin/tasks/task-layouts";
+import { VolunteerSoloScreen } from "@/app/components/volunteers/admin/tasks/volunteer-task-frame";
 import type { RawSearchParams } from "@/app/lib/credits/admin-definitions";
 import {
   volunteerApplicationAdminPath,
@@ -18,7 +18,6 @@ import {
 import {
   fetchAcceptedPeopleIds,
   fetchPendingReviewIds,
-  fetchPendingReviewPage,
   fetchVolunteerNotes,
 } from "@/app/lib/volunteers/admin-task-queries";
 import {
@@ -26,7 +25,6 @@ import {
   parseVolunteerPersonGroup,
   parseVolunteerReviewSort,
   reviewPosition,
-  VOLUNTEER_LIST_BATCH,
   volunteerAssignPath,
   volunteerPeoplePath,
   volunteerPersonHref,
@@ -38,9 +36,10 @@ export const metadata: Metadata = { title: "Postulación" };
 /**
  * One application. Pending (or waitlisted, or not accepted): Revisar's
  * screen, flipping through the pending ones in `orden`'s order, beside the
- * list from lg. Accepted: the person's assignment and contact, or, without
+ * layout's list from lg. Accepted: the person's assignment and contact, or, without
  * shifts or with `asignar`, "Darle rol y turnos". `revisar` opens Revisar's
- * screen on an accepted one ("Cambiar decisión").
+ * screen on an accepted one ("Cambiar decisión"). An accepted person takes
+ * the whole page, without the layout's header and list.
  */
 export default async function VolunteerApplicationPage(props: {
   params: Promise<{ id: string; applicationId: string }>;
@@ -88,7 +87,7 @@ export default async function VolunteerApplicationPage(props: {
     const withParam = (param: string) =>
       `${self}${self.includes("?") ? "&" : "?"}${param}`;
     return (
-      <>
+      <VolunteerSoloScreen>
         <ScreenTitle title={application.fullName} backHref={back.href} />
         <VolunteerPersonScreen
           key={application.id}
@@ -116,14 +115,11 @@ export default async function VolunteerApplicationPage(props: {
           assignHref={withParam("asignar=1")}
           decisionHref={`${path}?revisar=1`}
         />
-      </>
+      </VolunteerSoloScreen>
     );
   }
 
-  const [items, order] = await Promise.all([
-    fetchPendingReviewPage(festivalId, sort, [], VOLUNTEER_LIST_BATCH),
-    fetchPendingReviewIds(festivalId, sort),
-  ]);
+  const order = await fetchPendingReviewIds(festivalId, sort);
 
   return (
     <>
@@ -131,24 +127,15 @@ export default async function VolunteerApplicationPage(props: {
         title={application.fullName}
         backHref={volunteerReviewHref(festivalId, sort)}
       />
-      <ReviewLayout
-        call={call}
+      <VolunteerReviewScreen
+        key={application.id}
+        festivalId={festivalId}
+        application={application}
+        roles={call.roles}
+        shifts={call.shifts}
+        notes={notes}
+        order={order}
         sort={sort}
-        items={items}
-        selectedId={applicationId}
-        listOnPhone={false}
-        detail={
-          <VolunteerReviewScreen
-            key={application.id}
-            festivalId={festivalId}
-            application={application}
-            roles={call.roles}
-            shifts={call.shifts}
-            notes={notes}
-            order={order}
-            sort={sort}
-          />
-        }
       />
     </>
   );

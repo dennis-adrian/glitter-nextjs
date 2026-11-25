@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import VolunteerAvailabilityForm from "@/app/components/volunteers/admin/tasks/availability-form";
+import { VolunteerSoloScreen } from "@/app/components/volunteers/admin/tasks/volunteer-task-frame";
 import { volunteerApplicationAdminPath } from "@/app/lib/volunteers/admin-definitions";
 import { fetchVolunteerApplicationDetail } from "@/app/lib/volunteers/admin-queries";
 import {
@@ -28,7 +29,7 @@ export default async function VolunteerAvailabilityPage(props: {
   const backHref = volunteerApplicationAdminPath(festivalId, applicationId);
 
   return (
-    <>
+    <VolunteerSoloScreen>
       <ScreenTitle title="Turnos que puede" backHref={backHref} />
       {/* Remounts on every revision, so the selection and the
           loadedUpdatedAt it saves against always come from the same one. */}
@@ -40,6 +41,6 @@ export default async function VolunteerAvailabilityPage(props: {
         adminAddedShiftIds={adminAdded}
         backHref={backHref}
       />
-    </>
+    </VolunteerSoloScreen>
   );
 }
