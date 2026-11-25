@@ -58,9 +58,9 @@ export default function StampCardActivityPage({
     <div className="flex flex-col gap-4">
       <Heading>{activity.name}</Heading>
       <p className="text-sm md:text-base">
-        La Tarjeta de Sellos es una tarjeta coleccionable con un diseño
-        exclusivo de esta edición del festival, que invita al público a recorrer
-        los stands de los participantes para completarla con sus sellos.
+        Esta es una actividad que invita al público a recorrer los stands de los
+        participantes para completar con sus sellos una tarjeta coleccionable
+        con un diseño exclusivo de esta edición del festival.
       </p>
 
       <div className="flex flex-col gap-4">
