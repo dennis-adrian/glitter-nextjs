@@ -7,15 +7,18 @@ import VolunteerPeopleList from "@/app/components/volunteers/admin/tasks/people-
 import VolunteerPersonScreen from "@/app/components/volunteers/admin/tasks/person-screen";
 import VolunteerReviewScreen from "@/app/components/volunteers/admin/tasks/review-screen";
 import VolunteerShiftAssignScreen from "@/app/components/volunteers/admin/tasks/shift-assign-screen";
-import VolunteerTaskHeader from "@/app/components/volunteers/admin/tasks/task-header";
+import { VolunteerHeaderTop } from "@/app/components/volunteers/admin/tasks/task-header";
 import {
-  AssignByShiftLayout,
+  AssignByShiftPane,
   AssignStrip,
   NoCallState,
-  pageFrame,
   ReviewStrip,
 } from "@/app/components/volunteers/admin/tasks/task-layouts";
-import { ReviewFrame } from "@/app/components/volunteers/admin/tasks/review-frame";
+import { ReviewPane } from "@/app/components/volunteers/admin/tasks/review-frame";
+import {
+  VolunteerSoloScreen,
+  VolunteerTaskFrame,
+} from "@/app/components/volunteers/admin/tasks/volunteer-task-frame";
 import { AssignModeNav } from "@/app/components/volunteers/admin/tasks/assign-shift-list";
 import type {
   VolunteerApplicationDetail,
@@ -29,6 +32,7 @@ import type {
   VolunteerTaskShift,
 } from "@/app/lib/volunteers/admin-task-queries";
 
+import { remainingPlaces } from "@/app/lib/volunteers/admin-tasks";
 import { VolunteerAdminStoryContext } from "./volunteer-admin-story-context";
 
 /**
@@ -348,31 +352,43 @@ const reviewScreen = (application: VolunteerApplicationDetail) => (
   />
 );
 
-/** V2Revisar / V2Escritorio */
-/** Revisar's layout around `children`, as the route group renders it. */
-const reviewFrame = (children: ReactNode) => (
-  <ReviewFrame
+/**
+ * The header and frame Revisar and Asignar share around `children`, as their
+ * layout renders it; the task follows the story's path.
+ */
+const tasksFrame = (children: ReactNode) => (
+  <VolunteerTaskFrame
     festivalId={FESTIVAL_ID}
-    header={
-      <VolunteerTaskHeader
-        call={CALL}
-        task="revisar"
-        strip={<ReviewStrip call={CALL} />}
-        now={TODAY}
-      />
-    }
-    noCall={<NoCallState festivalId={FESTIVAL_ID} />}
-    batches={{
-      antiguas: REVIEW_ITEMS,
-      nuevas: [...REVIEW_ITEMS].reverse(),
-      turnos: REVIEW_ITEMS,
+    top={<VolunteerHeaderTop call={CALL} now={TODAY} />}
+    pending={CALL.statusTotals.pending}
+    places={remainingPlaces(CALL.shifts).places}
+    strips={{
+      revisar: <ReviewStrip call={CALL} />,
+      asignar: <AssignStrip call={CALL} />,
     }}
-    total={CALL.statusTotals.pending}
-    shiftTotal={CALL.shifts.filter((shift) => shift.isActive).length}
   >
     {children}
-  </ReviewFrame>
+  </VolunteerTaskFrame>
 );
+
+/** V2Revisar / V2Escritorio */
+/** Revisar's layouts around `children`, as the route groups render them. */
+const reviewFrame = (children: ReactNode) =>
+  tasksFrame(
+    <ReviewPane
+      festivalId={FESTIVAL_ID}
+      noCall={<NoCallState festivalId={FESTIVAL_ID} />}
+      batches={{
+        antiguas: REVIEW_ITEMS,
+        nuevas: [...REVIEW_ITEMS].reverse(),
+        turnos: REVIEW_ITEMS,
+      }}
+      total={CALL.statusTotals.pending}
+      shiftTotal={CALL.shifts.filter((shift) => shift.isActive).length}
+    >
+      {children}
+    </ReviewPane>,
+  );
 
 export const Revisar: Story = {
   render: () => (
@@ -420,7 +436,11 @@ const personScreen = (
 export const Aceptada: Story = {
   render: () => (
     <VolunteerAdminStoryContext path={`${BASE}/201`}>
-      {personScreen(ACCEPTED, false, "2 de 12")}
+      {tasksFrame(
+        <VolunteerSoloScreen>
+          {personScreen(ACCEPTED, false, "2 de 12")}
+        </VolunteerSoloScreen>,
+      )}
     </VolunteerAdminStoryContext>
   ),
 };
@@ -429,7 +449,11 @@ export const Aceptada: Story = {
 export const SinAsignar: Story = {
   render: () => (
     <VolunteerAdminStoryContext path={`${BASE}/202`}>
-      {personScreen(WITHOUT_SHIFTS, true, "1 de 3 sin turnos")}
+      {tasksFrame(
+        <VolunteerSoloScreen>
+          {personScreen(WITHOUT_SHIFTS, true, "1 de 3 sin turnos")}
+        </VolunteerSoloScreen>,
+      )}
     </VolunteerAdminStoryContext>
   ),
 };
@@ -448,12 +472,14 @@ const shiftScreen = (
 export const Asignar: Story = {
   render: () => (
     <VolunteerAdminStoryContext path={`${BASE}/asignar`}>
-      <AssignByShiftLayout
-        call={CALL}
-        selectedId={5}
-        listOnPhone
-        detail={shiftScreen}
-      />
+      {tasksFrame(
+        <AssignByShiftPane
+          call={CALL}
+          selectedId={5}
+          listOnPhone
+          detail={shiftScreen}
+        />,
+      )}
     </VolunteerAdminStoryContext>
   ),
 };
@@ -462,12 +488,14 @@ export const Asignar: Story = {
 export const Agregar: Story = {
   render: () => (
     <VolunteerAdminStoryContext path={`${BASE}/shifts/5`}>
-      <AssignByShiftLayout
-        call={CALL}
-        selectedId={5}
-        listOnPhone={false}
-        detail={shiftScreen}
-      />
+      {tasksFrame(
+        <AssignByShiftPane
+          call={CALL}
+          selectedId={5}
+          listOnPhone={false}
+          detail={shiftScreen}
+        />,
+      )}
     </VolunteerAdminStoryContext>
   ),
 };
@@ -476,13 +504,7 @@ export const Agregar: Story = {
 export const PorPersona: Story = {
   render: () => (
     <VolunteerAdminStoryContext path={`${BASE}/asignar/personas`}>
-      <div className={pageFrame}>
-        <VolunteerTaskHeader
-          call={CALL}
-          task="asignar"
-          strip={<AssignStrip call={CALL} />}
-          now={TODAY}
-        />
+      {tasksFrame(
         <div className="flex w-full max-w-2xl min-w-0 flex-col gap-3.5">
           <AssignModeNav
             festivalId={FESTIVAL_ID}
@@ -495,8 +517,8 @@ export const PorPersona: Story = {
             total={12}
             shifts={SHIFTS}
           />
-        </div>
-      </div>
+        </div>,
+      )}
     </VolunteerAdminStoryContext>
   ),
 };
@@ -505,13 +527,17 @@ export const PorPersona: Story = {
 export const Disponibilidad: Story = {
   render: () => (
     <VolunteerAdminStoryContext path={`${BASE}/201/disponibilidad`}>
-      <VolunteerAvailabilityForm
-        festivalId={FESTIVAL_ID}
-        application={ACCEPTED}
-        shifts={SHIFTS}
-        adminAddedShiftIds={[]}
-        backHref={`${BASE}/201`}
-      />
+      {tasksFrame(
+        <VolunteerSoloScreen>
+          <VolunteerAvailabilityForm
+            festivalId={FESTIVAL_ID}
+            application={ACCEPTED}
+            shifts={SHIFTS}
+            adminAddedShiftIds={[]}
+            backHref={`${BASE}/201`}
+          />
+        </VolunteerSoloScreen>,
+      )}
     </VolunteerAdminStoryContext>
   ),
 };

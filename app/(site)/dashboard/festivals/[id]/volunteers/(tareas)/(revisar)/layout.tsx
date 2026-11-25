@@ -1,11 +1,7 @@
 import type { ReactNode } from "react";
 
-import { ReviewFrame } from "@/app/components/volunteers/admin/tasks/review-frame";
-import VolunteerTaskHeader from "@/app/components/volunteers/admin/tasks/task-header";
-import {
-  NoCallState,
-  ReviewStrip,
-} from "@/app/components/volunteers/admin/tasks/task-layouts";
+import { ReviewPane } from "@/app/components/volunteers/admin/tasks/review-frame";
+import { NoCallState } from "@/app/components/volunteers/admin/tasks/task-layouts";
 import { loadVolunteerTaskPage } from "@/app/lib/volunteers/admin-task-page";
 import {
   fetchPendingReviewPage,
@@ -18,8 +14,9 @@ import {
 } from "@/app/lib/volunteers/admin-tasks";
 
 /**
- * Revisar: the header and the pending list, kept across the applications
- * opened from it, so picking one only loads that application (`children`).
+ * Revisar, below the tasks' header: the pending list, kept across the
+ * applications opened from it, so picking one only loads that application
+ * (`children`).
  * A layout gets no search params, so the list's first batch comes in every
  * sort and the frame shows the one in the URL.
  */
@@ -50,21 +47,14 @@ export default async function VolunteerReviewLayout(props: {
     : null;
 
   return (
-    <ReviewFrame
+    <ReviewPane
       festivalId={festivalId}
-      header={
-        <VolunteerTaskHeader
-          call={call}
-          task="revisar"
-          strip={<ReviewStrip call={call} />}
-        />
-      }
       noCall={<NoCallState festivalId={festivalId} />}
       batches={batches}
       total={call.statusTotals.pending}
       shiftTotal={call.shifts.filter((shift) => shift.isActive).length}
     >
       {props.children}
-    </ReviewFrame>
+    </ReviewPane>
   );
 }

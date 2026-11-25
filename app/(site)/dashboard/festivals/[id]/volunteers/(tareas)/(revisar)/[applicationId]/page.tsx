@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import VolunteerPersonScreen from "@/app/components/volunteers/admin/tasks/person-screen";
 import VolunteerReviewScreen from "@/app/components/volunteers/admin/tasks/review-screen";
-import { VolunteerSoloScreen } from "@/app/components/volunteers/admin/tasks/review-frame";
+import { VolunteerSoloScreen } from "@/app/components/volunteers/admin/tasks/volunteer-task-frame";
 import type { RawSearchParams } from "@/app/lib/credits/admin-definitions";
 import {
   volunteerApplicationAdminPath,

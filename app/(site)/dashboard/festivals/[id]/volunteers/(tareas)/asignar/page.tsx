@@ -2,11 +2,9 @@ import type { Metadata } from "next";
 
 import VolunteerShiftAssignScreen from "@/app/components/volunteers/admin/tasks/shift-assign-screen";
 import {
-  AssignByShiftLayout,
+  AssignByShiftPane,
   NoCallState,
-  pageFrame,
 } from "@/app/components/volunteers/admin/tasks/task-layouts";
-import VolunteerTaskHeader from "@/app/components/volunteers/admin/tasks/task-header";
 import { fetchVolunteerShiftDetail } from "@/app/lib/volunteers/admin-queries";
 import { loadVolunteerTaskPage } from "@/app/lib/volunteers/admin-task-page";
 import {
@@ -18,8 +16,8 @@ import {
 export const metadata: Metadata = { title: "Asignar voluntarios" };
 
 /**
- * Asignar, by shift: the shifts missing the most people first. From lg the
- * first of them is open beside the list.
+ * Asignar, by shift, below the tasks' header: the shifts missing the most
+ * people first. From lg the first of them is open beside the list.
  */
 export default async function VolunteerAssignPage(props: {
   params: Promise<{ id: string }>;
@@ -27,21 +25,14 @@ export default async function VolunteerAssignPage(props: {
   const { festivalId, call } = await loadVolunteerTaskPage(
     (await props.params).id,
   );
-  if (!call.settings) {
-    return (
-      <div className={pageFrame}>
-        <VolunteerTaskHeader call={call} task="asignar" />
-        <NoCallState festivalId={festivalId} />
-      </div>
-    );
-  }
+  if (!call.settings) return <NoCallState festivalId={festivalId} />;
   const first = shiftsByNeed(call.shifts)[0];
   const detail = first
     ? await fetchVolunteerShiftDetail(festivalId, first.id)
     : null;
 
   return (
-    <AssignByShiftLayout
+    <AssignByShiftPane
       call={call}
       selectedId={first?.id}
       listOnPhone

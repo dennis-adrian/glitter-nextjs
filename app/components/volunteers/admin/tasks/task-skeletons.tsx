@@ -12,18 +12,29 @@ export function VolunteerTaskSkeleton() {
       </div>
       <Skeleton className="h-13 w-full rounded-full lg:max-w-90" />
       <Skeleton className="h-11 w-full rounded-md" />
-      <div className="flex flex-col gap-2">
-        {[0, 1, 2].map((index) => (
-          <div
-            key={index}
-            className="flex flex-col gap-2 rounded-lg border bg-card p-3"
-          >
-            <Skeleton className="h-4 w-2/5" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-3/5" />
-          </div>
-        ))}
-      </div>
+      <VolunteerTaskBodySkeleton />
+    </div>
+  );
+}
+
+/**
+ * Loading shape of a task's content below the header, which stays on
+ * screen: switching between Revisar and Asignar loads only this.
+ */
+export function VolunteerTaskBodySkeleton() {
+  return (
+    <div role="status" aria-busy="true" className="flex flex-col gap-2">
+      <span className="sr-only">Cargando…</span>
+      {[0, 1, 2].map((index) => (
+        <div
+          key={index}
+          className="flex flex-col gap-2 rounded-lg border bg-card p-3 lg:max-w-95"
+        >
+          <Skeleton className="h-4 w-2/5" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-3/5" />
+        </div>
+      ))}
     </div>
   );
 }

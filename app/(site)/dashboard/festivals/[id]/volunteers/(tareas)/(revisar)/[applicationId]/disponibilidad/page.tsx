@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import VolunteerAvailabilityForm from "@/app/components/volunteers/admin/tasks/availability-form";
-import { VolunteerSoloScreen } from "@/app/components/volunteers/admin/tasks/review-frame";
+import { VolunteerSoloScreen } from "@/app/components/volunteers/admin/tasks/volunteer-task-frame";
 import { volunteerApplicationAdminPath } from "@/app/lib/volunteers/admin-definitions";
 import { fetchVolunteerApplicationDetail } from "@/app/lib/volunteers/admin-queries";
 import {
