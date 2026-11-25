@@ -137,7 +137,7 @@ export default function StampCardActivityPage({
       </div>
 
       <div className="flex flex-col gap-3">
-        <Heading level={2}>No es necesario una compra mínima</Heading>
+        <Heading level={2}>No es necesaria una compra mínima</Heading>
         <div className="space-y-2 text-sm md:text-base">
           <p>
             En esta actividad te pedimos que pongas tu sello en la tarjeta de
