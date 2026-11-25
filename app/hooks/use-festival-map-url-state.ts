@@ -100,8 +100,12 @@ export function useSyncFestivalMapUrl(
     const scheduledPathname = window.location.pathname;
     const scheduledSearch = window.location.search;
     const state = { query, sectorIndex, standFilters };
+    let written = false;
 
-    const timer = window.setTimeout(() => {
+    const write = () => {
+      if (written) return;
+      written = true;
+
       // The URL moved on since this write was scheduled (another page, or a
       // link to this one with other filters): it is not ours to overwrite.
       if (
@@ -142,8 +146,27 @@ export function useSyncFestivalMapUrl(
         // A throttled update only leaves the URL one step behind; the next
         // change writes it again.
       }
-    }, URL_WRITE_DELAY_MS);
+    };
 
-    return () => window.clearTimeout(timer);
+    const timer = window.setTimeout(write, URL_WRITE_DELAY_MS);
+
+    // A link tapped while this write waits must not meet it mid-flight: Next
+    // treats our replaceState as a navigation of its own, and one arriving
+    // while a link's navigation is still loading discards that navigation, so
+    // the tap would do nothing. In the capture phase this runs before the
+    // link's own handler starts navigating, so the write goes out first and
+    // the URL still carries the latest filters.
+    const writeBeforeLinkNavigation = (event: MouseEvent) => {
+      if (!(event.target instanceof Element)) return;
+      if (!event.target.closest("a[href]")) return;
+      window.clearTimeout(timer);
+      write();
+    };
+    document.addEventListener("click", writeBeforeLinkNavigation, true);
+
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("click", writeBeforeLinkNavigation, true);
+    };
   }, [anchor, includeQuery, query, sectorIndex, sectors, standFilters]);
 }

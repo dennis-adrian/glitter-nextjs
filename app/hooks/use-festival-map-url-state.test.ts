@@ -171,6 +171,56 @@ describe("useSyncFestivalMapUrl writes", () => {
   });
 });
 
+describe("useSyncFestivalMapUrl and link taps", () => {
+  /** A link whose own (bubble-phase) handler notes the URL it navigates from. */
+  function appendLink(href: string) {
+    const link = document.createElement("a");
+    link.href = href;
+    link.textContent = "Ver perfil";
+    const seenByLink: string[] = [];
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      seenByLink.push(window.location.search);
+    });
+    document.body.append(link);
+    return { link, seenByLink };
+  }
+
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  it("writes a pending URL before a tapped link starts navigating", () => {
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    renderSync({ query: "Ana" });
+    const { link, seenByLink } = appendLink("/public_profiles/7");
+
+    act(() => vi.advanceTimersByTime(100));
+    link.click();
+
+    // Out before the link's own handler, not 150ms later in its way.
+    expect(seenByLink).toEqual(["?q=Ana"]);
+    expect(replaceState).toHaveBeenCalledTimes(1);
+
+    act(() => vi.advanceTimersByTime(250));
+    expect(replaceState).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps waiting when the tap is not on a link", () => {
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    renderSync({ query: "Ana" });
+    const button = document.createElement("button");
+    document.body.append(button);
+
+    act(() => vi.advanceTimersByTime(100));
+    button.click();
+    expect(replaceState).not.toHaveBeenCalled();
+
+    act(() => vi.advanceTimersByTime(150));
+    expect(replaceState).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("useSyncFestivalMapUrl and URLs from elsewhere", () => {
   it("applies a same-path navigation to the mounted filters", () => {
     navigateTo("/festivals/489?activity=coupon_book");
