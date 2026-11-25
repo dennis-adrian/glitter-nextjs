@@ -124,7 +124,7 @@ const COLUMN_TITLES = {
 
 function MobileRow({ holder, showPrint }: { holder: CredentialHolder; showPrint: boolean }) {
   return (
-    <li className="flex flex-col gap-2 rounded-lg border bg-card p-3">
+    <div className="flex flex-col gap-2 rounded-lg border bg-card p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <HolderName holder={holder} />
@@ -151,7 +151,7 @@ function MobileRow({ holder, showPrint }: { holder: CredentialHolder; showPrint:
           sin nombre
         </span>
       </div>
-    </li>
+    </div>
   );
 }
 
