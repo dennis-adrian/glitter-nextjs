@@ -142,15 +142,31 @@ const activityUserIds = {
   festival_sticker: new Set<number>(),
 };
 
+/** One accepted reservation held by `userId`, as the map reads occupants. */
+function occupiedBy(
+  userId: number,
+  {
+    displayName = "Participante",
+    reservationStatus = "accepted",
+  }: { displayName?: string | null; reservationStatus?: string } = {},
+) {
+  return [
+    {
+      status: reservationStatus,
+      participants: [{ user: { id: userId, displayName } }],
+    },
+  ];
+}
+
 // Stand 99 is free, so no participant entry ever points at it.
 const sectors = [
   {
     stands: [
-      { id: 12, status: "confirmed" },
-      { id: 13, status: "reserved" },
-      { id: 24, status: "confirmed" },
-      { id: 99, status: "available" },
-      { id: 100, status: "disabled" },
+      { id: 12, status: "confirmed", reservations: occupiedBy(1) },
+      { id: 13, status: "reserved", reservations: occupiedBy(2) },
+      { id: 24, status: "confirmed", reservations: occupiedBy(3) },
+      { id: 99, status: "available", reservations: [] },
+      { id: 100, status: "disabled", reservations: [] },
     ],
   },
 ] as unknown as FestivalSectorWithStandsWithReservationsWithParticipants[];
@@ -242,6 +258,37 @@ describe("getMatchingStandIds", () => {
     ).toEqual([]);
   });
 
+  it("lights every stand carrying the badge when only the legend is on", () => {
+    // Neither occupant has a search entry: one has no display name, the
+    // other's reservation is not accepted yet. Both still carry the badge.
+    const withUnlistedOccupants = [
+      {
+        stands: [
+          ...sectors[0].stands,
+          {
+            id: 30,
+            status: "confirmed",
+            reservations: occupiedBy(3, { displayName: null }),
+          },
+          {
+            id: 31,
+            status: "reserved",
+            reservations: occupiedBy(3, {
+              reservationStatus: "verification_payment",
+            }),
+          },
+        ],
+      },
+    ] as unknown as FestivalSectorWithStandsWithReservationsWithParticipants[];
+
+    expect(
+      matchingStandIds({
+        sectors: withUnlistedOccupants,
+        standFilters: { status: "occupied", activities: ["stamp_passport"] },
+      }),
+    ).toEqual([24, 30, 31]);
+  });
+
   it("narrows participant filters by activity", () => {
     expect(
       matchingStandIds({
@@ -256,20 +303,12 @@ describe("getStandFilterMatchingStandIds", () => {
   function occupiedStand(
     id: number,
     userId: number,
-    {
-      displayName = "Pandora",
-      reservationStatus = "accepted",
-    }: { displayName?: string | null; reservationStatus?: string } = {},
+    options?: Parameters<typeof occupiedBy>[1],
   ) {
     return {
       id,
       status: "confirmed",
-      reservations: [
-        {
-          status: reservationStatus,
-          participants: [{ user: { id: userId, displayName } }],
-        },
-      ],
+      reservations: occupiedBy(userId, options),
     };
   }
 

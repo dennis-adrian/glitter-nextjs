@@ -211,28 +211,21 @@ export function getMatchingStandIds({
   standFilters: StandFilters;
   activityUserIds: StandActivityUserIds;
 }): number[] | null {
-  const filtersParticipants =
-    query.trim().length > 0 ||
-    category !== "all" ||
-    standFilters.activities.length > 0;
-  const filtersStatus = standFilters.status !== "all";
-
-  if (!filtersParticipants && !filtersStatus) return null;
-
-  const matching = new Set<number>();
-
-  if (!filtersParticipants) {
-    for (const sector of sectors) {
-      for (const stand of sector.stands) {
-        if (stand.status === "disabled") continue;
-        if (matchesStandStatusFilter(stand, standFilters.status)) {
-          matching.add(stand.id);
-        }
-      }
-    }
-
-    return Array.from(matching);
+  // Only the legend is on: resolve it over the stands themselves, with the
+  // same occupant rule the badges are drawn with, so every stand showing a
+  // selected marker stays lit.
+  if (query.trim().length === 0 && category === "all") {
+    return getStandFilterMatchingStandIds({
+      sectors,
+      standFilters,
+      activityUserIds,
+    });
   }
+
+  // A text or category filter describes a named participant, so it can only
+  // go through the search entries.
+  const filtersStatus = standFilters.status !== "all";
+  const matching = new Set<number>();
 
   for (const entry of searchEntries) {
     if (!participantSearchEntryMatchesFilters(entry, query, category)) continue;
