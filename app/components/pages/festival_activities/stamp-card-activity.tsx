@@ -145,10 +145,10 @@ export default function StampCardActivityPage({
             realice una compra.
           </p>
           <p>
-            Nuestra idea es que los visitantes disfruten recorriendo todos los
-            stands de la actividad hasta completar su tarjeta. Así cada stand
-            recibe más visitas y más personas conocen tu trabajo, y creemos que
-            eso beneficia a todos los participantes.
+            Queremos que los visitantes disfruten recorriendo todos los stands
+            de la actividad hasta completar su tarjeta. Así cada stand recibe
+            más visitas y más personas conocen tu trabajo, y creemos que eso
+            beneficia a todos los participantes.
           </p>
         </div>
       </div>
