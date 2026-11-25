@@ -1,6 +1,7 @@
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import {
   PathnameContext,
+  PathParamsContext,
   SearchParamsContext,
 } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
 import type { ReactNode } from "react";
@@ -44,12 +45,15 @@ function Navbar() {
  */
 export function VolunteerAdminStoryContext({
   path,
+  params = {},
   searchParams = {},
   title,
   backHref,
   children,
 }: {
   path: string;
+  /** The route's dynamic params, as `useParams` reads them. */
+  params?: Record<string, string>;
   searchParams?: RawSearchParams;
   title?: string;
   /** The page's back target, as its ScreenTitle gives it. */
@@ -66,13 +70,15 @@ export function VolunteerAdminStoryContext({
   return (
     <AppRouterContext.Provider value={storyRouter}>
       <PathnameContext.Provider value={path}>
-        <SearchParamsContext.Provider value={query}>
-          <ScreenBarProvider>
-            <Navbar />
-            {title && <ScreenTitle title={title} backHref={backHref} />}
-            {children}
-          </ScreenBarProvider>
-        </SearchParamsContext.Provider>
+        <PathParamsContext.Provider value={params}>
+          <SearchParamsContext.Provider value={query}>
+            <ScreenBarProvider>
+              <Navbar />
+              {title && <ScreenTitle title={title} backHref={backHref} />}
+              {children}
+            </ScreenBarProvider>
+          </SearchParamsContext.Provider>
+        </PathParamsContext.Provider>
       </PathnameContext.Provider>
     </AppRouterContext.Provider>
   );

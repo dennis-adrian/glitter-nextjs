@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import type { ReactNode } from "react";
 
 import AssignShiftList from "@/app/components/volunteers/admin/tasks/assign-shift-list";
 import VolunteerAvailabilityForm from "@/app/components/volunteers/admin/tasks/availability-form";
@@ -10,9 +11,11 @@ import VolunteerTaskHeader from "@/app/components/volunteers/admin/tasks/task-he
 import {
   AssignByShiftLayout,
   AssignStrip,
+  NoCallState,
   pageFrame,
-  ReviewLayout,
+  ReviewStrip,
 } from "@/app/components/volunteers/admin/tasks/task-layouts";
+import { ReviewFrame } from "@/app/components/volunteers/admin/tasks/review-frame";
 import { AssignModeNav } from "@/app/components/volunteers/admin/tasks/assign-shift-list";
 import type {
   VolunteerApplicationDetail,
@@ -346,17 +349,35 @@ const reviewScreen = (application: VolunteerApplicationDetail) => (
 );
 
 /** V2Revisar / V2Escritorio */
+/** Revisar's layout around `children`, as the route group renders it. */
+const reviewFrame = (children: ReactNode) => (
+  <ReviewFrame
+    festivalId={FESTIVAL_ID}
+    header={
+      <VolunteerTaskHeader
+        call={CALL}
+        task="revisar"
+        strip={<ReviewStrip call={CALL} />}
+        now={TODAY}
+      />
+    }
+    noCall={<NoCallState festivalId={FESTIVAL_ID} />}
+    batches={{
+      antiguas: REVIEW_ITEMS,
+      nuevas: [...REVIEW_ITEMS].reverse(),
+      turnos: REVIEW_ITEMS,
+    }}
+    total={CALL.statusTotals.pending}
+    shiftTotal={CALL.shifts.filter((shift) => shift.isActive).length}
+  >
+    {children}
+  </ReviewFrame>
+);
+
 export const Revisar: Story = {
   render: () => (
     <VolunteerAdminStoryContext path={BASE}>
-      <ReviewLayout
-        call={CALL}
-        sort="antiguas"
-        items={REVIEW_ITEMS}
-        selectedId={100}
-        listOnPhone
-        detail={reviewScreen(detail({ id: 100 }))}
-      />
+      {reviewFrame(reviewScreen(detail({ id: 100 })))}
     </VolunteerAdminStoryContext>
   ),
 };
@@ -364,15 +385,11 @@ export const Revisar: Story = {
 /** V2Postulacion */
 export const Postulacion: Story = {
   render: () => (
-    <VolunteerAdminStoryContext path={`${BASE}/100`}>
-      <ReviewLayout
-        call={CALL}
-        sort="antiguas"
-        items={REVIEW_ITEMS}
-        selectedId={100}
-        listOnPhone={false}
-        detail={reviewScreen(PENDING)}
-      />
+    <VolunteerAdminStoryContext
+      path={`${BASE}/100`}
+      params={{ applicationId: "100" }}
+    >
+      {reviewFrame(reviewScreen(PENDING))}
     </VolunteerAdminStoryContext>
   ),
 };
