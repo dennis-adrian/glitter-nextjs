@@ -140,14 +140,15 @@ export default function StampCardActivityPage({
         <Heading level={2}>¿Por qué no hay compra mínima?</Heading>
         <div className="space-y-2 text-sm md:text-base">
           <p>
-            Para poner tu sello en la tarjeta de un visitante{" "}
-            <strong>no podés exigir una compra mínima</strong>. Todo visitante
-            que se acerque a tu stand con la tarjeta debe recibir tu sello.
+            En esta actividad te pedimos que pongas tu sello en la tarjeta de
+            cada visitante que se acerque a tu stand, sin necesidad de que
+            realice una compra.
           </p>
           <p>
-            Queremos que los visitantes recorran todos los stands de la
-            actividad y completen todos los sellos de su tarjeta. Creemos que
-            así la actividad es más beneficiosa para todos los participantes.
+            Nuestra idea es que los visitantes disfruten recorriendo todos los
+            stands de la actividad hasta completar su tarjeta. Así cada stand
+            recibe más visitas y más personas conocen tu trabajo, y creemos que
+            eso beneficia a todos los participantes.
           </p>
         </div>
       </div>
