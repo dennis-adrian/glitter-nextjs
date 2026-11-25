@@ -16,13 +16,6 @@ import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 const CARD_PRICE_BS = 15;
 /** Cards printed for this edition. */
 const CARD_UNITS = 80;
-/**
- * Why participants stamp without asking for a purchase. The paragraph is not
- * rendered while this is null.
- * TODO: write the reason before the activity opens for registration.
- */
-const NO_MINIMUM_PURCHASE_REASON: string | null = null;
-
 type StampCardActivityPageProps = {
   currentProfile: BaseProfile;
   forProfile: BaseProfile;
@@ -155,9 +148,11 @@ export default function StampCardActivityPage({
             <strong>no podés exigir una compra mínima</strong>. Todo visitante
             que se acerque a tu stand con la tarjeta debe recibir tu sello.
           </p>
-          {NO_MINIMUM_PURCHASE_REASON && (
-            <p className="mt-2">{NO_MINIMUM_PURCHASE_REASON}</p>
-          )}
+          <p className="mt-2">
+            Queremos que los visitantes recorran todos los stands de la
+            actividad y completen todos los sellos de su tarjeta. Creemos que
+            así la actividad es más beneficiosa para todos los participantes.
+          </p>
         </AlertDescription>
       </Alert>
 
