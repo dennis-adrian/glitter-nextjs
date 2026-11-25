@@ -3,11 +3,14 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import type { db as DbType } from "@/db";
 import {
   externalParticipants,
+  festivalExtraCredentials,
   festivals,
+  festivalStaffMembers,
   reservationExternalParticipants,
   reservationParticipants,
   standReservations,
   standReservationStands,
+  staffMembers,
   stands,
   users,
   volunteerApplications,
@@ -37,12 +40,19 @@ const STAND_LABEL = "Z";
 const EXTERNAL_STAND = 901;
 const FULL_TABLE_STANDS = [902, 903] as const;
 const FULL_TABLE_EMAIL = "illustration+clerk_test@example.com";
+const STAFF = [
+  { fullName: "Daniela Arce (demo)", roleLabel: "Dirección" },
+  { fullName: "Rodrigo Molina (demo)", roleLabel: "Producción" },
+] as const;
+const EXTRA_LABEL = "Prensa (demo)";
 
 export type SeedCredentialsResult = {
   festival: string | null;
   createdVolunteers: number;
   createdExternal: boolean;
   createdFullTable: boolean;
+  createdStaff: number;
+  createdExtra: boolean;
 };
 
 async function ensureStand(
@@ -94,7 +104,14 @@ export async function seedCredentials(
     .orderBy(desc(festivals.id))
     .limit(1);
   if (!festival) {
-    return { festival: null, createdVolunteers: 0, createdExternal: false, createdFullTable: false };
+    return {
+      festival: null,
+      createdVolunteers: 0,
+      createdExternal: false,
+      createdFullTable: false,
+      createdStaff: 0,
+      createdExtra: false,
+    };
   }
 
   // Volunteers: two roles, three accepted applications (one without a role)
@@ -219,10 +236,47 @@ export async function seedCredentials(
     }
   }
 
+  // Two people of the Glitter team, selected for this festival, and a lot
+  // of unnamed one-off credentials.
+  let createdStaff = 0;
+  for (const member of STAFF) {
+    const [existing] = await database
+      .select({ id: staffMembers.id })
+      .from(staffMembers)
+      .where(eq(staffMembers.fullName, member.fullName))
+      .limit(1);
+    const staffMemberId =
+      existing?.id ??
+      (await database.insert(staffMembers).values(member).returning({ id: staffMembers.id }))[0]!
+        .id;
+    if (!existing) createdStaff += 1;
+    await database
+      .insert(festivalStaffMembers)
+      .values({ festivalId: festival.id, staffMemberId })
+      .onConflictDoNothing();
+  }
+  const [existingExtra] = await database
+    .select({ id: festivalExtraCredentials.id })
+    .from(festivalExtraCredentials)
+    .where(
+      and(
+        eq(festivalExtraCredentials.festivalId, festival.id),
+        eq(festivalExtraCredentials.label, EXTRA_LABEL),
+      ),
+    )
+    .limit(1);
+  if (!existingExtra) {
+    await database
+      .insert(festivalExtraCredentials)
+      .values({ festivalId: festival.id, name: null, label: EXTRA_LABEL, quantity: 6 });
+  }
+
   return {
     festival: festival.name,
     createdVolunteers: inserted.length,
     createdExternal,
     createdFullTable,
+    createdStaff,
+    createdExtra: !existingExtra,
   };
 }

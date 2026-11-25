@@ -3,7 +3,11 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { isDefaultRule } from "@/app/lib/credentials/calculate";
+import {
+  buildHolders,
+  isDefaultRule,
+  resolveRules,
+} from "@/app/lib/credentials/calculate";
 import {
   CREDENTIAL_GROUPS,
   CREDENTIALS_COPY,
@@ -12,11 +16,28 @@ import {
   type CredentialRule,
   type CredentialsResult,
 } from "@/app/lib/credentials/definitions";
+import { fetchCredentialsData } from "@/app/lib/credentials/queries";
 import {
+  addExtraCredentialSchema,
+  createStaffMemberSchema,
+  externalCredentialQuantitySchema,
+  extraCredentialRefSchema,
   festivalOnlySchema,
+  festivalStaffMemberSchema,
   saveCredentialRulesSchema,
+  staffMemberRefSchema,
+  updateExtraCredentialSchema,
+  updateStaffMemberSchema,
+  type AddExtraCredentialInput,
+  type CreateStaffMemberInput,
+  type ExternalCredentialQuantityInput,
+  type ExtraCredentialRefInput,
   type FestivalOnlyInput,
+  type FestivalStaffMemberInput,
   type SaveCredentialRulesInput,
+  type StaffMemberRefInput,
+  type UpdateExtraCredentialInput,
+  type UpdateStaffMemberInput,
 } from "@/app/lib/credentials/schema";
 import { loggableError } from "@/app/lib/errors/loggable-error";
 import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
@@ -24,7 +45,14 @@ import { IMPERSONATION_READ_ONLY_RESULT } from "@/app/lib/impersonation/definiti
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { isImpersonationReadOnlyError } from "@/db/write-guard";
-import { festivalCredentialRules, festivals } from "@/db/schema";
+import {
+  festivalCredentialRules,
+  festivalExternalCredentialOverrides,
+  festivalExtraCredentials,
+  festivals,
+  festivalStaffMembers,
+  staffMembers,
+} from "@/db/schema";
 
 /**
  * The credentials page's writes (docs/PLAN-credenciales.md §6.3). Admins and
@@ -175,4 +203,358 @@ export async function resetCredentialRules(
 
   revalidateCredentials();
   return { success: true, message: "Volvimos a los valores por defecto." };
+}
+
+/* ------------------------------------------------------------------ */
+/* External participants                                               */
+/* ------------------------------------------------------------------ */
+
+const EXTERNAL_NOT_COUNTED =
+  "Ese participante externo no tiene una reserva que se cuente en este festival. Actualizá la página.";
+
+/**
+ * Sets, or with `quantity: null` clears, one external participant's total
+ * for the festival. Remembers how many stands it had, so the Equipo tab can
+ * flag a later change. Refuses one with no counted reservation here.
+ */
+export async function setExternalCredentialQuantity(
+  input: ExternalCredentialQuantityInput,
+): Promise<CredentialsResult> {
+  const auth = await authorize();
+  if (auth.blocked) return auth.blocked;
+  const parsed = externalCredentialQuantitySchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, externalParticipantId, quantity } = parsed.data;
+
+  try {
+    await db.transaction(async (tx) => {
+      const data = await fetchCredentialsData(tx, festivalId, { concurrency: 1 });
+      if (!data) throw new Refusal(CREDENTIALS_COPY.festivalNotFound);
+      const holder = buildHolders(data, resolveRules(data.ruleRows)).holders.find(
+        (entry) => entry.key === `external:${externalParticipantId}`,
+      );
+      if (!holder) throw new Refusal(EXTERNAL_NOT_COUNTED);
+      const scope = and(
+        eq(festivalExternalCredentialOverrides.festivalId, festivalId),
+        eq(festivalExternalCredentialOverrides.externalParticipantId, externalParticipantId),
+      );
+      if (quantity === null) {
+        await tx.delete(festivalExternalCredentialOverrides).where(scope);
+        return;
+      }
+      await tx
+        .insert(festivalExternalCredentialOverrides)
+        .values({
+          festivalId,
+          externalParticipantId,
+          quantity,
+          standsAtOverride: holder.standCount,
+          updatedByUserId: auth.profile.id,
+        })
+        .onConflictDoUpdate({
+          target: [
+            festivalExternalCredentialOverrides.festivalId,
+            festivalExternalCredentialOverrides.externalParticipantId,
+          ],
+          set: {
+            quantity,
+            standsAtOverride: holder.standCount,
+            updatedByUserId: auth.profile.id,
+            updatedAt: sql`now()`,
+          },
+        });
+    });
+  } catch (error) {
+    return failure(error, "Error saving an external credential quantity", festivalId);
+  }
+
+  revalidateCredentials();
+  return {
+    success: true,
+    message:
+      quantity === null
+        ? "Volvió a la cantidad por espacio."
+        : `Cantidad guardada: ${quantity}.`,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* The Glitter team                                                    */
+/* ------------------------------------------------------------------ */
+
+const STAFF_NOT_FOUND = "No encontramos a esa persona del equipo. Actualizá la página.";
+const STAFF_ARCHIVED =
+  "Esa persona está archivada. Restaurala antes de sumarla a esta edición.";
+
+async function lockStaffMember(tx: Tx, staffMemberId: number) {
+  const [member] = await tx
+    .select({ id: staffMembers.id, isActive: staffMembers.isActive })
+    .from(staffMembers)
+    .where(eq(staffMembers.id, staffMemberId))
+    .for("update");
+  if (!member) throw new Refusal(STAFF_NOT_FOUND);
+  return member;
+}
+
+/** Adds someone to the shared roster, ticked for this festival unless told not to. */
+export async function createStaffMember(
+  input: CreateStaffMemberInput,
+): Promise<CredentialsResult> {
+  const auth = await authorize();
+  if (auth.blocked) return auth.blocked;
+  const parsed = createStaffMemberSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, fullName, roleLabel, selectForFestival } = parsed.data;
+
+  try {
+    await db.transaction(async (tx) => {
+      await assertFestival(tx, festivalId);
+      const [member] = await tx
+        .insert(staffMembers)
+        .values({ fullName, roleLabel })
+        .returning({ id: staffMembers.id });
+      if (selectForFestival) {
+        await tx
+          .insert(festivalStaffMembers)
+          .values({ festivalId, staffMemberId: member!.id });
+      }
+    });
+  } catch (error) {
+    return failure(error, "Error creating a staff member", festivalId);
+  }
+
+  revalidateCredentials();
+  return { success: true, message: `${fullName} se sumó al equipo.` };
+}
+
+/** Renames someone or changes their role, for every festival. */
+export async function updateStaffMember(
+  input: UpdateStaffMemberInput,
+): Promise<CredentialsResult> {
+  const auth = await authorize();
+  if (auth.blocked) return auth.blocked;
+  const parsed = updateStaffMemberSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, staffMemberId, fullName, roleLabel } = parsed.data;
+
+  try {
+    await db.transaction(async (tx) => {
+      await lockStaffMember(tx, staffMemberId);
+      await tx
+        .update(staffMembers)
+        .set({ fullName, roleLabel, updatedAt: sql`now()` })
+        .where(eq(staffMembers.id, staffMemberId));
+    });
+  } catch (error) {
+    return failure(error, "Error updating a staff member", festivalId);
+  }
+
+  revalidateCredentials();
+  return { success: true, message: CREDENTIALS_COPY.saved };
+}
+
+async function setStaffActive(
+  input: StaffMemberRefInput,
+  isActive: boolean,
+): Promise<CredentialsResult> {
+  const auth = await authorize();
+  if (auth.blocked) return auth.blocked;
+  const parsed = staffMemberRefSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, staffMemberId } = parsed.data;
+
+  try {
+    await db.transaction(async (tx) => {
+      await lockStaffMember(tx, staffMemberId);
+      await tx
+        .update(staffMembers)
+        .set({ isActive, updatedAt: sql`now()` })
+        .where(eq(staffMembers.id, staffMemberId));
+    });
+  } catch (error) {
+    return failure(error, "Error archiving or restoring a staff member", festivalId);
+  }
+
+  revalidateCredentials();
+  return {
+    success: true,
+    message: isActive
+      ? "La persona volvió a la lista del equipo."
+      : "Archivada. Sigue en las ediciones donde ya estaba marcada.",
+  };
+}
+
+/**
+ * Archives someone: they leave the roster offered for new editions, but
+ * stay selected where they already are. Rows are never deleted.
+ */
+export async function archiveStaffMember(
+  input: StaffMemberRefInput,
+): Promise<CredentialsResult> {
+  return setStaffActive(input, false);
+}
+
+export async function restoreStaffMember(
+  input: StaffMemberRefInput,
+): Promise<CredentialsResult> {
+  return setStaffActive(input, true);
+}
+
+/** Ticks or unticks one roster member for this festival. */
+export async function setFestivalStaffMember(
+  input: FestivalStaffMemberInput,
+): Promise<CredentialsResult> {
+  const auth = await authorize();
+  if (auth.blocked) return auth.blocked;
+  const parsed = festivalStaffMemberSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, staffMemberId, selected } = parsed.data;
+
+  try {
+    await db.transaction(async (tx) => {
+      await assertFestival(tx, festivalId);
+      const member = await lockStaffMember(tx, staffMemberId);
+      if (!selected) {
+        await tx
+          .delete(festivalStaffMembers)
+          .where(
+            and(
+              eq(festivalStaffMembers.festivalId, festivalId),
+              eq(festivalStaffMembers.staffMemberId, staffMemberId),
+            ),
+          );
+        return;
+      }
+      if (!member.isActive) throw new Refusal(STAFF_ARCHIVED);
+      await tx
+        .insert(festivalStaffMembers)
+        .values({ festivalId, staffMemberId })
+        .onConflictDoNothing();
+    });
+  } catch (error) {
+    return failure(error, "Error selecting a staff member", festivalId);
+  }
+
+  revalidateCredentials();
+  return {
+    success: true,
+    message: selected ? "Marcada para esta edición." : "Ya no está en esta edición.",
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* One-off credentials                                                 */
+/* ------------------------------------------------------------------ */
+
+const EXTRA_NOT_FOUND = "No encontramos esa credencial. Actualizá la página.";
+const EXTRA_NAMED_IS_ONE = "Una credencial con nombre es siempre una.";
+
+async function lockExtra(tx: Tx, festivalId: number, extraCredentialId: number) {
+  const [extra] = await tx
+    .select({
+      id: festivalExtraCredentials.id,
+      name: festivalExtraCredentials.name,
+      quantity: festivalExtraCredentials.quantity,
+    })
+    .from(festivalExtraCredentials)
+    .where(
+      and(
+        eq(festivalExtraCredentials.id, extraCredentialId),
+        eq(festivalExtraCredentials.festivalId, festivalId),
+      ),
+    )
+    .for("update");
+  if (!extra) throw new Refusal(EXTRA_NOT_FOUND);
+  return extra;
+}
+
+/** A named person (one credential) or a labelled lot of unnamed ones. */
+export async function addExtraCredential(
+  input: AddExtraCredentialInput,
+): Promise<CredentialsResult> {
+  const auth = await authorize();
+  if (auth.blocked) return auth.blocked;
+  const parsed = addExtraCredentialSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, extra } = parsed.data;
+
+  try {
+    await db.transaction(async (tx) => {
+      await assertFestival(tx, festivalId);
+      await tx.insert(festivalExtraCredentials).values(
+        extra.kind === "named"
+          ? { festivalId, name: extra.name, label: extra.label, quantity: 1 }
+          : { festivalId, name: null, label: extra.label, quantity: extra.quantity },
+      );
+    });
+  } catch (error) {
+    return failure(error, "Error adding a one-off credential", festivalId);
+  }
+
+  revalidateCredentials();
+  return { success: true, message: "Credencial agregada." };
+}
+
+/**
+ * Keeps the id, so raising "Prensa" from 6 to 8 reads "Faltan 2" rather than
+ * 8 new. A named entry's name cannot change: it is what was printed.
+ */
+export async function updateExtraCredential(
+  input: UpdateExtraCredentialInput,
+): Promise<CredentialsResult> {
+  const auth = await authorize();
+  if (auth.blocked) return auth.blocked;
+  const parsed = updateExtraCredentialSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, extraCredentialId, label, quantity } = parsed.data;
+
+  try {
+    await db.transaction(async (tx) => {
+      const extra = await lockExtra(tx, festivalId, extraCredentialId);
+      if (extra.name != null && quantity !== undefined && quantity !== 1) {
+        throw new Refusal(EXTRA_NAMED_IS_ONE);
+      }
+      await tx
+        .update(festivalExtraCredentials)
+        .set({
+          label,
+          quantity: extra.name != null ? 1 : (quantity ?? extra.quantity),
+          updatedAt: sql`now()`,
+        })
+        .where(eq(festivalExtraCredentials.id, extraCredentialId));
+    });
+  } catch (error) {
+    return failure(error, "Error updating a one-off credential", festivalId);
+  }
+
+  revalidateCredentials();
+  return { success: true, message: CREDENTIALS_COPY.saved };
+}
+
+/**
+ * Removes an entry. One already sent to print stays in its batch and shows
+ * as "Ya no corresponde"; the screen warns before calling this.
+ */
+export async function removeExtraCredential(
+  input: ExtraCredentialRefInput,
+): Promise<CredentialsResult> {
+  const auth = await authorize();
+  if (auth.blocked) return auth.blocked;
+  const parsed = extraCredentialRefSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, extraCredentialId } = parsed.data;
+
+  try {
+    await db.transaction(async (tx) => {
+      await lockExtra(tx, festivalId, extraCredentialId);
+      await tx
+        .delete(festivalExtraCredentials)
+        .where(eq(festivalExtraCredentials.id, extraCredentialId));
+    });
+  } catch (error) {
+    return failure(error, "Error removing a one-off credential", festivalId);
+  }
+
+  revalidateCredentials();
+  return { success: true, message: "Credencial quitada." };
 }

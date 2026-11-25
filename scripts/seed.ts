@@ -47,7 +47,9 @@ async function main() {
       credentialsResult.festival
         ? `[seed] credentials on "${credentialsResult.festival}": ${credentialsResult.createdVolunteers} volunteer applications` +
             `${credentialsResult.createdExternal ? ", 1 external participant" : ""}` +
-            `${credentialsResult.createdFullTable ? ", 1 two-stand reservation" : ""} created; existing fixtures preserved.`
+            `${credentialsResult.createdFullTable ? ", 1 two-stand reservation" : ""}` +
+            `, ${credentialsResult.createdStaff} staff members` +
+            `${credentialsResult.createdExtra ? ", 1 one-off entry" : ""} created; existing fixtures preserved.`
         : "[seed] credentials: no festival to add fixtures to",
     );
     for (const festival of festivalResult.festivals) {

@@ -192,6 +192,8 @@ export type CredentialHolder = {
   /** The second line ("Comparte con …", the role). */
   note: string | null;
   standLabel: string | null;
+  /** Active stands behind the entitlement: the reservation's, or an external's sum. */
+  standCount: number;
   reservationId: number | null;
   /** The reservation's, or for an external the best of its reservations'. */
   reservationStatus: CountableReservationStatus | null;
@@ -553,6 +555,7 @@ export function buildHolders(
         name: name || CREDENTIALS_COPY.emptyName,
         note: notes.join(" · ") || null,
         standLabel: label,
+        standCount: stands.length,
         reservationId: reservation.id,
         reservationStatus: reservation.status,
         reservationStatuses: [reservation.status],
@@ -638,6 +641,7 @@ export function buildHolders(
       name: name || CREDENTIALS_COPY.emptyName,
       note: row.categoryLabel,
       standLabel: label,
+      standCount,
       reservationId: entries[0]!.reservation.id,
       reservationStatus: statuses[0]!,
       reservationStatuses: statuses,
@@ -782,6 +786,7 @@ function simpleHolder({
     name: name || CREDENTIALS_COPY.emptyName,
     note,
     standLabel: null,
+    standCount: 0,
     reservationId: null,
     reservationStatus: null,
     reservationStatuses: [],
@@ -967,6 +972,7 @@ export function applyPrintState(
       name,
       note: null,
       standLabel: item.detail || null,
+      standCount: 0,
       reservationId: null,
       reservationStatus: null,
       reservationStatuses: [],

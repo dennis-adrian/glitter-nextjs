@@ -5,6 +5,7 @@ import CredentialsHeader from "@/app/components/festivals/credentials/credential
 import CredentialsRulesForm from "@/app/components/festivals/credentials/credentials-rules-form";
 import CredentialsNamesView from "@/app/components/festivals/credentials/credentials-names-view";
 import CredentialsSummaryView from "@/app/components/festivals/credentials/credentials-summary-view";
+import CredentialsTeamView from "@/app/components/festivals/credentials/credentials-team-view";
 import CredentialsTabs from "@/app/components/festivals/credentials/credentials-tabs";
 import type { CredentialsData } from "@/app/lib/credentials/calculate";
 import type {
@@ -12,7 +13,7 @@ import type {
   CredentialTab,
 } from "@/app/lib/credentials/definitions";
 
-const TABS: readonly CredentialTab[] = ["resumen", "nombres", "reglas"];
+const TABS: readonly CredentialTab[] = ["resumen", "nombres", "equipo", "reglas"];
 
 /** The whole credentials page below the navbar; the server hands it the data. */
 export default function CredentialsScreen({
@@ -44,9 +45,10 @@ export default function CredentialsScreen({
         <CredentialsHeader />
         <CredentialsTabs tabs={TABS} />
         {current === "resumen" && (
-          <CredentialsSummaryView groups={["external", "volunteer"]} />
+          <CredentialsSummaryView />
         )}
         {current === "nombres" && <CredentialsNamesView />}
+        {current === "equipo" && <CredentialsTeamView />}
         {current === "reglas" && (
           <CredentialsRulesForm participantsSeeRules={participantsSeeRules} />
         )}
