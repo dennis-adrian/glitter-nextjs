@@ -3,6 +3,7 @@ import {
   SearchIcon,
   SparklesIcon,
   StampIcon,
+  TicketIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -72,6 +73,20 @@ export function getActivityMarker(
       swatchClassName: "border-pink-800 bg-pink-600",
       badgeFill: "#DB2777",
       participationLabel: "Participa en la cacería de stickers",
+    };
+  }
+
+  if (type === "stamp_card") {
+    return {
+      label: "Tarjeta de sellos",
+      legendLabel: "Tarjeta de sellos",
+      symbol: "▲",
+      Icon: TicketIcon,
+      softClassName:
+        "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200",
+      swatchClassName: "border-red-900 bg-red-700",
+      badgeFill: "#B91C1C",
+      participationLabel: "Participa en la tarjeta de sellos",
     };
   }
 

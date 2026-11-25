@@ -10,7 +10,8 @@ afterEach(cleanup);
 /**
  * Badges stack right to left from the stand's top-right corner. Inset equals
  * the badge radius so the first circle's right edge sits on STAND_SIZE; spacing
- * is 1.1 so four circles still fit between x=0 and STAND_SIZE.
+ * is 1.1 so four circles still fit between x=0 and STAND_SIZE; a fifth
+ * tightens the spacing so the stack stays inside the stand.
  */
 const FIRST_SLOT = 4.7;
 const SECOND_SLOT = 3.6;
@@ -45,6 +46,7 @@ function renderBadges(
     coupon?: number[];
     passport?: number[];
     stickerHunt?: number[];
+    stampCard?: number[];
     festivalSticker?: number[];
   } = {},
 ) {
@@ -56,6 +58,7 @@ function renderBadges(
           coupon_book: new Set(sets.coupon ?? []),
           stamp_passport: new Set(sets.passport ?? []),
           sticker_hunt: new Set(sets.stickerHunt ?? []),
+          stamp_card: new Set(sets.stampCard ?? []),
           festival_sticker: new Set(sets.festivalSticker ?? []),
         }}
       />
@@ -100,7 +103,7 @@ describe("FestivalNavStandBadges", () => {
     ]);
   });
 
-  it("keeps four activity badges within the stand", () => {
+  it("keeps every activity badge within the stand", () => {
     const { container } = render(
       <svg>
         <FestivalNavStandBadges
@@ -109,6 +112,7 @@ describe("FestivalNavStandBadges", () => {
             coupon_book: new Set([7]),
             stamp_passport: new Set([7]),
             sticker_hunt: new Set([7]),
+            stamp_card: new Set([7]),
             festival_sticker: new Set([7]),
           }}
         />
@@ -119,10 +123,10 @@ describe("FestivalNavStandBadges", () => {
       Array.from(container.querySelectorAll("text")).map(
         (node) => node.textContent,
       ),
-    ).toEqual(["%", "★", "♦", "✦"]);
+    ).toEqual(["%", "★", "♦", "▲", "✦"]);
 
     const circles = Array.from(container.querySelectorAll("circle"));
-    expect(circles).toHaveLength(4);
+    expect(circles).toHaveLength(5);
     for (const circle of circles) {
       const cx = Number(circle.getAttribute("cx"));
       const radius = Number(circle.getAttribute("r"));
@@ -167,6 +171,7 @@ describe("FestivalNavStandBadges", () => {
             coupon_book: new Set([7, 8]),
             stamp_passport: new Set(),
             sticker_hunt: new Set(),
+            stamp_card: new Set(),
             festival_sticker: new Set(),
           }}
         />

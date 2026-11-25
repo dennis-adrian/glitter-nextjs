@@ -42,6 +42,7 @@ export const ActivityFormSchema = z
       "festival_sticker",
       "coupon_book",
       "sticker_hunt",
+      "stamp_card",
     ]),
     accessLevel: z.enum(["public", "festival_participants_only"]),
     promotionalArtUrl: z.string().optional(),

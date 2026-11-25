@@ -51,7 +51,8 @@ export type FestivalActivityInput = {
     | "best_stand"
     | "festival_sticker"
     | "coupon_book"
-    | "sticker_hunt";
+    | "sticker_hunt"
+    | "stamp_card";
   accessLevel: "public" | "festival_participants_only";
   promotionalArtUrl?: string;
   activityPrizeUrl?: string;

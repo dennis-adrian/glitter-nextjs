@@ -52,6 +52,13 @@ const MATERIAL_CONFIG: Record<FestivalActivity["type"], MaterialConfig> = {
     pastParticiple: "aprobado",
     uploadTarget: "el diseño de tu sticker",
   },
+  stamp_card: {
+    label: "diseño del sello",
+    noun: "sello",
+    article: "el",
+    pastParticiple: "aprobado",
+    uploadTarget: "el diseño de tu sello",
+  },
 };
 
 const FALLBACK: MaterialConfig = {

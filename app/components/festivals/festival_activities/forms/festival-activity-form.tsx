@@ -61,6 +61,7 @@ const ACTIVITY_TYPE_OPTIONS = [
   { value: "festival_sticker", label: "Sticker del Festival" },
   { value: "coupon_book", label: "Cuponera de Descuentos" },
   { value: "sticker_hunt", label: "Cacería de Stickers" },
+  { value: "stamp_card", label: "Tarjeta de Sellos" },
 ];
 
 const PROOF_TYPE_OPTIONS = [

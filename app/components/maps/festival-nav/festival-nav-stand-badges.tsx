@@ -37,6 +37,15 @@ export default function FestivalNavStandBadges({
         );
         if (badges.length === 0) return null;
 
+        // Tighten the stack only when the default spacing would push the last
+        // badge past the stand's left edge.
+        const spacing =
+          badges.length > 1
+            ? Math.min(
+                BADGE_SPACING,
+                (STAND_SIZE - 2 * BADGE_RADIUS) / (badges.length - 1),
+              )
+            : BADGE_SPACING;
         const dimmed = dimmedStandIds?.has(stand.id) ?? false;
         const { left, top } = getStandPosition(stand);
 
@@ -55,7 +64,7 @@ export default function FestivalNavStandBadges({
           >
             {badges.map((activity, index) => {
               const marker = getActivityMarker(activity);
-              const cx = STAND_SIZE - BADGE_INSET - index * BADGE_SPACING;
+              const cx = STAND_SIZE - BADGE_INSET - index * spacing;
 
               return (
                 <g key={activity}>
