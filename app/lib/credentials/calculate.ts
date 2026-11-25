@@ -1183,10 +1183,37 @@ export function batchItemFor(
   return { named: unit.named, unnamed: unit.unnamed, isReprint: false };
 }
 
+/** One unit as a new batch would write it. */
+export type BatchItemPlan = {
+  unit: CredentialUnit;
+  named: number;
+  unnamed: number;
+  isReprint: boolean;
+};
+
 /**
- * What putting this holder in a batch sends, all units together. A renamed
- * unit that is otherwise printed goes out again as a reprint.
+ * The items putting this holder in a batch writes. A holder that needs
+ * printing sends only its units that do: new ones in full, short ones the
+ * difference, renamed ones again as a reprint; its units already printed
+ * stay out. A holder with nothing left to print is a reprint of every unit.
  */
+export function batchItemsFor(holder: CredentialHolder): BatchItemPlan[] {
+  const plans: BatchItemPlan[] = [];
+  const needsPrint = holder.print?.needsPrint ?? true;
+  for (const unit of holder.units) {
+    if (unit.named + unit.unnamed === 0) continue;
+    const print = holder.print?.units[unit.key];
+    const state = print?.state ?? "new";
+    const owed = state === "new" || state === "partial" || Boolean(print?.nameChanged);
+    if (needsPrint && !owed) continue;
+    const item = batchItemFor(unit, print);
+    if (item.named + item.unnamed === 0) continue;
+    plans.push({ unit, ...item });
+  }
+  return plans;
+}
+
+/** What putting this holder in a batch sends, all units together. */
 export function batchCountsFor(holder: CredentialHolder): {
   named: number;
   unnamed: number;
@@ -1195,8 +1222,7 @@ export function batchCountsFor(holder: CredentialHolder): {
   let named = 0;
   let unnamed = 0;
   let reprint = false;
-  for (const unit of holder.units) {
-    const item = batchItemFor(unit, holder.print?.units[unit.key]);
+  for (const item of batchItemsFor(holder)) {
     named += item.named;
     unnamed += item.unnamed;
     reprint ||= item.isReprint;

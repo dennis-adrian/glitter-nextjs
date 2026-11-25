@@ -1,11 +1,14 @@
 "use server";
 
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import {
+  applyPrintState,
+  batchItemsFor,
   buildHolders,
   isDefaultRule,
+  isPrintable,
   resolveRules,
 } from "@/app/lib/credentials/calculate";
 import {
@@ -19,21 +22,25 @@ import {
 import { fetchCredentialsData } from "@/app/lib/credentials/queries";
 import {
   addExtraCredentialSchema,
+  createPrintBatchSchema,
   createStaffMemberSchema,
   externalCredentialQuantitySchema,
   extraCredentialRefSchema,
   festivalOnlySchema,
   festivalStaffMemberSchema,
+  printBatchRefSchema,
   saveCredentialRulesSchema,
   staffMemberRefSchema,
   updateExtraCredentialSchema,
   updateStaffMemberSchema,
   type AddExtraCredentialInput,
+  type CreatePrintBatchInput,
   type CreateStaffMemberInput,
   type ExternalCredentialQuantityInput,
   type ExtraCredentialRefInput,
   type FestivalOnlyInput,
   type FestivalStaffMemberInput,
+  type PrintBatchRefInput,
   type SaveCredentialRulesInput,
   type StaffMemberRefInput,
   type UpdateExtraCredentialInput,
@@ -46,6 +53,8 @@ import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { isImpersonationReadOnlyError } from "@/db/write-guard";
 import {
+  credentialPrintBatches,
+  credentialPrintBatchItems,
   festivalCredentialRules,
   festivalExternalCredentialOverrides,
   festivalExtraCredentials,
@@ -557,4 +566,150 @@ export async function removeExtraCredential(
 
   revalidateCredentials();
   return { success: true, message: "Credencial quitada." };
+}
+
+/* ------------------------------------------------------------------ */
+/* Print batches                                                       */
+/* ------------------------------------------------------------------ */
+
+const NOT_A_HOLDER =
+  "Alguien del lote ya no tiene credencial en este festival. Actualizá la página.";
+const NOTHING_TO_PRINT = "No hay credenciales para marcar en este lote.";
+const BATCH_NOT_FOUND = "No encontramos ese lote. Actualizá la página.";
+const NOT_LATEST_BATCH = "Solo se puede deshacer el último lote enviado a imprenta.";
+
+/**
+ * Serialises batch writes per festival, so two admins cannot record the same
+ * unit twice. Not the festival row lock: that one is the reservation flow's
+ * throughput ceiling.
+ */
+async function lockFestivalBatches(tx: Tx, festivalId: number) {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtext('credential_print_batches'), ${festivalId})`,
+  );
+}
+
+function credentialCount(count: number) {
+  return `${count.toLocaleString("es-BO")} ${count === 1 ? "credencial" : "credenciales"}`;
+}
+
+/**
+ * "Marcar como enviadas a imprenta". The client names holders; the counts
+ * are recomputed here from live data under the festival's batch lock, so a
+ * stale screen or a second admin cannot record a unit twice. Each item
+ * stores only what this batch sends (§6.3).
+ */
+export async function createCredentialPrintBatch(
+  input: CreatePrintBatchInput,
+): Promise<CredentialsResult> {
+  const auth = await authorize();
+  if (auth.blocked) return auth.blocked;
+  const parsed = createPrintBatchSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, holderKeys, note } = parsed.data;
+
+  let sent = 0;
+  try {
+    await db.transaction(async (tx) => {
+      await lockFestivalBatches(tx, festivalId);
+      const data = await fetchCredentialsData(tx, festivalId, { concurrency: 1 });
+      if (!data) throw new Refusal(CREDENTIALS_COPY.festivalNotFound);
+      const rules = resolveRules(data.ruleRows);
+      const holders = applyPrintState(buildHolders(data, rules).holders, data.batches);
+      const byKey = new Map(
+        holders.filter((holder) => !holder.stale).map((holder) => [holder.key, holder]),
+      );
+
+      const items: (typeof credentialPrintBatchItems.$inferInsert)[] = [];
+      for (const key of holderKeys) {
+        const holder = byKey.get(key);
+        if (!holder || !isPrintable(holder)) throw new Refusal(NOT_A_HOLDER);
+        for (const plan of batchItemsFor(holder)) {
+          items.push({
+            batchId: 0,
+            festivalId,
+            unitKey: plan.unit.key,
+            group: plan.unit.group,
+            userId: plan.unit.userId,
+            printedName: plan.unit.printedName,
+            detail: plan.unit.detail,
+            namedCount: plan.named,
+            unnamedCount: plan.unnamed,
+            isReprint: plan.isReprint,
+          });
+          sent += plan.named + plan.unnamed;
+        }
+      }
+      if (items.length === 0) throw new Refusal(NOTHING_TO_PRINT);
+
+      const [batch] = await tx
+        .insert(credentialPrintBatches)
+        .values({ festivalId, note, rules, createdByUserId: auth.profile.id })
+        .returning({ id: credentialPrintBatches.id });
+      await tx
+        .insert(credentialPrintBatchItems)
+        .values(items.map((item) => ({ ...item, batchId: batch!.id })));
+    });
+  } catch (error) {
+    return failure(error, "Error creating a credential print batch", festivalId);
+  }
+
+  revalidateCredentials();
+  return {
+    success: true,
+    message: `Marcaste ${credentialCount(sent)} como enviadas a imprenta.`,
+  };
+}
+
+/**
+ * Undoes a mistake: removes the festival's most recent batch, and only that
+ * one. Admins only.
+ */
+export async function deleteCredentialPrintBatch(
+  input: PrintBatchRefInput,
+): Promise<CredentialsResult> {
+  const auth = await authorize();
+  if (auth.blocked) return auth.blocked;
+  if (auth.profile.role !== "admin") return refused(CREDENTIALS_COPY.adminOnly);
+  const parsed = printBatchRefSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, batchId } = parsed.data;
+
+  try {
+    await db.transaction(async (tx) => {
+      await lockFestivalBatches(tx, festivalId);
+      const [latest] = await tx
+        .select({ id: credentialPrintBatches.id })
+        .from(credentialPrintBatches)
+        .where(eq(credentialPrintBatches.festivalId, festivalId))
+        .orderBy(desc(credentialPrintBatches.createdAt), desc(credentialPrintBatches.id))
+        .limit(1);
+      if (!latest) throw new Refusal(BATCH_NOT_FOUND);
+      if (latest.id !== batchId) {
+        const [exists] = await tx
+          .select({ id: credentialPrintBatches.id })
+          .from(credentialPrintBatches)
+          .where(
+            and(
+              eq(credentialPrintBatches.id, batchId),
+              eq(credentialPrintBatches.festivalId, festivalId),
+            ),
+          );
+        throw new Refusal(exists ? NOT_LATEST_BATCH : BATCH_NOT_FOUND);
+      }
+      await tx
+        .delete(credentialPrintBatches)
+        .where(
+          and(
+            eq(credentialPrintBatches.id, batchId),
+            eq(credentialPrintBatches.festivalId, festivalId),
+          ),
+        );
+    });
+  } catch (error) {
+    return failure(error, "Error deleting a credential print batch", festivalId);
+  }
+
+  revalidateCredentials();
+  return { success: true, message: "Deshiciste el último envío a imprenta." };
 }

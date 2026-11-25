@@ -4,8 +4,13 @@ import { CredentialsProvider } from "@/app/components/festivals/credentials/cred
 import CredentialsHeader from "@/app/components/festivals/credentials/credentials-header";
 import CredentialsRulesForm from "@/app/components/festivals/credentials/credentials-rules-form";
 import CredentialsNamesView from "@/app/components/festivals/credentials/credentials-names-view";
+import {
+  CredentialsLastPrintCard,
+  CredentialsPrintNotice,
+} from "@/app/components/festivals/credentials/credentials-print-overview";
 import CredentialsSummaryView from "@/app/components/festivals/credentials/credentials-summary-view";
 import CredentialsTeamView from "@/app/components/festivals/credentials/credentials-team-view";
+import PrintBatchDialog from "@/app/components/festivals/credentials/print-batch-dialog";
 import CredentialsTabs from "@/app/components/festivals/credentials/credentials-tabs";
 import type { CredentialsData } from "@/app/lib/credentials/calculate";
 import type {
@@ -42,12 +47,15 @@ export default function CredentialsScreen({
       isAdmin={isAdmin}
     >
       <div className="container flex min-w-0 flex-col gap-6 p-3 pb-10 md:p-6">
-        <CredentialsHeader />
+        <CredentialsHeader printAction={<PrintBatchDialog />} />
         <CredentialsTabs tabs={TABS} />
         {current === "resumen" && (
-          <CredentialsSummaryView />
+          <CredentialsSummaryView
+            printNotice={<CredentialsPrintNotice />}
+            printCard={<CredentialsLastPrintCard />}
+          />
         )}
-        {current === "nombres" && <CredentialsNamesView />}
+        {current === "nombres" && <CredentialsNamesView showPrint />}
         {current === "equipo" && <CredentialsTeamView />}
         {current === "reglas" && (
           <CredentialsRulesForm participantsSeeRules={participantsSeeRules} />

@@ -8,12 +8,16 @@ import {
 import {
   addExternal,
   addReservation,
+  batch,
   emptyData,
 } from "@/app/lib/credentials/__fixtures__/data";
 import {
+  batchItemsFor,
   buildHolders,
   buildView,
   isDefaultRule,
+  isPrintable,
+  matchesPrintFilter,
   namesToCopy,
   resolveRules,
   type CredentialsData,
@@ -23,6 +27,7 @@ import {
   DEFAULT_CREDENTIAL_RULES,
   type CredentialFilters,
 } from "@/app/lib/credentials/definitions";
+import { printStateLabel } from "@/app/lib/credentials/print-labels";
 
 const ALL: CredentialFilters = {
   statuses: { verification_payment: true, pending: true },
@@ -397,5 +402,214 @@ describe("buildView", () => {
     addReservation(data, { people: [{ name: "Ilu" }] });
     const view = buildView(data, DEFAULT_CREDENTIAL_RULES, DEFAULT_CREDENTIAL_FILTERS);
     expect(namesToCopy(view.holders)).toEqual(["Ilu", "Cocina", "Cocina"]);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Print state (§6.2)                                                  */
+/* ------------------------------------------------------------------ */
+
+let batchClock = Date.UTC(2026, 10, 14, 15);
+
+/** Records a batch the way createCredentialPrintBatch does. */
+function print(data: CredentialsData, keys?: string[]) {
+  const holders = buildView(data, DEFAULT_CREDENTIAL_RULES, ALL).holders.filter(
+    (holder) => isPrintable(holder) && (keys ? keys.includes(holder.key) : holder.print!.needsPrint),
+  );
+  const items = holders.flatMap((holder) =>
+    batchItemsFor(holder).map((plan) => ({
+      unitKey: plan.unit.key,
+      group: plan.unit.group,
+      userId: plan.unit.userId,
+      printedName: plan.unit.printedName,
+      detail: plan.unit.detail,
+      namedCount: plan.named,
+      unnamedCount: plan.unnamed,
+      isReprint: plan.isReprint,
+    })),
+  );
+  batchClock += 86_400_000;
+  data.batches.push(batch(items, new Date(batchClock)));
+  return items;
+}
+
+function holderOf(data: CredentialsData, name: string, filters = ALL) {
+  return buildView(data, DEFAULT_CREDENTIAL_RULES, filters).holders.find(
+    (holder) => holder.name === name,
+  );
+}
+
+function standRow(id: number, number: number, position: number) {
+  return { id, label: "A", standNumber: number, standCategory: "illustration", position };
+}
+
+describe("print state", () => {
+  it("is new before any batch, printed after, with the batch's date", () => {
+    const data = emptyData();
+    addReservation(data, { people: [{ name: "Camila" }] });
+    expect(holderOf(data, "Camila")!.print).toMatchObject({ state: "new", needsPrint: true });
+    print(data);
+    const printed = holderOf(data, "Camila")!.print!;
+    expect(printed).toMatchObject({ state: "printed", needsPrint: false });
+    expect(printStateLabel(printed)).toBe("Impresa el 15 nov");
+  });
+
+  it("prints 2, grows to 4, tops up, grows to 6: Faltan 2", () => {
+    const data = emptyData();
+    const { reservationId } = addReservation(data, { people: [{ name: "Diego" }] });
+    const reservation = data.reservations.find((entry) => entry.id === reservationId)!;
+    print(data);
+    reservation.stands.push(standRow(9001, 90, 1));
+    let diego = holderOf(data, "Diego")!;
+    expect(diego.print).toMatchObject({ state: "partial", missing: 2 });
+    expect(printStateLabel(diego.print!)).toBe("Faltan 2");
+    // The top-up sends only the 2 that are missing.
+    const items = print(data);
+    expect(items).toEqual([
+      expect.objectContaining({ unitKey: `reservation:${reservationId}`, unnamedCount: 2, isReprint: false }),
+    ]);
+    expect(holderOf(data, "Diego")!.print!.state).toBe("printed");
+    reservation.stands.push(standRow(9002, 91, 2));
+    diego = holderOf(data, "Diego")!;
+    expect(printStateLabel(diego.print!)).toBe("Faltan 2");
+  });
+
+  it("says Sobran when a stand is released after printing", () => {
+    const data = emptyData();
+    const { reservationId } = addReservation(data, { people: [{ name: "Mesa" }], stands: 2 });
+    print(data);
+    data.reservations.find((entry) => entry.id === reservationId)!.stands.pop();
+    const mesa = holderOf(data, "Mesa")!;
+    expect(mesa.print).toMatchObject({ state: "surplus", surplus: 2, needsPrint: false });
+    expect(printStateLabel(mesa.print!)).toBe("Sobran 2");
+  });
+
+  it("keeps the titular printed when a partner joins a printed solo stand", () => {
+    const data = emptyData();
+    const { reservationId } = addReservation(data, {
+      people: [{ name: "Titular", participationId: 1 }],
+    });
+    print(data);
+    data.participants.push({
+      participationId: 2,
+      reservationId,
+      user: { id: 77, displayName: "Socia", firstName: null, lastName: null, status: "verified" },
+    });
+    const titular = holderOf(data, "Titular")!;
+    // The titular's named one stays printed. Sharing leaves the reservation no
+    // unnamed credential, so the printed one shows apart as no longer owed,
+    // instead of moving onto someone's row.
+    expect(titular.print!.state).toBe("printed");
+    const stale = buildView(data, DEFAULT_CREDENTIAL_RULES, ALL).holders.filter((h) => h.stale);
+    expect(stale.map((holder) => holder.key)).toEqual([`reservation:${reservationId}`]);
+    expect(holderOf(data, "Socia")!.print!.state).toBe("new");
+    expect(batchItemsFor(holderOf(data, "Socia")!)).toHaveLength(1);
+  });
+
+  it("stays printed when a participation moves to the same person's new account", () => {
+    const data = emptyData();
+    addReservation(data, { people: [{ name: "Lucía", participationId: 5, userId: 10 }] });
+    print(data);
+    data.participants[0]!.user.id = 11;
+    expect(holderOf(data, "Lucía")!.print!.state).toBe("printed");
+  });
+
+  it("says Cambió el nombre when an admin replaces the partner, and reprints it", () => {
+    const data = emptyData();
+    addReservation(data, {
+      people: [{ name: "Titular" }, { name: "Socio", participationId: 8 }],
+    });
+    print(data);
+    data.participants.find((row) => row.participationId === 8)!.user = {
+      id: 99,
+      displayName: "Socia nueva",
+      firstName: null,
+      lastName: null,
+      status: "verified",
+    };
+    const replaced = holderOf(data, "Socia nueva")!;
+    expect(replaced.print).toMatchObject({ state: "printed", nameChanged: true, needsPrint: true });
+    expect(printStateLabel(replaced.print!)).toBe("Cambió el nombre");
+    const items = print(data, [replaced.key]);
+    expect(items).toEqual([expect.objectContaining({ printedName: "Socia nueva", isReprint: true })]);
+    expect(holderOf(data, "Socia nueva")!.print).toMatchObject({ nameChanged: false, needsPrint: false });
+  });
+
+  it("does not count reprints as coverage", () => {
+    const data = emptyData();
+    const { reservationId } = addReservation(data, { people: [{ name: "Gas" }], category: "gastronomy" });
+    data.batches.push(
+      batch([
+        {
+          unitKey: `participant:${data.participants[0]!.participationId}`,
+          group: "gastronomy",
+          userId: null,
+          printedName: "Gas",
+          detail: "",
+          namedCount: 2,
+          unnamedCount: 0,
+          isReprint: true,
+        },
+      ]),
+    );
+    expect(holderOf(data, "Gas")!.print!.state).toBe("new");
+    expect(reservationId).toBeGreaterThan(0);
+    // A printed holder added again goes out whole, as a reprint.
+    print(data);
+    const reprint = print(data, [holderOf(data, "Gas")!.key]);
+    expect(reprint).toEqual([expect.objectContaining({ namedCount: 2, isReprint: true })]);
+    expect(holderOf(data, "Gas")!.print!.state).toBe("printed");
+  });
+
+  it("turns a cancelled printed reservation into Ya no corresponde, but not a hidden pending one", () => {
+    const data = emptyData();
+    addReservation(data, { people: [{ name: "Renata" }] });
+    addReservation(data, { people: [{ name: "Pendiente" }], status: "pending" });
+    print(data);
+    // The pending toggle off: still printed, not stale.
+    const visible = buildView(data, DEFAULT_CREDENTIAL_RULES, DEFAULT_CREDENTIAL_FILTERS).holders;
+    expect(visible.some((holder) => holder.name === "Pendiente")).toBe(false);
+    expect(visible.filter((holder) => holder.stale)).toEqual([]);
+
+    // Renata's reservation is cancelled: it leaves the live data.
+    data.reservations.splice(0, 1);
+    const view = buildView(data, DEFAULT_CREDENTIAL_RULES, DEFAULT_CREDENTIAL_FILTERS);
+    const stale = view.holders.filter((holder) => holder.stale);
+    expect(stale.map((holder) => [holder.name, holder.print!.state])).toEqual([
+      ["Renata", "stale"],
+      ["Credenciales sin nombre", "stale"],
+    ]);
+    expect(printStateLabel(stale[0]!.print!)).toBe("Ya no corresponde");
+    expect(view.print.staleHolders).toBe(2);
+    expect(view.print.staleCredentials).toBe(2);
+    expect(isPrintable(stale[0]!)).toBe(false);
+  });
+
+  it("summarises the last batch and what changed since", () => {
+    const data = emptyData();
+    addReservation(data, { people: [{ name: "Una" }] });
+    expect(buildView(data, DEFAULT_CREDENTIAL_RULES, ALL).print.lastBatch).toBeNull();
+    print(data);
+    addReservation(data, { people: [{ name: "Otra" }], category: "gastronomy" });
+    const overview = buildView(data, DEFAULT_CREDENTIAL_RULES, ALL).print;
+    expect(overview).toMatchObject({
+      batches: 1,
+      pendingHolders: 1,
+      pendingCredentials: 2,
+      lastBatch: expect.objectContaining({ sent: 2 }),
+    });
+  });
+
+  it("filters Nombres by print state", () => {
+    const data = emptyData();
+    addReservation(data, { people: [{ name: "Impresa" }] });
+    print(data);
+    addReservation(data, { people: [{ name: "Nueva" }] });
+    const holders = buildView(data, DEFAULT_CREDENTIAL_RULES, ALL).holders;
+    const names = (filter: Parameters<typeof matchesPrintFilter>[1]) =>
+      holders.filter((holder) => matchesPrintFilter(holder, filter)).map((holder) => holder.name);
+    expect(names("pendientes")).toEqual(["Nueva"]);
+    expect(names("impresas")).toEqual(["Impresa"]);
+    expect(names("baja")).toEqual([]);
   });
 });
