@@ -462,4 +462,172 @@ describeDatabase("credentials actions", () => {
       );
     });
   });
+  describe("print batches", () => {
+    const items = (festivalId: number) =>
+      integrationDb!
+        .select({
+          unitKey: schema.credentialPrintBatchItems.unitKey,
+          namedCount: schema.credentialPrintBatchItems.namedCount,
+          unnamedCount: schema.credentialPrintBatchItems.unnamedCount,
+          isReprint: schema.credentialPrintBatchItems.isReprint,
+          printedName: schema.credentialPrintBatchItems.printedName,
+        })
+        .from(schema.credentialPrintBatchItems)
+        .where(eq(schema.credentialPrintBatchItems.festivalId, festivalId))
+        .orderBy(schema.credentialPrintBatchItems.id);
+
+    it("recomputes the counts on the server and writes deltas for short units", async () => {
+      const festivalId = await createFestival();
+      const user = await createUser("Diego Quispe");
+      const { reservationId, participationIds } = await createReservation(festivalId, {
+        userIds: [user],
+      });
+      const key = `participant:${participationIds[0]}`;
+      expect(
+        await actions.createCredentialPrintBatch({ festivalId, holderKeys: [key], note: "Imprenta Sol" }),
+      ).toEqual({ success: true, message: "Marcaste 2 credenciales como enviadas a imprenta." });
+      expect(await items(festivalId)).toEqual([
+        { unitKey: key, namedCount: 1, unnamedCount: 0, isReprint: false, printedName: "Diego Quispe" },
+        {
+          unitKey: `reservation:${reservationId}`,
+          namedCount: 0,
+          unnamedCount: 1,
+          isReprint: false,
+          printedName: null,
+        },
+      ]);
+      const [stored] = await integrationDb!
+        .select({ note: schema.credentialPrintBatches.note, rules: schema.credentialPrintBatches.rules })
+        .from(schema.credentialPrintBatches)
+        .where(eq(schema.credentialPrintBatches.festivalId, festivalId));
+      expect(stored!.note).toBe("Imprenta Sol");
+      expect(stored!.rules).toMatchObject({ illustration: { quantity: 2 } });
+
+      // A second stand: only the 2 missing unnamed ones go out.
+      const [stand] = await integrationDb!
+        .insert(stands)
+        .values({ festivalId, label: "B", standNumber: standNumber++, standCategory: "illustration" })
+        .returning({ id: stands.id });
+      await integrationDb!
+        .insert(standReservationStands)
+        .values({ reservationId, standId: stand!.id, position: 1 });
+      expect((await actions.createCredentialPrintBatch({ festivalId, holderKeys: [key] })).message).toBe(
+        "Marcaste 2 credenciales como enviadas a imprenta.",
+      );
+      expect((await items(festivalId)).slice(2)).toEqual([
+        {
+          unitKey: `reservation:${reservationId}`,
+          namedCount: 0,
+          unnamedCount: 2,
+          isReprint: false,
+          printedName: null,
+        },
+      ]);
+
+      // Fully printed now: adding them again is a reprint of everything.
+      await actions.createCredentialPrintBatch({ festivalId, holderKeys: [key] });
+      expect((await items(festivalId)).slice(3).map((item) => [item.namedCount, item.unnamedCount, item.isReprint])).toEqual([
+        [1, 0, true],
+        [0, 3, true],
+      ]);
+    });
+
+    it("refuses unknown holders and holders without credentials", async () => {
+      const festivalId = await createFestival();
+      const titular = await createUser("Titular");
+      const partner = await createUser("Socia");
+      const { participationIds } = await createReservation(festivalId, { userIds: [titular, partner] });
+      await actions.saveCredentialRules({
+        festivalId,
+        rules: { ...DEFAULT_FORM, illustration: { quantity: 1, namingMode: "one_per_participant" } },
+      });
+      const refusal = {
+        success: false,
+        message: "Alguien del lote ya no tiene credencial en este festival. Actualizá la página.",
+      };
+      expect(
+        await actions.createCredentialPrintBatch({ festivalId, holderKeys: ["participant:2000000000"] }),
+      ).toEqual(refusal);
+      // The partner is left without a credential by the rule.
+      expect(
+        await actions.createCredentialPrintBatch({
+          festivalId,
+          holderKeys: [`participant:${participationIds[1]}`],
+        }),
+      ).toEqual(refusal);
+      // Another festival's holder is not a holder here.
+      const other = await createFestival();
+      expect(
+        await actions.createCredentialPrintBatch({
+          festivalId: other,
+          holderKeys: [`participant:${participationIds[0]}`],
+        }),
+      ).toEqual(refusal);
+      expect(await items(festivalId)).toEqual([]);
+    });
+
+    it("leaves exactly one non-reprint item when two admins create at once", async () => {
+      const festivalId = await createFestival();
+      const user = await createUser("Concurrente");
+      const { participationIds } = await createReservation(festivalId, { userIds: [user] });
+      const key = `participant:${participationIds[0]}`;
+      const results = await Promise.all([
+        actions.createCredentialPrintBatch({ festivalId, holderKeys: [key] }),
+        actions.createCredentialPrintBatch({ festivalId, holderKeys: [key] }),
+      ]);
+      expect(results.every((result) => result.success)).toBe(true);
+      const rows = (await items(festivalId)).filter((item) => item.unitKey === key);
+      expect(rows.filter((item) => !item.isReprint)).toHaveLength(1);
+      expect(rows.filter((item) => item.isReprint)).toHaveLength(1);
+    });
+
+    it("never lets an item point at another festival's batch", async () => {
+      const mine = await createFestival();
+      const other = await createFestival();
+      const [theirs] = await integrationDb!
+        .insert(schema.credentialPrintBatches)
+        .values({ festivalId: other, rules: {} })
+        .returning({ id: schema.credentialPrintBatches.id });
+      await expect(
+        integrationDb!.insert(schema.credentialPrintBatchItems).values({
+          batchId: theirs!.id,
+          festivalId: mine,
+          unitKey: "staff:1",
+          group: "staff",
+          namedCount: 1,
+          unnamedCount: 0,
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("undoes only the latest batch, and only for admins", async () => {
+      const festivalId = await createFestival();
+      const user = await createUser("Deshacer");
+      const { participationIds } = await createReservation(festivalId, { userIds: [user] });
+      const key = `participant:${participationIds[0]}`;
+      await actions.createCredentialPrintBatch({ festivalId, holderKeys: [key] });
+      await actions.createCredentialPrintBatch({ festivalId, holderKeys: [key] });
+      const batches = await integrationDb!
+        .select({ id: schema.credentialPrintBatches.id })
+        .from(schema.credentialPrintBatches)
+        .where(eq(schema.credentialPrintBatches.festivalId, festivalId))
+        .orderBy(schema.credentialPrintBatches.id);
+      const [first, latest] = batches;
+
+      expect(await actions.deleteCredentialPrintBatch({ festivalId, batchId: latest!.id })).toEqual({
+        success: false,
+        message: "Solo un administrador puede hacer esto.",
+      });
+      currentProfile.value = { id: await createUser("Admin", "admin"), role: "admin" };
+      expect(await actions.deleteCredentialPrintBatch({ festivalId, batchId: first!.id })).toEqual({
+        success: false,
+        message: "Solo se puede deshacer el último lote enviado a imprenta.",
+      });
+      expect((await actions.deleteCredentialPrintBatch({ festivalId, batchId: latest!.id })).success).toBe(
+        true,
+      );
+      // Its items went with it; the first batch stays.
+      expect(await items(festivalId)).toHaveLength(2);
+    });
+  });
 });

@@ -1,7 +1,10 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 
+import { DEFAULT_CREDENTIAL_RULES } from "@/app/lib/credentials/definitions";
 import type { db as DbType } from "@/db";
 import {
+  credentialPrintBatches,
+  credentialPrintBatchItems,
   externalParticipants,
   festivalExtraCredentials,
   festivals,
@@ -53,6 +56,7 @@ export type SeedCredentialsResult = {
   createdFullTable: boolean;
   createdStaff: number;
   createdExtra: boolean;
+  createdBatch: boolean;
 };
 
 async function ensureStand(
@@ -111,6 +115,7 @@ export async function seedCredentials(
       createdFullTable: false,
       createdStaff: 0,
       createdExtra: false,
+      createdBatch: false,
     };
   }
 
@@ -271,8 +276,96 @@ export async function seedCredentials(
       .values({ festivalId: festival.id, name: null, label: EXTRA_LABEL, quantity: 6 });
   }
 
+  // One print batch, so the page shows printed and new credentials side by
+  // side: the demo external participant, the first demo volunteer and the
+  // first team member, each at its default entitlement.
+  let createdBatch = false;
+  const [anyBatch] = await database
+    .select({ id: credentialPrintBatches.id })
+    .from(credentialPrintBatches)
+    .where(eq(credentialPrintBatches.festivalId, festival.id))
+    .limit(1);
+  if (!anyBatch) {
+    const [external] = await database
+      .select({ id: externalParticipants.id })
+      .from(externalParticipants)
+      .innerJoin(
+        reservationExternalParticipants,
+        eq(reservationExternalParticipants.externalParticipantId, externalParticipants.id),
+      )
+      .innerJoin(
+        standReservations,
+        eq(standReservations.id, reservationExternalParticipants.reservationId),
+      )
+      .where(
+        and(
+          eq(externalParticipants.displayName, EXTERNAL_NAME),
+          eq(standReservations.festivalId, festival.id),
+        ),
+      )
+      .limit(1);
+    const [volunteer] = await database
+      .select({ id: volunteerApplications.id, fullName: volunteerApplications.fullName })
+      .from(volunteerApplications)
+      .where(
+        and(
+          eq(volunteerApplications.festivalId, festival.id),
+          eq(volunteerApplications.email, VOLUNTEERS[0].email),
+        ),
+      )
+      .limit(1);
+    const [member] = await database
+      .select({ id: staffMembers.id, fullName: staffMembers.fullName, roleLabel: staffMembers.roleLabel })
+      .from(staffMembers)
+      .where(eq(staffMembers.fullName, STAFF[0].fullName))
+      .limit(1);
+    const items = [
+      external && {
+        unitKey: `external:${external.id}`,
+        group: "external" as const,
+        printedName: EXTERNAL_NAME,
+        detail: `${STAND_LABEL}${EXTERNAL_STAND}`,
+        namedCount: DEFAULT_CREDENTIAL_RULES.external.quantity,
+      },
+      volunteer && {
+        unitKey: `volunteer:${volunteer.id}`,
+        group: "volunteer" as const,
+        printedName: volunteer.fullName,
+        detail: ROLE_NAMES[0],
+        namedCount: DEFAULT_CREDENTIAL_RULES.volunteer.quantity,
+      },
+      member && {
+        unitKey: `staff:${member.id}`,
+        group: "staff" as const,
+        printedName: member.fullName,
+        detail: member.roleLabel,
+        namedCount: DEFAULT_CREDENTIAL_RULES.staff.quantity,
+      },
+    ].filter((item): item is NonNullable<typeof item> => Boolean(item));
+    if (items.length > 0) {
+      const [batch] = await database
+        .insert(credentialPrintBatches)
+        .values({
+          festivalId: festival.id,
+          note: "Lote de ejemplo",
+          rules: DEFAULT_CREDENTIAL_RULES,
+        })
+        .returning({ id: credentialPrintBatches.id });
+      await database.insert(credentialPrintBatchItems).values(
+        items.map((item) => ({
+          ...item,
+          batchId: batch!.id,
+          festivalId: festival.id,
+          unnamedCount: 0,
+        })),
+      );
+      createdBatch = true;
+    }
+  }
+
   return {
     festival: festival.name,
+    createdBatch,
     createdVolunteers: inserted.length,
     createdExternal,
     createdFullTable,
