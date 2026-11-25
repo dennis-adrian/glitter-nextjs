@@ -85,6 +85,10 @@ export function useSyncFestivalMapUrl(
   // the new URL with the old filters.
   if (location !== seenLocation) {
     setSeenLocation(location);
+    // The marker answers for one URL change only: the render that shows our
+    // own write consumes it, and any other URL clears it. Left in place, it
+    // would swallow a later link back to the URL it names.
+    if (ownLocation !== null) setOwnLocation(null);
     if (location !== ownLocation) {
       onExternalChange(parseFestivalMapUrlState(searchParams, context));
     }
@@ -122,8 +126,11 @@ export function useSyncFestivalMapUrl(
 
       try {
         // Recorded first, so the render Next triggers for this URL already
-        // knows it came from here.
-        setOwnLocation(locationKey(scheduledPathname, search));
+        // knows it came from here. Only when the search changes: a hash-only
+        // write changes nothing Next reports, so no render would consume it.
+        if (search !== scheduledSearch) {
+          setOwnLocation(locationKey(scheduledPathname, search));
+        }
         // `null`, not the current state: Next only syncs its router with
         // calls that do not carry its own history entry.
         window.history.replaceState(

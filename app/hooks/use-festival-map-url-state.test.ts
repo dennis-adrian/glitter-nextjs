@@ -234,6 +234,58 @@ describe("useSyncFestivalMapUrl and URLs from elsewhere", () => {
     ]);
   });
 
+  it("follows a link back to a URL it wrote earlier", () => {
+    const { result, rerender, onExternalChange } = renderConsumer();
+
+    // The hook writes sector 10, and Next re-renders with it.
+    act(() => result.current.setState({ ...defaultState, sectorIndex: 0 }));
+    act(() => vi.advanceTimersByTime(250));
+    expect(window.location.search).toBe("?sector=10");
+    syncRouterToWindow();
+    rerender();
+    expect(onExternalChange).not.toHaveBeenCalled();
+
+    navigateTo("/festivals/489?sector=20");
+    rerender();
+    expect(result.current.state.sectorIndex).toBe(1);
+
+    // Back to the URL the hook wrote itself: still a link, still applied.
+    navigateTo("/festivals/489?sector=10");
+    rerender();
+    expect(onExternalChange).toHaveBeenCalledTimes(2);
+    expect(result.current.state.sectorIndex).toBe(0);
+  });
+
+  it("follows a link back after a write that only added the anchor", () => {
+    navigateTo("/festivals/489?sector=10");
+    const onExternalChange = vi.fn();
+    const { result, rerender } = renderHook(() => {
+      const initial = useInitialFestivalMapUrlState(context);
+      const [state, setState] = useState(initial);
+      useSyncFestivalMapUrl(state, {
+        ...context,
+        anchor: "mapa",
+        onExternalChange: (next) => {
+          onExternalChange(next);
+          setState(next);
+        },
+      });
+      return state;
+    });
+
+    // The search already matches, so this write only adds #mapa.
+    act(() => vi.advanceTimersByTime(250));
+    expect(window.location.hash).toBe("#mapa");
+
+    navigateTo("/festivals/489?sector=20");
+    rerender();
+    navigateTo("/festivals/489?sector=10");
+    rerender();
+
+    expect(onExternalChange).toHaveBeenCalledTimes(2);
+    expect(result.current.sectorIndex).toBe(0);
+  });
+
   it("does not overwrite a link followed while a write was pending", () => {
     const { result, rerender } = renderConsumer();
 
