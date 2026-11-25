@@ -30,6 +30,7 @@ export default async function Navbar() {
       blogEnabled,
       communicationsEnabled,
       paidProgramsEnabled,
+      credentialsEnabled,
     },
     notificationsEnabled,
     pushPublicKey,
@@ -84,6 +85,7 @@ export default async function Navbar() {
         blogEnabled={blogEnabled}
         communicationsEnabled={communicationsEnabled}
         paidProgramsEnabled={paidProgramsEnabled}
+        credentialsEnabled={credentialsEnabled}
         notificationsEnabled={notificationsEnabled}
         pushPublicKey={pushPublicKey}
         viewer={viewer}

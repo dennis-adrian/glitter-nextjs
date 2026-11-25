@@ -190,6 +190,29 @@ describe("buildAppNavigation groups", () => {
     );
   });
 
+  it("lists the festival's Credenciales only while its flag is on", () => {
+    const festivalHrefs = (credentialsEnabled: boolean) =>
+      hrefs(
+        group(
+          buildAppNavigation({
+            viewer: { role: "festival_admin", status: "verified" },
+            activeFestival: { id: 9, name: "Festicker 2026", status: "active" },
+            credentialsEnabled,
+          }),
+          "festival",
+        )!.sections![0].items,
+      );
+
+    expect(festivalHrefs(false)).not.toContain(
+      "/dashboard/festivals/9/credentials",
+    );
+    const on = festivalHrefs(true);
+    expect(on).toContain("/dashboard/festivals/9/credentials");
+    expect(on.indexOf("/dashboard/festivals/9/credentials")).toBe(
+      on.indexOf("/dashboard/festivals/9/volunteers") + 1,
+    );
+  });
+
   it("keeps the staff Más short: people, two section screens and the account", () => {
     const more = buildAppNavigation({
       viewer: { role: "admin", status: "verified" },

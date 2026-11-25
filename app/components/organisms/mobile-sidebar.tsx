@@ -96,6 +96,8 @@ type MobileSidebarProps = {
   communicationsEnabled?: boolean;
   /** Staff's check-in, enrollments and program payments exist only then. */
   paidProgramsEnabled?: boolean;
+  /** The `festival_credentials` flag: the festival's Credenciales section. */
+  credentialsEnabled?: boolean;
   suppliesOpen?: boolean;
   activeFestival?: StaffFestival | null;
   children: React.ReactNode;
@@ -114,6 +116,7 @@ const MobileSidebar = ({
   creditsEnabled = false,
   communicationsEnabled = false,
   paidProgramsEnabled = false,
+  credentialsEnabled = false,
   suppliesOpen = false,
   activeFestival = null,
 }: MobileSidebarProps) => {
@@ -137,6 +140,7 @@ const MobileSidebar = ({
         creditsEnabled,
         communicationsEnabled,
         paidProgramsEnabled,
+        credentialsEnabled,
         suppliesOpen,
         activeFestival,
       }).groups
