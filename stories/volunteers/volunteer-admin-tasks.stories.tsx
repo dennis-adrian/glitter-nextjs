@@ -371,7 +371,6 @@ const tasksFrame = (children: ReactNode) => (
   </VolunteerTaskFrame>
 );
 
-/** V2Revisar / V2Escritorio */
 /** Revisar's layouts around `children`, as the route groups render them. */
 const reviewFrame = (children: ReactNode) =>
   tasksFrame(
@@ -390,6 +389,7 @@ const reviewFrame = (children: ReactNode) =>
     </ReviewPane>,
   );
 
+/** V2Revisar / V2Escritorio */
 export const Revisar: Story = {
   render: () => (
     <VolunteerAdminStoryContext path={BASE}>
