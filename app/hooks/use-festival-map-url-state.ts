@@ -12,8 +12,10 @@ import {
 } from "@/app/lib/maps/festival-map-url";
 
 /**
- * Typing in the search box writes on every keystroke otherwise, and Safari
- * throws once a page passes ~100 history updates in a few seconds.
+ * Typing in the search box would otherwise write on every keystroke. Safari
+ * throws a SecurityError past 100 history updates in a short window (30s in
+ * older releases, 10s in newer ones); at one write per 250ms a page stays well
+ * under that.
  */
 const URL_WRITE_DELAY_MS = 250;
 
@@ -42,17 +44,19 @@ export function useInitialFestivalMapUrlState(
  * Mirrors the map's filters into the address bar so the visitor can copy and
  * share it, and picks up a URL someone else changed.
  *
- * Writes go through `history.replaceState` on purpose: `router.replace` with
- * new search params asks the server to render the whole festival page again,
- * which is what made filtering take seconds. The native call only updates the
- * URL (Next keeps `useSearchParams` in step), and replacing rather than
- * pushing keeps the back button leaving the page instead of stepping through
- * every chip that was tapped.
+ * Writes go through `history.replaceState` on purpose. `router.replace` with
+ * new search params is a navigation: on this dynamic page the client waits
+ * while the server renders the page again (one RSC request and every query
+ * the page makes), which is what made URL-driven filtering slow. The native
+ * call only updates the URL, and Next keeps `useSearchParams` in step (see
+ * "Native History API" in Next's linking-and-navigating docs). Replacing
+ * rather than pushing keeps the back button leaving the page instead of
+ * stepping through every chip that was tapped.
  *
- * Next keys the page by its route, not its search params or festival id, so a
- * link to the same page with other filters (or to another festival) keeps this
- * component mounted with the old state. Any URL this hook did not write is
- * read back through `onExternalChange`.
+ * A link to this same page with other filters is a client navigation that
+ * keeps this component mounted, so its initial state would go stale; worse, the
+ * pending write would put the old filters back over the link's URL. Any URL
+ * this hook did not write is read back through `onExternalChange` instead.
  */
 export function useSyncFestivalMapUrl(
   { query, sectorIndex, standFilters }: FestivalMapUrlState,
