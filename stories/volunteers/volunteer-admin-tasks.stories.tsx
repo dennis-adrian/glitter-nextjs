@@ -9,11 +9,11 @@ import VolunteerReviewScreen from "@/app/components/volunteers/admin/tasks/revie
 import VolunteerShiftAssignScreen from "@/app/components/volunteers/admin/tasks/shift-assign-screen";
 import { VolunteerHeaderTop } from "@/app/components/volunteers/admin/tasks/task-header";
 import {
-  AssignByShiftPane,
   AssignStrip,
   NoCallState,
   ReviewStrip,
 } from "@/app/components/volunteers/admin/tasks/task-layouts";
+import { AssignByShiftPane } from "@/app/components/volunteers/admin/tasks/assign-pane";
 import { ReviewPane } from "@/app/components/volunteers/admin/tasks/review-frame";
 import {
   VolunteerSoloScreen,
@@ -474,11 +474,14 @@ export const Asignar: Story = {
     <VolunteerAdminStoryContext path={`${BASE}/asignar`}>
       {tasksFrame(
         <AssignByShiftPane
-          call={CALL}
-          selectedId={5}
-          listOnPhone
-          detail={shiftScreen}
-        />,
+          festivalId={FESTIVAL_ID}
+          shifts={CALL.shifts}
+          roles={CALL.roles}
+          withoutShifts={CALL.acceptedWithoutShifts}
+          firstId={5}
+        >
+          {shiftScreen}
+        </AssignByShiftPane>,
       )}
     </VolunteerAdminStoryContext>
   ),
@@ -487,14 +490,19 @@ export const Asignar: Story = {
 /** V2Agregar */
 export const Agregar: Story = {
   render: () => (
-    <VolunteerAdminStoryContext path={`${BASE}/shifts/5`}>
+    <VolunteerAdminStoryContext
+      path={`${BASE}/shifts/5`}
+      params={{ shiftId: "5" }}
+    >
       {tasksFrame(
         <AssignByShiftPane
-          call={CALL}
-          selectedId={5}
-          listOnPhone={false}
-          detail={shiftScreen}
-        />,
+          festivalId={FESTIVAL_ID}
+          shifts={CALL.shifts}
+          roles={CALL.roles}
+          withoutShifts={CALL.acceptedWithoutShifts}
+        >
+          {shiftScreen}
+        </AssignByShiftPane>,
       )}
     </VolunteerAdminStoryContext>
   ),

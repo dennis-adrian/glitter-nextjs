@@ -69,6 +69,36 @@ export function VolunteerSoloScreen({ children }: { children: ReactNode }) {
   );
 }
 
+type TaskSummary = {
+  task: VolunteerTask;
+  pending: number;
+  places: number;
+  strip: ReactNode;
+};
+
+/** Where a task's content reports the counts it loaded with. */
+const TaskSummaryContext = createContext<
+  ((summary: TaskSummary) => void) | null
+>(null);
+
+/**
+ * Rendered by each task's content with the call it loaded: the header is
+ * kept across tasks and does not reload, so the switch's counts and the
+ * strip follow the content, never older than what is shown below them.
+ */
+export function VolunteerTaskSummary({
+  task,
+  pending,
+  places,
+  strip,
+}: TaskSummary) {
+  const publish = useContext(TaskSummaryContext);
+  useLayoutEffect(() => {
+    publish?.({ task, pending, places, strip });
+  }, [publish, task, pending, places, strip]);
+  return null;
+}
+
 /** Whole-page screens step out of the frame: no box, no header, no list. */
 export const soloContents =
   "group-has-[[data-volunteer-solo]]/volunteer-tasks:contents";
@@ -100,7 +130,8 @@ export function VolunteerTaskLoading({ children }: { children: ReactNode }) {
 /**
  * The frame of Revisar and Asignar, kept by their layout across both tasks
  * and every screen in them: `top` (title, settings, export) never reloads,
- * and the switch and the strip follow the URL at once. Only `children`, the
+ * and the switch and the strip follow the URL at once, with the counts the
+ * newest content reported (`VolunteerTaskSummary`). Only `children`, the
  * task's own content, loads. On phones an item's screen (an application, a
  * shift) has the whole screen, without the header.
  */
@@ -114,44 +145,50 @@ export function VolunteerTaskFrame({
 }: {
   festivalId: number;
   top: ReactNode;
-  /** The switch's counts. */
+  /** The switch's counts until a task's content reports its own. */
   pending: number;
   places: number;
-  /** The grey line under the switch, per task. */
+  /** The grey line under the switch, per task, likewise. */
   strips: Record<VolunteerTask, ReactNode>;
   children: ReactNode;
 }) {
   const { task, item } = volunteerTaskRoute(usePathname(), festivalId);
   const [memory] = useState(createSoloMemory);
+  const [summary, setSummary] = useState<TaskSummary | null>(null);
+  // Counts belong to the call, whichever task reported them; a strip only to
+  // its own task.
+  const strip = summary?.task === task ? summary.strip : strips[task];
 
   return (
     <SoloMemory.Provider value={memory}>
-      <div
-        className={cn(
-          pageFrame,
-          "group/volunteer-tasks",
-          item && "max-lg:p-0 max-lg:pb-0",
-          "has-[[data-volunteer-solo]]:contents",
-        )}
-      >
+      <TaskSummaryContext.Provider value={setSummary}>
         <div
           className={cn(
-            "flex min-w-0 flex-col gap-3.5 lg:gap-4",
-            item && "max-lg:hidden",
-            soloHidden,
+            pageFrame,
+            "group/volunteer-tasks",
+            item && "max-lg:p-0 max-lg:pb-0",
+            "has-[[data-volunteer-solo]]:contents",
           )}
         >
-          {top}
-          <VolunteerTaskBar
-            festivalId={festivalId}
-            task={task}
-            pending={pending}
-            places={places}
-            strip={strips[task]}
-          />
+          <div
+            className={cn(
+              "flex min-w-0 flex-col gap-3.5 lg:gap-4",
+              item && "max-lg:hidden",
+              soloHidden,
+            )}
+          >
+            {top}
+            <VolunteerTaskBar
+              festivalId={festivalId}
+              task={task}
+              pending={summary?.pending ?? pending}
+              places={summary?.places ?? places}
+              strip={strip}
+            />
+          </div>
+          {children}
         </div>
-        {children}
-      </div>
+      </TaskSummaryContext.Provider>
     </SoloMemory.Provider>
   );
 }

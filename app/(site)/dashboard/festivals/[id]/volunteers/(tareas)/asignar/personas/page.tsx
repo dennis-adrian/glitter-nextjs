@@ -2,10 +2,17 @@ import type { Metadata } from "next";
 
 import { AssignModeNav } from "@/app/components/volunteers/admin/tasks/assign-shift-list";
 import VolunteerPeopleList from "@/app/components/volunteers/admin/tasks/people-list";
-import { NoCallState } from "@/app/components/volunteers/admin/tasks/task-layouts";
+import {
+  AssignStrip,
+  NoCallState,
+} from "@/app/components/volunteers/admin/tasks/task-layouts";
+import { VolunteerTaskSummary } from "@/app/components/volunteers/admin/tasks/volunteer-task-frame";
 import { loadVolunteerTaskPage } from "@/app/lib/volunteers/admin-task-page";
 import { fetchAcceptedPeoplePage } from "@/app/lib/volunteers/admin-task-queries";
-import { VOLUNTEER_LIST_BATCH } from "@/app/lib/volunteers/admin-tasks";
+import {
+  remainingPlaces,
+  VOLUNTEER_LIST_BATCH,
+} from "@/app/lib/volunteers/admin-tasks";
 
 export const metadata: Metadata = { title: "Asignar por persona" };
 
@@ -23,10 +30,26 @@ export default async function VolunteerPeoplePage(props: {
     ? await fetchAcceptedPeoplePage(festivalId, [], VOLUNTEER_LIST_BATCH)
     : [];
 
-  if (!call.settings) return <NoCallState festivalId={festivalId} />;
+  const summary = (
+    <VolunteerTaskSummary
+      task="asignar"
+      pending={call.statusTotals.pending}
+      places={remainingPlaces(call.shifts).places}
+      strip={call.settings ? <AssignStrip call={call} /> : null}
+    />
+  );
+  if (!call.settings) {
+    return (
+      <>
+        {summary}
+        <NoCallState festivalId={festivalId} />
+      </>
+    );
+  }
 
   return (
     <div className="flex w-full max-w-2xl min-w-0 flex-col gap-3.5">
+      {summary}
       <AssignModeNav
         festivalId={festivalId}
         mode="persona"

@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 
 import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import VolunteerShiftAssignScreen from "@/app/components/volunteers/admin/tasks/shift-assign-screen";
-import { AssignByShiftPane } from "@/app/components/volunteers/admin/tasks/task-layouts";
 import { fetchVolunteerShiftDetail } from "@/app/lib/volunteers/admin-queries";
 import {
   loadVolunteerTaskPage,
@@ -19,7 +18,7 @@ export const metadata: Metadata = { title: "Turno" };
 
 /**
  * One shift, to add people to it: who is assigned and the accepted people
- * who marked it. Below the tasks' header, beside the Asignar list from lg.
+ * who marked it. Beside the layout's shift list from lg.
  */
 export default async function VolunteerShiftPage(props: {
   params: Promise<{ id: string; shiftId: string }>;
@@ -37,19 +36,12 @@ export default async function VolunteerShiftPage(props: {
   return (
     <>
       <ScreenTitle title={formatShiftWhen(detail.shift)} backHref={backHref} />
-      <AssignByShiftPane
-        call={call}
-        selectedId={shiftId}
-        listOnPhone={false}
-        detail={
-          <VolunteerShiftAssignScreen
-            festivalId={festivalId}
-            detail={detail}
-            roles={call.roles}
-            backHref={backHref}
-            reviewHref={volunteerReviewHref(festivalId, "antiguas")}
-          />
-        }
+      <VolunteerShiftAssignScreen
+        festivalId={festivalId}
+        detail={detail}
+        roles={call.roles}
+        backHref={backHref}
+        reviewHref={volunteerReviewHref(festivalId, "antiguas")}
       />
     </>
   );

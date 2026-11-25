@@ -1,7 +1,11 @@
 import type { ReactNode } from "react";
 
 import { ReviewPane } from "@/app/components/volunteers/admin/tasks/review-frame";
-import { NoCallState } from "@/app/components/volunteers/admin/tasks/task-layouts";
+import {
+  NoCallState,
+  ReviewStrip,
+} from "@/app/components/volunteers/admin/tasks/task-layouts";
+import { VolunteerTaskSummary } from "@/app/components/volunteers/admin/tasks/volunteer-task-frame";
 import { loadVolunteerTaskPage } from "@/app/lib/volunteers/admin-task-page";
 import {
   fetchPendingReviewPage,
@@ -9,6 +13,7 @@ import {
 } from "@/app/lib/volunteers/admin-task-queries";
 import {
   VOLUNTEER_LIST_BATCH,
+  remainingPlaces,
   VOLUNTEER_REVIEW_SORTS,
   type VolunteerReviewSort,
 } from "@/app/lib/volunteers/admin-tasks";
@@ -47,14 +52,22 @@ export default async function VolunteerReviewLayout(props: {
     : null;
 
   return (
-    <ReviewPane
-      festivalId={festivalId}
-      noCall={<NoCallState festivalId={festivalId} />}
-      batches={batches}
-      total={call.statusTotals.pending}
-      shiftTotal={call.shifts.filter((shift) => shift.isActive).length}
-    >
-      {props.children}
-    </ReviewPane>
+    <>
+      <VolunteerTaskSummary
+        task="revisar"
+        pending={call.statusTotals.pending}
+        places={remainingPlaces(call.shifts).places}
+        strip={<ReviewStrip call={call} />}
+      />
+      <ReviewPane
+        festivalId={festivalId}
+        noCall={<NoCallState festivalId={festivalId} />}
+        batches={batches}
+        total={call.statusTotals.pending}
+        shiftTotal={call.shifts.filter((shift) => shift.isActive).length}
+      >
+        {props.children}
+      </ReviewPane>
+    </>
   );
 }
