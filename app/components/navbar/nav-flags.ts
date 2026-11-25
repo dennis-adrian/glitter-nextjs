@@ -29,12 +29,14 @@ export async function resolveNavFlags() {
     blogEnabled,
     communicationsEnabled,
     paidProgramsEnabled,
+    credentialsEnabled,
   ] = await Promise.all([
     resolveProgramsHref(),
     isLayoutFeatureEnabled("credits"),
     isLayoutFeatureEnabled("blog"),
     isLayoutFeatureEnabled("comunicados"),
     isLayoutFeatureEnabled("paid_programs"),
+    isLayoutFeatureEnabled("festival_credentials"),
   ]);
 
   return {
@@ -43,6 +45,7 @@ export async function resolveNavFlags() {
     blogEnabled,
     communicationsEnabled,
     paidProgramsEnabled,
+    credentialsEnabled,
   };
 }
 

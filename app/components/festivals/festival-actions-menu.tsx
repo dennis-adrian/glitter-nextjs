@@ -13,7 +13,10 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 
-import { useIsDashboardAdmin } from "@/app/components/dashboard/dashboard-viewer-provider";
+import {
+  useDashboardFlags,
+  useIsDashboardAdmin,
+} from "@/app/components/dashboard/dashboard-viewer-provider";
 import DeleteFestival from "@/app/components/festivals/delete-festival";
 import FestivalDuplicateDialog from "@/app/components/festivals/festival-duplicate-dialog";
 import FestivalExportDialog from "@/app/components/festivals/festival-export-dialog";
@@ -66,7 +69,8 @@ export default function FestivalActionsMenu({
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const isAdmin = useIsDashboardAdmin();
-  const sections = visibleFestivalSections(festival.status, { isAdmin });
+  const flags = useDashboardFlags();
+  const sections = visibleFestivalSections(festival.status, { isAdmin, flags });
 
   return (
     <>

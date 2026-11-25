@@ -132,6 +132,11 @@ export type AppNavigationInput = {
    * global admins, so festival admins never see it.
    */
   communicationsEnabled?: boolean;
+  /**
+   * The `festival_credentials` flag for this viewer: the festival's
+   * Credenciales section is left out of staff's sidebar while it is off.
+   */
+  credentialsEnabled?: boolean;
   /** The supplies market is open; it is only ever offered to verified profiles. */
   suppliesOpen?: boolean;
   /** For staff: the festival in progress, whose sections lead the sidebar. */
@@ -608,6 +613,7 @@ export function staffMenuSection(
 function staffFestivalGroup(
   festival: StaffFestival | null,
   isAdmin: boolean,
+  credentialsEnabled: boolean,
 ): NavGroup {
   const allFestivals: NavLink = {
     key: "admin-festivals",
@@ -632,7 +638,10 @@ function staffFestivalGroup(
         href: `/dashboard/festivals/${festival.id}`,
         items: [
           allFestivals,
-          ...visibleFestivalSections(festival.status, { isAdmin }).map(
+          ...visibleFestivalSections(festival.status, {
+            isAdmin,
+            flags: { festival_credentials: credentialsEnabled },
+          }).map(
             (section) => ({
               key: `festival-${section.key}`,
               label: section.label,
@@ -658,6 +667,7 @@ function buildStaffNavigation(
   activeFestival: StaffFestival | null,
   communicationsEnabled: boolean,
   paidProgramsEnabled: boolean,
+  credentialsEnabled: boolean,
 ): AppNavigation {
   const isAdmin = viewer?.role === "admin";
   const operation = operationKeys(communicationsEnabled);
@@ -729,7 +739,7 @@ function buildStaffNavigation(
 
   const groups: NavGroup[] = [
     { key: "home", label: "", items: [home] },
-    staffFestivalGroup(activeFestival, isAdmin),
+    staffFestivalGroup(activeFestival, isAdmin, credentialsEnabled),
     isAdmin
       ? {
           key: "operation",
@@ -819,6 +829,7 @@ export function buildAppNavigation({
   creditsEnabled = false,
   communicationsEnabled = false,
   paidProgramsEnabled = false,
+  credentialsEnabled = false,
   suppliesOpen = false,
   activeFestival = null,
 }: AppNavigationInput): AppNavigation {
@@ -830,6 +841,7 @@ export function buildAppNavigation({
       activeFestival,
       communicationsEnabled,
       paidProgramsEnabled,
+      credentialsEnabled,
     );
   }
 

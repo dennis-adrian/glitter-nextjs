@@ -5,6 +5,7 @@ import {
   FESTIVAL_SECTION_GROUP_LABELS,
   festivalSectionHref,
   visibleFestivalSections,
+  type FestivalSectionFlags,
   type FestivalSectionGroup,
 } from "@/app/components/festivals/festival-sections";
 import {
@@ -54,12 +55,15 @@ export default function FestivalSectionsNav({
   festival,
   counts,
   isAdmin = false,
+  flags = {},
 }: {
   festival: FestivalBase;
   counts: FestivalOverviewCounts;
   isAdmin?: boolean;
+  /** Flagged sections show only when their flag is on for this viewer. */
+  flags?: FestivalSectionFlags;
 }) {
-  const sections = visibleFestivalSections(festival.status, { isAdmin });
+  const sections = visibleFestivalSections(festival.status, { isAdmin, flags });
 
   return (
     <Card>

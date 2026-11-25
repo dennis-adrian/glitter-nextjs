@@ -3,10 +3,16 @@
 import { createContext, useContext, type ReactNode } from "react";
 
 import type { BaseProfile } from "@/app/api/users/definitions";
+import type { FeatureFlagKey } from "@/app/lib/feature_flags/registry";
 
 export type DashboardViewer = {
   id: number;
   role: BaseProfile["role"];
+  /**
+   * Flags the dashboard's client tree needs, resolved for this viewer by the
+   * layout. Only what a client component cannot resolve on its own.
+   */
+  flags?: Partial<Record<FeatureFlagKey, boolean>>;
 };
 
 const DashboardViewerContext = createContext<DashboardViewer | null>(null);
@@ -48,4 +54,13 @@ export function useCanManageProfiles(): boolean {
  */
 export function useIsDashboardAdmin(): boolean {
   return useContext(DashboardViewerContext)?.role === "admin";
+}
+
+/**
+ * The feature flags the dashboard layout resolved for this viewer, for
+ * showing flagged places such as a festival's Credenciales. Empty with no
+ * provider mounted, so flagged places stay hidden.
+ */
+export function useDashboardFlags(): Partial<Record<FeatureFlagKey, boolean>> {
+  return useContext(DashboardViewerContext)?.flags ?? {};
 }
