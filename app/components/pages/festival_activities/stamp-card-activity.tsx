@@ -1,11 +1,8 @@
 import Image from "next/image";
 
-import { InfoIcon } from "lucide-react";
-
 import { BaseProfile } from "@/app/api/users/definitions";
 import Heading from "@/app/components/atoms/heading";
 import EnrollRedirectButton from "@/app/components/festivals/festival_activities/enroll-redirect-button";
-import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert";
 import {
   FestivalActivityWithDetailsAndParticipants,
   FestivalBase,
@@ -139,22 +136,21 @@ export default function StampCardActivityPage({
         )}
       </div>
 
-      <Alert>
-        <InfoIcon className="w-4 h-4" />
-        <AlertTitle>Sin compra mínima</AlertTitle>
-        <AlertDescription>
+      <div className="flex flex-col gap-3">
+        <Heading level={2}>¿Por qué no hay compra mínima?</Heading>
+        <div className="space-y-2 text-sm md:text-base">
           <p>
             Para poner tu sello en la tarjeta de un visitante{" "}
             <strong>no podés exigir una compra mínima</strong>. Todo visitante
             que se acerque a tu stand con la tarjeta debe recibir tu sello.
           </p>
-          <p className="mt-2">
+          <p>
             Queremos que los visitantes recorran todos los stands de la
             actividad y completen todos los sellos de su tarjeta. Creemos que
             así la actividad es más beneficiosa para todos los participantes.
           </p>
-        </AlertDescription>
-      </Alert>
+        </div>
+      </div>
 
       <div className="flex flex-col gap-3">
         <Heading level={2}>Fechas clave</Heading>
