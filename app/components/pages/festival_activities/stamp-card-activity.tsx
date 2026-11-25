@@ -69,16 +69,23 @@ export default function StampCardActivityPage({
           <div className="mt-3">
             {activity.promotionalArtUrl && (
               <figure className="w-full max-w-[300px] md:max-w-[360px] mx-auto md:mx-0 md:float-left md:mr-4 md:mb-2">
-                <div className="relative w-full aspect-5/3 rounded-md overflow-hidden">
-                  <Image
-                    className="object-cover"
-                    src={activity.promotionalArtUrl}
-                    alt="arte promocional de la actividad"
-                    fill
-                    placeholder="blur"
-                    blurDataURL="/img/placeholders/placeholder-300x300.png"
-                  />
-                </div>
+                {/*
+                  The art can come in any proportions, so it keeps its own
+                  aspect ratio instead of filling a fixed box: width 0/height 0
+                  plus w-full/h-auto sizes it to the column at its natural
+                  ratio. Art taller than the max height is scaled down with
+                  object-contain, never cropped.
+                */}
+                <Image
+                  className="h-auto w-full max-h-[480px] object-contain"
+                  src={activity.promotionalArtUrl}
+                  alt="arte promocional de la actividad"
+                  width={0}
+                  height={0}
+                  sizes="(min-width: 768px) 360px, 300px"
+                  placeholder="blur"
+                  blurDataURL="/img/placeholders/placeholder-300x300.png"
+                />
                 <figcaption className="text-center text-sm text-muted-foreground italic mt-1 mb-2">
                   Arte promocional
                 </figcaption>
