@@ -80,6 +80,11 @@ pnpm db:test:up && pnpm migrate:test
 - Accounts: `admin+clerk_test@example.com` (admin), `festival-admin+clerk_test@example.com`, verified participants (role `user`) `illustration+clerk_test@example.com` / `gastronomy+clerk_test@example.com` / `entrepreneurship+clerk_test@example.com`, and `pending+clerk_test@example.com`. The unused `artist` role and deprecated `new_artist` category are not seeded.
 - OTP for `+clerk_test` addresses on Clerk development instances is `424242`.
 
+## Credentials development fixtures
+
+- `pnpm seed` also runs `scripts/seed/credentials.ts` on the most recent festival, behind the same development-only gate: two volunteer roles, accepted volunteer applications with and without a role plus one pending, one external participant with its own reservation (stand `Z901`), and a two-stand reservation (`Z902 y Z903`) for `illustration+clerk_test@example.com`. Idempotent: rows are found by fixed name, email or stand before they are created.
+- The page itself is behind the `festival_credentials` flag (default `hidden`); target yourself on the flag to see it locally.
+
 ## Merch development fixtures
 
 - `pnpm seed` includes products and collections after users/festivals. `pnpm seed:merch` seeds only the merch fixtures, with the same development/local-database gate.
