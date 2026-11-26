@@ -12,6 +12,7 @@ import { and, count, eq, gt, isNull, sql } from "drizzle-orm";
 import ActivityWaitlistInvitationEmail from "@/app/emails/activity-waitlist-invitation";
 import { sendEmail } from "@/app/vendors/resend";
 import { assertSent } from "@/app/vendors/resend-result";
+import { eligibleWaitlistEntries } from "@/app/lib/festival_activites/queries";
 import { db } from "@/db";
 import {
   festivalActivities,
@@ -124,20 +125,7 @@ export async function promoteFromWaitlist(
 						FROM ${festivalActivityWaitlist}
 						INNER JOIN ${users}
 							ON ${users.id} = ${festivalActivityWaitlist.userId}
-						WHERE ${festivalActivityWaitlist.activityId} = ${activityId}
-							AND ${festivalActivityWaitlist.notifiedAt} IS NULL
-							${variant.category ? sql`AND ${users.category} = ${variant.category}` : sql``}
-							-- A removal from any variant bars the whole activity, so the
-							-- invitation could never be accepted; skip to the next person.
-							AND NOT EXISTS (
-								SELECT 1
-								FROM ${festivalActivityParticipants}
-								INNER JOIN ${festivalActivityDetails}
-									ON ${festivalActivityDetails.id} = ${festivalActivityParticipants.detailsId}
-								WHERE ${festivalActivityDetails.activityId} = ${activityId}
-									AND ${festivalActivityParticipants.userId} = ${festivalActivityWaitlist.userId}
-									AND ${festivalActivityParticipants.removedAt} IS NOT NULL
-							)
+						WHERE ${eligibleWaitlistEntries(activityId, variant.category)}
 						ORDER BY ${festivalActivityWaitlist.position} ASC
 						LIMIT 1
 						FOR UPDATE SKIP LOCKED
@@ -197,8 +185,9 @@ export async function promoteFromWaitlist(
       });
       // Throwing rolls back the claim above, as a timeout already does: marked
       // notified without an email, the person would lose their place once the
-      // window expired. Nothing retries on its own; the next freed seat or an
-      // admin's manual invite reaches them.
+      // window expired. Only the expiry cron retries on its own; otherwise the
+      // next freed seat or an admin's retry reaches them, and self-enrolment
+      // leaves the seat to them meanwhile.
       assertSent(result);
       return {
         userId: claimedEntry.userId,

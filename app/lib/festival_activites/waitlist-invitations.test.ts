@@ -14,12 +14,14 @@ const {
   wasRemovedFromActivity,
   lockVariant,
   countVariantSeats,
+  eligibleWaitlistEntries,
 } = vi.hoisted(() => ({
   dbMock: { transaction: vi.fn(), select: vi.fn(), update: vi.fn() },
   currentProfile: vi.fn(),
   wasRemovedFromActivity: vi.fn(),
   lockVariant: vi.fn(),
   countVariantSeats: vi.fn(),
+  eligibleWaitlistEntries: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -37,6 +39,7 @@ vi.mock("@/app/lib/festival_activites/queries", () => ({
   wasRemovedFromActivity,
   lockVariant,
   countVariantSeats,
+  eligibleWaitlistEntries,
 }));
 vi.mock("@/app/lib/festivals/actions", () => ({ fetchBaseFestival: vi.fn() }));
 vi.mock("@/app/lib/uploadthing/storage", () => ({
@@ -101,18 +104,23 @@ describe("notifyWaitlistEntry", () => {
     },
   };
 
+  // The read that picks the variant, then the claim that sends the email.
+  let transactions: Promise<unknown>[];
+
   beforeEach(() => {
+    transactions = [];
     currentProfile.mockResolvedValue({ id: 1, role: "admin" });
     wasRemovedFromActivity.mockResolvedValue(false);
-    // The read before the email, then the write after it.
-    dbMock.transaction.mockImplementation(async (run) =>
-      run({
+    dbMock.transaction.mockImplementation((run) => {
+      const transaction = run({
         query: {
           festivalActivityWaitlist: { findFirst: async () => entry },
         },
         update: dbMock.update,
-      }),
-    );
+      });
+      transactions.push(transaction);
+      return transaction;
+    });
     dbMock.update.mockReturnValue({
       set: () => ({
         where: () => ({ returning: async () => [{ id: entry.id }] }),
@@ -120,7 +128,7 @@ describe("notifyWaitlistEntry", () => {
     });
   });
 
-  it("does not record an invitation Resend rejected", async () => {
+  it("rolls back the claim of an invitation Resend rejected", async () => {
     fetchMock.mockImplementation(rejected);
 
     await expect(notifyWaitlistEntry(entry.id, 2)).resolves.toEqual({
@@ -128,7 +136,9 @@ describe("notifyWaitlistEntry", () => {
       message: "Error al enviar la notificación",
     });
     expect(fetchMock).toHaveBeenCalledOnce();
-    expect(dbMock.update).not.toHaveBeenCalled();
+    // The claim was made, then its transaction failed, which rolls it back.
+    expect(dbMock.update).toHaveBeenCalledOnce();
+    await expect(transactions[1]).rejects.toBeInstanceOf(EmailSendError);
   });
 
   it("records the invitation once Resend accepts it", async () => {
@@ -139,6 +149,33 @@ describe("notifyWaitlistEntry", () => {
       message: "Notificación enviada correctamente",
     });
     expect(dbMock.update).toHaveBeenCalledOnce();
+    await expect(transactions[1]).resolves.toBe("sent");
+  });
+
+  it("sends nothing when the variant is full under its lock", async () => {
+    // Staff set a limit after the variant was picked, and it is reached.
+    lockVariant.mockResolvedValue({ id: 5, participationLimit: 1 });
+    countVariantSeats.mockResolvedValue({ activeCount: 1, reservedCount: 0 });
+
+    await expect(notifyWaitlistEntry(entry.id, 2)).resolves.toEqual({
+      success: false,
+      message: "No hay cupos disponibles para la categoría de este usuario",
+    });
+    expect(lockVariant).toHaveBeenCalledWith(expect.anything(), 5);
+    expect(dbMock.update).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing when another invitation claimed the entry first", async () => {
+    dbMock.update.mockReturnValue({
+      set: () => ({ where: () => ({ returning: async () => [] }) }),
+    });
+
+    await expect(notifyWaitlistEntry(entry.id, 2)).resolves.toEqual({
+      success: false,
+      message: "No se pudo guardar la notificación; intentá nuevamente",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

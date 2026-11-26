@@ -216,6 +216,39 @@ export async function countVariantSeats(
 }
 
 /**
+ * Waitlist entries due an invitation to a seat in a variant of `category`
+ * (null: any category): not yet invited, and with no participation in any
+ * variant of the activity. A removal bars the whole activity, and an enrolled
+ * profile's entry (one left behind by an older enrolment) could never be
+ * accepted. `exceptUserId`
+ * leaves out that profile's own entry. The query must join `users` on the
+ * entry's userId. Waitlist promotion claims from these, and self-enrolment
+ * yields to them, so both use this one predicate.
+ */
+export function eligibleWaitlistEntries(
+  activityId: number,
+  category: (typeof users.$inferSelect)["category"] | null,
+  options: { exceptUserId?: number } = {},
+) {
+  return and(
+    eq(festivalActivityWaitlist.activityId, activityId),
+    isNull(festivalActivityWaitlist.notifiedAt),
+    category ? eq(users.category, category) : undefined,
+    options.exceptUserId !== undefined
+      ? ne(festivalActivityWaitlist.userId, options.exceptUserId)
+      : undefined,
+    sql`NOT EXISTS (
+      SELECT 1
+      FROM ${festivalActivityParticipants}
+      INNER JOIN ${festivalActivityDetails}
+        ON ${festivalActivityDetails.id} = ${festivalActivityParticipants.detailsId}
+      WHERE ${festivalActivityDetails.activityId} = ${activityId}
+        AND ${festivalActivityParticipants.userId} = ${festivalActivityWaitlist.userId}
+    )`,
+  )!;
+}
+
+/**
  * Whether staff removed the profile from any variant of the activity. A
  * removal bars the whole activity, not only the variant it happened in: the
  * profile may not enroll in another variant, join the waitlist or take a

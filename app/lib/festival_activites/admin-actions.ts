@@ -23,7 +23,18 @@ import {
   standReservations,
   users,
 } from "@/db/schema";
-import { and, asc, count, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNull,
+  lte,
+  or,
+} from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/app/vendors/resend";
 import { assertSent } from "@/app/vendors/resend-result";
@@ -921,11 +932,8 @@ export async function restoreActivityParticipant(
 export type MoveParticipantOptions = {
   /** The variant the admin saw the participant in. */
   expectedSourceDetailId?: number;
-  /**
-   * Set to undo a move, with what that move returned: its `revision` and the
-   * source's `sourceActiveCount`.
-   */
-  undo?: { revision: string; maxActive: number };
+  /** Set to undo a move, with the `revision` that move returned. */
+  undo?: { revision: string };
 };
 
 export type MoveParticipantResult = {
@@ -937,8 +945,6 @@ export type MoveParticipantResult = {
   invitationFailed?: boolean;
   /** Identifies this move, for its undo (the row's new updatedAt, ISO). */
   revision?: string;
-  /** Active participants left in the source variant, for the undo. */
-  sourceActiveCount?: number;
 };
 
 const STALE_MOVE_MESSAGE =
@@ -960,10 +966,11 @@ const STALE_MOVE_MESSAGE =
  * move is refused instead of silently overriding the other one.
  *
  * `undo` puts a participant back where a move took them from, and only while
- * nothing has changed the row since that move (`revision`). It may refill an
- * over-capacity variant the admin had left that way, but not once anyone took
- * a seat there since the move (more than `maxActive` active participants) or
- * a waitlist invitation holds one. It invites nobody to the slot it frees.
+ * nothing has changed the row since that move (`revision`). Into a variant
+ * with room it always may. Into a full one, which it may leave over capacity
+ * as the admin had it, only while no waitlist invitation holds a seat there
+ * and nobody entered it since the move (enrolled, accepted an invitation, or
+ * was restored or moved there). It invites nobody to the slot it frees.
  */
 export async function moveActivityParticipant(
   participationId: number,
@@ -979,16 +986,11 @@ export async function moveActivityParticipant(
   }
 
   const { undo } = options;
-  // A server action takes any payload: an undo must carry both numbers the
+  // A server action takes any payload: an undo must carry the revision the
   // move returned, or it cannot be checked.
   const undoRevision =
     undo && typeof undo.revision === "string" ? Date.parse(undo.revision) : NaN;
-  if (
-    undo &&
-    (Number.isNaN(undoRevision) ||
-      !Number.isInteger(undo.maxActive) ||
-      undo.maxActive < 0)
-  ) {
+  if (undo && Number.isNaN(undoRevision)) {
     return { success: false, message: STALE_MOVE_MESSAGE };
   }
 
@@ -1000,7 +1002,6 @@ export async function moveActivityParticipant(
         activityId: number;
         sourceDetailId: number;
         revision: string;
-        sourceActiveCount: number;
       };
 
   try {
@@ -1157,10 +1158,27 @@ export async function moveActivityParticipant(
         const full = activeCount + reservedCount >= target.participationLimit;
         // An undo may return to an over-capacity variant the admin had left
         // that way, but never take a seat an invitation now holds or someone
-        // took since the move.
-        const refused = undo
-          ? full && (reservedCount > 0 || activeCount > undo.maxActive)
-          : full;
+        // took since the move. Every write to a participation stamps
+        // updatedAt, so an active row stamped since the move entered since.
+        const enteredSinceMove = async () => {
+          const [entered] = await tx
+            .select({ id: festivalActivityParticipants.id })
+            .from(festivalActivityParticipants)
+            .where(
+              and(
+                eq(festivalActivityParticipants.detailsId, targetDetailId),
+                isNull(festivalActivityParticipants.removedAt),
+                gte(
+                  festivalActivityParticipants.updatedAt,
+                  new Date(undoRevision),
+                ),
+              ),
+            )
+            .limit(1);
+          return entered !== undefined;
+        };
+        const refused =
+          full && (!undo || reservedCount > 0 || (await enteredSinceMove()));
         if (refused) {
           return {
             success: false,
@@ -1169,21 +1187,15 @@ export async function moveActivityParticipant(
         }
       }
 
-      const movedAt = new Date();
+      // Strictly later than the last write, so no two writes to the row
+      // within one millisecond can share a revision.
+      const movedAt = new Date(
+        Math.max(Date.now(), locked.updatedAt.getTime() + 1),
+      );
       await tx
         .update(festivalActivityParticipants)
         .set({ detailsId: targetDetailId, updatedAt: movedAt })
         .where(eq(festivalActivityParticipants.id, participationId));
-
-      const [{ sourceActiveCount }] = await tx
-        .select({ sourceActiveCount: count() })
-        .from(festivalActivityParticipants)
-        .where(
-          and(
-            eq(festivalActivityParticipants.detailsId, participation.detailsId),
-            isNull(festivalActivityParticipants.removedAt),
-          ),
-        );
 
       return {
         success: true,
@@ -1191,7 +1203,6 @@ export async function moveActivityParticipant(
         activityId: participation.activityId,
         sourceDetailId: participation.detailsId,
         revision: movedAt.toISOString(),
-        sourceActiveCount,
       };
     });
 
@@ -1218,7 +1229,6 @@ export async function moveActivityParticipant(
       success: true,
       message: result.message,
       revision: result.revision,
-      sourceActiveCount: result.sourceActiveCount,
       ...(invitedName !== undefined && { invitedName }),
       ...(invitationFailed && { invitationFailed }),
     };
@@ -1405,15 +1415,17 @@ export async function promoteWaitlistToVariant(
 
         // Re-check capacity under the variant lock, so a concurrent move,
         // enrolment or restore cannot take the same seat.
-        await lockVariant(tx, targetDetailId);
+        // The limit is the one read under the lock, in case staff just
+        // changed it.
+        const variant = await lockVariant(tx, targetDetailId);
         // FOR UPDATE locks nothing when there is no row yet, so look again:
         // the profile may have accepted an invitation while we waited for the
         // variant, and inserting again would break the unique constraint.
         const [existing] = lockedRow ? [lockedRow] : await findExisting();
-        if (detail.participationLimit) {
+        if (variant?.participationLimit) {
           const { activeCount: currentActive, reservedCount: currentReserved } =
             await countVariantSeats(tx, targetDetailId);
-          if (currentActive + currentReserved >= detail.participationLimit) {
+          if (currentActive + currentReserved >= variant.participationLimit) {
             return false; // Skip this entry, variant is now full
           }
         }
@@ -1436,6 +1448,7 @@ export async function promoteWaitlistToVariant(
           await tx.insert(festivalActivityParticipants).values({
             userId: entry.userId,
             detailsId: targetDetailId,
+            updatedAt: new Date(),
           });
         }
 
@@ -1580,7 +1593,7 @@ export async function notifyWaitlistEntry(
         };
       }
 
-      // 4. Prepare invitation window (persist only after email succeeds)
+      // 4. Prepare invitation window (persisted only with the email)
       const expiresAt = new Date(
         Date.now() + activity.waitlistWindowMinutes * 60 * 1000,
       );
@@ -1601,48 +1614,26 @@ export async function notifyWaitlistEntry(
 
     const { entry, activity, expiresAt, now, matchedDetail } = txResult;
 
-    // 5. Send invitation email
+    // 5. Claim the seat and send the invitation in one transaction, as
+    // promoteFromWaitlist does: the seat is counted again under the variant
+    // lock, held through the send so nobody takes it meanwhile, and a failed
+    // send rolls the claim back. The limit is the one read under the lock.
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
     const activityUrl = `${baseUrl}/profiles/${entry.userId}/festivals/${festivalId}/activity/${activity.id}`;
 
-    try {
-      const result = await sendEmail({
-        from: "Actividades del Festival <no-reply@productoraglitter.com>",
-        to: [entry.user.email],
-        subject: `Tenés un cupo disponible en ${activity.name}`,
-        react: ActivityWaitlistInvitationEmail({
-          userDisplayName: entry.user.displayName,
-          userFirstName: entry.user.firstName,
-          userLastName: entry.user.lastName,
-          activityName: activity.name,
-          festivalName: activity.festival.name,
-          festivalType: activity.festival.festivalType,
-          expiresAt,
-          activityUrl,
-        }),
-      });
-      assertSent(result);
-    } catch (emailError) {
-      console.error("Error sending waitlist invitation email:", emailError);
-      return { success: false, message: "Error al enviar la notificación" };
-    }
-
-    const updateResult = await db.transaction(async (tx) => {
-      // The seat was counted before the email went out, without holding the
-      // variant through the send; count again under its lock, as the other
-      // seat writers do, before the invitation takes the seat.
-      if (matchedDetail.participationLimit) {
-        await lockVariant(tx, matchedDetail.id);
+    const claim = await db.transaction(async (tx) => {
+      const variant = await lockVariant(tx, matchedDetail.id);
+      if (variant?.participationLimit) {
         const { activeCount, reservedCount } = await countVariantSeats(
           tx,
           matchedDetail.id,
           { exceptEntryId: waitlistEntryId },
         );
-        if (activeCount + reservedCount >= matchedDetail.participationLimit) {
-          return [];
+        if (activeCount + reservedCount >= variant.participationLimit) {
+          return "full" as const;
         }
       }
-      return tx
+      const [claimed] = await tx
         .update(festivalActivityWaitlist)
         .set({
           notifiedAt: now,
@@ -1660,9 +1651,34 @@ export async function notifyWaitlistEntry(
           ),
         )
         .returning({ id: festivalActivityWaitlist.id });
+      if (!claimed) return "stale" as const;
+
+      const result = await sendEmail({
+        from: "Actividades del Festival <no-reply@productoraglitter.com>",
+        to: [entry.user.email],
+        subject: `Tenés un cupo disponible en ${activity.name}`,
+        react: ActivityWaitlistInvitationEmail({
+          userDisplayName: entry.user.displayName,
+          userFirstName: entry.user.firstName,
+          userLastName: entry.user.lastName,
+          activityName: activity.name,
+          festivalName: activity.festival.name,
+          festivalType: activity.festival.festivalType,
+          expiresAt,
+          activityUrl,
+        }),
+      });
+      assertSent(result);
+      return "sent" as const;
     });
 
-    if (updateResult.length === 0) {
+    if (claim === "full") {
+      return {
+        success: false,
+        message: "No hay cupos disponibles para la categoría de este usuario",
+      };
+    }
+    if (claim === "stale") {
       return {
         success: false,
         message: "No se pudo guardar la notificación; intentá nuevamente",

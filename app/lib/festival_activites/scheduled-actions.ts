@@ -9,7 +9,10 @@ import "server-only";
 import { db } from "@/db";
 import { festivalActivityWaitlist } from "@/db/schema";
 import { and, eq, isNotNull, isNull, lt } from "drizzle-orm";
-import { promoteFromWaitlist } from "@/app/lib/festival_activites/waitlist-promotion";
+import {
+  isPromotionFailure,
+  promoteFromWaitlist,
+} from "@/app/lib/festival_activites/waitlist-promotion";
 
 export async function processExpiredWaitlistNotifications() {
   const now = new Date();
@@ -34,40 +37,46 @@ export async function processExpiredWaitlistNotifications() {
   let processed = 0;
 
   for (const entry of expired) {
+    const { notifiedAt, expiresAt } = entry;
+    if (!notifiedAt || !expiresAt) continue;
     try {
-      const freedVariantId = await db.transaction(async (tx) => {
-        if (!entry.expiresAt || !entry.notifiedAt) {
-          return null;
+      // Offer the seat on before dropping the entry, with no transaction
+      // open: promotion locks the variant on its own connection, and waiting
+      // on it while holding the entry's row could deadlock with an acceptance
+      // that holds the variant and waits on that row. The expired invitation
+      // no longer counts as a seat, and its entry is not claimable again.
+      if (entry.notifiedForDetailId !== null) {
+        const promotion = await promoteFromWaitlist(
+          entry.activityId,
+          entry.notifiedForDetailId,
+        );
+        // Keep the expired entry, so the next run retries the invitation
+        // instead of leaving the seat unoffered.
+        if (isPromotionFailure(promotion)) {
+          console.error(
+            "Could not invite the next waitlisted profile; keeping expired entry",
+            entry.id,
+          );
+          continue;
         }
-
-        const [updated] = await tx
-          .delete(festivalActivityWaitlist)
-          .where(
-            and(
-              eq(festivalActivityWaitlist.id, entry.id),
-              eq(festivalActivityWaitlist.activityId, entry.activityId),
-              entry.notifiedForDetailId === null
-                ? isNull(festivalActivityWaitlist.notifiedForDetailId)
-                : eq(
-                    festivalActivityWaitlist.notifiedForDetailId,
-                    entry.notifiedForDetailId,
-                  ),
-              eq(festivalActivityWaitlist.notifiedAt, entry.notifiedAt),
-              eq(festivalActivityWaitlist.expiresAt, entry.expiresAt),
-            ),
-          )
-          .returning({ id: festivalActivityWaitlist.id });
-
-        return updated ? entry.notifiedForDetailId : null;
-      });
-
-      // After the commit: promotion locks the variant on its own connection,
-      // and waiting on it while this transaction still held the entry's row
-      // could deadlock with an acceptance that holds the variant and waits
-      // on that row.
-      if (freedVariantId) {
-        await promoteFromWaitlist(entry.activityId, freedVariantId);
       }
+
+      await db
+        .delete(festivalActivityWaitlist)
+        .where(
+          and(
+            eq(festivalActivityWaitlist.id, entry.id),
+            eq(festivalActivityWaitlist.activityId, entry.activityId),
+            entry.notifiedForDetailId === null
+              ? isNull(festivalActivityWaitlist.notifiedForDetailId)
+              : eq(
+                  festivalActivityWaitlist.notifiedForDetailId,
+                  entry.notifiedForDetailId,
+                ),
+            eq(festivalActivityWaitlist.notifiedAt, notifiedAt),
+            eq(festivalActivityWaitlist.expiresAt, expiresAt),
+          ),
+        );
 
       processed++;
     } catch (error) {
