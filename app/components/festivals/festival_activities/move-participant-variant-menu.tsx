@@ -201,6 +201,18 @@ export default function MoveParticipantVariantMenu({
       <DropdownMenuContent
         align="end"
         className="w-72 max-w-[calc(100vw-2rem)]"
+        onCloseAutoFocus={(event) => {
+          // Radix returns focus to the trigger once the close animation ends;
+          // skip that when the admin has already focused something else.
+          const active = document.activeElement;
+          if (
+            active &&
+            active !== document.body &&
+            !(event.currentTarget as HTMLElement).contains(active)
+          ) {
+            event.preventDefault();
+          }
+        }}
       >
         <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
           Mover a otra variante
