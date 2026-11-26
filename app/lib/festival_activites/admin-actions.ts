@@ -2,6 +2,10 @@
 
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import {
+  REQUIRED_PROOF_TYPE_MESSAGE,
+  getRequiredProofType,
+} from "@/app/lib/festival_activites/helpers";
+import {
   ActivityUserCategory,
   ProofStatus,
   ProofType,
@@ -51,7 +55,8 @@ export type FestivalActivityInput = {
     | "best_stand"
     | "festival_sticker"
     | "coupon_book"
-    | "sticker_hunt";
+    | "sticker_hunt"
+    | "stamp_card";
   accessLevel: "public" | "festival_participants_only";
   promotionalArtUrl?: string;
   activityPrizeUrl?: string;
@@ -80,9 +85,11 @@ async function getAdminProfile() {
 const PROOF_LIMIT_REQUIRED_MESSAGE =
   "Si la actividad exige prueba, debes indicar la fecha límite para cargar la prueba.";
 
-function proofUploadLimitValidationMessage(
-  data: FestivalActivityInput,
-): string | null {
+function proofValidationMessage(data: FestivalActivityInput): string | null {
+  const requiredProofType = getRequiredProofType(data.type);
+  if (requiredProofType && data.proofType !== requiredProofType) {
+    return REQUIRED_PROOF_TYPE_MESSAGE;
+  }
   if ((data.proofType ?? null) === null) {
     return null;
   }
@@ -151,7 +158,7 @@ export async function createFestivalActivity(
     };
   }
 
-  const proofLimitMsg = proofUploadLimitValidationMessage(data);
+  const proofLimitMsg = proofValidationMessage(data);
   if (proofLimitMsg) {
     return { success: false, message: proofLimitMsg };
   }
@@ -236,7 +243,7 @@ export async function updateFestivalActivity(
     };
   }
 
-  const proofLimitMsgUpdate = proofUploadLimitValidationMessage(data);
+  const proofLimitMsgUpdate = proofValidationMessage(data);
   if (proofLimitMsgUpdate) {
     return { success: false, message: proofLimitMsgUpdate };
   }

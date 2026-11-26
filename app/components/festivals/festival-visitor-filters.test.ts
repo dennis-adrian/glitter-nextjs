@@ -139,6 +139,7 @@ const activityUserIds = {
   coupon_book: new Set([1]),
   stamp_passport: new Set([3]),
   sticker_hunt: new Set<number>(),
+  stamp_card: new Set<number>(),
   festival_sticker: new Set<number>(),
 };
 

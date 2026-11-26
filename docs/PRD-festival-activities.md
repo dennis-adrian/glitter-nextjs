@@ -15,13 +15,14 @@ El sistema de actividades de festival permite a los organizadores definir activi
 
 ## 2. Tipos de Actividad
 
-| Tipo               | Descripción                                                           |
-| ------------------ | --------------------------------------------------------------------- |
-| `stamp_passport`   | Carrera de sellos: participantes visitan stands y recolectan sellos   |
-| `sticker_print`    | Impresión de stickers: actividad con diseño y producción de stickers  |
-| `best_stand`       | Mejor stand: votación para elegir el stand más destacado del festival |
-| `festival_sticker` | Sticker del festival: colección o entrega de stickers temáticos       |
-| `coupon_book`      | Libro de cupones: participantes coleccionan o canjean cupones         |
+| Tipo               | Descripción                                                                                                                                                                                                         |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stamp_passport`   | Carrera de sellos: participantes visitan stands y recolectan sellos                                                                                                                                                 |
+| `sticker_print`    | Impresión de stickers: actividad con diseño y producción de stickers                                                                                                                                                |
+| `best_stand`       | Mejor stand: votación para elegir el stand más destacado del festival                                                                                                                                               |
+| `festival_sticker` | Sticker del festival: colección o entrega de stickers temáticos                                                                                                                                                     |
+| `coupon_book`      | Libro de cupones: participantes coleccionan o canjean cupones                                                                                                                                                       |
+| `stamp_card`       | Tarjeta de sellos: el público compra la tarjeta temática (p. ej. navideña) en el stand de Glitter y la completa con los sellos de los expositores participantes, que la sellan sin pedir ninguna compra en su stand |
 
 ---
 
@@ -37,7 +38,7 @@ El sistema de actividades de festival permite a los organizadores definir activi
 | `festivalId`            | FK → festivals |                                                                                                                                                             |
 | `name`                  | text           | Nombre público de la actividad                                                                                                                              |
 | `description`           | text?          | Descripción corta para cards                                                                                                                                |
-| `type`                  | enum           | `stamp_passport`, `sticker_print`, `best_stand`, `festival_sticker`, `coupon_book`                                                                          |
+| `type`                  | enum           | `stamp_passport`, `sticker_print`, `best_stand`, `festival_sticker`, `coupon_book`, `sticker_hunt`, `stamp_card`                                            |
 | `registrationStartDate` | timestamp      | Inicio del período de inscripción                                                                                                                           |
 | `registrationEndDate`   | timestamp      | Fin del período de inscripción                                                                                                                              |
 | `promotionalArtUrl`     | text?          | Imagen promocional                                                                                                                                          |

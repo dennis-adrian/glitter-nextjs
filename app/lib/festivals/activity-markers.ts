@@ -3,6 +3,7 @@ import {
   SearchIcon,
   SparklesIcon,
   StampIcon,
+  TicketIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -13,7 +14,6 @@ export type ActivityMarker = {
   label: string;
   /** Name used where the marker is the subject, e.g. the map legend. */
   legendLabel: string;
-  symbol: string;
   Icon: LucideIcon;
   /** Tinted treatment for chips and tiles alongside body copy. */
   softClassName: string;
@@ -26,9 +26,9 @@ export type ActivityMarker = {
 };
 
 /**
- * One place where an activity type becomes a label, a glyph, a color and an
- * icon, so the map badges, the legend and the activities list all name the same
- * thing the same way. Types absent here carry no map marker.
+ * One place where an activity type becomes a label, a color and an icon, so
+ * the map badges, the legend and the activities list all name the same thing
+ * the same way. Types absent here carry no map marker.
  */
 export function getActivityMarker(
   type: FestivalActivity["type"],
@@ -37,7 +37,6 @@ export function getActivityMarker(
     return {
       label: "Cuponera",
       legendLabel: "En cuponera",
-      symbol: "%",
       Icon: BookOpenIcon,
       softClassName:
         "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200",
@@ -51,7 +50,6 @@ export function getActivityMarker(
     return {
       label: "Carrera de sellos",
       legendLabel: "Carrera de sellos",
-      symbol: "★",
       Icon: StampIcon,
       softClassName:
         "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200",
@@ -65,7 +63,6 @@ export function getActivityMarker(
     return {
       label: "Cacería de stickers",
       legendLabel: "Cacería de stickers",
-      symbol: "♦",
       Icon: SearchIcon,
       softClassName:
         "border-pink-200 bg-pink-50 text-pink-800 dark:border-pink-900 dark:bg-pink-950/40 dark:text-pink-200",
@@ -75,11 +72,23 @@ export function getActivityMarker(
     };
   }
 
+  if (type === "stamp_card") {
+    return {
+      label: "Tarjeta de sellos",
+      legendLabel: "Tarjeta de sellos",
+      Icon: TicketIcon,
+      softClassName:
+        "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200",
+      swatchClassName: "border-red-900 bg-red-700",
+      badgeFill: "#B91C1C",
+      participationLabel: "Participa en la tarjeta de sellos",
+    };
+  }
+
   if (type === "festival_sticker") {
     return {
       label: "Sticker del festival",
       legendLabel: "Sticker del festival",
-      symbol: "✦",
       Icon: SparklesIcon,
       softClassName:
         "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200",
@@ -92,7 +101,6 @@ export function getActivityMarker(
   return {
     label: "Actividad del festival",
     legendLabel: "Actividad del festival",
-    symbol: "•",
     Icon: SparklesIcon,
     softClassName:
       "border-primary-200 bg-primary-50 text-primary-800 dark:border-primary-900 dark:bg-primary-950/40 dark:text-primary-200",

@@ -5,6 +5,7 @@ import BestStandActivitySkeleton from "@/app/components/pages/festival_activitie
 import CouponBookActivityPage from "@/app/components/pages/festival_activities/coupon-book-activity";
 import FestivalStickerActivityPage from "@/app/components/pages/festival_activities/festival-sticker-activity";
 import PassportActivityPage from "@/app/components/pages/festival_activities/passport-activity";
+import StampCardActivityPage from "@/app/components/pages/festival_activities/stamp-card-activity";
 import StickerHuntActivityPage from "@/app/components/pages/festival_activities/sticker-hunt-activity";
 import { fetchFestivalActivity } from "@/app/lib/festival_activites/queries";
 import { fetchFestivalWithDates } from "@/app/lib/festivals/actions";
@@ -81,6 +82,20 @@ export default async function Page({ params }: PageProps) {
       <div className="container p-3 md:p-6">
         <ScreenTitle title={activity.name} />
         <PassportActivityPage
+          activity={activity}
+          currentProfile={currentProfile}
+          forProfile={currentProfile}
+          festivalId={festivalId}
+        />
+      </div>
+    );
+  }
+
+  if (activity.type === "stamp_card") {
+    return (
+      <div className="container p-3 md:p-6">
+        <ScreenTitle title={activity.name} />
+        <StampCardActivityPage
           activity={activity}
           currentProfile={currentProfile}
           forProfile={currentProfile}

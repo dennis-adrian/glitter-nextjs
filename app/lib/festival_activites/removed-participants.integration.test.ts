@@ -138,14 +138,18 @@ async function createUser(label: string, role: "user" | "admin" = "user") {
   return user;
 }
 
-async function createActivity(festivalId: number, name: string) {
+async function createActivity(
+  festivalId: number,
+  name: string,
+  type: FestivalActivity["type"] = "sticker_print",
+) {
   const now = Date.now();
   const [activity] = await integrationDb!
     .insert(festivalActivities)
     .values({
       festivalId,
       name,
-      type: "sticker_print",
+      type,
       registrationStartDate: new Date(now - DAY),
       registrationEndDate: new Date(now + DAY),
       waitlistWindowMinutes: 60,
@@ -478,5 +482,32 @@ describeDatabase("a removal bars the whole activity", () => {
       .where(eq(festivalActivityWaitlist.id, entry.id));
     expect(unchanged.notifiedAt).toBeNull();
     expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("enrolls an eligible participant in an open stamp card activity", async () => {
+    const { festivalId } = fixture;
+    const activityId = await createActivity(
+      festivalId,
+      "Stamp Rally Navideño",
+      "stamp_card",
+    );
+    const [variant] = await integrationDb!
+      .insert(festivalActivityDetails)
+      .values({ activityId, participationLimit: 32, category: "illustration" })
+      .returning({ id: festivalActivityDetails.id });
+    const artist = await createUser("stamp-card");
+    currentProfile.mockResolvedValue(artist);
+
+    const result = await enrollInActivity(
+      artist as BaseProfile,
+      festivalId,
+      { id: variant.id } as ActivityDetailsWithParticipants,
+      { id: activityId } as FestivalActivity,
+    );
+
+    expect(result.success).toBe(true);
+    const rows = await participantRows(variant.id, artist.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].removedAt).toBeNull();
   });
 });
