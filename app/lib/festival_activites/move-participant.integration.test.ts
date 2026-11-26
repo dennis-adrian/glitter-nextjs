@@ -290,25 +290,56 @@ describeDatabase("moving a participant between variants", () => {
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
-  it("leaves the waitlist alone when undoing a move", async () => {
+  it("undoes a move back into an over-capacity variant, without inviting", async () => {
     const { activityId, source, target, participant } = fixture;
+    // Source limit is 1 and holds 2: over capacity, as staff can leave it.
     const row = await enroll(source, participant.id);
+    await enroll(source, (await createUser("extra")).id);
     const waiting = await createUser("waiting");
     const [entry] = await integrationDb!
       .insert(festivalActivityWaitlist)
       .values({ activityId, userId: waiting.id, position: 1 })
       .returning();
 
-    const result = await moveActivityParticipant(row.id, target, {
-      promoteWaitlist: false,
+    await moveActivityParticipant(row.id, target);
+    const undo = await moveActivityParticipant(row.id, source, {
+      expectedSourceDetailId: target,
+      undo: true,
     });
 
-    expect(result.success).toBe(true);
+    expect(undo.success).toBe(true);
+    expect((await participation(row.id)).detailsId).toBe(source);
     const [untouched] = await integrationDb!
       .select()
       .from(festivalActivityWaitlist)
       .where(eq(festivalActivityWaitlist.id, entry.id));
+    // The undo frees a slot in target; restoring the earlier state invites
+    // nobody to it.
     expect(untouched.notifiedAt).toBeNull();
+  });
+
+  it("refuses an undo into a seat a waitlist invitation now holds", async () => {
+    const { activityId, source, target, participant } = fixture;
+    const row = await enroll(source, participant.id);
+    await moveActivityParticipant(row.id, target);
+    await integrationDb!.insert(festivalActivityWaitlist).values({
+      activityId,
+      userId: (await createUser("invited")).id,
+      position: 1,
+      notifiedAt: new Date(),
+      expiresAt: new Date(Date.now() + DAY),
+      notifiedForDetailId: source,
+    });
+
+    const undo = await moveActivityParticipant(row.id, source, {
+      expectedSourceDetailId: target,
+      undo: true,
+    });
+
+    expect(undo).toEqual({
+      success: false,
+      message: "La variante de destino no tiene cupos disponibles",
+    });
   });
 
   it("keeps one consistent row when the same participant is moved twice at once", async () => {
@@ -317,14 +348,19 @@ describeDatabase("moving a participant between variants", () => {
     const row = await enroll(source, participant.id);
 
     const results = await Promise.all([
-      moveActivityParticipant(row.id, target),
-      moveActivityParticipant(row.id, third),
+      moveActivityParticipant(row.id, target, {
+        expectedSourceDetailId: source,
+      }),
+      moveActivityParticipant(row.id, third, {
+        expectedSourceDetailId: source,
+      }),
     ]);
 
-    // The waiting move re-reads the row the winner left; it never loses it.
-    for (const result of results) {
-      expect(result.message).not.toBe("Participante no encontrado");
-    }
+    // The waiting move re-reads the row the winner left and sees it moved.
+    expect(results.filter((r) => r.success)).toHaveLength(1);
+    expect(results.find((r) => !r.success)?.message).toBe(
+      "El participante ya fue movido a otra variante. Actualizá la página.",
+    );
     const rows = await integrationDb!
       .select()
       .from(festivalActivityParticipants)

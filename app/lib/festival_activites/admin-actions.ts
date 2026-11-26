@@ -915,13 +915,19 @@ export async function restoreActivityParticipant(
  * move leaves the source variant below its limit, the freed slot goes to the
  * waitlist, as with a removal; `invitedName` then names who was invited.
  *
- * `promoteWaitlist: false` is for undoing a move: putting the participant
- * back restores the earlier state, which had no invitation for that slot.
+ * `expectedSourceDetailId` is the variant the admin saw the participant in;
+ * when the participant has moved meanwhile (another admin, another tab), the
+ * move is refused instead of silently overriding the other one.
+ *
+ * `undo: true` puts a participant back where a move took them from. It
+ * restores the earlier state, so it may refill an over-capacity variant
+ * (unless a waitlist invitation now holds a seat there) and it invites
+ * nobody to the slot it frees.
  */
 export async function moveActivityParticipant(
   participationId: number,
   targetDetailId: number,
-  options: { promoteWaitlist?: boolean } = {},
+  options: { expectedSourceDetailId?: number; undo?: boolean } = {},
 ): Promise<{
   success: boolean;
   message: string;
@@ -963,6 +969,17 @@ export async function moveActivityParticipant(
 
       if (!locked) {
         return { success: false, message: "Participante no encontrado" };
+      }
+      if (
+        options.expectedSourceDetailId !== undefined &&
+        locked.detailsId !== options.expectedSourceDetailId &&
+        locked.detailsId !== targetDetailId
+      ) {
+        return {
+          success: false,
+          message:
+            "El participante ya fue movido a otra variante. Actualizá la página.",
+        };
       }
 
       const [source] = await tx
@@ -1062,7 +1079,10 @@ export async function moveActivityParticipant(
               gt(festivalActivityWaitlist.expiresAt, now),
             ),
           );
-        if (activeCount + reservedCount >= target.participationLimit) {
+        const full = activeCount + reservedCount >= target.participationLimit;
+        // An undo may return to an over-capacity variant the admin had left
+        // that way, but never take a seat an invitation now holds.
+        if (options.undo ? reservedCount > 0 && full : full) {
           return {
             success: false,
             message: "La variante de destino no tiene cupos disponibles",
@@ -1086,7 +1106,7 @@ export async function moveActivityParticipant(
     if (!result.success) return result;
 
     let invitedName: string | undefined;
-    if (options.promoteWaitlist !== false) {
+    if (!options.undo) {
       try {
         const invited = await promoteFromWaitlist(
           result.activityId,

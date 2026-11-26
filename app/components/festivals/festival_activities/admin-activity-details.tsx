@@ -47,12 +47,12 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-muted-foreground">
           {totalParticipants} participante
           {totalParticipants !== 1 ? "s" : ""}
         </h2>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
             <Link
               href={`/dashboard/festivals/${activity.festivalId}/festival_activities/${activity.id}/edit`}

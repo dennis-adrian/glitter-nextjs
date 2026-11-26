@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRightLeftIcon, Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
@@ -64,6 +64,29 @@ function capacityLabel(variant: MoveTargetVariant): string {
   return `${base} · ${variant.reservedCount} invitado${variant.reservedCount !== 1 ? "s" : ""}`;
 }
 
+/**
+ * The row a move just placed, so its Mover trigger can take focus once it
+ * renders in the destination table: the trigger that had focus unmounts with
+ * the row it left, which would drop keyboard users back to the page start.
+ */
+let pendingFocus: { participationId: number; detailId: number } | null = null;
+
+function requestFocusAfterMove(participationId: number, detailId: number) {
+  pendingFocus = { participationId, detailId };
+}
+
+/** True once, for the row the last move placed in `detailId`. */
+function claimFocusAfterMove(participationId: number, detailId: number) {
+  if (
+    pendingFocus?.participationId !== participationId ||
+    pendingFocus.detailId !== detailId
+  ) {
+    return false;
+  }
+  pendingFocus = null;
+  return true;
+}
+
 export default function MoveParticipantVariantMenu({
   participationId,
   participantName,
@@ -74,6 +97,24 @@ export default function MoveParticipantVariantMenu({
   const router = useRouter();
   const [isMoving, setIsMoving] = useState(false);
   const movingRef = useRef(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const trigger = triggerRef.current;
+    if (
+      !trigger ||
+      // The table and the phone cards both render the row; one is hidden.
+      trigger.getClientRects().length === 0 ||
+      !claimFocusAfterMove(participationId, currentDetailId)
+    ) {
+      return;
+    }
+    // Only reclaim focus that was lost, never take it from where the admin
+    // has since moved it.
+    if (!document.activeElement || document.activeElement === document.body) {
+      trigger.focus();
+    }
+  });
 
   const targets = variants.filter((v) => v.id !== currentDetailId);
   if (targets.length === 0) return null;
@@ -81,7 +122,9 @@ export default function MoveParticipantVariantMenu({
   const labelOf = (detailId: number) =>
     variants.find((v) => v.id === detailId)?.label ?? "la variante";
 
-  const move = async (targetDetailId: number, isUndo = false) => {
+  /** `undoFrom` is set when undoing: where the move put the participant. */
+  const move = async (targetDetailId: number, undoFrom?: number) => {
+    const isUndo = undoFrom !== undefined;
     if (movingRef.current) return;
     movingRef.current = true;
     setIsMoving(true);
@@ -89,10 +132,16 @@ export default function MoveParticipantVariantMenu({
       const result = await moveActivityParticipant(
         participationId,
         targetDetailId,
-        // Undoing restores the earlier state, which had no invitation for
-        // the slot the undo frees.
-        { promoteWaitlist: !isUndo },
+        {
+          // Refused if someone moved the participant meanwhile. An undo
+          // expects them where the move put them.
+          expectedSourceDetailId: undoFrom ?? currentDetailId,
+          undo: isUndo,
+        },
       );
+      if (result.success) {
+        requestFocusAfterMove(participationId, targetDetailId);
+      }
       // Refresh on failure too: a refusal usually means the counts on screen
       // are stale (someone else filled the variant meanwhile).
       router.refresh();
@@ -113,7 +162,7 @@ export default function MoveParticipantVariantMenu({
         toast.success(moved, {
           action: {
             label: "Deshacer",
-            onClick: () => void move(currentDetailId, true),
+            onClick: () => void move(currentDetailId, targetDetailId),
           },
         });
       }
@@ -134,6 +183,7 @@ export default function MoveParticipantVariantMenu({
         {/* Not `disabled` while moving: a disabled trigger cannot take back
             focus when the menu closes. movingRef blocks a second move. */}
         <Button
+          ref={triggerRef}
           variant="ghost"
           size="sm"
           className="h-10 px-3 text-xs md:h-7 md:px-2"
@@ -179,7 +229,7 @@ export default function MoveParticipantVariantMenu({
                 className={cn(
                   "shrink-0 text-xs",
                   reason
-                    ? "font-medium text-destructive"
+                    ? "font-medium text-destructive dark:text-red-400"
                     : "text-muted-foreground",
                 )}
               >

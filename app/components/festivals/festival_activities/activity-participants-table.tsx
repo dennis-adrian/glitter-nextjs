@@ -167,6 +167,8 @@ function buildColumns(
     {
       id: "participant",
       header: "Participante",
+      // A floor, so tablet widths do not squeeze names onto many lines.
+      meta: { className: "min-w-48" },
       accessorFn: (row) => row.user.displayName ?? "",
       cell: ({ row }) => {
         const user = row.original.user;
@@ -180,7 +182,7 @@ function buildColumns(
                 alt={user.displayName ?? "Avatar"}
               />
             </Avatar>
-            <span className="font-medium text-sm min-w-0 max-w-64 break-words wrap-anywhere">
+            <span className="font-medium text-sm min-w-0 max-w-64 break-words">
               {user.displayName ?? "—"}
             </span>
           </div>
