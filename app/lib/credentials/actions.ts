@@ -585,7 +585,7 @@ const NOT_A_HOLDER =
   "Alguien del lote ya no tiene credencial en este festival. Actualizá la página.";
 const NOTHING_TO_PRINT = "No hay credenciales para marcar en este lote.";
 const BATCH_CHANGED =
-  "Las cantidades cambiaron desde que abriste el lote. Actualizá la página y revisalo antes de marcarlo.";
+  "El lote cambió desde que lo abriste (cantidades o nombres). Actualizá la página y revisalo antes de marcarlo.";
 const BATCH_NOT_FOUND = "No encontramos ese lote. Actualizá la página.";
 const NOT_LATEST_BATCH = "Solo se puede deshacer el último lote enviado a imprenta.";
 
@@ -606,10 +606,10 @@ function credentialCount(count: number) {
 
 /**
  * "Marcar como enviadas a imprenta". The client names holders with the
- * counts it showed and exported; they are recomputed here from live data
+ * name and counts it showed and exported; they are recomputed here from live data
  * under the festival's batch lock, and any difference refuses the whole
  * batch. So a stale screen or a second admin cannot record a unit twice, nor
- * record a reprint, or a quantity, that nobody saw. Each item stores only
+ * record a reprint, a quantity or a name that nobody saw. Each item stores only
  * what this batch sends (§6.3).
  */
 export async function createCredentialPrintBatch(
@@ -640,6 +640,7 @@ export async function createCredentialPrintBatch(
         const plans = batchItemsFor(holder);
         const counts = batchCountsFor(holder);
         if (
+          holder.name !== expected.name ||
           counts.named !== expected.named ||
           counts.unnamed !== expected.unnamed ||
           counts.reprint !== expected.reprint

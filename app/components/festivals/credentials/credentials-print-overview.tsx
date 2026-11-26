@@ -174,8 +174,9 @@ export function CredentialsLastPrintCard() {
               <AlertDialogHeader>
                 <AlertDialogTitle>¿Deshacer el último envío a imprenta?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Las {number(lastBatch.sent)} credenciales del {longDate(lastBatch.createdAt)}{" "}
-                  vuelven a figurar como no impresas. Usalo solo si las marcaste por error.
+                  Se borra el registro de las {number(lastBatch.sent)} credenciales marcadas el{" "}
+                  {longDate(lastBatch.createdAt)}, y el estado de impresión se vuelve a calcular sin
+                  ese envío. Usalo solo si lo marcaste por error.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

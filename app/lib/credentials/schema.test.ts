@@ -142,16 +142,16 @@ describe("one-off credentials", () => {
 
 describe("print batches", () => {
   it("takes known holders with the counts shown, once each, with an optional note", () => {
-    const holder = (key: string) => ({ key, named: 1, unnamed: 0, reprint: false });
+    const holder = (key: string) => ({ key, name: "Ana", named: 1, unnamed: 0, reprint: false });
     expect(
       createPrintBatchSchema.parse({
         festivalId: 1,
-        holders: [holder("participant:4"), { key: "extra:9", named: 0, unnamed: "6", reprint: true }],
+        holders: [holder("participant:4"), { key: "extra:9", name: "Prensa", named: 0, unnamed: "6", reprint: true }],
         note: "  ",
       }),
     ).toEqual({
       festivalId: 1,
-      holders: [holder("participant:4"), { key: "extra:9", named: 0, unnamed: 6, reprint: true }],
+      holders: [holder("participant:4"), { key: "extra:9", name: "Prensa", named: 0, unnamed: 6, reprint: true }],
       note: null,
     });
     expect(
@@ -180,6 +180,14 @@ describe("print batches", () => {
       createPrintBatchSchema.safeParse({ festivalId: 1, holders: [{ key: "staff:1", named: 1, unnamed: 0 }] })
         .success,
     ).toBe(false);
+    expect(
+      firstMessage(
+        createPrintBatchSchema.safeParse({
+          festivalId: 1,
+          holders: [{ ...holder("staff:1"), name: "n".repeat(1001) }],
+        }),
+      ),
+    ).toBe("Una de las personas elegidas no es válida. Actualizá la página.");
     expect(
       firstMessage(
         createPrintBatchSchema.safeParse({

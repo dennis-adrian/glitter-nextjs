@@ -129,7 +129,10 @@ describe("PrintBatchDialog", () => {
     expect(input.note).toBe("Imprenta Sol");
     expect(input.holders).toHaveLength(2);
     expect(
-      input.holders.every((holder: { key: string }) => holder.key.startsWith("participant:")),
+      input.holders.every(
+        (holder: { key: string; name: string }) =>
+          holder.key.startsWith("participant:") && holder.name.length > 0,
+      ),
     ).toBe(true);
     const sent = input.holders.reduce(
       (sum: number, holder: { named: number; unnamed: number; reprint: boolean }) => {

@@ -241,14 +241,14 @@ Every action follows the shape of `app/lib/volunteers/admin-actions.ts`:
 | `createStaffMember`, `updateStaffMember`, `archiveStaffMember`, `restoreStaffMember` | Roster maintenance. Archive sets `is_active = false`; rows are never deleted. |
 | `setFestivalStaffMember` | Ticks or unticks one roster member for the festival. Refuses ticking an archived member; unticking is always allowed. |
 | `addExtraCredential`, `updateExtraCredential`, `removeExtraCredential` | One-off entries. Update keeps the id, so raising "Prensa" from 6 to 8 shows "Faltan 2" instead of 8 new. The name of a named entry cannot be edited. |
-| `createCredentialPrintBatch` | Input: `festivalId`, `holders[]` (`key`, and the `named`, `unnamed` and `reprint` the dialog showed and exported), `note`. See below. |
+| `createCredentialPrintBatch` | Input: `festivalId`, `holders[]` (`key`, and the `name`, `named`, `unnamed` and `reprint` the dialog showed and exported), `note`. See below. |
 | `deleteCredentialPrintBatch` | Removes the most recent batch of the festival only, for undoing a mistake. `admin` only. Takes the same lock as create. |
 
 `createCredentialPrintBatch`, inside one transaction:
 
 1. Takes `pg_advisory_xact_lock(hashtext('credential_print_batches'), festivalId)` so two admins cannot record the same unit twice. Do not reuse `lockFestivalRow`; it is the reservation flow's throughput ceiling.
 2. Calls `fetchCredentialsData(tx, festivalId)` and recomputes holders and print state from live data. Counts come from the server, never from the client.
-3. Refuses any key that is not a current holder, and any holder whose entitlement is zero. Refuses the whole batch when a holder's recomputed counts or reprint flag differ from what the client sent, so what is recorded is what was exported to the printer, and a stale screen or a second admin cannot record a reprint nobody saw.
+3. Refuses any key that is not a current holder, and any holder whose entitlement is zero. Refuses the whole batch when a holder's recomputed name, counts or reprint flag differ from what the client sent, so what is recorded is what was exported to the printer, and a stale screen or a second admin cannot record a reprint nobody saw.
 4. Writes one item per unit of each selected holder. An item stores only what this batch sends:
    - `new`: the full entitlement;
    - `partial`: `max(0, entitlement − coverage)`, computed separately for named and unnamed;
@@ -445,7 +445,7 @@ Each phase leaves the app working. What each one shows is spelled out, because t
 **Integration (`pnpm db:test:up && pnpm migrate:test && pnpm test:integration`)**
 
 - `queries.integration.test.ts`: released stand members are ignored; a two-stand reservation counts two; excluded statuses never appear; data from another festival never leaks.
-- `actions.integration.test.ts`: rules upsert and reset; override on an external without a reservation is refused; ticking an archived staff member is refused; batch creation recomputes counts server-side, refuses unknown and zero-entitlement keys, writes deltas for partial units; refuses a batch whose counts or reprint flag changed since the dialog showed them; two concurrent creates for the same holder record one batch and refuse the other; two concurrent rule saves and a reset leave one whole rule set; an item cannot point at a batch of another festival; unauthorized calls are refused; impersonation read-only is surfaced.
+- `actions.integration.test.ts`: rules upsert and reset; override on an external without a reservation is refused; ticking an archived staff member is refused; batch creation recomputes counts server-side, refuses unknown and zero-entitlement keys, writes deltas for partial units; refuses a batch whose counts, reprint flag or holder name changed since the dialog showed them; two concurrent creates for the same holder record one batch and refuse the other; two concurrent rule saves and a reset leave one whole rule set; an item cannot point at a batch of another festival; unauthorized calls are refused; impersonation read-only is surfaced.
 - Both files must be added by hand to the `test:integration` list in `package.json`, or they will not run.
 
 **Dev seed**

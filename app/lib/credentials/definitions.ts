@@ -83,6 +83,8 @@ export const EXTRA_LABEL_MAX = 80;
 export const EXTRA_NAME_MAX = 120;
 export const EXTRA_QUANTITY_MAX = 200;
 export const PRINT_BATCH_NOTE_MAX = 200;
+/** Bounds the name a batch request echoes back; well above any real one. */
+export const PRINT_BATCH_NAME_MAX = 1000;
 export const PRINT_BATCH_MAX_HOLDERS = 2000;
 export const POSTGRES_INT_MAX = 2_147_483_647;
 

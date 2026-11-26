@@ -478,7 +478,7 @@ describeDatabase("credentials actions", () => {
   });
   describe("print batches", () => {
     const BATCH_CHANGED =
-      "Las cantidades cambiaron desde que abriste el lote. Actualizá la página y revisalo antes de marcarlo.";
+      "El lote cambió desde que lo abriste (cantidades o nombres). Actualizá la página y revisalo antes de marcarlo.";
     const items = (festivalId: number) =>
       integrationDb!
         .select({
@@ -500,7 +500,11 @@ describeDatabase("credentials actions", () => {
         : [];
       return keys.map((key) => {
         const holder = holders.find((entry) => entry.key === key && !entry.stale);
-        return { key, ...(holder ? batchCountsFor(holder) : { named: 1, unnamed: 0, reprint: false }) };
+        return {
+          key,
+          name: holder?.name ?? "",
+          ...(holder ? batchCountsFor(holder) : { named: 1, unnamed: 0, reprint: false }),
+        };
       });
     };
     const send = async (festivalId: number, keys: string[], note?: string) =>
@@ -642,6 +646,26 @@ describeDatabase("credentials actions", () => {
         }),
       ).toEqual({ success: false, message: BATCH_CHANGED });
       expect((await actions.createCredentialPrintBatch({ festivalId, holders: again })).success).toBe(true);
+    });
+
+    it("refuses a batch whose holder was renamed after the dialog showed it", async () => {
+      const festivalId = await createFestival();
+      const user = await createUser("Nombre viejo");
+      const { participationIds } = await createReservation(festivalId, { userIds: [user] });
+      const key = `participant:${participationIds[0]}`;
+      const before = await shown(festivalId, [key]);
+      expect(before[0]!.name).toBe("Nombre viejo");
+      await integrationDb!
+        .update(users)
+        .set({ displayName: "Nombre nuevo" })
+        .where(eq(users.id, user));
+      expect(await actions.createCredentialPrintBatch({ festivalId, holders: before })).toEqual({
+        success: false,
+        message: BATCH_CHANGED,
+      });
+      expect(await items(festivalId)).toEqual([]);
+      expect((await send(festivalId, [key])).success).toBe(true);
+      expect((await items(festivalId))[0]).toMatchObject({ printedName: "Nombre nuevo" });
     });
 
     it("never lets an item point at another festival's batch", async () => {

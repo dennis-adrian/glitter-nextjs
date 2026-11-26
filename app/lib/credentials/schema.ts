@@ -10,6 +10,7 @@ import {
   EXTRA_QUANTITY_MAX,
   POSTGRES_INT_MAX,
   PRINT_BATCH_MAX_HOLDERS,
+  PRINT_BATCH_NAME_MAX,
   PRINT_BATCH_NOTE_MAX,
   STAFF_NAME_MAX,
   STAFF_ROLE_MAX,
@@ -159,11 +160,14 @@ const holderKey = z
 
 /**
  * One holder as the dialog showed and exported it. The server recomputes the
- * counts and refuses the batch if they differ, so what is recorded is what
- * went to the printer, and a reprint is only recorded when one was shown.
+ * name and counts and refuses the batch if they differ, so what is recorded
+ * is what went to the printer, and a reprint is only recorded when one was
+ * shown.
  */
 const batchHolder = z.object({
   key: holderKey,
+  /** The name the dialog showed and exported, to refuse a rename meanwhile. */
+  name: z.string().max(PRINT_BATCH_NAME_MAX, "Una de las personas elegidas no es válida. Actualizá la página."),
   named: quantity(POSTGRES_INT_MAX),
   unnamed: quantity(POSTGRES_INT_MAX),
   reprint: z.boolean(),

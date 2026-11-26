@@ -201,6 +201,7 @@ describe("buildAppNavigation groups", () => {
       )!.sections![0].items,
     );
 
+    expect(items.indexOf("/dashboard/festivals/9/volunteers")).toBeGreaterThanOrEqual(0);
     expect(items.indexOf("/dashboard/festivals/9/credentials")).toBe(
       items.indexOf("/dashboard/festivals/9/volunteers") + 1,
     );

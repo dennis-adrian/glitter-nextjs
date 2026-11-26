@@ -82,7 +82,7 @@ export function defaultBatchSelection(holders: readonly CredentialHolder[]): str
  * "Marcar como enviadas a imprenta" (M5, M7, M8). Starts with everything that
  * still needs printing under the page's filters; people are added or removed
  * by searching, and an already printed holder added again is a reprint.
- * It sends the counts it shows and exports; the server recomputes them and
+ * It sends the names and counts it shows and exports; the server recomputes them and
  * refuses the batch if they changed meanwhile.
  */
 export default function PrintBatchDialog() {
@@ -165,7 +165,11 @@ export default function PrintBatchDialog() {
       try {
         const result = await createCredentialPrintBatch({
           festivalId,
-          holders: chosen.map((holder) => ({ key: holder.key, ...batchCountsFor(holder) })),
+          holders: chosen.map((holder) => ({
+            key: holder.key,
+            name: holder.name,
+            ...batchCountsFor(holder),
+          })),
           note,
         });
         if (!result.success) {

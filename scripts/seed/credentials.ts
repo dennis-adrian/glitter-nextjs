@@ -23,9 +23,11 @@ import {
 /**
  * Development fixtures for the Credenciales page (docs/PLAN-credenciales.md
  * §12): without them three of its six groups are empty locally. Added to the
- * most recent festival (latest start date, undated ones last), idempotent: every row is found by a fixed name,
- * email or stand number before it is created, so re-running adds only what
- * is missing.
+ * most recent festival (latest start date, undated ones last), idempotent:
+ * every row is found by a fixed name, email or stand number before it is
+ * created, so re-running adds only what is missing. Each reservation and the
+ * batch are written in a transaction, so a failed run leaves nothing half
+ * made for the next one to skip.
  *
  * Called by `scripts/seed.ts`, behind the same development-only gate.
  */
@@ -185,22 +187,26 @@ export async function seedCredentials(
           .values({ displayName: EXTERNAL_NAME, type: "social_organization" })
           .returning({ id: externalParticipants.id })
       )[0]!.id;
-    const [reservation] = await database
-      .insert(standReservations)
-      .values({
-        festivalId: festival.id,
-        standId: externalStand,
-        status: "accepted",
-        source: "admin_assignment",
-        ownerUserId: null,
-      })
-      .returning({ id: standReservations.id });
-    await database
-      .insert(standReservationStands)
-      .values({ reservationId: reservation!.id, standId: externalStand, position: 0 });
-    await database
-      .insert(reservationExternalParticipants)
-      .values({ reservationId: reservation!.id, externalParticipantId: externalId });
+    // All or nothing: a stand membership left without its participant would
+    // read as taken on the next run and never be repaired.
+    await database.transaction(async (tx) => {
+      const [reservation] = await tx
+        .insert(standReservations)
+        .values({
+          festivalId: festival.id,
+          standId: externalStand,
+          status: "accepted",
+          source: "admin_assignment",
+          ownerUserId: null,
+        })
+        .returning({ id: standReservations.id });
+      await tx
+        .insert(standReservationStands)
+        .values({ reservationId: reservation!.id, standId: externalStand, position: 0 });
+      await tx
+        .insert(reservationExternalParticipants)
+        .values({ reservationId: reservation!.id, externalParticipantId: externalId });
+    });
     createdExternal = true;
   }
 
@@ -212,32 +218,34 @@ export async function seedCredentials(
     .where(eq(users.email, FULL_TABLE_EMAIL))
     .limit(1);
   if (participant) {
-    const standIds = [];
+    const standIds: number[] = [];
     for (const number of FULL_TABLE_STANDS) {
       standIds.push(await ensureStand(database, festival.id, number));
     }
     if (!(await standsTaken(database, standIds))) {
-      const [reservation] = await database
-        .insert(standReservations)
-        .values({
-          festivalId: festival.id,
-          standId: standIds[0]!,
-          status: "accepted",
-          source: "admin_assignment",
-          ownerUserId: participant.id,
-        })
-        .returning({ id: standReservations.id });
-      await database.insert(standReservationStands).values(
-        standIds.map((standId, position) => ({
-          reservationId: reservation!.id,
-          standId,
-          position,
-        })),
-      );
-      await database
-        .insert(reservationParticipants)
-        .values({ reservationId: reservation!.id, userId: participant.id })
-        .onConflictDoNothing();
+      await database.transaction(async (tx) => {
+        const [reservation] = await tx
+          .insert(standReservations)
+          .values({
+            festivalId: festival.id,
+            standId: standIds[0]!,
+            status: "accepted",
+            source: "admin_assignment",
+            ownerUserId: participant.id,
+          })
+          .returning({ id: standReservations.id });
+        await tx.insert(standReservationStands).values(
+          standIds.map((standId, position) => ({
+            reservationId: reservation!.id,
+            standId,
+            position,
+          })),
+        );
+        await tx
+          .insert(reservationParticipants)
+          .values({ reservationId: reservation!.id, userId: participant.id })
+          .onConflictDoNothing();
+      });
       createdFullTable = true;
     }
   }
@@ -344,22 +352,25 @@ export async function seedCredentials(
       },
     ].filter((item): item is NonNullable<typeof item> => Boolean(item));
     if (items.length > 0) {
-      const [batch] = await database
-        .insert(credentialPrintBatches)
-        .values({
-          festivalId: festival.id,
-          note: "Lote de ejemplo",
-          rules: DEFAULT_CREDENTIAL_RULES,
-        })
-        .returning({ id: credentialPrintBatches.id });
-      await database.insert(credentialPrintBatchItems).values(
-        items.map((item) => ({
-          ...item,
-          batchId: batch!.id,
-          festivalId: festival.id,
-          unnamedCount: 0,
-        })),
-      );
+      // One transaction: a batch without items would stop a rerun from retrying.
+      await database.transaction(async (tx) => {
+        const [batch] = await tx
+          .insert(credentialPrintBatches)
+          .values({
+            festivalId: festival.id,
+            note: "Lote de ejemplo",
+            rules: DEFAULT_CREDENTIAL_RULES,
+          })
+          .returning({ id: credentialPrintBatches.id });
+        await tx.insert(credentialPrintBatchItems).values(
+          items.map((item) => ({
+            ...item,
+            batchId: batch!.id,
+            festivalId: festival.id,
+            unnamedCount: 0,
+          })),
+        );
+      });
       createdBatch = true;
     }
   }
