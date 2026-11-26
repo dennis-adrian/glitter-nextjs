@@ -398,6 +398,11 @@ export default function AppSidebar({
               width={1696}
               height={739}
               sizes="112px"
+              // The desktop wordmark, often the page's largest paint. It also
+              // shares the navbar logo's URL, and Next.js's dev LCP check keys
+              // by URL, so a lazy copy here would flag the navbar logo too.
+              loading="eager"
+              fetchPriority="high"
               className="h-auto w-[112px] object-contain"
             />
           </Link>

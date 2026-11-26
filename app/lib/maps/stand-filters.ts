@@ -12,6 +12,7 @@ export const STAND_ACTIVITY_FILTERS = [
   "coupon_book",
   "stamp_passport",
   "sticker_hunt",
+  "stamp_card",
   "festival_sticker",
 ] as const;
 
@@ -29,6 +30,7 @@ export function emptyStandActivityUserIds(): StandActivityUserIds {
     coupon_book: new Set<number>(),
     stamp_passport: new Set<number>(),
     sticker_hunt: new Set<number>(),
+    stamp_card: new Set<number>(),
     festival_sticker: new Set<number>(),
   };
 }
