@@ -38,6 +38,8 @@ import {
   fetchActivityParticipationOwnerId,
   fetchParticipationPreviewDataBatch,
   type ParticipationPreviewData,
+  countVariantSeats,
+  lockVariant,
   wasRemovedFromActivity,
 } from "@/app/lib/festival_activites/queries";
 import {
@@ -209,6 +211,9 @@ export const addFestivalActivityVote = async (
       }
 
       if (participantId !== null) {
+        // Shared-locked until the vote commits, as is the stand holder below:
+        // a move waits for the vote and then sees it, and a vote that waited
+        // for a move re-reads the row in its new variant and is refused.
         const [participant] = await tx
           .select({ userId: festivalActivityParticipants.userId })
           .from(festivalActivityParticipants)
@@ -220,7 +225,8 @@ export const addFestivalActivityVote = async (
               hasUploadedDesign(),
             ),
           )
-          .limit(1);
+          .limit(1)
+          .for("share");
 
         if (!participant) {
           throw new VoteRejectedError("El participante no existe");
@@ -270,7 +276,8 @@ export const addFestivalActivityVote = async (
                     hasUploadedDesign(),
                   ),
                 )
-                .limit(1);
+                .limit(1)
+                .for("share");
 
         if (!enrolledHolder) {
           throw new VoteRejectedError("El stand no existe");
@@ -411,6 +418,10 @@ export async function enrollInActivity(
 
     if (participationLimit && participationLimit > 0) {
       const result = await db.transaction(async (tx) => {
+        // Counting under the variant lock keeps a concurrent enrolment, move
+        // or restore from taking the same last seat.
+        await lockVariant(tx, detailsId);
+
         const [existingInTx] = await tx
           .select({
             id: festivalActivityParticipants.id,
@@ -434,18 +445,25 @@ export async function enrollInActivity(
           return { success: false, message: removedParticipantMessage };
         }
 
-        const currentParticipantsCount = await tx
-          .select({ count: count() })
-          .from(festivalActivityParticipants)
-          .where(
-            and(
-              eq(festivalActivityParticipants.detailsId, detailsId),
-              isNull(festivalActivityParticipants.removedAt),
-            ),
-          );
+        const { activeCount, reservedCount } = await countVariantSeats(
+          tx,
+          detailsId,
+          { exceptUserId: activeProfile.id },
+        );
 
-        if (currentParticipantsCount[0].count >= participationLimit) {
+        if (activeCount >= participationLimit) {
           return { success: false, message: "Ya no hay cupo disponible" };
+        }
+
+        // Seats held by other profiles' unexpired invitations are theirs. The
+        // guard below misses one that a move freed: the moved row leaves the
+        // variant instead of staying behind as a removed one.
+        if (activeCount + reservedCount >= participationLimit) {
+          return {
+            success: false,
+            message:
+              "Este cupo está reservado para participantes en la lista de espera",
+          };
         }
 
         // Secondary guard: for waitlist-enabled activities, freed slots (active < limit
@@ -1312,6 +1330,10 @@ export async function enrollFromWaitlistInvitation(
     }
 
     await db.transaction(async (tx) => {
+      // Counting under the variant lock keeps a concurrent enrolment, move or
+      // restore from taking the reserved seat.
+      await lockVariant(tx, entry.notifiedForDetailId!);
+
       const ensureCapacityAvailable = async () => {
         if (!detail.participationLimit) return;
         const now = new Date();

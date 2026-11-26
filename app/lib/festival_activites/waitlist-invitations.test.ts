@@ -8,10 +8,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * is still recorded as sent.
  */
 
-const { dbMock, currentProfile, wasRemovedFromActivity } = vi.hoisted(() => ({
+const {
+  dbMock,
+  currentProfile,
+  wasRemovedFromActivity,
+  lockVariant,
+  countVariantSeats,
+} = vi.hoisted(() => ({
   dbMock: { transaction: vi.fn(), select: vi.fn(), update: vi.fn() },
   currentProfile: vi.fn(),
   wasRemovedFromActivity: vi.fn(),
+  lockVariant: vi.fn(),
+  countVariantSeats: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -27,6 +35,8 @@ vi.mock("@/app/lib/users/helpers", () => ({
 vi.mock("@/app/lib/users/queries", () => ({ fetchAdminUsers: vi.fn() }));
 vi.mock("@/app/lib/festival_activites/queries", () => ({
   wasRemovedFromActivity,
+  lockVariant,
+  countVariantSeats,
 }));
 vi.mock("@/app/lib/festivals/actions", () => ({ fetchBaseFestival: vi.fn() }));
 vi.mock("@/app/lib/uploadthing/storage", () => ({
@@ -94,11 +104,13 @@ describe("notifyWaitlistEntry", () => {
   beforeEach(() => {
     currentProfile.mockResolvedValue({ id: 1, role: "admin" });
     wasRemovedFromActivity.mockResolvedValue(false);
+    // The read before the email, then the write after it.
     dbMock.transaction.mockImplementation(async (run) =>
       run({
         query: {
           festivalActivityWaitlist: { findFirst: async () => entry },
         },
+        update: dbMock.update,
       }),
     );
     dbMock.update.mockReturnValue({
@@ -181,7 +193,7 @@ describe("promoteFromWaitlist", () => {
   it("fails the claim's transaction when Resend rejects the invitation", async () => {
     fetchMock.mockImplementation(rejected);
 
-    await promoteFromWaitlist(8, 5);
+    await expect(promoteFromWaitlist(8, 5)).resolves.toEqual({ failed: true });
 
     // A rejected transaction callback is what rolls the claim back.
     await expect(transaction).rejects.toBeInstanceOf(EmailSendError);
@@ -194,7 +206,10 @@ describe("promoteFromWaitlist", () => {
   it("commits the claim once Resend accepts the invitation", async () => {
     fetchMock.mockImplementation(accepted);
 
-    await promoteFromWaitlist(8, 5);
+    await expect(promoteFromWaitlist(8, 5)).resolves.toEqual({
+      userId: 4,
+      displayName: invitee.displayName,
+    });
 
     await expect(transaction).resolves.toEqual({
       userId: 4,

@@ -35,9 +35,9 @@ export async function processExpiredWaitlistNotifications() {
 
   for (const entry of expired) {
     try {
-      await db.transaction(async (tx) => {
+      const freedVariantId = await db.transaction(async (tx) => {
         if (!entry.expiresAt || !entry.notifiedAt) {
-          return;
+          return null;
         }
 
         const [updated] = await tx
@@ -58,13 +58,16 @@ export async function processExpiredWaitlistNotifications() {
           )
           .returning({ id: festivalActivityWaitlist.id });
 
-        if (updated && entry.notifiedForDetailId) {
-          await promoteFromWaitlist(
-            entry.activityId,
-            entry.notifiedForDetailId,
-          );
-        }
+        return updated ? entry.notifiedForDetailId : null;
       });
+
+      // After the commit: promotion locks the variant on its own connection,
+      // and waiting on it while this transaction still held the entry's row
+      // could deadlock with an acceptance that holds the variant and waits
+      // on that row.
+      if (freedVariantId) {
+        await promoteFromWaitlist(entry.activityId, freedVariantId);
+      }
 
       processed++;
     } catch (error) {

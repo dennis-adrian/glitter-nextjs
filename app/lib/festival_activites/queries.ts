@@ -7,7 +7,17 @@ import "server-only";
  * to authorize first.
  */
 
-import { and, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  sql,
+} from "drizzle-orm";
 
 import type { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 import {
@@ -19,6 +29,7 @@ import {
   festivalActivities,
   festivalActivityDetails,
   festivalActivityParticipants,
+  festivalActivityWaitlist,
   festivals,
   festivalSectors,
   reservationParticipants,
@@ -141,6 +152,68 @@ export async function fetchFestivalActivityForStaff(activityId: number) {
 }
 
 type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Locks a variant's row until `tx` ends and returns it, or undefined when it
+ * does not exist. Every writer that takes a seat in a variant (enrolment,
+ * waitlist invitation or acceptance, restore, move) locks it before counting,
+ * so two of them cannot both count the same last seat.
+ *
+ * Lock order, to stay free of deadlocks: the participant row a writer moves
+ * or restores first, then the variant, then waitlist rows. A transaction
+ * never locks two variants.
+ */
+export async function lockVariant(tx: Tx, detailId: number) {
+  const [variant] = await tx
+    .select({
+      id: festivalActivityDetails.id,
+      activityId: festivalActivityDetails.activityId,
+      participationLimit: festivalActivityDetails.participationLimit,
+      category: festivalActivityDetails.category,
+    })
+    .from(festivalActivityDetails)
+    .where(eq(festivalActivityDetails.id, detailId))
+    .for("update");
+  return variant;
+}
+
+/**
+ * Seats taken in a variant: active participants, and unexpired waitlist
+ * invitations holding a seat there. `exceptUserId` leaves out that profile's
+ * own invitation, `exceptEntryId` one waitlist entry.
+ */
+export async function countVariantSeats(
+  executor: DbOrTx,
+  detailId: number,
+  options: { exceptUserId?: number; exceptEntryId?: number } = {},
+): Promise<{ activeCount: number; reservedCount: number }> {
+  const [{ activeCount }] = await executor
+    .select({ activeCount: count() })
+    .from(festivalActivityParticipants)
+    .where(
+      and(
+        eq(festivalActivityParticipants.detailsId, detailId),
+        isNull(festivalActivityParticipants.removedAt),
+      ),
+    );
+  const [{ reservedCount }] = await executor
+    .select({ reservedCount: count() })
+    .from(festivalActivityWaitlist)
+    .where(
+      and(
+        eq(festivalActivityWaitlist.notifiedForDetailId, detailId),
+        gt(festivalActivityWaitlist.expiresAt, new Date()),
+        options.exceptUserId !== undefined
+          ? ne(festivalActivityWaitlist.userId, options.exceptUserId)
+          : undefined,
+        options.exceptEntryId !== undefined
+          ? ne(festivalActivityWaitlist.id, options.exceptEntryId)
+          : undefined,
+      ),
+    );
+  return { activeCount, reservedCount };
+}
 
 /**
  * Whether staff removed the profile from any variant of the activity. A

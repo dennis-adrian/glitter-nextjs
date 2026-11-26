@@ -22,11 +22,24 @@ import {
   users,
 } from "@/db/schema";
 
-/** Who was invited to the freed slot, or null when nobody was. */
+/** Who was invited to the freed slot, or null when nobody was due one. */
 export type WaitlistPromotion = {
   userId: number;
   displayName: string | null;
 } | null;
+
+/**
+ * The invitation could not be made (the email provider or the database
+ * failed). The claim is rolled back, so the person keeps their place and
+ * staff can retry.
+ */
+export type WaitlistPromotionFailure = { failed: true };
+
+export function isPromotionFailure(
+  promotion: WaitlistPromotion | WaitlistPromotionFailure,
+): promotion is WaitlistPromotionFailure {
+  return promotion !== null && "failed" in promotion;
+}
 
 /**
  * Invites the next eligible waiting profile to a slot in `freedVariantId`,
@@ -37,7 +50,7 @@ export type WaitlistPromotion = {
 export async function promoteFromWaitlist(
   activityId: number,
   freedVariantId: number,
-): Promise<WaitlistPromotion> {
+): Promise<WaitlistPromotion | WaitlistPromotionFailure> {
   try {
     const [variant] = await db
       .select({
@@ -194,6 +207,6 @@ export async function promoteFromWaitlist(
     });
   } catch (error) {
     console.error("Error promoting from waitlist", error);
-    return null;
+    return { failed: true };
   }
 }
