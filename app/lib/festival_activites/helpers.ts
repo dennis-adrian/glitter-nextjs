@@ -97,3 +97,21 @@ export function getProofUploadReminderMessage(
   const { uploadTarget } = getMaterialConfig(activityType);
   return `No te olvidés de subir ${uploadTarget}`;
 }
+
+/**
+ * Proof an activity type cannot run without. A stamp card puts a participant
+ * on the map only once their stamp design is approved, so without image proof
+ * no stand could ever carry its badge.
+ */
+const REQUIRED_PROOF_TYPE: Partial<
+  Record<FestivalActivity["type"], NonNullable<FestivalActivity["proofType"]>>
+> = {
+  stamp_card: "image",
+};
+
+export const REQUIRED_PROOF_TYPE_MESSAGE =
+  "La Tarjeta de Sellos necesita el diseño del sello de cada participante: elegí material de tipo «Imagen».";
+
+export function getRequiredProofType(type: FestivalActivity["type"]) {
+  return REQUIRED_PROOF_TYPE[type] ?? null;
+}
