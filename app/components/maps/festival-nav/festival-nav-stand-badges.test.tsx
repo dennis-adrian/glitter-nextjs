@@ -8,14 +8,17 @@ import { STAND_SIZE } from "@/app/components/maps/map-utils";
 afterEach(cleanup);
 
 /**
- * Badges stack right to left from the stand's top-right corner. Inset equals
- * the badge radius so the first circle's right edge sits on STAND_SIZE; spacing
- * is 1.1 so four circles still fit between x=0 and STAND_SIZE; a fifth
- * tightens the spacing so the stack stays inside the stand.
+ * A lone badge is a large circle (radius 1.3) whose right edge sits on
+ * STAND_SIZE. Several badges shrink to radius 1 and fill a grid from the
+ * top-right corner, three per row, each circle beside the last instead of
+ * over its glyph.
  */
-const FIRST_SLOT = 4.7;
-const SECOND_SLOT = 3.6;
-const THIRD_SLOT = 2.5;
+const LONE_SLOT = 4.7;
+const FIRST_SLOT = 5;
+const SECOND_SLOT = 3;
+const THIRD_SLOT = 1;
+const FIRST_ROW = 0.8;
+const SECOND_ROW = 2.8;
 
 function stand(
   id: number,
@@ -69,6 +72,7 @@ function renderBadges(
     glyph: node.textContent,
     // Rounded because the slot offsets accumulate binary float error
     x: Math.round(Number(node.getAttribute("x")) * 1000) / 1000,
+    y: Math.round(Number(node.getAttribute("y")) * 1000) / 1000,
   }));
 }
 
@@ -79,17 +83,17 @@ describe("FestivalNavStandBadges", () => {
 
   it("puts a lone badge in the first slot whichever activity it is", () => {
     expect(renderBadges([stand(1, [7])], { coupon: [7] })).toEqual([
-      { glyph: "%", x: FIRST_SLOT },
+      { glyph: "%", x: LONE_SLOT, y: FIRST_ROW },
     ]);
     expect(renderBadges([stand(1, [7])], { passport: [7] })).toEqual([
-      { glyph: "★", x: FIRST_SLOT },
+      { glyph: "★", x: LONE_SLOT, y: FIRST_ROW },
     ]);
     expect(renderBadges([stand(1, [7])], { stickerHunt: [7] })).toEqual([
-      { glyph: "♦", x: FIRST_SLOT },
+      { glyph: "♦", x: LONE_SLOT, y: FIRST_ROW },
     ]);
   });
 
-  it("stacks all three activities without overlapping", () => {
+  it("lines up three activities in one row", () => {
     expect(
       renderBadges([stand(1, [7])], {
         coupon: [7],
@@ -97,13 +101,31 @@ describe("FestivalNavStandBadges", () => {
         stickerHunt: [7],
       }),
     ).toEqual([
-      { glyph: "%", x: FIRST_SLOT },
-      { glyph: "★", x: SECOND_SLOT },
-      { glyph: "♦", x: THIRD_SLOT },
+      { glyph: "%", x: FIRST_SLOT, y: FIRST_ROW },
+      { glyph: "★", x: SECOND_SLOT, y: FIRST_ROW },
+      { glyph: "♦", x: THIRD_SLOT, y: FIRST_ROW },
     ]);
   });
 
-  it("keeps every activity badge within the stand", () => {
+  it("wraps a fourth and fifth activity onto a second row", () => {
+    expect(
+      renderBadges([stand(1, [7])], {
+        coupon: [7],
+        passport: [7],
+        stickerHunt: [7],
+        stampCard: [7],
+        festivalSticker: [7],
+      }),
+    ).toEqual([
+      { glyph: "%", x: FIRST_SLOT, y: FIRST_ROW },
+      { glyph: "★", x: SECOND_SLOT, y: FIRST_ROW },
+      { glyph: "♦", x: THIRD_SLOT, y: FIRST_ROW },
+      { glyph: "▲", x: FIRST_SLOT, y: SECOND_ROW },
+      { glyph: "✦", x: SECOND_SLOT, y: SECOND_ROW },
+    ]);
+  });
+
+  it("keeps every activity badge within the stand without overlapping", () => {
     const { container } = render(
       <svg>
         <FestivalNavStandBadges
@@ -127,11 +149,21 @@ describe("FestivalNavStandBadges", () => {
 
     const circles = Array.from(container.querySelectorAll("circle"));
     expect(circles).toHaveLength(5);
-    for (const circle of circles) {
-      const cx = Number(circle.getAttribute("cx"));
-      const radius = Number(circle.getAttribute("r"));
-      expect(cx - radius).toBeGreaterThanOrEqual(0);
-      expect(cx + radius).toBeLessThanOrEqual(STAND_SIZE);
+    const discs = circles.map((circle) => ({
+      cx: Number(circle.getAttribute("cx")),
+      cy: Number(circle.getAttribute("cy")),
+      r: Number(circle.getAttribute("r")),
+    }));
+    for (const { cx, r } of discs) {
+      expect(cx - r).toBeGreaterThanOrEqual(0);
+      expect(cx + r).toBeLessThanOrEqual(STAND_SIZE);
+    }
+    // No circle reaches into another's centre, where its glyph is drawn.
+    for (const [i, a] of discs.entries()) {
+      for (const b of discs.slice(i + 1)) {
+        const distance = Math.hypot(a.cx - b.cx, a.cy - b.cy);
+        expect(distance).toBeGreaterThanOrEqual(a.r + b.r - 1e-9);
+      }
     }
   });
 
@@ -139,8 +171,8 @@ describe("FestivalNavStandBadges", () => {
     expect(
       renderBadges([stand(1, [7])], { coupon: [7], stickerHunt: [7] }),
     ).toEqual([
-      { glyph: "%", x: FIRST_SLOT },
-      { glyph: "♦", x: SECOND_SLOT },
+      { glyph: "%", x: FIRST_SLOT, y: FIRST_ROW },
+      { glyph: "♦", x: SECOND_SLOT, y: FIRST_ROW },
     ]);
   });
 
@@ -148,8 +180,8 @@ describe("FestivalNavStandBadges", () => {
     expect(
       renderBadges([stand(1, [7, 8])], { coupon: [8], passport: [7] }),
     ).toEqual([
-      { glyph: "%", x: FIRST_SLOT },
-      { glyph: "★", x: SECOND_SLOT },
+      { glyph: "%", x: FIRST_SLOT, y: FIRST_ROW },
+      { glyph: "★", x: SECOND_SLOT, y: FIRST_ROW },
     ]);
   });
 
