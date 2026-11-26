@@ -14,7 +14,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/app/components/ui/dropdown-menu";
-import { moveActivityParticipant } from "@/app/lib/festival_activites/admin-actions";
+import {
+  moveActivityParticipant,
+  retryWaitlistInvitation,
+} from "@/app/lib/festival_activites/admin-actions";
 import { toastActionError } from "@/app/lib/errors/action-error";
 import type { FestivalActivityDetail } from "@/app/lib/festivals/definitions";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
@@ -24,13 +27,18 @@ export type MoveTargetVariant = {
   id: number;
   label: string;
   activeCount: number;
-  /** Unexpired waitlist invitations holding a seat in this variant. */
-  reservedCount: number;
+  /**
+   * When each waitlist invitation holding a seat in this variant lapses (ms
+   * since epoch). Counted when the menu opens, so a page left open stops
+   * blocking a variant once its invitations expire.
+   */
+  reservationExpiries: number[];
   participationLimit: number | null;
   category: FestivalActivityDetail["category"];
 };
 
 type MoveParticipantVariantMenuProps = {
+  activityId: number;
   participationId: number;
   participantName: string;
   participantCategory: string | null;
@@ -38,30 +46,36 @@ type MoveParticipantVariantMenuProps = {
   variants: MoveTargetVariant[];
 };
 
-/** Mirrors the server's checks in moveActivityParticipant. */
+/**
+ * Mirrors the server's checks in moveActivityParticipant, which treats a
+ * limit of 0 like no limit at all.
+ */
 function unavailableReason(
   variant: MoveTargetVariant,
+  reservedCount: number,
   participantCategory: string | null,
 ): string | null {
   if (variant.category && variant.category !== participantCategory) {
     return `Solo ${getCategoryLabel(variant.category)}`;
   }
   if (
-    variant.participationLimit !== null &&
-    variant.activeCount + variant.reservedCount >= variant.participationLimit
+    variant.participationLimit &&
+    variant.activeCount + reservedCount >= variant.participationLimit
   ) {
-    return variant.reservedCount > 0 ? "Sin cupos (invitaciones)" : "Sin cupos";
+    return reservedCount > 0 ? "Sin cupos (invitaciones)" : "Sin cupos";
   }
   return null;
 }
 
-function capacityLabel(variant: MoveTargetVariant): string {
-  const base =
-    variant.participationLimit !== null
-      ? `${variant.activeCount}/${variant.participationLimit}`
-      : `${variant.activeCount}`;
-  if (variant.reservedCount === 0) return base;
-  return `${base} · ${variant.reservedCount} invitado${variant.reservedCount !== 1 ? "s" : ""}`;
+function capacityLabel(
+  variant: MoveTargetVariant,
+  reservedCount: number,
+): string {
+  const base = variant.participationLimit
+    ? `${variant.activeCount}/${variant.participationLimit}`
+    : `${variant.activeCount}`;
+  if (reservedCount === 0) return base;
+  return `${base} · ${reservedCount} invitado${reservedCount !== 1 ? "s" : ""}`;
 }
 
 /**
@@ -71,8 +85,19 @@ function capacityLabel(variant: MoveTargetVariant): string {
  */
 let pendingFocus: { participationId: number; detailId: number } | null = null;
 
+/**
+ * Long enough for a slow refresh to land; after that the request is dropped,
+ * e.g. when someone else moved the participant again meanwhile and no table
+ * will ever list them where this move put them.
+ */
+const FOCUS_REQUEST_TTL_MS = 15_000;
+
 function requestFocusAfterMove(participationId: number, detailId: number) {
-  pendingFocus = { participationId, detailId };
+  const request = { participationId, detailId };
+  pendingFocus = request;
+  setTimeout(() => {
+    if (pendingFocus === request) pendingFocus = null;
+  }, FOCUS_REQUEST_TTL_MS);
 }
 
 /** True once, for the row the last move placed in `detailId`. */
@@ -87,7 +112,29 @@ function claimFocusAfterMove(participationId: number, detailId: number) {
   return true;
 }
 
+/**
+ * For the destination table, after its rows' menus had their chance: true
+ * once when the last move placed one of `participationIds` in `detailId` but
+ * no visible row claimed it (filtered, searched or paged out), so the table
+ * can take focus instead. Effects run children first, so a visible row's
+ * menu always claims before its table asks.
+ */
+export function takeUnclaimedFocusAfterMove(
+  detailId: number,
+  participationIds: number[],
+) {
+  if (
+    pendingFocus?.detailId !== detailId ||
+    !participationIds.includes(pendingFocus.participationId)
+  ) {
+    return false;
+  }
+  pendingFocus = null;
+  return true;
+}
+
 export default function MoveParticipantVariantMenu({
+  activityId,
   participationId,
   participantName,
   participantCategory,
@@ -98,6 +145,9 @@ export default function MoveParticipantVariantMenu({
   const [isMoving, setIsMoving] = useState(false);
   const movingRef = useRef(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  // Invitations are counted against the time the menu opened, not the time
+  // the page rendered.
+  const [openedAt, setOpenedAt] = useState(() => Date.now());
 
   useEffect(() => {
     const trigger = triggerRef.current;
@@ -122,9 +172,36 @@ export default function MoveParticipantVariantMenu({
   const labelOf = (detailId: number) =>
     variants.find((v) => v.id === detailId)?.label ?? "la variante";
 
-  /** `undoFrom` is set when undoing: where the move put the participant. */
-  const move = async (targetDetailId: number, undoFrom?: number) => {
-    const isUndo = undoFrom !== undefined;
+  /**
+   * Only re-sends the invitation for the seat the move freed; the participant
+   * stays where the move put them.
+   */
+  const retryInvitation = async (sourceDetailId: number) => {
+    try {
+      const result = await retryWaitlistInvitation(activityId, sourceDetailId);
+      router.refresh();
+      if (result.success) {
+        toast.success(result.message);
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toastActionError(
+        error,
+        "No se pudo enviar la invitación. Intentá nuevamente.",
+      );
+    }
+  };
+
+  /**
+   * `undoOf` is set when undoing: where the move put the participant, and
+   * what the server returned for it.
+   */
+  const move = async (
+    targetDetailId: number,
+    undoOf?: { from: number; revision: string; maxActive: number },
+  ) => {
+    const isUndo = undoOf !== undefined;
     if (movingRef.current) return;
     movingRef.current = true;
     setIsMoving(true);
@@ -135,8 +212,11 @@ export default function MoveParticipantVariantMenu({
         {
           // Refused if someone moved the participant meanwhile. An undo
           // expects them where the move put them.
-          expectedSourceDetailId: undoFrom ?? currentDetailId,
-          undo: isUndo,
+          expectedSourceDetailId: undoOf?.from ?? currentDetailId,
+          undo: undoOf && {
+            revision: undoOf.revision,
+            maxActive: undoOf.maxActive,
+          },
         },
       );
       if (result.success) {
@@ -158,13 +238,56 @@ export default function MoveParticipantVariantMenu({
         toast.success(moved, {
           description: `Se invitó a ${result.invitedName} de la lista de espera al cupo liberado.`,
         });
-      } else {
+      } else if (
+        result.revision !== undefined &&
+        result.sourceActiveCount !== undefined
+      ) {
+        const undoOf = {
+          from: targetDetailId,
+          revision: result.revision,
+          maxActive: result.sourceActiveCount,
+        };
+        const sourceDetailId = currentDetailId;
+        const toastId = `move-${participationId}-${result.revision}`;
+        let retried = false;
+        // The retry sits in the description, not as a second toast button:
+        // two buttons beside the text squeeze it to nothing on a phone.
         toast.success(moved, {
+          id: toastId,
+          description: result.invitationFailed ? (
+            <span className="flex flex-col items-start gap-1">
+              <span className="break-words">
+                No se pudo enviar la invitación a la lista de espera.
+              </span>
+              <button
+                type="button"
+                // As tall as Deshacer on a phone, so it is as easy to tap.
+                className="inline-flex min-h-10 items-center text-left font-medium underline underline-offset-2 break-words md:min-h-0"
+                onClick={() => {
+                  if (retried) return;
+                  retried = true;
+                  // An invitation would hold the freed seat, so Deshacer
+                  // goes with this toast.
+                  toast.dismiss(toastId);
+                  void retryInvitation(sourceDetailId);
+                }}
+              >
+                Reintentar invitación
+              </button>
+            </span>
+          ) : undefined,
           action: {
             label: "Deshacer",
-            onClick: () => void move(currentDetailId, targetDetailId),
+            onClick: () => void move(currentDetailId, undoOf),
           },
         });
+      } else if (result.invitationFailed) {
+        toast.success(moved, {
+          description:
+            "No se pudo enviar la invitación a la lista de espera. Invitá manualmente desde la lista de espera.",
+        });
+      } else {
+        toast.success(moved);
       }
     } catch (error) {
       toastActionError(
@@ -178,7 +301,11 @@ export default function MoveParticipantVariantMenu({
   };
 
   return (
-    <DropdownMenu>
+    <DropdownMenu
+      onOpenChange={(open) => {
+        if (open) setOpenedAt(Date.now());
+      }}
+    >
       <DropdownMenuTrigger asChild>
         {/* Not `disabled` while moving: a disabled trigger cannot take back
             focus when the menu closes. movingRef blocks a second move. */}
@@ -200,7 +327,9 @@ export default function MoveParticipantVariantMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-72 max-w-[calc(100vw-2rem)]"
+        // Every other variant is listed, so a long list scrolls inside the
+        // space Radix measured rather than running off a phone screen.
+        className="w-72 max-w-[calc(100vw-2rem)] max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-x-hidden overflow-y-auto"
         onCloseAutoFocus={(event) => {
           // Radix returns focus to the trigger once the close animation ends;
           // skip that when the admin has already focused something else.
@@ -219,7 +348,14 @@ export default function MoveParticipantVariantMenu({
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         {targets.map((variant) => {
-          const reason = unavailableReason(variant, participantCategory);
+          const reservedCount = variant.reservationExpiries.filter(
+            (expiresAt) => expiresAt > openedAt,
+          ).length;
+          const reason = unavailableReason(
+            variant,
+            reservedCount,
+            participantCategory,
+          );
           return (
             <DropdownMenuItem
               key={variant.id}
@@ -245,7 +381,7 @@ export default function MoveParticipantVariantMenu({
                     : "text-muted-foreground",
                 )}
               >
-                {reason ?? capacityLabel(variant)}
+                {reason ?? capacityLabel(variant, reservedCount)}
               </span>
             </DropdownMenuItem>
           );

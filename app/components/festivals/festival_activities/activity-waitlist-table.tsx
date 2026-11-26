@@ -1,7 +1,7 @@
 "use client";
 
 import { formatDateTime } from "@/app/lib/formatters";
-import { useRef, useState } from "react";
+import { createContext, useContext, useMemo, useRef, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { WaitlistEntryWithUser } from "@/app/lib/festivals/definitions";
 import { notifyWaitlistEntry } from "@/app/lib/festival_activites/admin-actions";
 import { toastActionError } from "@/app/lib/errors/action-error";
+import { useNow } from "@/app/hooks/use-now";
 
 const COLUMN_TITLES: Record<string, string> = {
   position: "#",
@@ -40,6 +41,7 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
 
 function getStatus(
   entry: WaitlistEntryWithUser,
+  now: Date,
 ): "waiting" | "invited" | "expired" {
   const status = entry.serverStatus ?? entry.status;
   if (status === "invited" || status === "expired" || status === "waiting") {
@@ -47,7 +49,7 @@ function getStatus(
   }
   // The query returns raw waitlist rows, so derive it from the invitation.
   if (!entry.notifiedAt) return "waiting";
-  return entry.expiresAt && new Date(entry.expiresAt) > new Date()
+  return entry.expiresAt && new Date(entry.expiresAt) > now
     ? "invited"
     : "expired";
 }
@@ -97,6 +99,43 @@ function NotifyWaitlistButton({
   );
 }
 
+/**
+ * The ticking clock reaches the cells through context, not the column
+ * definitions: new columns each tick would remount every cell, dropping focus
+ * and re-enabling a Notificar already in flight. One value is shared so the
+ * badge and the actions never disagree.
+ */
+const WaitlistNowContext = createContext<Date>(new Date(0));
+
+function WaitlistStatusCell({ entry }: { entry: WaitlistEntryWithUser }) {
+  const now = useContext(WaitlistNowContext);
+  const config = STATUS_BADGE[getStatus(entry, now)];
+  return (
+    <Badge variant="outline" className={config.className}>
+      {config.label}
+    </Badge>
+  );
+}
+
+function WaitlistActionsCell({
+  entry,
+  festivalId,
+}: {
+  entry: WaitlistEntryWithUser;
+  festivalId: number;
+}) {
+  const now = useContext(WaitlistNowContext);
+  const status = getStatus(entry, now);
+  if (status === "invited") return null;
+  return (
+    <NotifyWaitlistButton
+      entry={entry}
+      festivalId={festivalId}
+      status={status}
+    />
+  );
+}
+
 function buildColumns(festivalId: number): ColumnDef<WaitlistEntryWithUser>[] {
   return [
     {
@@ -131,15 +170,7 @@ function buildColumns(festivalId: number): ColumnDef<WaitlistEntryWithUser>[] {
     {
       id: "status",
       header: "Estado",
-      cell: ({ row }) => {
-        const status = getStatus(row.original);
-        const config = STATUS_BADGE[status];
-        return (
-          <Badge variant="outline" className={config.className}>
-            {config.label}
-          </Badge>
-        );
-      },
+      cell: ({ row }) => <WaitlistStatusCell entry={row.original} />,
     },
     {
       id: "expires",
@@ -163,17 +194,9 @@ function buildColumns(festivalId: number): ColumnDef<WaitlistEntryWithUser>[] {
     {
       id: "actions",
       header: "Acciones",
-      cell: ({ row }) => {
-        const status = getStatus(row.original);
-        if (status === "invited") return null;
-        return (
-          <NotifyWaitlistButton
-            entry={row.original}
-            festivalId={festivalId}
-            status={status}
-          />
-        );
-      },
+      cell: ({ row }) => (
+        <WaitlistActionsCell entry={row.original} festivalId={festivalId} />
+      ),
     },
   ];
 }
@@ -181,14 +204,27 @@ function buildColumns(festivalId: number): ColumnDef<WaitlistEntryWithUser>[] {
 type ActivityWaitlistTableProps = {
   entries: WaitlistEntryWithUser[];
   festivalId: number;
+  /** When the server rendered the page, so hydration sees the same statuses. */
+  renderedAt: Date;
 };
 
 export default function ActivityWaitlistTable({
   entries,
   festivalId,
+  renderedAt,
 }: ActivityWaitlistTableProps) {
-  const columns = buildColumns(festivalId);
+  // Ticks, so an invitation that lapses with the page open shows as expired
+  // and offers Re-notificar without a reload.
+  const now = useNow(renderedAt);
+  // Cells are components to React, so they must keep their identity.
+  const columns = useMemo(() => buildColumns(festivalId), [festivalId]);
   return (
-    <DataTable columns={columns} data={entries} columnTitles={COLUMN_TITLES} />
+    <WaitlistNowContext.Provider value={now}>
+      <DataTable
+        columns={columns}
+        data={entries}
+        columnTitles={COLUMN_TITLES}
+      />
+    </WaitlistNowContext.Provider>
   );
 }

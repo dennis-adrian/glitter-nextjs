@@ -18,14 +18,19 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
   // the counts leave them out, as the Mover menu and the server do.
   const activeCountOf = (detail: (typeof activity.details)[number]) =>
     detail.participants.filter((p) => p.removedAt == null).length;
+  // The waitlist table starts from this instant so hydration matches.
   const now = new Date();
-  const reservedCountOf = (detailId: number) =>
-    activity.waitlistEntries.filter(
-      (entry) =>
-        entry.notifiedForDetailId === detailId &&
-        entry.expiresAt != null &&
-        new Date(entry.expiresAt) > now,
-    ).length;
+  // Only invitations still open on the server's clock: a device clock running
+  // behind would otherwise count lapsed ones again. The Mover menu drops the
+  // rest as they lapse, by the time it opens.
+  const reservationExpiriesOf = (detailId: number) =>
+    activity.waitlistEntries.flatMap((entry) =>
+      entry.notifiedForDetailId === detailId &&
+      entry.expiresAt != null &&
+      new Date(entry.expiresAt) > now
+        ? [new Date(entry.expiresAt).getTime()]
+        : [],
+    );
   const totalParticipants = activity.details.reduce(
     (sum, d) => sum + activeCountOf(d),
     0,
@@ -39,7 +44,7 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
       id: detail.id,
       label: variantLabel(index, detail.description),
       activeCount: activeCountOf(detail),
-      reservedCount: reservedCountOf(detail.id),
+      reservationExpiries: reservationExpiriesOf(detail.id),
       participationLimit: detail.participationLimit,
       category: detail.category,
     }),
@@ -102,6 +107,9 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
                 </h3>
               )}
               <ActivityParticipantsTable
+                activityId={activity.id}
+                detailId={detail.id}
+                label={variantLabel(index, detail.description)}
                 participants={participants}
                 materialLabel={materialLabel}
                 variants={moveTargets}
@@ -120,6 +128,7 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
             <ActivityWaitlistTable
               entries={activity.waitlistEntries}
               festivalId={activity.festivalId}
+              renderedAt={now}
             />
           </div>
         )}

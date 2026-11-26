@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { formatDisplayDate } from "@/app/lib/formatters";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/app/components/ui/badge";
@@ -13,6 +14,7 @@ import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import ProofImageModal from "./proof-image-modal";
 import TextProofModal from "./text-proof-modal";
 import MoveParticipantVariantMenu, {
+  takeUnclaimedFocusAfterMove,
   type MoveTargetVariant,
 } from "./move-participant-variant-menu";
 
@@ -131,15 +133,18 @@ function proofStatusKey(proof: ParticipantProof | undefined) {
 }
 
 function ParticipantMoveMenu({
+  activityId,
   participant,
   variants,
 }: {
+  activityId: number;
   participant: ParticipantWithDetail;
   variants: MoveTargetVariant[];
 }) {
   if (participant.removedAt != null || variants.length < 2) return null;
   return (
     <MoveParticipantVariantMenu
+      activityId={activityId}
       participationId={participant.id}
       participantName={participant.user.displayName ?? "Participante"}
       participantCategory={participant.user.category ?? null}
@@ -151,6 +156,7 @@ function ParticipantMoveMenu({
 
 function buildColumns(
   materialLabel: string,
+  activityId: number,
   variants: MoveTargetVariant[],
 ): ColumnDef<ParticipantWithDetail>[] {
   const columnTitleLabel = capitalize(materialLabel);
@@ -180,7 +186,7 @@ function buildColumns(
                 alt={user.displayName ?? "Avatar"}
               />
             </Avatar>
-            <span className="font-medium text-sm min-w-36 max-w-64 break-words">
+            <span className="font-medium text-sm min-w-36 max-w-64 break-words wrap-anywhere">
               {user.displayName ?? "—"}
             </span>
           </div>
@@ -263,6 +269,7 @@ function buildColumns(
               />
             )}
             <ParticipantMoveMenu
+              activityId={activityId}
               participant={row.original}
               variants={variants}
             />
@@ -274,6 +281,11 @@ function buildColumns(
 }
 
 type ActivityParticipantsTableProps = {
+  activityId: number;
+  /** The variant these participants are in. */
+  detailId: number;
+  /** Names the table for screen readers when it takes focus after a move. */
+  label: string;
   participants: ParticipantWithDetail[];
   materialLabel: string;
   /** Every variant of the activity; with two or more, rows can be moved. */
@@ -281,21 +293,75 @@ type ActivityParticipantsTableProps = {
 };
 
 export default function ActivityParticipantsTable({
+  activityId,
+  detailId,
+  label,
   participants,
   materialLabel,
   variants = [],
 }: ActivityParticipantsTableProps) {
-  const columns = buildColumns(materialLabel, variants);
+  const columns = buildColumns(materialLabel, activityId, variants);
   const columnTitleLabel = capitalize(materialLabel);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  if (participants.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground py-2">
-        No hay participantes inscriptos aún.
-      </p>
-    );
-  }
+  useEffect(() => {
+    // A participant moved in here whose row is hidden by this table's
+    // filter, search or page: no row took focus, so the table does, rather
+    // than leaving keyboard users at the page start.
+    if (
+      !takeUnclaimedFocusAfterMove(
+        detailId,
+        participants.map((p) => p.id),
+      )
+    ) {
+      return;
+    }
+    if (!document.activeElement || document.activeElement === document.body) {
+      containerRef.current?.focus();
+    }
+  }, [detailId, participants]);
 
+  return (
+    <div
+      ref={containerRef}
+      role="group"
+      aria-label={label}
+      tabIndex={-1}
+      className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      {participants.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-2">
+          No hay participantes inscriptos aún.
+        </p>
+      ) : (
+        <ParticipantsList
+          activityId={activityId}
+          participants={participants}
+          materialLabel={materialLabel}
+          variants={variants}
+          columns={columns}
+          columnTitleLabel={columnTitleLabel}
+        />
+      )}
+    </div>
+  );
+}
+
+function ParticipantsList({
+  activityId,
+  participants,
+  materialLabel,
+  variants,
+  columns,
+  columnTitleLabel,
+}: {
+  activityId: number;
+  participants: ParticipantWithDetail[];
+  materialLabel: string;
+  variants: MoveTargetVariant[];
+  columns: ColumnDef<ParticipantWithDetail>[];
+  columnTitleLabel: string;
+}) {
   return (
     <>
       {/* Desktop: DataTable */}
@@ -391,6 +457,7 @@ export default function ActivityParticipantsTable({
                   />
                 )}
                 <ParticipantMoveMenu
+                  activityId={activityId}
                   participant={participant}
                   variants={variants}
                 />
