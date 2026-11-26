@@ -13,7 +13,7 @@ export default function PrintStateBadge({ holder }: { holder: CredentialHolder }
     );
   }
   const variant =
-    holder.print.nameChanged && holder.print.state === "printed"
+    holder.print.nameChanged && holder.print.state !== "stale"
       ? "amber"
       : PRINT_STATE_BADGE[holder.print.state];
   return <Badge variant={variant}>{printStateLabel(holder.print)}</Badge>;

@@ -12,6 +12,7 @@ import {
   emptyData,
 } from "@/app/lib/credentials/__fixtures__/data";
 import {
+  batchCountsFor,
   batchItemsFor,
   buildHolders,
   buildView,
@@ -561,7 +562,7 @@ describe("print state", () => {
       status: "verified",
     };
     const replaced = holderOf(data, "Socia nueva")!;
-    expect(replaced.print).toMatchObject({ state: "printed", nameChanged: true, needsPrint: true });
+    expect(replaced.print).toMatchObject({ state: "partial", missing: 1, nameChanged: true, needsPrint: true });
     expect(printStateLabel(replaced.print!)).toBe("Cambió el nombre");
     const items = print(data, [replaced.key]);
     expect(items).toEqual([expect.objectContaining({ printedName: "Socia nueva", isReprint: true })]);
@@ -575,7 +576,10 @@ describe("print state", () => {
     data.participants[0]!.user.displayName = "Gas Nuevo";
     data.reservations.find((entry) => entry.id === reservationId)!.stands.push(standRow(9101, 95, 1));
     const renamed = holderOf(data, "Gas Nuevo")!;
-    expect(renamed.print).toMatchObject({ state: "partial", missing: 2, nameChanged: true, needsPrint: true });
+    // All 4 are owed under the new name, as the batch will send them.
+    expect(renamed.print).toMatchObject({ state: "partial", missing: 4, nameChanged: true, needsPrint: true });
+    expect(printStateLabel(renamed.print!)).toBe("Cambió el nombre");
+    expect(batchCountsFor(renamed)).toEqual({ named: 4, unnamed: 0, reprint: true });
     // The 2 printed under the old name are replaced, and the 2 more go with them.
     expect(print(data, [renamed.key])).toEqual([
       expect.objectContaining({ printedName: "Gas Nuevo", namedCount: 4, isReprint: true }),
@@ -603,7 +607,14 @@ describe("print state", () => {
     print(data);
     data.participants[0]!.user.displayName = "Gas Nuevo";
     data.reservations.find((entry) => entry.id === reservationId)!.stands.pop();
-    expect(holderOf(data, "Gas Nuevo")!.print).toMatchObject({ state: "surplus", nameChanged: true });
+    // Not "Sobran": the old-name copies no longer count, and 2 are owed.
+    expect(holderOf(data, "Gas Nuevo")!.print).toMatchObject({
+      state: "partial",
+      missing: 2,
+      surplus: 0,
+      nameChanged: true,
+    });
+    expect(printStateLabel(holderOf(data, "Gas Nuevo")!.print!)).toBe("Cambió el nombre");
     expect(print(data, [holderOf(data, "Gas Nuevo")!.key])).toEqual([
       expect.objectContaining({ namedCount: 2, isReprint: true }),
     ]);

@@ -887,6 +887,17 @@ function unitPrint(unit: CredentialUnit, history: UnitHistory | undefined): Unit
   const nameChanged =
     unit.printedName != null &&
     (history.last.printedName ?? "") !== unit.printedName;
+  if (nameChanged && unit.named + unit.unnamed > 0) {
+    // The copies out there carry the old name: the whole entitlement is owed
+    // again, which is what the next batch sends (batchItemFor).
+    return {
+      state: "partial",
+      coveredNamed: history.coveredNamed,
+      coveredUnnamed: history.coveredUnnamed,
+      lastPrintedAt: history.lastPrintedAt,
+      nameChanged,
+    };
+  }
   return {
     state: short ? "partial" : over ? "surplus" : "printed",
     coveredNamed: history.coveredNamed,
@@ -925,11 +936,12 @@ export function applyPrintState(
       const print = unitPrint(unit, histories.get(unit.key));
       units[unit.key] = print;
       if (print.state === "partial") {
-        missing +=
-          Math.max(0, unit.named - print.coveredNamed) +
-          Math.max(0, unit.unnamed - print.coveredUnnamed);
+        missing += print.nameChanged
+          ? unit.named + unit.unnamed
+          : Math.max(0, unit.named - print.coveredNamed) +
+            Math.max(0, unit.unnamed - print.coveredUnnamed);
       }
-      if (print.state === "surplus" || print.state === "partial") {
+      if (!print.nameChanged && (print.state === "surplus" || print.state === "partial")) {
         surplus +=
           Math.max(0, print.coveredNamed - unit.named) +
           Math.max(0, print.coveredUnnamed - unit.unnamed);
