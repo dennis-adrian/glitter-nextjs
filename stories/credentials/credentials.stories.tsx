@@ -71,7 +71,6 @@ const meta = {
     data: credentialsSample(),
     initialFilters: DEFAULT_CREDENTIAL_FILTERS,
     isAdmin: true,
-    participantsSeeRules: false,
   },
 } satisfies Meta<typeof CredentialsScreen>;
 

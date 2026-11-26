@@ -27,15 +27,12 @@ export default function CredentialsScreen({
   data,
   initialFilters,
   isAdmin,
-  participantsSeeRules,
 }: {
   festivalId: number;
   tab: CredentialTab;
   data: CredentialsData;
   initialFilters: CredentialFilters;
   isAdmin: boolean;
-  /** The flag is public, so participants' pages read the festival's rules. */
-  participantsSeeRules: boolean;
 }) {
   const current = TABS.includes(tab) ? tab : "resumen";
   return (
@@ -58,7 +55,7 @@ export default function CredentialsScreen({
         {current === "nombres" && <CredentialsNamesView showPrint />}
         {current === "equipo" && <CredentialsTeamView />}
         {current === "reglas" && (
-          <CredentialsRulesForm participantsSeeRules={participantsSeeRules} />
+          <CredentialsRulesForm />
         )}
       </div>
     </CredentialsProvider>

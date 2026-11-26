@@ -19,13 +19,11 @@ import {
 } from "@/app/lib/credentials/export";
 
 const requireAdminOrFestivalAdmin = vi.hoisted(() => vi.fn());
-const isFeatureEnabled = vi.hoisted(() => vi.fn());
 const fetchCredentialsData = vi.hoisted(() => vi.fn());
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/db", () => ({ db: {} }));
 vi.mock("@/app/lib/users/helpers", () => ({ requireAdminOrFestivalAdmin }));
-vi.mock("@/app/lib/feature_flags/helpers", () => ({ isFeatureEnabled }));
 vi.mock("@/app/lib/credentials/queries", () => ({ fetchCredentialsData }));
 
 function festival() {
@@ -101,7 +99,6 @@ describe("GET /dashboard/festivals/[id]/credentials/export", () => {
 
   beforeEach(async () => {
     requireAdminOrFestivalAdmin.mockResolvedValue({ id: 1, role: "festival_admin" });
-    isFeatureEnabled.mockResolvedValue(true);
     fetchCredentialsData.mockResolvedValue(festival());
     ({ GET } = await import("@/app/(site)/dashboard/festivals/[id]/credentials/export/route"));
   });
@@ -112,11 +109,6 @@ describe("GET /dashboard/festivals/[id]/credentials/export", () => {
     const response = await call("1");
     expect(response.status).toBe(401);
     expect(await response.text()).toBe("No autorizado");
-  });
-
-  it("is not found while the flag is off", async () => {
-    isFeatureEnabled.mockResolvedValue(false);
-    expect((await call("1")).status).toBe(404);
     expect(fetchCredentialsData).not.toHaveBeenCalled();
   });
 

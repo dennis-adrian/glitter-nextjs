@@ -72,12 +72,6 @@ export const FEATURE_FLAGS = {
       "Comunicaciones en el panel: escribir, programar y enviar comunicados a participantes, las listas de distribución y «Agregar una lista» en los regalos de créditos. Solo administradores globales. Mientras esté oculta, se habilita marcando a cada administrador. Ocultarla no frena lo ya confirmado: un envío se frena cancelando su programación o retirándolo.",
     defaultVisibility: "hidden",
   },
-  festival_credentials: {
-    label: "Credenciales del festival",
-    description:
-      "La sección «Credenciales» de cada festival en el panel: cuántas credenciales producir por grupo y con qué nombres, las reglas por festival, el equipo Glitter, y los lotes enviados a imprenta. Mientras no esté pública, las páginas de términos y de pago de los participantes siguen mostrando las reglas por defecto aunque un festival tenga reglas propias.",
-    defaultVisibility: "hidden",
-  },
   reservation_created_admin_email: {
     label: "Correo a administración por reserva creada",
     description:

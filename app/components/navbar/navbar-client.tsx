@@ -49,8 +49,6 @@ type Props = {
   communicationsEnabled?: boolean;
   /** Staff's check-in, enrollments and program payments exist only then. */
   paidProgramsEnabled?: boolean;
-  /** The `festival_credentials` flag: the festival's Credenciales section. */
-  credentialsEnabled?: boolean;
   /** Shows the bell to whoever the `notifications` flag lets in. */
   notificationsEnabled: boolean;
   /** Offers avisos in the bell; null when they are not open to this viewer. */
@@ -78,7 +76,6 @@ export default function NavbarClient({
   blogEnabled,
   communicationsEnabled = false,
   paidProgramsEnabled = false,
-  credentialsEnabled = false,
   notificationsEnabled,
   pushPublicKey = null,
   viewer: serverViewer = null,
@@ -100,7 +97,6 @@ export default function NavbarClient({
     creditsEnabled,
     communicationsEnabled,
     paidProgramsEnabled,
-    credentialsEnabled,
     suppliesOpen: effectiveSuppliesOpen,
     activeFestival,
   });
@@ -163,7 +159,6 @@ export default function NavbarClient({
                   creditsEnabled={creditsEnabled}
                   communicationsEnabled={communicationsEnabled}
                   paidProgramsEnabled={paidProgramsEnabled}
-                  credentialsEnabled={credentialsEnabled}
                   suppliesOpen={effectiveSuppliesOpen}
                   activeFestival={activeFestival}
                 >

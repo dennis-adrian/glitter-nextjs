@@ -6,7 +6,6 @@ import FestivalReservationsOpenCard from "@/app/components/festivals/festival-re
 import FestivalStandsAvailableReminder from "@/app/components/festivals/festival-stands-available-reminder";
 import FestivalSectionsNav from "@/app/components/festivals/festival-sections-nav";
 import FestivalSettingsCard from "@/app/components/festivals/festival-settings-card";
-import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import {
   fetchActiveFestivalBase,
   fetchFestivalWithDates,
@@ -62,7 +61,6 @@ export default async function Page({ params }: PageProps) {
     reservationsOpenNotices,
     availableStands,
     standsReminders,
-    credentialsEnabled,
   ] = await Promise.all([
     loadFestival(id),
     fetchFestivalOverviewCounts(id),
@@ -70,7 +68,6 @@ export default async function Page({ params }: PageProps) {
     fetchReservationsOpenNotices(id),
     countAvailableStands(id),
     fetchStandsAvailableReminders(id),
-    isFeatureEnabled("festival_credentials", profile),
   ]);
 
   if (!festival) {
@@ -86,7 +83,6 @@ export default async function Page({ params }: PageProps) {
         festival={festival}
         counts={counts}
         isAdmin={profile.role === "admin"}
-        flags={{ festival_credentials: credentialsEnabled }}
       />
       {/* One column on a phone, in reading order: switches, notifications,
           facts, then the long reservation-features panel. From lg the facts

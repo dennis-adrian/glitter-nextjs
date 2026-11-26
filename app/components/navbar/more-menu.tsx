@@ -111,8 +111,6 @@ type MoreMenuProps = {
   communicationsEnabled?: boolean;
   /** Staff's check-in, enrollments and program payments exist only then. */
   paidProgramsEnabled?: boolean;
-  /** The `festival_credentials` flag: the festival's Credenciales section. */
-  credentialsEnabled?: boolean;
   suppliesOpen?: boolean;
 };
 
@@ -124,7 +122,6 @@ export default function MoreMenu({
   creditsEnabled,
   communicationsEnabled = false,
   paidProgramsEnabled = false,
-  credentialsEnabled = false,
   suppliesOpen = false,
 }: MoreMenuProps) {
   const { signOut } = useClerk();
@@ -136,7 +133,6 @@ export default function MoreMenu({
     creditsEnabled,
     communicationsEnabled,
     paidProgramsEnabled,
-    credentialsEnabled,
     suppliesOpen,
   });
 

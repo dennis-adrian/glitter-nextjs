@@ -47,7 +47,6 @@ import {
   type UpdateStaffMemberInput,
 } from "@/app/lib/credentials/schema";
 import { loggableError } from "@/app/lib/errors/loggable-error";
-import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
 import { IMPERSONATION_READ_ONLY_RESULT } from "@/app/lib/impersonation/definitions";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
@@ -65,8 +64,7 @@ import {
 
 /**
  * The credentials page's writes (docs/PLAN-credenciales.md §6.3). Admins and
- * festival admins alike, behind the `festival_credentials` flag; every write
- * is scoped by the festival in the URL. Shaped like the volunteer admin's
+ * festival admins alike; every write is scoped by the festival in the URL. Shaped like the volunteer admin's
  * actions: refusals inside a transaction throw a `Refusal`, which rolls it
  * back and becomes the returned message.
  */
@@ -101,12 +99,10 @@ function revalidateCredentials() {
   revalidatePath("/(site)/dashboard/festivals/[id]/credentials", "layout");
 }
 
-/** Auth, then the flag: both before reading any input. */
+/** Admins and festival admins, before reading any input. */
 async function authorize() {
   const profile = await requireAdminOrFestivalAdmin();
   if (!profile) return { blocked: UNAUTHORIZED } as const;
-  const blocked = await featureFlagGuard("festival_credentials", profile);
-  if (blocked) return { blocked } as const;
   return { profile } as const;
 }
 

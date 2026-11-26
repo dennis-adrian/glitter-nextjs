@@ -162,8 +162,8 @@ export function credentialRuleCopy(
 /**
  * The credential lines participants read on a stand card ("Servicios
  * incluidos"). With the default rules these are exactly the strings the card
- * hardcoded before rules existed, so nothing changes until a festival has its
- * own rules and the flag is public.
+ * hardcoded before rules existed, so nothing changes until a festival has
+ * rules of its own.
  */
 export function credentialParticipantLines(
   group: CategoryCredentialGroup,

@@ -16,7 +16,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import type { FeatureFlagKey } from "@/app/lib/feature_flags/registry";
 import type { FestivalBase } from "@/app/lib/festivals/definitions";
 
 export type FestivalSectionGroup = "visitors" | "participants" | "spaces";
@@ -32,15 +31,7 @@ export type FestivalSection = {
   activeOnly?: boolean;
   /** Shown to admins only; festival admins neither see nor open it. */
   adminOnly?: boolean;
-  /**
-   * Hidden unless the caller passes this flag as enabled, so a caller that
-   * cannot resolve flags fails closed.
-   */
-  featureFlag?: FeatureFlagKey;
 };
-
-/** Feature flags resolved for the viewer, as booleans. */
-export type FestivalSectionFlags = Partial<Record<FeatureFlagKey, boolean>>;
 
 export const FESTIVAL_SECTION_GROUP_LABELS: Record<
   FestivalSectionGroup,
@@ -129,7 +120,6 @@ export const FESTIVAL_SECTIONS: readonly FestivalSection[] = [
     icon: IdCardIcon,
     group: "participants",
     path: "credentials",
-    featureFlag: "festival_credentials",
   },
   {
     key: "allowed-participants",
@@ -179,20 +169,15 @@ export function festivalSectionHref(festivalId: number, section: FestivalSection
 
 /**
  * The sections to offer for a festival in `status`. Admin-only sections need
- * `isAdmin`, and flagged sections need their flag in `flags`; leaving either
- * out hides them, so a caller that forgets fails closed.
+ * `isAdmin`; leaving it out hides them, so a caller that forgets fails closed.
  */
 export function visibleFestivalSections(
   status: FestivalBase["status"],
-  {
-    isAdmin = false,
-    flags = {},
-  }: { isAdmin?: boolean; flags?: FestivalSectionFlags } = {},
+  { isAdmin = false }: { isAdmin?: boolean } = {},
 ) {
   return FESTIVAL_SECTIONS.filter(
     (section) =>
       (!section.activeOnly || status === "active") &&
-      (!section.adminOnly || isAdmin) &&
-      (!section.featureFlag || flags[section.featureFlag] === true),
+      (!section.adminOnly || isAdmin),
   );
 }

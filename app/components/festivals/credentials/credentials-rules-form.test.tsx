@@ -32,7 +32,7 @@ function festival() {
 
 describe("CredentialsRulesForm", () => {
   it("previews the totals with the values being edited", () => {
-    renderWithCredentials(<CredentialsRulesForm participantsSeeRules={false} />, {
+    renderWithCredentials(<CredentialsRulesForm />, {
       data: festival(),
       tab: "reglas",
     });
@@ -42,12 +42,12 @@ describe("CredentialsRulesForm", () => {
     fireEvent.change(illustration!, { target: { value: "4" } });
     expect(screen.getByTestId("rules-preview-total").textContent).toBe("7");
     expect(screen.getByText("Una reserva con 2 espacios recibe 8.")).toBeTruthy();
-    expect(screen.getByText("Los participantes todavía no ven estas reglas")).toBeTruthy();
+    expect(screen.getByText("Los participantes ven estas reglas")).toBeTruthy();
   });
 
   it("saves the rules with the button and refuses an out-of-range quantity", async () => {
     saveCredentialRules.mockResolvedValue({ success: true, message: "Reglas guardadas." });
-    renderWithCredentials(<CredentialsRulesForm participantsSeeRules />, {
+    renderWithCredentials(<CredentialsRulesForm />, {
       data: festival(),
       tab: "reglas",
     });
@@ -64,14 +64,13 @@ describe("CredentialsRulesForm", () => {
       festivalId: 1,
       rules: { volunteer: { quantity: 2 }, gastronomy: { quantity: 2, namingMode: "all_named" } },
     });
-    expect(screen.getByText("Los participantes ven estas reglas")).toBeTruthy();
   });
 
   it("goes back to the defaults", async () => {
     resetCredentialRules.mockResolvedValue({ success: true, message: "Listo." });
     const data = festival();
     data.ruleRows.push({ group: "illustration", quantity: 5, namingMode: "none" });
-    renderWithCredentials(<CredentialsRulesForm participantsSeeRules={false} />, {
+    renderWithCredentials(<CredentialsRulesForm />, {
       data,
       tab: "reglas",
     });

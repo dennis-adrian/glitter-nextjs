@@ -20,24 +20,18 @@ import { ImpersonationReadOnlyError } from "@/db/write-guard";
 
 /**
  * The credentials actions against a real database, with the signed-in staff
- * member and the feature flag simulated.
+ * member simulated.
  */
 
 const currentProfile = vi.hoisted(() => ({
   value: null as null | { id: number; role: "admin" | "festival_admin" },
 }));
-const flagOn = vi.hoisted(() => ({ value: true }));
 const failNextTransaction = vi.hoisted(() => ({ value: false }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("@/app/lib/users/helpers", () => ({
   requireAdminOrFestivalAdmin: vi.fn(async () => currentProfile.value),
-}));
-vi.mock("@/app/lib/feature_flags/helpers", () => ({
-  featureFlagGuard: vi.fn(async () =>
-    flagOn.value ? null : { success: false, message: "Esta funcionalidad no está disponible" },
-  ),
 }));
 
 const dbHolder = vi.hoisted(() => ({ current: null as never }));
@@ -188,7 +182,6 @@ describeDatabase("credentials actions", () => {
   });
 
   beforeEach(async () => {
-    flagOn.value = true;
     failNextTransaction.value = false;
     currentProfile.value = { id: await createUser("Staff", "festival_admin"), role: "festival_admin" };
   });
@@ -213,18 +206,16 @@ describeDatabase("credentials actions", () => {
   });
 
   describe("gates", () => {
-    it("refuses callers who are not staff, and every call while the flag is off", async () => {
+    it("refuses callers who are not staff", async () => {
       const festivalId = await createFestival();
       currentProfile.value = null;
       expect(await actions.resetCredentialRules({ festivalId })).toEqual({
         success: false,
         message: "No tenés permiso para hacer esto.",
       });
-      currentProfile.value = { id: 1, role: "admin" };
-      flagOn.value = false;
       expect(
         await actions.saveCredentialRules({ festivalId, rules: DEFAULT_FORM }),
-      ).toEqual({ success: false, message: "Esta funcionalidad no está disponible" });
+      ).toEqual({ success: false, message: "No tenés permiso para hacer esto." });
     });
 
     it("surfaces the impersonation read-only refusal", async () => {

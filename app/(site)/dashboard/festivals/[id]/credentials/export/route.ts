@@ -10,7 +10,6 @@ import {
   serializeCredentialsCsv,
 } from "@/app/lib/credentials/export";
 import { fetchCredentialsData } from "@/app/lib/credentials/queries";
-import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 
@@ -28,10 +27,8 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const profile = await requireAdminOrFestivalAdmin();
-  if (!profile) return new Response("No autorizado", { status: 401 });
-  if (!(await isFeatureEnabled("festival_credentials", profile))) {
-    return new Response("No encontrado", { status: 404 });
+  if (!(await requireAdminOrFestivalAdmin())) {
+    return new Response("No autorizado", { status: 401 });
   }
   const parsed = ParamsSchema.safeParse(await params);
   if (!parsed.success) return new Response("No encontrado", { status: 404 });

@@ -28,20 +28,12 @@ describe("visibleFestivalSections", () => {
     expect(keys(visibleFestivalSections("published", { isAdmin: true }))).toContain("volunteers");
   });
 
-  it("hides Credenciales unless its flag is passed as enabled", () => {
-    expect(keys(visibleFestivalSections("published", { isAdmin: true }))).not.toContain("credentials");
-    expect(
-      keys(visibleFestivalSections("published", { flags: { festival_credentials: false } })),
-    ).not.toContain("credentials");
-    const visible = keys(
-      visibleFestivalSections("published", { flags: { festival_credentials: true } }),
-    );
-    expect(visible).toContain("credentials");
-    // Right after Voluntarios, in the participants group.
+  it("offers Credenciales to admins and festival admins, after Voluntarios", () => {
+    const visible = keys(visibleFestivalSections("published"));
     expect(visible.indexOf("credentials")).toBe(visible.indexOf("volunteers") + 1);
-    const credentials = visibleFestivalSections("published", {
-      flags: { festival_credentials: true },
-    }).find((section) => section.key === "credentials");
+    const credentials = visibleFestivalSections("published").find(
+      (section) => section.key === "credentials",
+    );
     expect(credentials).toMatchObject({ group: "participants" });
     expect(festivalSectionHref(9, credentials!)).toBe("/dashboard/festivals/9/credentials");
   });

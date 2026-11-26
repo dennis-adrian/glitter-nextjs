@@ -28,6 +28,7 @@ This plan moves the standalone `credentials-classifier` tool into the app. Today
 | Batch selection | Starts with everything that still needs printing **under the page's current filters** (so with "Pendientes" on, pending reservations are pre-selected). People are added or removed by searching by name; the list of names is not shown by default. Already-printed holders can be added again as a reprint. Selection is per holder, not per credential. |
 | Phone layout | Tabs scroll sideways inside their own box. The batch dialog becomes a bottom sheet, and search opens its own full-screen view. |
 | Typography | No all-caps labels anywhere in this feature. |
+| Feature flag | None. The page ships visible to `admin` and `festival_admin` as soon as it is deployed, and participant copy reads each festival's rules immediately (a festival without rules reads exactly today's strings). A `festival_credentials` flag was built first and removed before merge. |
 | Who can use it | `admin` and `festival_admin` for everything, roster management included. Deleting a print batch is `admin` only. |
 
 ---
@@ -177,7 +178,7 @@ New folder `app/lib/credentials/`, modelled on the admin side of volunteers (`ap
 | `queries.ts` | `import "server-only"`. All reads, always scoped by `festivalId`. Returns `null` when the festival does not exist. |
 | `actions.ts` | `"use server"`. All writes. |
 | `export.ts` | Pure CSV serializer and filename builder, on top of `serializeCsvRows` from `app/lib/orders/csv.ts`. |
-| `page.ts` | `import "server-only"`. `loadCredentialsPage(rawId)`: auth, id parsing, feature flag, festival lookup. |
+| `load-page.ts` | `import "server-only"`. `loadCredentialsPage(rawId)`: auth and id parsing. (Not `page.ts`: Next routes any `page.ts` under `app/`.) |
 | `participant-rules.ts` | `import "server-only"`. `fetchParticipantCredentialRules(festivalId)` for the participant-facing copy (section 9). |
 
 ### 6.1 Reads
@@ -223,15 +224,14 @@ Rules that keep this consistent:
 
 ### 6.3 Writes
 
-Every action follows the shape of `app/lib/volunteers/admin-actions.ts`, plus the feature-flag guard that volunteers does not have:
+Every action follows the shape of `app/lib/volunteers/admin-actions.ts`:
 
 1. `const profile = await requireAdminOrFestivalAdmin(); if (!profile) return UNAUTHORIZED;`
-2. `const blocked = await featureFlagGuard("festival_credentials", profile); if (blocked) return blocked;`
-3. zod `safeParse`, returning the first issue's message.
-4. `db.transaction(async (tx) => …)` that passes `tx` down. Refusals inside the transaction throw a local `Refusal` error.
-5. A local `failure()` maps `Refusal` to its message, `isImpersonationReadOnlyError` to the shared read-only result, and anything else to a logged generic message through `loggableError`.
-6. `revalidatePath("/(site)/dashboard/festivals/[id]/credentials", "layout")`.
-7. Return `CredentialsResult` = `{ success: true; message } | { success: false; message }`.
+2. zod `safeParse`, returning the first issue's message.
+3. `db.transaction(async (tx) => …)` that passes `tx` down. Refusals inside the transaction throw a local `Refusal` error.
+4. A local `failure()` maps `Refusal` to its message, `isImpersonationReadOnlyError` to the shared read-only result, and anything else to a logged generic message through `loggableError`.
+5. `revalidatePath("/(site)/dashboard/festivals/[id]/credentials", "layout")`.
+6. Return `CredentialsResult` = `{ success: true; message } | { success: false; message }`.
 
 | Action | What it does |
 | --- | --- |
@@ -266,7 +266,7 @@ Every action follows the shape of `app/lib/volunteers/admin-actions.ts`, plus th
 
 `page.tsx` is an async server component. It exports `metadata = { title: "Credenciales" }`, awaits `params` and `searchParams` (both are Promises in this Next version), calls `loadCredentialsPage`, then `fetchCredentialsData(db, festivalId)`, and renders the header, the tab links and one view. Add `loading.tsx` with a skeleton.
 
-`export/route.ts` does its own gating, like `volunteers/export/route.ts`: `requireAdminOrFestivalAdmin` (401 "No autorizado"), then `isFeatureEnabled("festival_credentials", profile)` (404 "No encontrado" when off), then zod params (404). It answers with a UTF-8 BOM, `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment` and `Cache-Control: private, no-store`. Filename `credenciales-<slug|id>-<yyyy-MM-dd>.csv` with the date in `America/La_Paz`.
+`export/route.ts` does its own gating, like `volunteers/export/route.ts`: `requireAdminOrFestivalAdmin` (401 "No autorizado"), then zod params (404). It answers with a UTF-8 BOM, `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment` and `Cache-Control: private, no-store`. Filename `credenciales-<slug|id>-<yyyy-MM-dd>.csv` with the date in `America/La_Paz`.
 
 Header (all tabs): breadcrumb through `PageBreadcrumbs`, `<h1 data-installed-title="">Credenciales</h1>` (so the installed app does not show the title twice), subtitle, and two actions — "Exportar CSV" (a link styled as an outline button) and "Marcar como enviadas a imprenta" (primary).
 
@@ -345,29 +345,20 @@ Group labels come from `definitions.ts`, not from `getCategoryLabel`: two differ
 
 ---
 
-## 9. Navigation, feature flag and participant copy
+## 9. Navigation and participant copy
 
 ### Section and title
 
-- **Section entry** in `app/components/festivals/festival-sections.ts`: key `credentials`, label "Credenciales", description "Cuántas producir y con qué nombres", an id-card icon from `lucide-react` (check the exported name at the installed version), group `participants`, path `credentials`, placed after `volunteers`.
+- **Section entry** in `app/components/festivals/festival-sections.ts`: key `credentials`, label "Credenciales", description "Cuántas producir y con qué nombres", `IdCardIcon`, group `participants`, path `credentials`, placed after `volunteers`. It shows wherever festival sections do (festival page, festivals list menu, staff sidebar) with no extra plumbing.
 - **Screen title** in `app/components/navbar/screens.ts`: `` [`${FEST}/credentials`]: { title: "Credenciales", parent: FEST } ``.
 
-### Feature flag
+### No feature flag
 
-- Key `festival_credentials` in `app/lib/feature_flags/registry.ts`, `defaultVisibility: "hidden"`. The database row is created on first read.
-- The page calls `requireFeatureEnabled`; every action calls `featureFlagGuard`; the export route checks `isFeatureEnabled` itself.
-
-### Hiding the link while the flag is off
-
-`FestivalSection` gets an optional `featureFlag` field, and `visibleFestivalSections` an option carrying which flags are on. A section with a `featureFlag` is hidden unless that flag is passed as enabled. None of the three callers can resolve a flag on its own, so the value has to be threaded to each:
-
-- **Festival page** (`app/(site)/dashboard/festivals/[id]/page.tsx`): resolve with `isFeatureEnabled` and pass it to `FestivalSectionsNav`.
-- **Festivals list menu** (`festival-actions-menu.tsx`): a client component rendered from table column definitions, so props cannot reach it. Extend the dashboard viewer context (`app/components/dashboard/dashboard-viewer-provider.tsx`, filled in `app/(site)/dashboard/layout.tsx`) with the resolved flag and read it next to `useIsDashboardAdmin`.
-- **Sidebar** (`app-navigation.ts`): a pure builder that receives flags as booleans. Add `credentialsEnabled` to `resolveNavFlags` in `nav-flags.ts` (it uses `isLayoutFeatureEnabled`) and thread it the same way `communicationsEnabled` travels today: `navbar.tsx` → `navbar-client.tsx` → `more-menu.tsx` and `organisms/mobile-sidebar.tsx`, plus the second consumer at `app/(site)/(routes)/menu/page.tsx`, down to `staffFestivalGroup`.
+The feature ships ungated. A `festival_credentials` flag (with flag-aware section visibility threaded through the festival page, the dashboard viewer context and the sidebar) was built first and removed before merge: it had no use in production. Access is `requireAdminOrFestivalAdmin` on the page, every action and the export route.
 
 ### Participant-facing copy
 
-Both hardcoded places read the festival's rules through `fetchParticipantCredentialRules(festivalId)`. That helper returns `DEFAULT_CREDENTIAL_RULES` unless the flag's visibility is `public`. While the flag is `hidden` or `admin_only`, admins can rehearse rules in production without changing what participants read on the terms and payment pages.
+Both hardcoded places read the festival's rules through `fetchParticipantCredentialRules(festivalId)`, which resolves the festival's rule rows over `DEFAULT_CREDENTIAL_RULES`. A festival without rules of its own reads exactly today's strings; saving rules on the Reglas tab changes what its participants read.
 
 - `stand-specifications-sector-card.tsx` is a client component. Fetch the rules on the server and pass a serializable object down `app/components/pages/profiles/festivals/terms.tsx` → `app/components/festivals/terms.tsx` → `stand-specifications-cards.tsx` → the card. The credential lines come from `credentialRuleCopy`, so the admin page and the participant page cannot drift. With default rules the output must equal today's strings exactly.
 - `product-details.tsx` replaces `2 * standCount` with `rule.quantity * standCount`, with the rules passed in by its two callers.
@@ -378,12 +369,12 @@ The festival terms document is one global, editor-managed text. It mentions cred
 
 ## 10. Implementation phases
 
-Each phase leaves the app working behind the flag. What each one shows is spelled out, because the mockups show the finished page.
+Each phase leaves the app working. What each one shows is spelled out, because the mockups show the finished page.
 
 ### Phase 0 — Contracts
 
 - Read the relevant guides in `node_modules/next/dist/docs/` before writing routes or actions, as `AGENTS.md` requires.
-- `definitions.ts` with types, defaults and copy; the flag; the section entry with flag-aware visibility and its plumbing; the screen title.
+- `definitions.ts` with types, defaults and copy; the section entry; the screen title.
 
 ### Phase 1 — Schema, calculator, queries
 
@@ -415,7 +406,7 @@ Each phase leaves the app working behind the flag. What each one shows is spelle
 
 - Storybook stories for the four views and the dialog (`stories/credentials/`, action mock registered in `.storybook/preview.tsx`).
 - Optional figure on the "Gestionar" card (`FestivalOverviewCounts` in `app/lib/festivals/overview.ts` + `sectionFigure`).
-- Dennis turns the flag to `admin_only`, checks a real festival, then `public`.
+- Dennis checks a real festival against the old tool after deploy.
 - Archive the `credentials-classifier` repository.
 
 ---
@@ -447,14 +438,14 @@ Each phase leaves the app working behind the flag. What each one shows is spelle
   - filters applied after print state; page and export parity through `buildView`;
   - print states: print 2, grow to 4, top up, grow to 6 → "Faltan 2"; stand released → "Sobran"; partner joins a printed solo stand; participation transferred to a new account stays printed; partner replaced → "Cambió el nombre"; reprints do not count as coverage; a printed pending reservation with the toggle off is not stale.
 - `schema.test.ts`: bounds and refusals of every input schema.
-- `export.test.ts`: header, row order, formula neutralisation, filename, and the route's 401, flag-off 404 and bad-id 404.
+- `export.test.ts`: header, row order, formula neutralisation, filename, and the route's 401 and bad-id 404.
 - Component tests: sources card (URL sync), rules form, names view (copy text repeats names per named credential), header (`data-installed-title`), batch dialog (default selection, search with accents, undo, live totals, buttons in one row).
-- Update `festival-sections.test.ts` (new key, hidden without its flag), `app-navigation.test.ts`, and `stand-specifications-sector-card.test.tsx` / `product-details.test.tsx` (rule-driven copy; default rules give today's exact strings; non-public flag gives defaults).
+- Update `festival-sections.test.ts` (new key, after Voluntarios), `app-navigation.test.ts`, and `stand-specifications-sector-card.test.tsx` / `product-details.test.tsx` (rule-driven copy; default rules give today's exact strings).
 
 **Integration (`pnpm db:test:up && pnpm migrate:test && pnpm test:integration`)**
 
 - `queries.integration.test.ts`: released stand members are ignored; a two-stand reservation counts two; excluded statuses never appear; data from another festival never leaks.
-- `actions.integration.test.ts`: rules upsert and reset; override on an external without a reservation is refused; ticking an archived staff member is refused; batch creation recomputes counts server-side, refuses unknown and zero-entitlement keys, writes deltas for partial units; two concurrent creates for the same holder leave exactly one non-reprint item; an item cannot point at a batch of another festival; unauthorized and flag-off calls are refused; impersonation read-only is surfaced.
+- `actions.integration.test.ts`: rules upsert and reset; override on an external without a reservation is refused; ticking an archived staff member is refused; batch creation recomputes counts server-side, refuses unknown and zero-entitlement keys, writes deltas for partial units; two concurrent creates for the same holder leave exactly one non-reprint item; an item cannot point at a batch of another festival; unauthorized calls are refused; impersonation read-only is surfaced.
 - Both files must be added by hand to the `test:integration` list in `package.json`, or they will not run.
 
 **Dev seed**
@@ -492,10 +483,7 @@ These were chosen during design and not explicitly confirmed. None blocks implem
 **Changed**
 
 - `db/schema.ts`
-- `app/lib/feature_flags/registry.ts`
-- `app/components/festivals/festival-sections.ts`, `festival-sections-nav.tsx`, `festival-actions-menu.tsx`
-- `app/(site)/dashboard/festivals/[id]/page.tsx`, `app/(site)/dashboard/layout.tsx`, `app/components/dashboard/dashboard-viewer-provider.tsx`
-- `app/components/navbar/app-navigation.ts`, `nav-flags.ts`, `screens.ts`, `navbar.tsx`, `navbar-client.tsx`, `more-menu.tsx`, `app/components/organisms/mobile-sidebar.tsx`, `app/(site)/(routes)/menu/page.tsx`
+- `app/components/festivals/festival-sections.ts` (and its test), `app/components/navbar/screens.ts`
 - `app/components/ui/mobile-search-screen.tsx`, `app/components/molecules/stat-tile.tsx` (if the prop route is taken)
 - `app/components/festivals/stand-specifications-sector-card.tsx`, `stand-specifications-cards.tsx`, `app/components/festivals/terms.tsx`, `app/components/pages/profiles/festivals/terms.tsx`
 - `app/components/payments/product-details.tsx` and its two callers

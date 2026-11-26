@@ -167,12 +167,7 @@ function QuantityField({
  * previews the totals with the values being edited, through the same
  * calculator as the rest of the page.
  */
-export default function CredentialsRulesForm({
-  participantsSeeRules,
-}: {
-  /** The flag is public: participants' pages read these rules. */
-  participantsSeeRules: boolean;
-}) {
+export default function CredentialsRulesForm() {
   const { festivalId, rules, data } = useCredentials();
   const router = useRouter();
   const [resetting, setResetting] = useState(false);
@@ -356,23 +351,11 @@ export default function CredentialsRulesForm({
           </Card>
           <Alert>
             <InfoIcon className="h-4 w-4" aria-hidden />
-            {participantsSeeRules ? (
-              <>
-                <AlertTitle>Los participantes ven estas reglas</AlertTitle>
-                <AlertDescription>
-                  La ficha de cada sector les dice cuántas credenciales reciben. Al guardar, ese
-                  texto se actualiza con los mismos números.
-                </AlertDescription>
-              </>
-            ) : (
-              <>
-                <AlertTitle>Los participantes todavía no ven estas reglas</AlertTitle>
-                <AlertDescription>
-                  Mientras Credenciales no esté publicada, la ficha de cada sector y el pago
-                  siguen mostrando los valores por defecto.
-                </AlertDescription>
-              </>
-            )}
+            <AlertTitle>Los participantes ven estas reglas</AlertTitle>
+            <AlertDescription>
+              La ficha de cada sector y el detalle del pago les dicen cuántas credenciales
+              reciben. Al guardar, ese texto se actualiza con los mismos números.
+            </AlertDescription>
           </Alert>
           <p className="text-xs text-muted-foreground">
             Valores por defecto: 2 credenciales por espacio en todas las categorías. En
