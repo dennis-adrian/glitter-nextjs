@@ -80,6 +80,8 @@ const DraftCouponEntrySchema = z.discriminatedUnion("type", [
     ...DraftCouponEntrySharedSchema,
     type: z.literal("participant"),
     participationId: z.number(),
+    // Optional so drafts saved before it was recorded keep loading.
+    sourceDetailId: z.number().int().positive().nullable().optional(),
   }),
 ]);
 

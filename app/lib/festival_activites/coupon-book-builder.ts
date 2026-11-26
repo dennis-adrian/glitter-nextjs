@@ -240,3 +240,43 @@ export function paginateCouponBookEntries(
   const totalPages = pages.length;
   return pages.map((page) => ({ ...page, totalPages }));
 }
+
+/**
+ * Where each active participant of the activity is right now. Serializable so
+ * the review page can hand it to the editor, and the export route builds the
+ * same list, so both sides reconcile a draft identically.
+ */
+export type CouponBookParticipantAssignment = {
+  participationId: number;
+  detailId: number;
+  detailLabel: string;
+  participantName: string;
+  /** Status of the proof that feeds the coupon, or null when there is none. */
+  couponProofStatus: "approved" | "pending_review" | null;
+};
+
+export function buildCouponBookParticipantAssignments(
+  activity: ActivityForCouponBook,
+): CouponBookParticipantAssignment[] {
+  return activity.details.flatMap((detail, detailIndex) => {
+    const detailLabel =
+      detail.description?.trim() || `Variante ${detailIndex + 1}`;
+    return detail.participants
+      .filter((participant) => participant.removedAt === null)
+      .sort((a, b) => a.id - b.id)
+      .map((participant) => {
+        const proof = getParticipantTextProof(participant);
+        return {
+          participationId: participant.id,
+          detailId: detail.id,
+          detailLabel,
+          participantName: getParticipantName(participant),
+          couponProofStatus:
+            proof?.proofStatus === "approved" ||
+            proof?.proofStatus === "pending_review"
+              ? proof.proofStatus
+              : null,
+        };
+      });
+  });
+}

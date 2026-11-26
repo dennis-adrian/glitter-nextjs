@@ -13,6 +13,12 @@ import {
   generateDraftCouponBookPdf,
 } from "@/app/lib/festival_activites/coupon-book-export";
 import { resolvePdfCanvasConfig } from "@/app/lib/festival_activites/coupon-book-print-config";
+import { buildCouponBookParticipantAssignments } from "@/app/lib/festival_activites/coupon-book-builder";
+import {
+  auditCouponBookDraft,
+  describeCouponBookAudit,
+  isCouponBookAuditBlocking,
+} from "@/app/lib/festival_activites/coupon-book-reconciliation";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 const ParamsSchema = z.object({
@@ -140,6 +146,19 @@ export async function POST(
   );
   if (!activity) {
     return new Response("Actividad no encontrada", { status: 404 });
+  }
+
+  // The draft may predate a move, removal or enrollment: refuse it rather than
+  // print a coupon in the wrong book, or none at all.
+  const audit = auditCouponBookDraft(
+    body.draft,
+    buildCouponBookParticipantAssignments(activity),
+  );
+  if (isCouponBookAuditBlocking(audit)) {
+    return Response.json(
+      { error: describeCouponBookAudit(audit), audit },
+      { status: 409 },
+    );
   }
 
   const validParticipationIds = new Set<number>();

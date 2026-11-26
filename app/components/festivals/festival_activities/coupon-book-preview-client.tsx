@@ -14,15 +14,20 @@ import {
 
 import CouponBookEditorPanel from "@/app/components/festivals/festival_activities/coupon-book-editor-panel";
 import CouponBookPrintPage from "@/app/components/festivals/festival_activities/coupon-book-print-page";
+import CouponBookReconciliationBanner from "@/app/components/festivals/festival_activities/coupon-book-reconciliation-banner";
 import {
   COUPON_BOOK_PAGE_HEIGHT_CM,
   COUPON_BOOK_PAGE_WIDTH_CM,
+  CouponBookParticipantAssignment,
   CouponBookVariant,
 } from "@/app/lib/festival_activites/coupon-book-builder";
 import {
+  auditCouponBookDraft,
+  relocateMovedCoupons,
+} from "@/app/lib/festival_activites/coupon-book-reconciliation";
+import {
   buildInitialCouponBookDraft,
   CouponBookDraft,
-  CouponBookReconciliation,
   countCouponVisibility,
   countEmptySlotsOnPage,
   draftEntryToCouponBookEntry,
@@ -31,6 +36,7 @@ import {
   getEffectiveLayoutForCoupon,
   mergeDraftWithSource,
   moveCouponBetweenPages,
+  reconcileDraftWithSource,
   reflowDraftPages,
   resetDraftToDefaults,
   restoreDraftCouponFromSource,
@@ -64,7 +70,8 @@ type CouponBookPreviewClientProps = {
   initialSavedDraft: CouponBookDraft | null;
   savedRevision: number | null;
   savedUpdatedAt: Date | null;
-  reconciliation: CouponBookReconciliation | null;
+  /** Where each active participant is now, to reconcile the loaded draft. */
+  participantAssignments: CouponBookParticipantAssignment[];
   backUrl: string;
 };
 
@@ -76,7 +83,7 @@ export default function CouponBookPreviewClient({
   initialSavedDraft,
   savedRevision,
   savedUpdatedAt,
-  reconciliation,
+  participantAssignments,
   backUrl,
 }: CouponBookPreviewClientProps) {
   const sourceDraft = useMemo(
@@ -112,6 +119,7 @@ export default function CouponBookPreviewClient({
   const [exportState, setExportState] = useState<"idle" | "loading" | "error">(
     "idle",
   );
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const pageFrameRef = useRef<HTMLDivElement | null>(null);
@@ -195,6 +203,28 @@ export default function CouponBookPreviewClient({
   );
 
   const visibility = useMemo(() => countCouponVisibility(draft), [draft]);
+
+  // Reconcile whatever draft was loaded (saved, or the local copy in this
+  // browser) against live participations, and keep doing so as it is edited,
+  // so the banner clears once the coupons are where they belong.
+  const audit = useMemo(
+    () => auditCouponBookDraft(draft, participantAssignments),
+    [draft, participantAssignments],
+  );
+  const contentChanges = useMemo(
+    () => reconcileDraftWithSource(draft, sourceDraft),
+    [draft, sourceDraft],
+  );
+  const unresolvedMoves = useMemo(
+    () =>
+      audit.moved.filter(
+        (item) =>
+          !draft.books.some(
+            (book) => book.sourceDetailId === item.currentDetailId,
+          ),
+      ),
+    [audit.moved, draft.books],
+  );
   const emptySlots = selectedPage
     ? countEmptySlotsOnPage(draft, selectedPage)
     : 0;
@@ -375,13 +405,26 @@ export default function CouponBookPreviewClient({
   const handleMergeFromSource = () => {
     const merged = mergeDraftWithSource(draft, sourceDraft, variants);
     applyDraft(merged);
+    setExportError(null);
+    setExportState("idle");
     setSelectedPageIndex(0);
+  };
+
+  const handleRelocateMovedCoupons = () => {
+    const { draft: relocated } = relocateMovedCoupons(
+      draft,
+      participantAssignments,
+    );
+    applyDraft(relocated);
+    setExportError(null);
+    setExportState("idle");
   };
 
   const exportDraft = async (
     scope: { type: "all" } | { type: "book"; bookId: string },
   ) => {
     setExportState("loading");
+    setExportError(null);
     try {
       const response = await fetch(
         `/api/festival_activities/${activityId}/couponbook/export`,
@@ -392,6 +435,15 @@ export default function CouponBookPreviewClient({
         },
       );
       if (!response.ok) {
+        if (response.status === 409) {
+          const payload = (await response.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          setExportError(
+            payload?.error ??
+              "El borrador está desactualizado. Actualizá la cuponera antes de exportar.",
+          );
+        }
         setExportState("error");
         return;
       }
@@ -496,7 +548,7 @@ export default function CouponBookPreviewClient({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+        <div className="flex min-w-0 max-w-full items-center gap-2 flex-wrap">
           <Button
             variant="outline"
             size="sm"
@@ -553,28 +605,22 @@ export default function CouponBookPreviewClient({
 
       <div className="flex items-start min-h-0">
         <div className="flex-1 min-w-0 p-4 space-y-4">
-          {reconciliation &&
-          (reconciliation.newParticipationIds.length > 0 ||
-            reconciliation.removedParticipationIds.length > 0 ||
-            reconciliation.changedParticipationIds.length > 0) ? (
-            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950 space-y-2 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
-              <p>
-                Los datos de participantes cambiaron desde la última
-                configuración guardada:{" "}
-                {reconciliation.newParticipationIds.length} nuevo(s),{" "}
-                {reconciliation.removedParticipationIds.length} removido(s),{" "}
-                {reconciliation.changedParticipationIds.length} modificado(s).
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs border-amber-400 bg-card hover:bg-amber-100 dark:border-amber-700 dark:hover:bg-amber-900/40"
-                onClick={handleMergeFromSource}
-              >
-                Actualizar participantes desde fuente
-              </Button>
-            </div>
+          {storageHydrated ? (
+            <CouponBookReconciliationBanner
+              audit={audit}
+              contentChanges={contentChanges}
+              unresolvedMoves={unresolvedMoves}
+              onRelocate={handleRelocateMovedCoupons}
+              onMergeFromSource={handleMergeFromSource}
+            />
+          ) : null}
+          {exportError ? (
+            <p
+              role="alert"
+              className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive break-words"
+            >
+              {exportError}
+            </p>
           ) : null}
           <div className="space-y-2">
             <Label htmlFor="book-select">Variante</Label>
