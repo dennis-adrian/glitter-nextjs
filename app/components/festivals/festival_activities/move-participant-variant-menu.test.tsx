@@ -123,12 +123,11 @@ describe("MoveParticipantVariantMenu", () => {
     expect(itemFor("Variante 2").textContent).not.toContain("/0");
   });
 
-  it("undoes with the move's revision and the source's count after it", async () => {
+  it("undoes with the move's revision", async () => {
     mocks.move.mockResolvedValue({
       success: true,
       message: "ok",
       revision: "2026-10-01T15:00:00.123Z",
-      sourceActiveCount: 4,
     });
     renderMenu([variant(1), variant(2)]);
 
@@ -152,7 +151,7 @@ describe("MoveParticipantVariantMenu", () => {
     await vi.waitFor(() => expect(mocks.move).toHaveBeenCalledTimes(2));
     expect(mocks.move).toHaveBeenLastCalledWith(77, 1, {
       expectedSourceDetailId: 2,
-      undo: { revision: "2026-10-01T15:00:00.123Z", maxActive: 4 },
+      undo: { revision: "2026-10-01T15:00:00.123Z" },
     });
   });
 
@@ -162,7 +161,6 @@ describe("MoveParticipantVariantMenu", () => {
       message: "ok",
       invitationFailed: true,
       revision: "2026-10-01T15:00:00.123Z",
-      sourceActiveCount: 2,
     });
     mocks.retry.mockResolvedValue({
       success: true,
@@ -210,7 +208,6 @@ describe("MoveParticipantVariantMenu", () => {
       message: "ok",
       invitationFailed: true,
       revision: "2026-10-01T15:00:00.123Z",
-      sourceActiveCount: 2,
     });
     mocks.retry.mockResolvedValue({
       success: false,

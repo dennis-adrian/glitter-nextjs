@@ -199,7 +199,7 @@ export default function MoveParticipantVariantMenu({
    */
   const move = async (
     targetDetailId: number,
-    undoOf?: { from: number; revision: string; maxActive: number },
+    undoOf?: { from: number; revision: string },
   ) => {
     const isUndo = undoOf !== undefined;
     if (movingRef.current) return;
@@ -213,10 +213,7 @@ export default function MoveParticipantVariantMenu({
           // Refused if someone moved the participant meanwhile. An undo
           // expects them where the move put them.
           expectedSourceDetailId: undoOf?.from ?? currentDetailId,
-          undo: undoOf && {
-            revision: undoOf.revision,
-            maxActive: undoOf.maxActive,
-          },
+          undo: undoOf && { revision: undoOf.revision },
         },
       );
       if (result.success) {
@@ -238,15 +235,8 @@ export default function MoveParticipantVariantMenu({
         toast.success(moved, {
           description: `Se invitó a ${result.invitedName} de la lista de espera al cupo liberado.`,
         });
-      } else if (
-        result.revision !== undefined &&
-        result.sourceActiveCount !== undefined
-      ) {
-        const undoOf = {
-          from: targetDetailId,
-          revision: result.revision,
-          maxActive: result.sourceActiveCount,
-        };
+      } else if (result.revision !== undefined) {
+        const undoOf = { from: targetDetailId, revision: result.revision };
         const sourceDetailId = currentDetailId;
         const toastId = `move-${participationId}-${result.revision}`;
         let retried = false;

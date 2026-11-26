@@ -131,4 +131,47 @@ describe("ActivityWaitlistTable", () => {
     expect(document.activeElement).toBe(button);
     expect(notifyWaitlistEntry).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps a Notificar in flight with its entry when the list changes", () => {
+    vi.mocked(notifyWaitlistEntry).mockReturnValue(new Promise(() => {}));
+    const waiting = (id: number, name: string) =>
+      ({
+        ...invited,
+        id,
+        userId: id * 10,
+        notifiedAt: null,
+        expiresAt: null,
+        notifiedForDetailId: null,
+        user: { id: id * 10, displayName: name, imageUrl: null },
+      }) as unknown as WaitlistEntryWithUser;
+    const ana = waiting(1, "Ana");
+    const bea = waiting(2, "Bea");
+    const notifyButtonOf = (name: string) =>
+      within(screen.getByText(name).closest("tr") as HTMLElement).getByRole(
+        "button",
+        { name: "Notificar" },
+      ) as HTMLButtonElement;
+    const { rerender } = render(
+      <ActivityWaitlistTable
+        entries={[ana, bea]}
+        festivalId={3}
+        renderedAt={RENDERED_AT}
+      />,
+    );
+
+    fireEvent.click(notifyButtonOf("Ana"));
+    expect(notifyButtonOf("Ana").disabled).toBe(true);
+
+    // Ana leaves the list (enrolled elsewhere) while her request is pending:
+    // Bea moves into her row's position but not into her pending state.
+    rerender(
+      <ActivityWaitlistTable
+        entries={[bea]}
+        festivalId={3}
+        renderedAt={RENDERED_AT}
+      />,
+    );
+
+    expect(notifyButtonOf("Bea").disabled).toBe(false);
+  });
 });

@@ -98,7 +98,6 @@ async function moveAnaToVariant2() {
     success: true,
     message: "ok",
     revision: "2026-10-01T15:00:00.123Z",
-    sourceActiveCount: 1,
   });
   const source = screen.getByRole("group", { name: "Variante 1" });
   fireEvent.keyDown(

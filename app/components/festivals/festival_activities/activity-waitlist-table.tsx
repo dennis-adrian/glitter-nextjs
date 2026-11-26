@@ -224,6 +224,9 @@ export default function ActivityWaitlistTable({
         columns={columns}
         data={entries}
         columnTitles={COLUMN_TITLES}
+        // Keyed by entry, so a pending Notificar stays with its entry when
+        // the list changes under it.
+        getRowId={(entry) => String(entry.id)}
       />
     </WaitlistNowContext.Provider>
   );
