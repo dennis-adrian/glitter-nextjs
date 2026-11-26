@@ -10,6 +10,7 @@ import {
   applyPrintState,
   batchCountsFor,
   buildHolders,
+  latestBatch,
   resolveRules,
 } from "@/app/lib/credentials/calculate";
 import * as schema from "@/db/schema";
@@ -477,6 +478,8 @@ describeDatabase("credentials actions", () => {
     });
   });
   describe("print batches", () => {
+    const HISTORY_CHANGED =
+      "Se registró o se deshizo otro envío a imprenta mientras tenías el lote abierto. Actualizá la página y revisalo antes de marcarlo.";
     const BATCH_CHANGED =
       "El lote cambió desde que lo abriste (cantidades o nombres). Actualizá la página y revisalo antes de marcarlo.";
     const items = (festivalId: number) =>
@@ -492,23 +495,29 @@ describeDatabase("credentials actions", () => {
         .where(eq(schema.credentialPrintBatchItems.festivalId, festivalId))
         .orderBy(schema.credentialPrintBatchItems.id);
 
-    /** What the dialog sends for these holders: their counts as the page shows them now. */
+    /**
+     * What the dialog sends for these holders, opened now: the latest batch it
+     * saw, and each holder's name and counts as the page shows them.
+     */
     const shown = async (festivalId: number, keys: string[]) => {
       const data = await queries.fetchCredentialsData(integrationDb! as never, festivalId);
       const holders = data
         ? applyPrintState(buildHolders(data, resolveRules(data.ruleRows)).holders, data.batches)
         : [];
-      return keys.map((key) => {
-        const holder = holders.find((entry) => entry.key === key && !entry.stale);
-        return {
-          key,
-          name: holder?.name ?? "",
-          ...(holder ? batchCountsFor(holder) : { named: 1, unnamed: 0, reprint: false }),
-        };
-      });
+      return {
+        lastBatchId: data ? (latestBatch(data.batches)?.id ?? null) : null,
+        holders: keys.map((key) => {
+          const holder = holders.find((entry) => entry.key === key && !entry.stale);
+          return {
+            key,
+            name: holder?.name ?? "",
+            ...(holder ? batchCountsFor(holder) : { named: 1, unnamed: 0, reprint: false }),
+          };
+        }),
+      };
     };
     const send = async (festivalId: number, keys: string[], note?: string) =>
-      actions.createCredentialPrintBatch({ festivalId, holders: await shown(festivalId, keys), note });
+      actions.createCredentialPrintBatch({ festivalId, ...(await shown(festivalId, keys)), note });
 
     it("recomputes the counts on the server and writes deltas for short units", async () => {
       const festivalId = await createFestival();
@@ -591,7 +600,8 @@ describeDatabase("credentials actions", () => {
       expect(
         await actions.createCredentialPrintBatch({
           festivalId: other,
-          holders: await shown(festivalId, [`participant:${participationIds[0]}`]),
+          lastBatchId: null,
+          holders: (await shown(festivalId, [`participant:${participationIds[0]}`])).holders,
         }),
       ).toEqual(refusal);
       expect(await items(festivalId)).toEqual([]);
@@ -602,15 +612,53 @@ describeDatabase("credentials actions", () => {
       const user = await createUser("Concurrente");
       const { participationIds } = await createReservation(festivalId, { userIds: [user] });
       const key = `participant:${participationIds[0]}`;
-      const holders = await shown(festivalId, [key]);
+      const request = await shown(festivalId, [key]);
       const results = await Promise.all([
-        actions.createCredentialPrintBatch({ festivalId, holders }),
-        actions.createCredentialPrintBatch({ festivalId, holders }),
+        actions.createCredentialPrintBatch({ festivalId, ...request }),
+        actions.createCredentialPrintBatch({ festivalId, ...request }),
       ]);
       expect(results.filter((result) => result.success)).toHaveLength(1);
-      expect(results.find((result) => !result.success)).toEqual({ success: false, message: BATCH_CHANGED });
+      expect(results.find((result) => !result.success)).toEqual({ success: false, message: HISTORY_CHANGED });
       const rows = (await items(festivalId)).filter((item) => item.unitKey === key);
       expect(rows).toEqual([expect.objectContaining({ namedCount: 1, isReprint: false })]);
+    });
+
+    it("records a reprint once when two admins reprint the same holder", async () => {
+      const festivalId = await createFestival();
+      const user = await createUser("Reimpresa");
+      const { participationIds } = await createReservation(festivalId, { userIds: [user] });
+      const key = `participant:${participationIds[0]}`;
+      expect((await send(festivalId, [key])).success).toBe(true);
+      // Both dialogs opened on the printed holder: same counts, same reprint flag.
+      const first = await shown(festivalId, [key]);
+      const second = await shown(festivalId, [key]);
+      expect(first.holders[0]!.reprint).toBe(true);
+      expect((await actions.createCredentialPrintBatch({ festivalId, ...first })).success).toBe(true);
+      expect(await actions.createCredentialPrintBatch({ festivalId, ...second })).toEqual({
+        success: false,
+        message: HISTORY_CHANGED,
+      });
+      expect((await items(festivalId)).filter((item) => item.isReprint)).toHaveLength(2);
+      // Reopened on the current history, a deliberate reprint still goes through.
+      expect((await send(festivalId, [key])).success).toBe(true);
+    });
+
+    it("refuses a batch opened before the latest one was undone", async () => {
+      const festivalId = await createFestival();
+      const user = await createUser("Deshecha");
+      const { participationIds } = await createReservation(festivalId, { userIds: [user] });
+      const key = `participant:${participationIds[0]}`;
+      expect((await send(festivalId, [key])).success).toBe(true);
+      expect((await send(festivalId, [key])).success).toBe(true);
+      const opened = await shown(festivalId, [key]);
+      currentProfile.value = { id: await createUser("Admin deshacer", "admin"), role: "admin" };
+      expect(
+        (await actions.deleteCredentialPrintBatch({ festivalId, batchId: opened.lastBatchId! })).success,
+      ).toBe(true);
+      expect(await actions.createCredentialPrintBatch({ festivalId, ...opened })).toEqual({
+        success: false,
+        message: HISTORY_CHANGED,
+      });
     });
 
     it("refuses a batch whose counts changed after the dialog showed them", async () => {
@@ -629,7 +677,7 @@ describeDatabase("credentials actions", () => {
       await integrationDb!
         .insert(standReservationStands)
         .values({ reservationId, standId: stand!.id, position: 1 });
-      expect(await actions.createCredentialPrintBatch({ festivalId, holders: before })).toEqual({
+      expect(await actions.createCredentialPrintBatch({ festivalId, ...before })).toEqual({
         success: false,
         message: BATCH_CHANGED,
       });
@@ -638,14 +686,15 @@ describeDatabase("credentials actions", () => {
       // Once printed, the same counts are a reprint, and only a reprint shown as one is recorded.
       expect((await send(festivalId, [key])).success).toBe(true);
       const again = await shown(festivalId, [key]);
-      expect(again[0]!.reprint).toBe(true);
+      expect(again.holders[0]!.reprint).toBe(true);
       expect(
         await actions.createCredentialPrintBatch({
           festivalId,
-          holders: again.map((holder) => ({ ...holder, reprint: false })),
+          ...again,
+          holders: again.holders.map((holder) => ({ ...holder, reprint: false })),
         }),
       ).toEqual({ success: false, message: BATCH_CHANGED });
-      expect((await actions.createCredentialPrintBatch({ festivalId, holders: again })).success).toBe(true);
+      expect((await actions.createCredentialPrintBatch({ festivalId, ...again })).success).toBe(true);
     });
 
     it("refuses a batch whose holder was renamed after the dialog showed it", async () => {
@@ -654,12 +703,12 @@ describeDatabase("credentials actions", () => {
       const { participationIds } = await createReservation(festivalId, { userIds: [user] });
       const key = `participant:${participationIds[0]}`;
       const before = await shown(festivalId, [key]);
-      expect(before[0]!.name).toBe("Nombre viejo");
+      expect(before.holders[0]!.name).toBe("Nombre viejo");
       await integrationDb!
         .update(users)
         .set({ displayName: "Nombre nuevo" })
         .where(eq(users.id, user));
-      expect(await actions.createCredentialPrintBatch({ festivalId, holders: before })).toEqual({
+      expect(await actions.createCredentialPrintBatch({ festivalId, ...before })).toEqual({
         success: false,
         message: BATCH_CHANGED,
       });

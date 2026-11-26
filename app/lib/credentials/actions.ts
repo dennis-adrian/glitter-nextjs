@@ -10,6 +10,7 @@ import {
   buildHolders,
   isDefaultRule,
   isPrintable,
+  latestBatch,
   resolveRules,
 } from "@/app/lib/credentials/calculate";
 import {
@@ -586,6 +587,8 @@ const NOT_A_HOLDER =
 const NOTHING_TO_PRINT = "No hay credenciales para marcar en este lote.";
 const BATCH_CHANGED =
   "El lote cambió desde que lo abriste (cantidades o nombres). Actualizá la página y revisalo antes de marcarlo.";
+const BATCH_HISTORY_CHANGED =
+  "Se registró o se deshizo otro envío a imprenta mientras tenías el lote abierto. Actualizá la página y revisalo antes de marcarlo.";
 const BATCH_NOT_FOUND = "No encontramos ese lote. Actualizá la página.";
 const NOT_LATEST_BATCH = "Solo se puede deshacer el último lote enviado a imprenta.";
 
@@ -605,12 +608,13 @@ function credentialCount(count: number) {
 }
 
 /**
- * "Marcar como enviadas a imprenta". The client names holders with the
- * name and counts it showed and exported; they are recomputed here from live data
- * under the festival's batch lock, and any difference refuses the whole
- * batch. So a stale screen or a second admin cannot record a unit twice, nor
- * record a reprint, a quantity or a name that nobody saw. Each item stores only
- * what this batch sends (§6.3).
+ * "Marcar como enviadas a imprenta". The client names holders with the name
+ * and counts it showed and exported, and the latest batch it saw. Under the
+ * festival's batch lock the history must still end at that batch, and the
+ * names and counts are recomputed from live data; any difference refuses the
+ * whole batch. So a stale screen or a second admin cannot record a unit
+ * twice, nor record a reprint, a quantity or a name that nobody saw. Each
+ * item stores only what this batch sends (§6.3).
  */
 export async function createCredentialPrintBatch(
   input: CreatePrintBatchInput,
@@ -619,7 +623,7 @@ export async function createCredentialPrintBatch(
   if (auth.blocked) return auth.blocked;
   const parsed = createPrintBatchSchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
-  const { festivalId, holders: requested, note } = parsed.data;
+  const { festivalId, lastBatchId, holders: requested, note } = parsed.data;
 
   let sent = 0;
   try {
@@ -627,6 +631,9 @@ export async function createCredentialPrintBatch(
       await lockFestivalBatches(tx, festivalId);
       const data = await fetchCredentialsData(tx, festivalId, { concurrency: 1 });
       if (!data) throw new Refusal(CREDENTIALS_COPY.festivalNotFound);
+      if ((latestBatch(data.batches)?.id ?? null) !== lastBatchId) {
+        throw new Refusal(BATCH_HISTORY_CHANGED);
+      }
       const rules = resolveRules(data.ruleRows);
       const holders = applyPrintState(buildHolders(data, rules).holders, data.batches);
       const byKey = new Map(

@@ -175,6 +175,12 @@ const batchHolder = z.object({
 
 export const createPrintBatchSchema = z.object({
   festivalId: id,
+  /**
+   * The latest batch the dialog saw, null for none: any batch recorded or
+   * undone since refuses the request, even when the counts still match, so
+   * two admins cannot both record the same reprint.
+   */
+  lastBatchId: id.nullable(),
   holders: z
     .array(batchHolder)
     .min(1, "Elegí al menos una persona.")

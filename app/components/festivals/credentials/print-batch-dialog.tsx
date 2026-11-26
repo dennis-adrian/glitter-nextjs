@@ -92,6 +92,8 @@ export default function PrintBatchDialog() {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [initial, setInitial] = useState<string[]>([]);
+  /** The print history this dialog was opened on (§6.3). */
+  const [lastBatchId, setLastBatchId] = useState<number | null>(null);
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [note, setNote] = useState("");
@@ -142,6 +144,7 @@ export default function PrintBatchDialog() {
       const start = defaultBatchSelection(view.holders);
       setInitial(start);
       setSelected(start);
+      setLastBatchId(view.print.lastBatch?.id ?? null);
       setQuery("");
       setNote("");
     }
@@ -165,6 +168,7 @@ export default function PrintBatchDialog() {
       try {
         const result = await createCredentialPrintBatch({
           festivalId,
+          lastBatchId,
           holders: chosen.map((holder) => ({
             key: holder.key,
             name: holder.name,

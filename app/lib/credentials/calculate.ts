@@ -1120,15 +1120,25 @@ function sourceCounts(
   };
 }
 
-function printOverview(
-  batches: readonly CredentialBatchRow[],
-  holders: readonly CredentialHolder[],
-): PrintOverview {
-  const last = batches.length
+/**
+ * The festival's most recent batch, as "undo" orders it. Its id is the print
+ * history's version: a batch request names the one it saw (§6.3).
+ */
+export function latestBatch<T extends Pick<CredentialBatchRow, "id" | "createdAt">>(
+  batches: readonly T[],
+): T | null {
+  return batches.length
     ? [...batches].sort(
         (a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id - a.id,
       )[0]!
     : null;
+}
+
+function printOverview(
+  batches: readonly CredentialBatchRow[],
+  holders: readonly CredentialHolder[],
+): PrintOverview {
+  const last = latestBatch(batches);
   const live = holders.filter((holder) => !holder.stale && holder.print);
   const pending = live.filter((holder) => holder.print!.needsPrint);
   const stale = holders.filter((holder) => holder.stale);

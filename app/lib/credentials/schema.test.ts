@@ -146,26 +146,34 @@ describe("print batches", () => {
     expect(
       createPrintBatchSchema.parse({
         festivalId: 1,
+        lastBatchId: null,
         holders: [holder("participant:4"), { key: "extra:9", name: "Prensa", named: 0, unnamed: "6", reprint: true }],
         note: "  ",
       }),
     ).toEqual({
       festivalId: 1,
+      lastBatchId: null,
       holders: [holder("participant:4"), { key: "extra:9", name: "Prensa", named: 0, unnamed: 6, reprint: true }],
       note: null,
     });
     expect(
-      firstMessage(createPrintBatchSchema.safeParse({ festivalId: 1, holders: [] })),
+      createPrintBatchSchema.safeParse({ festivalId: 1, lastBatchId: 7, holders: [holder("staff:1")] }).success,
+    ).toBe(true);
+    // The history version is required, so an old client cannot skip the check.
+    expect(createPrintBatchSchema.safeParse({ festivalId: 1, holders: [holder("staff:1")] }).success).toBe(false);
+    expect(
+      firstMessage(createPrintBatchSchema.safeParse({ festivalId: 1, lastBatchId: null, holders: [] })),
     ).toBe("Elegí al menos una persona.");
     expect(
       firstMessage(
-        createPrintBatchSchema.safeParse({ festivalId: 1, holders: [holder("reservation:4")] }),
+        createPrintBatchSchema.safeParse({ festivalId: 1, lastBatchId: null, holders: [holder("reservation:4")] }),
       ),
     ).toBe("Una de las personas elegidas no es válida. Actualizá la página.");
     expect(
       firstMessage(
         createPrintBatchSchema.safeParse({
           festivalId: 1,
+          lastBatchId: null,
           holders: [holder("staff:1"), { ...holder("staff:1"), named: 2 }],
         }),
       ),
@@ -173,17 +181,19 @@ describe("print batches", () => {
     expect(
       createPrintBatchSchema.safeParse({
         festivalId: 1,
+        lastBatchId: null,
         holders: [{ ...holder("staff:1"), named: -1 }],
       }).success,
     ).toBe(false);
     expect(
-      createPrintBatchSchema.safeParse({ festivalId: 1, holders: [{ key: "staff:1", named: 1, unnamed: 0 }] })
+      createPrintBatchSchema.safeParse({ festivalId: 1, lastBatchId: null, holders: [{ key: "staff:1", named: 1, unnamed: 0 }] })
         .success,
     ).toBe(false);
     expect(
       firstMessage(
         createPrintBatchSchema.safeParse({
           festivalId: 1,
+          lastBatchId: null,
           holders: [{ ...holder("staff:1"), name: "n".repeat(1001) }],
         }),
       ),
@@ -192,6 +202,7 @@ describe("print batches", () => {
       firstMessage(
         createPrintBatchSchema.safeParse({
           festivalId: 1,
+          lastBatchId: null,
           holders: [holder("staff:1")],
           note: "n".repeat(201),
         }),

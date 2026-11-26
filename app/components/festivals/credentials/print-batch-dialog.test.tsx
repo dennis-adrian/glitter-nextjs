@@ -113,7 +113,8 @@ describe("PrintBatchDialog", () => {
 
   it("keeps Cancelar and Marcar como enviadas in one row and sends the counts it shows", async () => {
     createCredentialPrintBatch.mockResolvedValue({ success: true, message: "Listo." });
-    renderWithCredentials(<PrintBatchDialog />, { data: festival().data });
+    const { data } = festival();
+    renderWithCredentials(<PrintBatchDialog />, { data });
     const dialog = open();
     const footer = within(dialog).getByTestId("batch-footer");
     expect(footer.className).toContain("grid-cols-2");
@@ -127,6 +128,9 @@ describe("PrintBatchDialog", () => {
     const input = createCredentialPrintBatch.mock.calls[0]![0];
     expect(input.festivalId).toBe(1);
     expect(input.note).toBe("Imprenta Sol");
+    // The print history it was opened on: the fixture's one batch.
+    expect(data.batches).toHaveLength(1);
+    expect(input.lastBatchId).toBe(data.batches[0]!.id);
     expect(input.holders).toHaveLength(2);
     expect(
       input.holders.every(
