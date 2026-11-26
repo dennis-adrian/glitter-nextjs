@@ -16,34 +16,14 @@ type FestivalNavStandBadgesProps = {
   dimmedStandIds?: ReadonlySet<number>;
 };
 
-/** A stand's only badge: one large circle in the top-right corner. */
-const LONE_BADGE = { radius: 1.3, fontSize: 1.4 };
-/**
- * Several badges shrink so three sit side by side across the stand without
- * touching, and wrap to a new row after that. Overlapping circles would paint
- * each badge over the previous one's glyph.
- */
-const GRID_BADGE = { radius: 1, fontSize: 1.1 };
-const GRID_COLUMNS = 3;
-const BADGE_TOP = 0.8;
-
-function badgeSlot(index: number, count: number) {
-  const { radius, fontSize } = count === 1 ? LONE_BADGE : GRID_BADGE;
-  const column = index % GRID_COLUMNS;
-  const row = Math.floor(index / GRID_COLUMNS);
-
-  return {
-    cx: STAND_SIZE - radius - column * 2 * radius,
-    cy: BADGE_TOP + row * 2 * radius,
-    radius,
-    fontSize,
-  };
-}
+const BADGE_RADIUS = 1.3;
+const BADGE_SPACING = 2;
+const BADGE_INSET = BADGE_RADIUS;
 
 /**
- * Activity markers painted on top of the stands, filling from the stand's
- * top-right corner leftwards so a stand carrying several activities keeps
- * every glyph visible.
+ * Activity markers painted on top of the stands. Badges stack right to left,
+ * each covering only the edge of the one before it so its symbol stays
+ * readable, until a longer row would run past the stand's left edge.
  */
 export default function FestivalNavStandBadges({
   stands,
@@ -58,6 +38,16 @@ export default function FestivalNavStandBadges({
         );
         if (badges.length === 0) return null;
 
+        // Tighten the stack only when the default spacing would push the last
+        // badge past the stand's left edge: from three badges on they overlap
+        // more, and with four or five only the front symbol stays clear.
+        const spacing =
+          badges.length > 1
+            ? Math.min(
+                BADGE_SPACING,
+                (STAND_SIZE - 2 * BADGE_RADIUS) / (badges.length - 1),
+              )
+            : BADGE_SPACING;
         const dimmed = dimmedStandIds?.has(stand.id) ?? false;
         const { left, top } = getStandPosition(stand);
 
@@ -76,27 +66,24 @@ export default function FestivalNavStandBadges({
           >
             {badges.map((activity, index) => {
               const marker = getActivityMarker(activity);
-              const { cx, cy, radius, fontSize } = badgeSlot(
-                index,
-                badges.length,
-              );
+              const cx = STAND_SIZE - BADGE_INSET - index * spacing;
 
               return (
                 <g key={activity}>
                   <circle
                     cx={cx}
-                    cy={cy}
-                    r={radius}
+                    cy={0.8}
+                    r={BADGE_RADIUS}
                     fill={marker.badgeFill}
                     stroke="#fff"
                     strokeWidth={0.3}
                   />
                   <text
                     x={cx}
-                    y={cy}
+                    y={0.8}
                     textAnchor="middle"
                     dominantBaseline="central"
-                    fontSize={fontSize}
+                    fontSize={1.4}
                     fontWeight={700}
                     fill="#fff"
                     style={{ userSelect: "none" }}
