@@ -127,7 +127,7 @@ Shown as a short notice on the Nombres tab; none of them blocks anything.
 
 ## 5. Data model
 
-One migration, `drizzle/0321_credentials.sql`, generated with `pnpm generate` from `db/schema.ts` (the latest today is `0320_volunteer_admin_v2`). Conventions follow `finance_festival_settings` and the volunteers tables: snake_case plural tables, `created_at` / `updated_at` with `defaultNow()`, festival FKs `ON DELETE cascade`, actor FKs `ON DELETE set null`, constraints prefixed with the table name, JSDoc on each table, a `relations()` block per table and a `many(...)` added to `festivalsRelations`.
+One migration, `drizzle/0322_credentials.sql` generated with `pnpm generate` from `db/schema.ts` (numbered after develop's `0321_add_stamp_card_activity_type`). Conventions follow `finance_festival_settings` and the volunteers tables: snake_case plural tables, `created_at` / `updated_at` with `defaultNow()`, festival FKs `ON DELETE cascade`, actor FKs `ON DELETE set null`, constraints prefixed with the table name, JSDoc on each table, a `relations()` block per table and a `many(...)` added to `festivalsRelations`.
 
 New enums:
 
@@ -387,7 +387,7 @@ Each phase leaves the app working behind the flag. What each one shows is spelle
 
 ### Phase 1 — Schema, calculator, queries
 
-- Schema and migration `0321` (all tables at once).
+- Schema and migration `0322` (all tables at once).
 - `calculate.ts` without print state: `resolveRules`, `buildHolders`, `buildView`, `summarize`, with unit tests including the parity test against the old tool.
 - `queries.ts` and its integration test.
 
@@ -482,7 +482,7 @@ These were chosen during design and not explicitly confirmed. None blocks implem
 
 **New**
 
-- `drizzle/0321_credentials.sql` and its snapshot
+- `drizzle/0322_credentials.sql` and its snapshot
 - `app/lib/credentials/` — `definitions.ts`, `calculate.ts`, `schema.ts`, `queries.ts`, `actions.ts`, `export.ts`, `page.ts`, `participant-rules.ts`, their tests, and `__mocks__/actions.ts` for Storybook
 - `app/(site)/dashboard/festivals/[id]/credentials/` — `page.tsx`, `loading.tsx`, `export/route.ts`
 - `app/components/festivals/credentials/*` (section 8)
