@@ -19,6 +19,15 @@ const SECOND_SLOT = 2.7;
 const THREE_SECOND_SLOT = 3;
 const THREE_THIRD_SLOT = 1.3;
 
+/** Short names for each activity's badge, to keep the expectations readable. */
+const GLYPH: Record<string, string> = {
+  coupon_book: "%",
+  stamp_passport: "★",
+  sticker_hunt: "♦",
+  stamp_card: "▲",
+  festival_sticker: "✦",
+};
+
 function stand(
   id: number,
   userIds: number[],
@@ -67,11 +76,17 @@ function renderBadges(
     </svg>,
   );
 
-  return Array.from(container.querySelectorAll("text")).map((node) => ({
-    glyph: node.textContent,
-    // Rounded because the slot offsets accumulate binary float error
-    x: Math.round(Number(node.getAttribute("x")) * 1000) / 1000,
-  }));
+  return Array.from(container.querySelectorAll("g[data-activity]")).map(
+    (node) => ({
+      glyph: GLYPH[node.getAttribute("data-activity") ?? ""],
+      // Rounded because the slot offsets accumulate binary float error
+      x:
+        Math.round(
+          Number(node.querySelector(":scope > circle")?.getAttribute("cx")) *
+            1000,
+        ) / 1000,
+    }),
+  );
 }
 
 describe("FestivalNavStandBadges", () => {
@@ -122,12 +137,32 @@ describe("FestivalNavStandBadges", () => {
     );
 
     expect(
-      Array.from(container.querySelectorAll("text")).map(
-        (node) => node.textContent,
+      Array.from(container.querySelectorAll("g[data-activity]")).map((node) =>
+        node.getAttribute("data-activity"),
       ),
-    ).toEqual(["%", "★", "♦", "▲", "✦"]);
+    ).toEqual([
+      "coupon_book",
+      "stamp_passport",
+      "sticker_hunt",
+      "stamp_card",
+      "festival_sticker",
+    ]);
+    // Every badge carries its activity's icon, centred in the circle.
+    for (const badge of container.querySelectorAll("g[data-activity]")) {
+      const circle = badge.querySelector(":scope > circle")!;
+      const icon = badge.querySelector(":scope > svg")!;
+      const size = Number(icon.getAttribute("width"));
+      expect(Number(icon.getAttribute("x")) + size / 2).toBeCloseTo(
+        Number(circle.getAttribute("cx")),
+      );
+      expect(Number(icon.getAttribute("y")) + size / 2).toBeCloseTo(
+        Number(circle.getAttribute("cy")),
+      );
+    }
 
-    const circles = Array.from(container.querySelectorAll("circle"));
+    const circles = Array.from(
+      container.querySelectorAll("g[data-activity] > circle"),
+    );
     expect(circles).toHaveLength(5);
     for (const circle of circles) {
       const cx = Number(circle.getAttribute("cx"));
@@ -153,12 +188,12 @@ describe("FestivalNavStandBadges", () => {
       </svg>,
     );
 
-    const [back, front] = Array.from(container.querySelectorAll("circle")).map(
-      (circle) => ({
-        cx: Number(circle.getAttribute("cx")),
-        r: Number(circle.getAttribute("r")),
-      }),
-    );
+    const [back, front] = Array.from(
+      container.querySelectorAll("g[data-activity] > circle"),
+    ).map((circle) => ({
+      cx: Number(circle.getAttribute("cx")),
+      r: Number(circle.getAttribute("r")),
+    }));
     // The front circle's right edge stays clear of the back badge's centre,
     // where its symbol is drawn, with room for half the symbol's width.
     expect(front.cx + front.r).toBeLessThan(back.cx - 0.5);
@@ -211,6 +246,8 @@ describe("FestivalNavStandBadges", () => {
       (node) => node.getAttribute("transform"),
     );
     expect(groups).toEqual(["translate(10, 20)", "translate(30, 40)"]);
-    expect(container.querySelectorAll("circle")).toHaveLength(2);
+    expect(
+      container.querySelectorAll("g[data-activity] > circle"),
+    ).toHaveLength(2);
   });
 });
