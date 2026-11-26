@@ -46,6 +46,12 @@ import {
 } from "./activity-form-schema";
 import SectorImageUpload from "@/app/components/festivals/sectors/sector-image-upload";
 import { actionErrorMessage } from "@/app/lib/errors/action-error";
+import {
+  PROOF_TYPE_LABELS,
+  getProofTypeRequirementError,
+  getProofTypeRequirementHint,
+} from "@/app/lib/festival_activites/proof-requirements";
+import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert";
 
 const CATEGORY_SELECT_OPTIONS = [
   { value: "illustration", label: "Ilustración" },
@@ -63,11 +69,9 @@ const ACTIVITY_TYPE_OPTIONS = [
   { value: "sticker_hunt", label: "Cacería de Stickers" },
 ];
 
-const PROOF_TYPE_OPTIONS = [
-  { value: "image", label: "Imagen" },
-  { value: "text", label: "Texto" },
-  { value: "both", label: "Imagen y texto" },
-];
+const PROOF_TYPE_OPTIONS = Object.entries(PROOF_TYPE_LABELS).map(
+  ([value, label]) => ({ value, label }),
+);
 
 const ACCESS_LEVEL_OPTIONS = [
   { value: "public", label: "Público" },
@@ -188,6 +192,15 @@ export default function FestivalActivityForm({
     name: ["proofType", "type", "allowsVoting", "waitlistEnabled"],
   });
   const formErrors = form.formState.errors;
+  const proofTypeHint = getProofTypeRequirementHint(activityType);
+  // An activity saved before map-badge types required material cannot be
+  // saved again until it gets one. Say so up front, rather than only after a
+  // rejected save, so fixing an unrelated field is not a dead end. The notice
+  // goes away once the material is fixed.
+  const missingRequiredProof =
+    activity != null &&
+    getProofTypeRequirementError(activity.type, activity.proofType) !== null &&
+    getProofTypeRequirementError(activityType, proofType) !== null;
 
   const onSubmit = form.handleSubmit(
     async (data) => {
@@ -287,6 +300,23 @@ export default function FestivalActivityForm({
           Los campos con * son obligatorios. Las imágenes y descripciones son
           opcionales.
         </p>
+        {missingRequiredProof && (
+          <Alert role="status">
+            <AlertTitle className="leading-snug break-words">
+              Falta el tipo de material
+            </AlertTitle>
+            <AlertDescription className="break-words">
+              Esta actividad se guardó sin el material que necesita, así que
+              nadie puede ser aprobado y el mapa no la muestra. Para guardar
+              cualquier cambio, completá el tipo de material y la fecha límite
+              en{" "}
+              <a href="#requisitos" className="underline underline-offset-2">
+                Material y votación
+              </a>
+              .
+            </AlertDescription>
+          </Alert>
+        )}
         <fieldset
           disabled={form.formState.isSubmitting}
           className="min-w-0 space-y-5"
@@ -605,6 +635,11 @@ export default function FestivalActivityForm({
                         ))}
                       </select>
                     </FormControl>
+                    {proofTypeHint && (
+                      <FormDescription className="break-words">
+                        {proofTypeHint}
+                      </FormDescription>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}

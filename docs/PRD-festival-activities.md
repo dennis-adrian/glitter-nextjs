@@ -59,6 +59,17 @@ El sistema de actividades de festival permite a los organizadores definir activi
 | `text`   | Solo texto     | Descripción/condiciones de promoción (`promoDescription`, `promoConditions`).                     |
 | `both`   | Imagen y texto | Combinación: columnas de imagen y de texto según corresponda.                                     |
 
+**`proofType` obligatorio para los tipos con distintivo en el mapa.** El mapa solo marca a un participante con prueba aprobada, así que cada tipo de `STAND_ACTIVITY_FILTERS` exige un `proofType` que su flujo pueda recibir (y, por lo tanto, `proofUploadLimitDate`):
+
+| Tipo               | `proofType` permitido | Motivo                                                                                               |
+| ------------------ | --------------------- | ---------------------------------------------------------------------------------------------------- |
+| `coupon_book`      | `text`, `both`        | La promoción es lo que se revisa, se imprime y se muestra en el mapa.                                |
+| `stamp_passport`   | `image`               | Diseño del sello. Con `text`/`both` la página muestra el modal de promoción, sin cargador de imagen. |
+| `sticker_hunt`     | `image`               | Diseño del sticker (mismo motivo).                                                                   |
+| `festival_sticker` | `image`               | Diseño del sticker; la votación muestra la imagen de la prueba.                                      |
+
+La regla vive en `app/lib/festival_activites/proof-requirements.ts` y la aplican el formulario admin y `createFestivalActivity` / `updateFestivalActivity`. La tabla está tipada por `StandActivityFilter`, así que un tipo nuevo en el mapa no compila hasta declarar su material. Una actividad guardada antes de la regla sin el material correcto no se puede volver a guardar hasta completarlo; el formulario de edición lo avisa al abrirse.
+
 **Semántica de `proofStatus` (enum `proof_status` en `festivalActivityParticipantProofs`):**
 
 | Valor               | Significado                                                                                                                                            |

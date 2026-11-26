@@ -5,9 +5,11 @@ import {
   toDatetimeLocal,
 } from "./activity-form-schema";
 
+// A type without a map badge, so material stays optional for the generic
+// rules below. The map-badge rule has its own block.
 const valid = {
-  name: "Cuponera",
-  type: "coupon_book",
+  name: "Mejor stand",
+  type: "best_stand",
   accessLevel: "public",
   registrationStartDate: "2026-09-22T09:00",
   registrationEndDate: "2026-09-24T17:00",
@@ -100,4 +102,102 @@ describe("activity form validation", () => {
       "2026-09-22T16:00:00.000Z",
     );
   });
+});
+
+describe("material required by map-badge activity types", () => {
+  const deadline = { proofUploadLimitDate: "2026-09-25T18:00" };
+
+  it.each(["stamp_passport", "sticker_hunt", "festival_sticker"])(
+    "requires an image for %s",
+    (type) => {
+      const missing = ActivityFormSchema.safeParse({ ...valid, type });
+      expect(missing.success).toBe(false);
+      if (!missing.success)
+        expect(missing.error.issues).toEqual([
+          expect.objectContaining({
+            path: ["proofType"],
+            message: expect.stringMatching(
+              /^Elegí «Imagen»: el mapa solo marca/,
+            ),
+          }),
+        ]);
+
+      for (const proofType of ["text", "both"]) {
+        const wrong = ActivityFormSchema.safeParse({
+          ...valid,
+          ...deadline,
+          type,
+          proofType,
+        });
+        expect(wrong.success).toBe(false);
+        if (!wrong.success)
+          expect(wrong.error.issues.map((issue) => issue.path)).toEqual([
+            ["proofType"],
+          ]);
+      }
+
+      expect(
+        ActivityFormSchema.safeParse({
+          ...valid,
+          ...deadline,
+          type,
+          proofType: "image",
+        }).success,
+      ).toBe(true);
+    },
+  );
+
+  it("requires promo text for a coupon book", () => {
+    const missing = ActivityFormSchema.safeParse({
+      ...valid,
+      type: "coupon_book",
+    });
+    expect(missing.success).toBe(false);
+    if (!missing.success)
+      expect(missing.error.issues[0]).toMatchObject({
+        path: ["proofType"],
+        message:
+          "Elegí «Texto» o «Imagen y texto»: el mapa solo marca a quienes tienen la promoción aprobada.",
+      });
+
+    expect(
+      ActivityFormSchema.safeParse({
+        ...valid,
+        ...deadline,
+        type: "coupon_book",
+        proofType: "image",
+      }).success,
+    ).toBe(false);
+    for (const proofType of ["text", "both"])
+      expect(
+        ActivityFormSchema.safeParse({
+          ...valid,
+          ...deadline,
+          type: "coupon_book",
+          proofType,
+        }).success,
+      ).toBe(true);
+  });
+
+  it("still requires the deadline once the right material is chosen", () => {
+    const result = ActivityFormSchema.safeParse({
+      ...valid,
+      type: "stamp_passport",
+      proofType: "image",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success)
+      expect(result.error.issues.map((issue) => issue.path)).toEqual([
+        ["proofUploadLimitDate"],
+      ]);
+  });
+
+  it.each(["best_stand", "sticker_print"])(
+    "leaves material optional for %s, which has no map badge",
+    (type) => {
+      expect(ActivityFormSchema.safeParse({ ...valid, type }).success).toBe(
+        true,
+      );
+    },
+  );
 });

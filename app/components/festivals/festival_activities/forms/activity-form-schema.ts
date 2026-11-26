@@ -1,5 +1,6 @@
 import { DateTime } from "luxon";
 import { z } from "zod";
+import { getProofTypeRequirementError } from "@/app/lib/festival_activites/proof-requirements";
 import { STORE_TIMEZONE } from "@/app/lib/formatters";
 
 export function toDatetimeLocal(date: Date | null | undefined): string {
@@ -89,6 +90,11 @@ export const ActivityFormSchema = z
         "El cierre debe ser posterior a la apertura",
       );
     }
+    const proofTypeError = getProofTypeRequirementError(
+      data.type,
+      data.proofType,
+    );
+    if (proofTypeError) issue("proofType", proofTypeError);
     if (
       data.proofType &&
       (!data.proofUploadLimitDate || !validDate(data.proofUploadLimitDate))

@@ -29,6 +29,7 @@ import {
   getMaterialConfig,
   getProofUploadExpiredMessage,
 } from "@/app/lib/festival_activites/helpers";
+import { getProofTypeRequirementError } from "@/app/lib/festival_activites/proof-requirements";
 import React from "react";
 
 export type FestivalActivityDetailInput = {
@@ -80,9 +81,18 @@ async function getAdminProfile() {
 const PROOF_LIMIT_REQUIRED_MESSAGE =
   "Si la actividad exige prueba, debes indicar la fecha límite para cargar la prueba.";
 
-function proofUploadLimitValidationMessage(
-  data: FestivalActivityInput,
-): string | null {
+/**
+ * The form is not a trust boundary: a map-badge type must carry a proof type
+ * its participant flow can collect, and any proof type needs a deadline.
+ */
+function proofValidationMessage(data: FestivalActivityInput): string | null {
+  const proofTypeError = getProofTypeRequirementError(
+    data.type,
+    data.proofType,
+  );
+  if (proofTypeError) {
+    return proofTypeError;
+  }
   if ((data.proofType ?? null) === null) {
     return null;
   }
@@ -151,9 +161,9 @@ export async function createFestivalActivity(
     };
   }
 
-  const proofLimitMsg = proofUploadLimitValidationMessage(data);
-  if (proofLimitMsg) {
-    return { success: false, message: proofLimitMsg };
+  const proofMsg = proofValidationMessage(data);
+  if (proofMsg) {
+    return { success: false, message: proofMsg };
   }
 
   const normalizedHeaderImages = normalizeCouponBookHeaderImages(data);
@@ -236,9 +246,9 @@ export async function updateFestivalActivity(
     };
   }
 
-  const proofLimitMsgUpdate = proofUploadLimitValidationMessage(data);
-  if (proofLimitMsgUpdate) {
-    return { success: false, message: proofLimitMsgUpdate };
+  const proofMsg = proofValidationMessage(data);
+  if (proofMsg) {
+    return { success: false, message: proofMsg };
   }
 
   const normalizedHeaderImages = normalizeCouponBookHeaderImages(data);

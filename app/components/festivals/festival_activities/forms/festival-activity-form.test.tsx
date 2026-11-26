@@ -93,6 +93,19 @@ function completeBasicFields() {
   });
 }
 
+// The default type is the stamp passport, which needs its stamp design.
+function chooseImageMaterial() {
+  fireEvent.change(screen.getByLabelText("Tipo de material"), {
+    target: { value: "image" },
+  });
+  fireEvent.change(screen.getByLabelText(/^Fecha límite de envío\s/), {
+    target: { value: "2026-09-26" },
+  });
+}
+
+const STAMP_MATERIAL_ERROR =
+  "Elegí «Imagen»: el mapa solo marca a quienes tienen el diseño del sello aprobado.";
+
 describe("festival activity form", () => {
   it.each([
     { hour: "2", period: "PM", utc: "2026-09-22T18:00:00Z" },
@@ -103,6 +116,7 @@ describe("festival activity form", () => {
     async ({ hour, period, utc }) => {
       render(<FestivalActivityForm festivalId={490} />);
       completeBasicFields();
+      chooseImageMaterial();
       fireEvent.change(
         screen.getByLabelText("Apertura de inscripciones: hora"),
         {
@@ -118,6 +132,8 @@ describe("festival activity form", () => {
       expect(mocks.create.mock.calls[0][1]).toMatchObject({
         name: "Nueva cuponera",
         registrationStartDate: new Date(utc),
+        proofType: "image",
+        proofUploadLimitDate: new Date("2026-09-26T13:00:00Z"),
         details: [{ participationLimit: undefined }],
       });
       expect(mocks.push).toHaveBeenCalledWith(
@@ -170,6 +186,47 @@ describe("festival activity form", () => {
     fireEvent.click(screen.getByRole("button", { name: "Crear actividad" }));
     await screen.findByText("Indicá hasta cuándo se puede enviar el material");
     expect(mocks.create).not.toHaveBeenCalled();
+  });
+  it("asks for the material a map-badge activity needs before calling the server", async () => {
+    render(<FestivalActivityForm festivalId={490} />);
+    expect(
+      screen.getByText(
+        "Usá «Imagen». El mapa solo marca a quienes tienen el diseño del sello aprobado.",
+      ),
+    ).toBeTruthy();
+    completeBasicFields();
+    fireEvent.click(screen.getByRole("button", { name: "Crear actividad" }));
+    await screen.findByText(STAMP_MATERIAL_ERROR);
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+  it("explains why an activity saved without its material cannot be saved, until it is fixed", async () => {
+    const legacy: FestivalActivityWithDetailsAndParticipants = {
+      ...activity,
+      name: "Carrera sin material",
+      type: "stamp_passport",
+      proofType: null,
+      proofUploadLimitDate: null,
+    };
+    render(<FestivalActivityForm festivalId={490} activity={legacy} />);
+    expect(screen.getByText("Falta el tipo de material")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText(/Nombre de la actividad/), {
+      target: { value: "Carrera de sellos" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await screen.findByText(STAMP_MATERIAL_ERROR);
+    expect(mocks.update).not.toHaveBeenCalled();
+
+    chooseImageMaterial();
+    await waitFor(() =>
+      expect(screen.queryByText("Falta el tipo de material")).toBeNull(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await waitFor(() => expect(mocks.update).toHaveBeenCalledOnce());
+    expect(mocks.update.mock.calls[0][2]).toMatchObject({
+      name: "Carrera de sellos",
+      proofType: "image",
+    });
   });
   it("keeps values and offers retry after a network failure", async () => {
     mocks.update.mockRejectedValue(new Error("network"));
