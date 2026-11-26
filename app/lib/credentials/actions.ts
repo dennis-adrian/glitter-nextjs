@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import {
   applyPrintState,
+  batchCountsFor,
   batchItemsFor,
   buildHolders,
   isDefaultRule,
@@ -106,6 +107,16 @@ async function authorize() {
   return { profile } as const;
 }
 
+/**
+ * Serialises rule writes per festival, so two saves (or a save and a reset)
+ * cannot interleave into a rule set nobody submitted.
+ */
+async function lockFestivalRules(tx: Tx, festivalId: number) {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtext('festival_credential_rules'), ${festivalId})`,
+  );
+}
+
 async function assertFestival(tx: Tx, festivalId: number) {
   const [festival] = await tx
     .select({ id: festivals.id })
@@ -134,6 +145,7 @@ export async function saveCredentialRules(
 
   try {
     await db.transaction(async (tx) => {
+      await lockFestivalRules(tx, festivalId);
       await assertFestival(tx, festivalId);
       const defaults: CredentialGroup[] = [];
       for (const group of CREDENTIAL_GROUPS) {
@@ -197,6 +209,7 @@ export async function resetCredentialRules(
 
   try {
     await db.transaction(async (tx) => {
+      await lockFestivalRules(tx, festivalId);
       await assertFestival(tx, festivalId);
       await tx
         .delete(festivalCredentialRules)
@@ -571,6 +584,8 @@ export async function removeExtraCredential(
 const NOT_A_HOLDER =
   "Alguien del lote ya no tiene credencial en este festival. Actualizá la página.";
 const NOTHING_TO_PRINT = "No hay credenciales para marcar en este lote.";
+const BATCH_CHANGED =
+  "Las cantidades cambiaron desde que abriste el lote. Actualizá la página y revisalo antes de marcarlo.";
 const BATCH_NOT_FOUND = "No encontramos ese lote. Actualizá la página.";
 const NOT_LATEST_BATCH = "Solo se puede deshacer el último lote enviado a imprenta.";
 
@@ -590,10 +605,12 @@ function credentialCount(count: number) {
 }
 
 /**
- * "Marcar como enviadas a imprenta". The client names holders; the counts
- * are recomputed here from live data under the festival's batch lock, so a
- * stale screen or a second admin cannot record a unit twice. Each item
- * stores only what this batch sends (§6.3).
+ * "Marcar como enviadas a imprenta". The client names holders with the
+ * counts it showed and exported; they are recomputed here from live data
+ * under the festival's batch lock, and any difference refuses the whole
+ * batch. So a stale screen or a second admin cannot record a unit twice, nor
+ * record a reprint, or a quantity, that nobody saw. Each item stores only
+ * what this batch sends (§6.3).
  */
 export async function createCredentialPrintBatch(
   input: CreatePrintBatchInput,
@@ -602,7 +619,7 @@ export async function createCredentialPrintBatch(
   if (auth.blocked) return auth.blocked;
   const parsed = createPrintBatchSchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
-  const { festivalId, holderKeys, note } = parsed.data;
+  const { festivalId, holders: requested, note } = parsed.data;
 
   let sent = 0;
   try {
@@ -617,10 +634,19 @@ export async function createCredentialPrintBatch(
       );
 
       const items: (typeof credentialPrintBatchItems.$inferInsert)[] = [];
-      for (const key of holderKeys) {
-        const holder = byKey.get(key);
+      for (const expected of requested) {
+        const holder = byKey.get(expected.key);
         if (!holder || !isPrintable(holder)) throw new Refusal(NOT_A_HOLDER);
-        for (const plan of batchItemsFor(holder)) {
+        const plans = batchItemsFor(holder);
+        const counts = batchCountsFor(holder);
+        if (
+          counts.named !== expected.named ||
+          counts.unnamed !== expected.unnamed ||
+          counts.reprint !== expected.reprint
+        ) {
+          throw new Refusal(BATCH_CHANGED);
+        }
+        for (const plan of plans) {
           items.push({
             batchId: 0,
             festivalId,
@@ -640,7 +666,16 @@ export async function createCredentialPrintBatch(
 
       const [batch] = await tx
         .insert(credentialPrintBatches)
-        .values({ festivalId, note, rules, createdByUserId: auth.profile.id })
+        .values({
+          festivalId,
+          note,
+          rules,
+          createdByUserId: auth.profile.id,
+          // After the lock, not `now()` (the transaction's start): batches
+          // must sort in the order they were recorded, for the print history
+          // and for "undo the latest".
+          createdAt: sql`clock_timestamp()`,
+        })
         .returning({ id: credentialPrintBatches.id });
       await tx
         .insert(credentialPrintBatchItems)

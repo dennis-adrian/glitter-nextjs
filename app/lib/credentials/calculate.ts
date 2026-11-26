@@ -841,13 +841,24 @@ function unitHistories(batches: readonly CredentialBatchRow[]) {
   );
   for (const batch of ordered) {
     for (const item of batch.items) {
-      const history = histories.get(item.unitKey) ?? {
+      const previous = histories.get(item.unitKey);
+      const history = previous ?? {
         coveredNamed: 0,
         coveredUnnamed: 0,
         lastPrintedAt: batch.createdAt,
         last: item,
       };
-      if (!item.isReprint) {
+      const renamed =
+        previous != null &&
+        previous.coveredNamed + previous.coveredUnnamed > 0 &&
+        item.printedName != null &&
+        (previous.last.printedName ?? "") !== item.printedName;
+      if (renamed) {
+        // Printed under a new name: the earlier copies carry the old one, so
+        // what this item sends is all that is covered now.
+        history.coveredNamed = item.namedCount;
+        history.coveredUnnamed = item.unnamedCount;
+      } else if (!item.isReprint) {
         history.coveredNamed += item.namedCount;
         history.coveredUnnamed += item.unnamedCount;
       }
@@ -1164,12 +1175,19 @@ export function buildView(
 /* Batches and the Nombres filter                                      */
 /* ------------------------------------------------------------------ */
 
-/** A unit's delta for a new batch (§6.3 step 4). */
+/**
+ * A unit's delta for a new batch (§6.3 step 4). A renamed unit goes out in
+ * full under its current name, as a reprint, whatever its state: its earlier
+ * copies carry the old name, and any increase is printed with them.
+ */
 export function batchItemFor(
   unit: CredentialUnit,
   print: UnitPrint | undefined,
 ): { named: number; unnamed: number; isReprint: boolean } {
   const state = print?.state ?? "new";
+  if (print?.nameChanged) {
+    return { named: unit.named, unnamed: unit.unnamed, isReprint: true };
+  }
   if (state === "partial") {
     return {
       named: Math.max(0, unit.named - (print?.coveredNamed ?? 0)),

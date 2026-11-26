@@ -99,7 +99,7 @@ Worked results with the defaults:
 
 ### 4.2 External participants
 
-- Holder = one external participant in the festival, reached through `reservation_external_participants`. Their reservations are created `accepted`, so the status toggles do not affect them in practice; the calculator still applies the status filter to them like any reservation.
+- Holder = one external participant in the festival, reached through `reservation_external_participants`. Their reservations are created `accepted`, so the status toggles do not affect them in practice. The status filter selects the whole holder: it is counted when any of its reservations passes, with the entitlement of all of them, so its count and print state never depend on the toggles.
 - Default entitlement = `rule(external).quantity × active stands`, summed only over that participant's reservations classified `external` in 4.1 step 3. All named with `displayName`.
 - An override row (section 5) replaces that total for the festival while the participant still has at least one counted reservation. The row remembers how many stands the participant had when it was saved; if that number changes later, the Equipo tab shows "Cambió la cantidad de espacios" next to the field so the admin re-checks it.
 
@@ -204,7 +204,7 @@ Stand labels use `formatStandLabel`; two stands render as "A14 y A15" through `s
 
 Print tracking follows **units**. A registered participant's named credentials are one unit (`participant:<id>`); a reservation's unnamed credentials are a separate unit (`reservation:<id>`). Keeping them apart means a partner joining or leaving a shared stand never moves already-printed unnamed credentials from one person's row to another. In the names list the reservation unit is drawn on the first participant's row, and selecting that person for a batch includes it. Every other holder kind is a single unit.
 
-For each unit, `coverage` = the sum of its non-reprint batch items, compared with the current entitlement separately for named and unnamed:
+For each unit, `coverage` = the sum of its non-reprint batch items, compared with the current entitlement separately for named and unnamed. An item printed under a different name than the unit's previous item resets coverage to that item's counts, reprint or not: the earlier copies carry the old name.
 
 | State | Condition | Badge |
 | --- | --- | --- |
@@ -219,7 +219,7 @@ Rules that keep this consistent:
 - `applyPrintState` always runs on the holders built from **all three statuses and all groups**. Filters are applied afterwards. `stale` means absent from the unfiltered set, so a printed pending reservation does not turn "Ya no corresponde" just because the "Pendientes" toggle is off.
 - The page and the export route both call `buildView(data, rules, filters)`, so they cannot disagree.
 - Stale units are not in the live data; they are rebuilt from their batch items.
-- If the name stored in a unit's last item differs from the current printed name, the row shows "Cambió el nombre" and counts as needing print. This covers an admin replacing the partner on a reservation (`admin-service.ts` rewrites the participation's `user_id` to a different person).
+- If the name stored in a unit's last item differs from the current printed name, the row shows "Cambió el nombre" and counts as needing print. The next batch sends that unit's full entitlement under the new name as a reprint, whatever its state, so a rename that comes with a raise is printed whole and the badge clears. This covers an admin replacing the partner on a reservation (`admin-service.ts` rewrites the participation's `user_id` to a different person).
 - A row's badge is the most urgent of its units, in the order `stale`, `partial`, `new`, `surplus`, `printed`.
 
 ### 6.3 Writes
@@ -235,25 +235,25 @@ Every action follows the shape of `app/lib/volunteers/admin-actions.ts`:
 
 | Action | What it does |
 | --- | --- |
-| `saveCredentialRules` | Upserts the rule rows of a festival. A row is deleted only when both its quantity and its naming mode equal the default. |
-| `resetCredentialRules` | Deletes the festival's rule rows. |
+| `saveCredentialRules` | Upserts the rule rows of a festival. A row is deleted only when both its quantity and its naming mode equal the default. Takes `pg_advisory_xact_lock(hashtext('festival_credential_rules'), festivalId)`, so two saves cannot interleave into a rule set nobody submitted. |
+| `resetCredentialRules` | Deletes the festival's rule rows, under the same lock. |
 | `setExternalCredentialQuantity` | Upserts or deletes one override and stores `stands_at_override`. Refuses an external participant that has no counted reservation in the festival. |
 | `createStaffMember`, `updateStaffMember`, `archiveStaffMember`, `restoreStaffMember` | Roster maintenance. Archive sets `is_active = false`; rows are never deleted. |
 | `setFestivalStaffMember` | Ticks or unticks one roster member for the festival. Refuses ticking an archived member; unticking is always allowed. |
 | `addExtraCredential`, `updateExtraCredential`, `removeExtraCredential` | One-off entries. Update keeps the id, so raising "Prensa" from 6 to 8 shows "Faltan 2" instead of 8 new. The name of a named entry cannot be edited. |
-| `createCredentialPrintBatch` | Input: `festivalId`, `holderKeys[]`, `note`. See below. |
+| `createCredentialPrintBatch` | Input: `festivalId`, `holders[]` (`key`, and the `named`, `unnamed` and `reprint` the dialog showed and exported), `note`. See below. |
 | `deleteCredentialPrintBatch` | Removes the most recent batch of the festival only, for undoing a mistake. `admin` only. Takes the same lock as create. |
 
 `createCredentialPrintBatch`, inside one transaction:
 
 1. Takes `pg_advisory_xact_lock(hashtext('credential_print_batches'), festivalId)` so two admins cannot record the same unit twice. Do not reuse `lockFestivalRow`; it is the reservation flow's throughput ceiling.
 2. Calls `fetchCredentialsData(tx, festivalId)` and recomputes holders and print state from live data. Counts come from the server, never from the client.
-3. Refuses any key that is not a current holder, and any holder whose entitlement is zero.
+3. Refuses any key that is not a current holder, and any holder whose entitlement is zero. Refuses the whole batch when a holder's recomputed counts or reprint flag differ from what the client sent, so what is recorded is what was exported to the printer, and a stale screen or a second admin cannot record a reprint nobody saw.
 4. Writes one item per unit of each selected holder. An item stores only what this batch sends:
    - `new`: the full entitlement;
    - `partial`: `max(0, entitlement − coverage)`, computed separately for named and unnamed;
    - `printed` or `surplus`: the full entitlement with `is_reprint = true`.
-5. Stores the resolved rules in `credential_print_batches.rules`.
+5. Stores the resolved rules in `credential_print_batches.rules`, and sets `created_at` to `clock_timestamp()`, taken after the lock, so batches sort in the order they were recorded (the print history and "undo the latest" both order by it).
 
 ---
 
@@ -436,7 +436,7 @@ Each phase leaves the app working. What each one shows is spelled out, because t
   - volunteers with and without a role; archived-but-selected staff; extras;
   - every warning;
   - filters applied after print state; page and export parity through `buildView`;
-  - print states: print 2, grow to 4, top up, grow to 6 → "Faltan 2"; stand released → "Sobran"; partner joins a printed solo stand; participation transferred to a new account stays printed; partner replaced → "Cambió el nombre"; reprints do not count as coverage; a printed pending reservation with the toggle off is not stale.
+  - print states: print 2, grow to 4, top up, grow to 6 → "Faltan 2"; stand released → "Sobran"; partner joins a printed solo stand; participation transferred to a new account stays printed; partner replaced → "Cambió el nombre"; a renamed holder whose entitlement grew is reprinted whole and clears; a renamed surplus clears once reprinted; reprints do not count as coverage; a printed pending reservation with the toggle off is not stale.
 - `schema.test.ts`: bounds and refusals of every input schema.
 - `export.test.ts`: header, row order, formula neutralisation, filename, and the route's 401 and bad-id 404.
 - Component tests: sources card (URL sync), rules form, names view (copy text repeats names per named credential), header (`data-installed-title`), batch dialog (default selection, search with accents, undo, live totals, buttons in one row).
@@ -445,7 +445,7 @@ Each phase leaves the app working. What each one shows is spelled out, because t
 **Integration (`pnpm db:test:up && pnpm migrate:test && pnpm test:integration`)**
 
 - `queries.integration.test.ts`: released stand members are ignored; a two-stand reservation counts two; excluded statuses never appear; data from another festival never leaks.
-- `actions.integration.test.ts`: rules upsert and reset; override on an external without a reservation is refused; ticking an archived staff member is refused; batch creation recomputes counts server-side, refuses unknown and zero-entitlement keys, writes deltas for partial units; two concurrent creates for the same holder leave exactly one non-reprint item; an item cannot point at a batch of another festival; unauthorized calls are refused; impersonation read-only is surfaced.
+- `actions.integration.test.ts`: rules upsert and reset; override on an external without a reservation is refused; ticking an archived staff member is refused; batch creation recomputes counts server-side, refuses unknown and zero-entitlement keys, writes deltas for partial units; refuses a batch whose counts or reprint flag changed since the dialog showed them; two concurrent creates for the same holder record one batch and refuse the other; two concurrent rule saves and a reset leave one whole rule set; an item cannot point at a batch of another festival; unauthorized calls are refused; impersonation read-only is surfaced.
 - Both files must be added by hand to the `test:integration` list in `package.json`, or they will not run.
 
 **Dev seed**

@@ -141,32 +141,50 @@ describe("one-off credentials", () => {
 });
 
 describe("print batches", () => {
-  it("takes known holder keys, once each, with an optional note", () => {
+  it("takes known holders with the counts shown, once each, with an optional note", () => {
+    const holder = (key: string) => ({ key, named: 1, unnamed: 0, reprint: false });
     expect(
       createPrintBatchSchema.parse({
         festivalId: 1,
-        holderKeys: ["participant:4", "extra:9"],
+        holders: [holder("participant:4"), { key: "extra:9", named: 0, unnamed: "6", reprint: true }],
         note: "  ",
       }),
-    ).toEqual({ festivalId: 1, holderKeys: ["participant:4", "extra:9"], note: null });
+    ).toEqual({
+      festivalId: 1,
+      holders: [holder("participant:4"), { key: "extra:9", named: 0, unnamed: 6, reprint: true }],
+      note: null,
+    });
     expect(
-      firstMessage(createPrintBatchSchema.safeParse({ festivalId: 1, holderKeys: [] })),
+      firstMessage(createPrintBatchSchema.safeParse({ festivalId: 1, holders: [] })),
     ).toBe("Elegí al menos una persona.");
     expect(
       firstMessage(
-        createPrintBatchSchema.safeParse({ festivalId: 1, holderKeys: ["reservation:4"] }),
+        createPrintBatchSchema.safeParse({ festivalId: 1, holders: [holder("reservation:4")] }),
       ),
     ).toBe("Una de las personas elegidas no es válida. Actualizá la página.");
     expect(
       firstMessage(
-        createPrintBatchSchema.safeParse({ festivalId: 1, holderKeys: ["staff:1", "staff:1"] }),
+        createPrintBatchSchema.safeParse({
+          festivalId: 1,
+          holders: [holder("staff:1"), { ...holder("staff:1"), named: 2 }],
+        }),
       ),
     ).toBe("Hay personas repetidas. Actualizá la página.");
+    expect(
+      createPrintBatchSchema.safeParse({
+        festivalId: 1,
+        holders: [{ ...holder("staff:1"), named: -1 }],
+      }).success,
+    ).toBe(false);
+    expect(
+      createPrintBatchSchema.safeParse({ festivalId: 1, holders: [{ key: "staff:1", named: 1, unnamed: 0 }] })
+        .success,
+    ).toBe(false);
     expect(
       firstMessage(
         createPrintBatchSchema.safeParse({
           festivalId: 1,
-          holderKeys: ["staff:1"],
+          holders: [holder("staff:1")],
           note: "n".repeat(201),
         }),
       ),

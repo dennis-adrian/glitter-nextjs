@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { DEFAULT_CREDENTIAL_RULES } from "@/app/lib/credentials/definitions";
 import type { db as DbType } from "@/db";
@@ -23,7 +23,7 @@ import {
 /**
  * Development fixtures for the Credenciales page (docs/PLAN-credenciales.md
  * §12): without them three of its six groups are empty locally. Added to the
- * most recent festival, idempotent: every row is found by a fixed name,
+ * most recent festival (latest start date, undated ones last), idempotent: every row is found by a fixed name,
  * email or stand number before it is created, so re-running adds only what
  * is missing.
  *
@@ -105,7 +105,8 @@ export async function seedCredentials(
   const [festival] = await database
     .select({ id: festivals.id, name: festivals.name })
     .from(festivals)
-    .orderBy(desc(festivals.id))
+    // The latest edition by date; undated ones last, then the newest row.
+    .orderBy(sql`${festivals.startDate} DESC NULLS LAST`, desc(festivals.id))
     .limit(1);
   if (!festival) {
     return {

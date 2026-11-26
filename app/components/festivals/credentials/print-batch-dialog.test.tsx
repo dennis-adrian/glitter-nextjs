@@ -111,7 +111,7 @@ describe("PrintBatchDialog", () => {
     expect(within(dialog).getByText("Marcar 6 credenciales como enviadas a imprenta")).toBeTruthy();
   });
 
-  it("keeps Cancelar and Marcar como enviadas in one row and sends holder keys", async () => {
+  it("keeps Cancelar and Marcar como enviadas in one row and sends the counts it shows", async () => {
     createCredentialPrintBatch.mockResolvedValue({ success: true, message: "Listo." });
     renderWithCredentials(<PrintBatchDialog />, { data: festival().data });
     const dialog = open();
@@ -127,7 +127,17 @@ describe("PrintBatchDialog", () => {
     const input = createCredentialPrintBatch.mock.calls[0]![0];
     expect(input.festivalId).toBe(1);
     expect(input.note).toBe("Imprenta Sol");
-    expect(input.holderKeys).toHaveLength(2);
-    expect(input.holderKeys.every((key: string) => key.startsWith("participant:"))).toBe(true);
+    expect(input.holders).toHaveLength(2);
+    expect(
+      input.holders.every((holder: { key: string }) => holder.key.startsWith("participant:")),
+    ).toBe(true);
+    const sent = input.holders.reduce(
+      (sum: number, holder: { named: number; unnamed: number; reprint: boolean }) => {
+        expect(holder.reprint).toBe(false);
+        return sum + holder.named + holder.unnamed;
+      },
+      0,
+    );
+    expect(sent).toBe(Number(within(dialog).getByTestId("batch-total").textContent!.split(" ")[0]));
   });
 });

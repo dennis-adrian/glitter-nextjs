@@ -249,6 +249,39 @@ describe("externals, volunteers, staff and extras", () => {
     });
   });
 
+  it("counts an external whole once any of its reservations passes the status filter", () => {
+    const data = emptyData();
+    addExternal(data, { externalId: 7, name: "Alcaldía" });
+    data.reservations.push({
+      id: 8002,
+      status: "pending",
+      ownerUserId: null,
+      stands: [1, 2, 3].map((index) => ({
+        id: 8100 + index,
+        label: "D",
+        standNumber: 20 + index,
+        standCategory: "illustration",
+        position: index - 1,
+      })),
+    });
+    data.externals.push({
+      reservationId: 8002,
+      externalParticipantId: 7,
+      displayName: "Alcaldía",
+      categoryLabel: "Entidad pública",
+    });
+    addExternal(data, { externalId: 8, name: "Solo pendiente", status: "pending" });
+    const named = (filters: CredentialFilters) =>
+      buildView(data, DEFAULT_CREDENTIAL_RULES, filters).holders.map((holder) => [holder.name, holder.named]);
+    // One holder, one entitlement: the count and its print state cannot
+    // depend on the toggles, so the pending stands count either way.
+    expect(named(DEFAULT_CREDENTIAL_FILTERS)).toEqual([["Alcaldía", 8]]);
+    expect(named(ALL)).toEqual([
+      ["Alcaldía", 8],
+      ["Solo pendiente", 2],
+    ]);
+  });
+
   it("sums an external's reservations and applies its override", () => {
     const data = emptyData();
     addExternal(data, { externalId: 7, name: "Alcaldía" });
@@ -533,6 +566,48 @@ describe("print state", () => {
     const items = print(data, [replaced.key]);
     expect(items).toEqual([expect.objectContaining({ printedName: "Socia nueva", isReprint: true })]);
     expect(holderOf(data, "Socia nueva")!.print).toMatchObject({ nameChanged: false, needsPrint: false });
+  });
+
+  it("reprints a renamed holder whose entitlement grew in full, then clears", () => {
+    const data = emptyData();
+    const { reservationId } = addReservation(data, { people: [{ name: "Gas" }], category: "gastronomy" });
+    print(data);
+    data.participants[0]!.user.displayName = "Gas Nuevo";
+    data.reservations.find((entry) => entry.id === reservationId)!.stands.push(standRow(9101, 95, 1));
+    const renamed = holderOf(data, "Gas Nuevo")!;
+    expect(renamed.print).toMatchObject({ state: "partial", missing: 2, nameChanged: true, needsPrint: true });
+    // The 2 printed under the old name are replaced, and the 2 more go with them.
+    expect(print(data, [renamed.key])).toEqual([
+      expect.objectContaining({ printedName: "Gas Nuevo", namedCount: 4, isReprint: true }),
+    ]);
+    expect(holderOf(data, "Gas Nuevo")!.print).toMatchObject({
+      state: "printed",
+      nameChanged: false,
+      needsPrint: false,
+    });
+    // Later growth under the same name is a plain top-up again.
+    data.reservations.find((entry) => entry.id === reservationId)!.stands.push(standRow(9102, 96, 2));
+    expect(print(data, [renamed.key])).toEqual([
+      expect.objectContaining({ namedCount: 2, isReprint: false }),
+    ]);
+    expect(holderOf(data, "Gas Nuevo")!.print!.state).toBe("printed");
+  });
+
+  it("does not count copies under an old name as surplus once reprinted", () => {
+    const data = emptyData();
+    const { reservationId } = addReservation(data, {
+      people: [{ name: "Gas" }],
+      category: "gastronomy",
+      stands: 2,
+    });
+    print(data);
+    data.participants[0]!.user.displayName = "Gas Nuevo";
+    data.reservations.find((entry) => entry.id === reservationId)!.stands.pop();
+    expect(holderOf(data, "Gas Nuevo")!.print).toMatchObject({ state: "surplus", nameChanged: true });
+    expect(print(data, [holderOf(data, "Gas Nuevo")!.key])).toEqual([
+      expect.objectContaining({ namedCount: 2, isReprint: true }),
+    ]);
+    expect(holderOf(data, "Gas Nuevo")!.print!.state).toBe("printed");
   });
 
   it("does not count reprints as coverage", () => {

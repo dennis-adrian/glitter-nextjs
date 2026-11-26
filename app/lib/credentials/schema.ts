@@ -157,13 +157,25 @@ const holderKey = z
     message: "Una de las personas elegidas no es válida. Actualizá la página.",
   });
 
+/**
+ * One holder as the dialog showed and exported it. The server recomputes the
+ * counts and refuses the batch if they differ, so what is recorded is what
+ * went to the printer, and a reprint is only recorded when one was shown.
+ */
+const batchHolder = z.object({
+  key: holderKey,
+  named: quantity(POSTGRES_INT_MAX),
+  unnamed: quantity(POSTGRES_INT_MAX),
+  reprint: z.boolean(),
+});
+
 export const createPrintBatchSchema = z.object({
   festivalId: id,
-  holderKeys: z
-    .array(holderKey)
+  holders: z
+    .array(batchHolder)
     .min(1, "Elegí al menos una persona.")
     .max(PRINT_BATCH_MAX_HOLDERS, "Son demasiadas personas para un lote.")
-    .refine((keys) => new Set(keys).size === keys.length, {
+    .refine((holders) => new Set(holders.map((holder) => holder.key)).size === holders.length, {
       message: "Hay personas repetidas. Actualizá la página.",
     }),
   note: z

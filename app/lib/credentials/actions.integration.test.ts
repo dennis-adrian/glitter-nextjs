@@ -6,6 +6,12 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  applyPrintState,
+  batchCountsFor,
+  buildHolders,
+  resolveRules,
+} from "@/app/lib/credentials/calculate";
 import * as schema from "@/db/schema";
 import {
   festivalCredentialRules,
@@ -75,6 +81,7 @@ const describeDatabase = integrationDb ? describe : describe.skip;
 
 type Actions = typeof import("@/app/lib/credentials/actions");
 let actions: Actions;
+let queries: typeof import("@/app/lib/credentials/queries");
 
 const created = {
   users: [] as number[],
@@ -179,6 +186,7 @@ describeDatabase("credentials actions", () => {
     process.env.UPLOADTHING_TOKEN ??= "integration-test";
     dbHolder.current = integrationDb as never;
     actions = await import("@/app/lib/credentials/actions");
+    queries = await import("@/app/lib/credentials/queries");
   });
 
   beforeEach(async () => {
@@ -272,6 +280,21 @@ describeDatabase("credentials actions", () => {
 
       expect((await actions.resetCredentialRules({ festivalId })).success).toBe(true);
       expect(await ruleRows(festivalId)).toEqual([]);
+    });
+
+    it("keeps one admin's whole rule set when two save at once", async () => {
+      const festivalId = await createFestival();
+      const first = { ...DEFAULT_FORM, gastronomy: { quantity: 3, namingMode: "all_named" as const } };
+      const second = { ...DEFAULT_FORM, volunteer: { quantity: 2 }, staff: { quantity: 3 } };
+      for (let round = 0; round < 5; round += 1) {
+        await Promise.all([
+          actions.saveCredentialRules({ festivalId, rules: first }),
+          actions.saveCredentialRules({ festivalId, rules: second }),
+          actions.resetCredentialRules({ festivalId }),
+        ]);
+        const groups = (await ruleRows(festivalId)).map((row) => row.group).sort();
+        expect([[], ["gastronomy"], ["staff", "volunteer"]]).toContainEqual(groups);
+      }
     });
 
     it("never touches another festival's rules", async () => {
@@ -454,6 +477,8 @@ describeDatabase("credentials actions", () => {
     });
   });
   describe("print batches", () => {
+    const BATCH_CHANGED =
+      "Las cantidades cambiaron desde que abriste el lote. Actualizá la página y revisalo antes de marcarlo.";
     const items = (festivalId: number) =>
       integrationDb!
         .select({
@@ -467,6 +492,20 @@ describeDatabase("credentials actions", () => {
         .where(eq(schema.credentialPrintBatchItems.festivalId, festivalId))
         .orderBy(schema.credentialPrintBatchItems.id);
 
+    /** What the dialog sends for these holders: their counts as the page shows them now. */
+    const shown = async (festivalId: number, keys: string[]) => {
+      const data = await queries.fetchCredentialsData(integrationDb! as never, festivalId);
+      const holders = data
+        ? applyPrintState(buildHolders(data, resolveRules(data.ruleRows)).holders, data.batches)
+        : [];
+      return keys.map((key) => {
+        const holder = holders.find((entry) => entry.key === key && !entry.stale);
+        return { key, ...(holder ? batchCountsFor(holder) : { named: 1, unnamed: 0, reprint: false }) };
+      });
+    };
+    const send = async (festivalId: number, keys: string[], note?: string) =>
+      actions.createCredentialPrintBatch({ festivalId, holders: await shown(festivalId, keys), note });
+
     it("recomputes the counts on the server and writes deltas for short units", async () => {
       const festivalId = await createFestival();
       const user = await createUser("Diego Quispe");
@@ -475,7 +514,7 @@ describeDatabase("credentials actions", () => {
       });
       const key = `participant:${participationIds[0]}`;
       expect(
-        await actions.createCredentialPrintBatch({ festivalId, holderKeys: [key], note: "Imprenta Sol" }),
+        await send(festivalId, [key], "Imprenta Sol"),
       ).toEqual({ success: true, message: "Marcaste 2 credenciales como enviadas a imprenta." });
       expect(await items(festivalId)).toEqual([
         { unitKey: key, namedCount: 1, unnamedCount: 0, isReprint: false, printedName: "Diego Quispe" },
@@ -502,7 +541,7 @@ describeDatabase("credentials actions", () => {
       await integrationDb!
         .insert(standReservationStands)
         .values({ reservationId, standId: stand!.id, position: 1 });
-      expect((await actions.createCredentialPrintBatch({ festivalId, holderKeys: [key] })).message).toBe(
+      expect((await send(festivalId, [key])).message).toBe(
         "Marcaste 2 credenciales como enviadas a imprenta.",
       );
       expect((await items(festivalId)).slice(2)).toEqual([
@@ -516,7 +555,7 @@ describeDatabase("credentials actions", () => {
       ]);
 
       // Fully printed now: adding them again is a reprint of everything.
-      await actions.createCredentialPrintBatch({ festivalId, holderKeys: [key] });
+      await send(festivalId, [key]);
       expect((await items(festivalId)).slice(3).map((item) => [item.namedCount, item.unnamedCount, item.isReprint])).toEqual([
         [1, 0, true],
         [0, 3, true],
@@ -537,39 +576,72 @@ describeDatabase("credentials actions", () => {
         message: "Alguien del lote ya no tiene credencial en este festival. Actualizá la página.",
       };
       expect(
-        await actions.createCredentialPrintBatch({ festivalId, holderKeys: ["participant:2000000000"] }),
+        await send(festivalId, ["participant:2000000000"]),
       ).toEqual(refusal);
       // The partner is left without a credential by the rule.
       expect(
-        await actions.createCredentialPrintBatch({
-          festivalId,
-          holderKeys: [`participant:${participationIds[1]}`],
-        }),
+        await send(festivalId, [`participant:${participationIds[1]}`]),
       ).toEqual(refusal);
       // Another festival's holder is not a holder here.
       const other = await createFestival();
       expect(
         await actions.createCredentialPrintBatch({
           festivalId: other,
-          holderKeys: [`participant:${participationIds[0]}`],
+          holders: await shown(festivalId, [`participant:${participationIds[0]}`]),
         }),
       ).toEqual(refusal);
       expect(await items(festivalId)).toEqual([]);
     });
 
-    it("leaves exactly one non-reprint item when two admins create at once", async () => {
+    it("records one batch and refuses the other when two admins create at once", async () => {
       const festivalId = await createFestival();
       const user = await createUser("Concurrente");
       const { participationIds } = await createReservation(festivalId, { userIds: [user] });
       const key = `participant:${participationIds[0]}`;
+      const holders = await shown(festivalId, [key]);
       const results = await Promise.all([
-        actions.createCredentialPrintBatch({ festivalId, holderKeys: [key] }),
-        actions.createCredentialPrintBatch({ festivalId, holderKeys: [key] }),
+        actions.createCredentialPrintBatch({ festivalId, holders }),
+        actions.createCredentialPrintBatch({ festivalId, holders }),
       ]);
-      expect(results.every((result) => result.success)).toBe(true);
+      expect(results.filter((result) => result.success)).toHaveLength(1);
+      expect(results.find((result) => !result.success)).toEqual({ success: false, message: BATCH_CHANGED });
       const rows = (await items(festivalId)).filter((item) => item.unitKey === key);
-      expect(rows.filter((item) => !item.isReprint)).toHaveLength(1);
-      expect(rows.filter((item) => item.isReprint)).toHaveLength(1);
+      expect(rows).toEqual([expect.objectContaining({ namedCount: 1, isReprint: false })]);
+    });
+
+    it("refuses a batch whose counts changed after the dialog showed them", async () => {
+      const festivalId = await createFestival();
+      const user = await createUser("Pantalla vieja");
+      const { reservationId, participationIds } = await createReservation(festivalId, {
+        userIds: [user],
+      });
+      const key = `participant:${participationIds[0]}`;
+      const before = await shown(festivalId, [key]);
+      // A second stand arrives while the dialog is open: 2 credentials became 4.
+      const [stand] = await integrationDb!
+        .insert(stands)
+        .values({ festivalId, label: "B", standNumber: standNumber++, standCategory: "illustration" })
+        .returning({ id: stands.id });
+      await integrationDb!
+        .insert(standReservationStands)
+        .values({ reservationId, standId: stand!.id, position: 1 });
+      expect(await actions.createCredentialPrintBatch({ festivalId, holders: before })).toEqual({
+        success: false,
+        message: BATCH_CHANGED,
+      });
+      expect(await items(festivalId)).toEqual([]);
+
+      // Once printed, the same counts are a reprint, and only a reprint shown as one is recorded.
+      expect((await send(festivalId, [key])).success).toBe(true);
+      const again = await shown(festivalId, [key]);
+      expect(again[0]!.reprint).toBe(true);
+      expect(
+        await actions.createCredentialPrintBatch({
+          festivalId,
+          holders: again.map((holder) => ({ ...holder, reprint: false })),
+        }),
+      ).toEqual({ success: false, message: BATCH_CHANGED });
+      expect((await actions.createCredentialPrintBatch({ festivalId, holders: again })).success).toBe(true);
     });
 
     it("never lets an item point at another festival's batch", async () => {
@@ -596,8 +668,8 @@ describeDatabase("credentials actions", () => {
       const user = await createUser("Deshacer");
       const { participationIds } = await createReservation(festivalId, { userIds: [user] });
       const key = `participant:${participationIds[0]}`;
-      await actions.createCredentialPrintBatch({ festivalId, holderKeys: [key] });
-      await actions.createCredentialPrintBatch({ festivalId, holderKeys: [key] });
+      await send(festivalId, [key]);
+      await send(festivalId, [key]);
       const batches = await integrationDb!
         .select({ id: schema.credentialPrintBatches.id })
         .from(schema.credentialPrintBatches)
