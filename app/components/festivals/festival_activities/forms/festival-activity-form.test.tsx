@@ -95,7 +95,7 @@ function completeBasicFields() {
 
 // The default type is the stamp passport, which needs its stamp design.
 function chooseImageMaterial() {
-  fireEvent.change(screen.getByLabelText("Tipo de material"), {
+  fireEvent.change(screen.getByLabelText(/^Tipo de material/), {
     target: { value: "image" },
   });
   fireEvent.change(screen.getByLabelText(/^Fecha límite de envío\s/), {
@@ -180,7 +180,7 @@ describe("festival activity form", () => {
   it("shows the material deadline error before calling the server", async () => {
     render(<FestivalActivityForm festivalId={490} />);
     completeBasicFields();
-    fireEvent.change(screen.getByLabelText("Tipo de material"), {
+    fireEvent.change(screen.getByLabelText(/^Tipo de material/), {
       target: { value: "text" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Crear actividad" }));
@@ -227,6 +227,48 @@ describe("festival activity form", () => {
       name: "Carrera de sellos",
       proofType: "image",
     });
+  });
+  it("names the right material when an activity was saved with the wrong one", () => {
+    render(
+      <FestivalActivityForm
+        festivalId={490}
+        activity={{ ...activity, proofType: "image" }}
+      />,
+    );
+    expect(
+      screen.getByText("El tipo de material no sirve para esta actividad"),
+    ).toBeTruthy();
+    expect(screen.queryByText("Falta el tipo de material")).toBeNull();
+    expect(
+      screen.getByText(/Usá «Texto» o «Imagen y texto»\./, {
+        selector: "[role=status] *",
+      }),
+    ).toBeTruthy();
+  });
+  it("shows no notice for a correctly configured or new activity", () => {
+    const noNotice = () => {
+      expect(screen.queryByText("Falta el tipo de material")).toBeNull();
+      expect(
+        screen.queryByText("El tipo de material no sirve para esta actividad"),
+      ).toBeNull();
+    };
+    render(<FestivalActivityForm festivalId={490} activity={activity} />);
+    noNotice();
+    cleanup();
+    render(<FestivalActivityForm festivalId={490} />);
+    noNotice();
+  });
+  it("marks the material as required only for map-badge types", () => {
+    render(<FestivalActivityForm festivalId={490} />);
+    expect(screen.getByLabelText(/^Tipo de material\s\*$/)).toBeTruthy();
+    cleanup();
+    render(
+      <FestivalActivityForm
+        festivalId={490}
+        activity={{ ...activity, type: "best_stand", proofType: null }}
+      />,
+    );
+    expect(screen.getByLabelText(/^Tipo de material$/)).toBeTruthy();
   });
   it("keeps values and offers retry after a network failure", async () => {
     mocks.update.mockRejectedValue(new Error("network"));

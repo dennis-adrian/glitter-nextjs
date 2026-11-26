@@ -9,7 +9,7 @@ import {
 } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CalendarIcon,
   ChevronDownIcon,
@@ -197,10 +197,21 @@ export default function FestivalActivityForm({
   // saved again until it gets one. Say so up front, rather than only after a
   // rejected save, so fixing an unrelated field is not a dead end. The notice
   // goes away once the material is fixed.
-  const missingRequiredProof =
+  const savedProofGap =
     activity != null &&
     getProofTypeRequirementError(activity.type, activity.proofType) !== null &&
-    getProofTypeRequirementError(activityType, proofType) !== null;
+    getProofTypeRequirementError(activityType, proofType) !== null
+      ? activity.proofType
+        ? "wrong"
+        : "missing"
+      : null;
+  const { isSubmitted } = form.formState;
+  const { trigger } = form;
+  // The material rule depends on the activity type but reports on the
+  // material field, which onChange re-validation of "type" does not refresh.
+  useEffect(() => {
+    if (isSubmitted) void trigger("proofType");
+  }, [activityType, isSubmitted, trigger]);
 
   const onSubmit = form.handleSubmit(
     async (data) => {
@@ -300,20 +311,21 @@ export default function FestivalActivityForm({
           Los campos con * son obligatorios. Las imágenes y descripciones son
           opcionales.
         </p>
-        {missingRequiredProof && (
+        {savedProofGap && (
           <Alert role="status">
             <AlertTitle className="leading-snug break-words">
-              Falta el tipo de material
+              {savedProofGap === "missing"
+                ? "Falta el tipo de material"
+                : "El tipo de material no sirve para esta actividad"}
             </AlertTitle>
             <AlertDescription className="break-words">
-              Esta actividad se guardó sin el material que necesita, así que
-              nadie puede ser aprobado y el mapa no la muestra. Para guardar
-              cualquier cambio, completá el tipo de material y la fecha límite
-              en{" "}
+              {savedProofGap === "missing"
+                ? "Esta actividad se guardó sin el material que necesita, así que nadie puede ser aprobado y el mapa no la muestra. Para guardar cualquier cambio, completá el tipo de material y la fecha límite en "
+                : "Esta actividad se guardó con un material que su página no puede recibir. Para guardar cualquier cambio, corregí el tipo de material en "}
               <a href="#requisitos" className="underline underline-offset-2">
                 Material y votación
               </a>
-              .
+              .{proofTypeHint && ` ${proofTypeHint}`}
             </AlertDescription>
           </Alert>
         )}
@@ -612,7 +624,10 @@ export default function FestivalActivityForm({
                 name="proofType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tipo de material</FormLabel>
+                    <FormLabel>
+                      Tipo de material
+                      {proofTypeHint && <span aria-hidden="true"> *</span>}
+                    </FormLabel>
                     {/* text-base at every width: iOS Safari zooms the page in, and
                       does not zoom back out, when it focuses a control with
                       text under 16px. A phone in landscape is already past
