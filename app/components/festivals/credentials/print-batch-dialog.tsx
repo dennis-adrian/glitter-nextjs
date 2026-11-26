@@ -139,6 +139,8 @@ export default function PrintBatchDialog() {
   }
 
   function openWith(next: boolean) {
+    // Held open while marking: the result closes the session that started it.
+    if (!next && isPending) return;
     setOpen(next);
     if (next) {
       const start = defaultBatchSelection(view.holders);
@@ -172,6 +174,8 @@ export default function PrintBatchDialog() {
           holders: chosen.map((holder) => ({
             key: holder.key,
             name: holder.name,
+            note: holder.note,
+            standLabel: holder.standLabel,
             ...batchCountsFor(holder),
           })),
           note,
@@ -406,7 +410,13 @@ export default function PrintBatchDialog() {
             )}
             data-testid="batch-footer"
           >
-            <Button type="button" variant="outline" wrap onClick={() => setOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              wrap
+              disabled={isPending}
+              onClick={() => setOpen(false)}
+            >
               Cancelar
             </Button>
             <Button type="button" wrap disabled={isPending || total === 0} onClick={submit}>

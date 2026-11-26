@@ -142,23 +142,40 @@ describe("one-off credentials", () => {
 
 describe("print batches", () => {
   it("takes known holders with the counts shown, once each, with an optional note", () => {
-    const holder = (key: string) => ({ key, name: "Ana", named: 1, unnamed: 0, reprint: false });
+    const holder = (key: string) => ({
+      key,
+      name: "Ana",
+      note: null,
+      standLabel: "A1",
+      named: 1,
+      unnamed: 0,
+      reprint: false,
+    });
+    const press = { key: "extra:9", name: "Prensa", note: "6 credenciales sin nombre", standLabel: null };
     expect(
       createPrintBatchSchema.parse({
         festivalId: 1,
         lastBatchId: null,
-        holders: [holder("participant:4"), { key: "extra:9", name: "Prensa", named: 0, unnamed: "6", reprint: true }],
+        holders: [holder("participant:4"), { ...press, named: 0, unnamed: "6", reprint: true }],
         note: "  ",
       }),
     ).toEqual({
       festivalId: 1,
       lastBatchId: null,
-      holders: [holder("participant:4"), { key: "extra:9", name: "Prensa", named: 0, unnamed: 6, reprint: true }],
+      holders: [holder("participant:4"), { ...press, named: 0, unnamed: 6, reprint: true }],
       note: null,
     });
     expect(
       createPrintBatchSchema.safeParse({ festivalId: 1, lastBatchId: 7, holders: [holder("staff:1")] }).success,
     ).toBe(true);
+    // What the CSV showed is required too.
+    expect(
+      createPrintBatchSchema.safeParse({
+        festivalId: 1,
+        lastBatchId: null,
+        holders: [{ ...holder("staff:1"), note: undefined }],
+      }).success,
+    ).toBe(false);
     // The history version is required, so an old client cannot skip the check.
     expect(createPrintBatchSchema.safeParse({ festivalId: 1, holders: [holder("staff:1")] }).success).toBe(false);
     expect(

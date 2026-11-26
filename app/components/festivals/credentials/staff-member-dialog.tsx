@@ -94,6 +94,9 @@ export default function StaffMemberDialog({
       isDesktop={isDesktop}
       open={open}
       onOpenChange={(next) => {
+        // Held open while saving or archiving: the write closes the session
+        // that started it.
+        if (!next && isPending) return;
         setOpen(next);
         if (next) {
           setFullName(member?.fullName ?? "");
@@ -186,7 +189,12 @@ export default function StaffMemberDialog({
               <span />
             )}
             <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isPending}
+                onClick={() => setOpen(false)}
+              >
                 Cancelar
               </Button>
               <Button type="submit" disabled={isPending}>

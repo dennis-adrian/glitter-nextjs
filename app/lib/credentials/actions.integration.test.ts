@@ -511,6 +511,8 @@ describeDatabase("credentials actions", () => {
           return {
             key,
             name: holder?.name ?? "",
+            note: holder?.note ?? null,
+            standLabel: holder?.standLabel ?? null,
             ...(holder ? batchCountsFor(holder) : { named: 1, unnamed: 0, reprint: false }),
           };
         }),
@@ -695,6 +697,33 @@ describeDatabase("credentials actions", () => {
         }),
       ).toEqual({ success: false, message: BATCH_CHANGED });
       expect((await actions.createCredentialPrintBatch({ festivalId, ...again })).success).toBe(true);
+    });
+
+    it("refuses a batch whose team member's role changed after the dialog showed it", async () => {
+      const festivalId = await createFestival();
+      expect(
+        (await actions.createStaffMember({ festivalId, fullName: "Rol cambiante", roleLabel: "Montaje" })).success,
+      ).toBe(true);
+      const [member] = await integrationDb!
+        .select({ id: schema.staffMembers.id })
+        .from(schema.staffMembers)
+        .where(eq(schema.staffMembers.fullName, "Rol cambiante"));
+      created.staff.push(member!.id);
+      const key = `staff:${member!.id}`;
+      const before = await shown(festivalId, [key]);
+      expect(before.holders[0]).toMatchObject({ name: "Rol cambiante", note: "Montaje" });
+      await actions.updateStaffMember({
+        festivalId,
+        staffMemberId: member!.id,
+        fullName: "Rol cambiante",
+        roleLabel: "Producción",
+      });
+      expect(await actions.createCredentialPrintBatch({ festivalId, ...before })).toEqual({
+        success: false,
+        message: BATCH_CHANGED,
+      });
+      expect((await send(festivalId, [key])).success).toBe(true);
+      expect((await items(festivalId))[0]).toMatchObject({ unitKey: key, printedName: "Rol cambiante" });
     });
 
     it("refuses a batch whose holder was renamed after the dialog showed it", async () => {

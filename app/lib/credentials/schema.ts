@@ -168,6 +168,15 @@ const batchHolder = z.object({
   key: holderKey,
   /** The name the dialog showed and exported, to refuse a rename meanwhile. */
   name: z.string().max(PRINT_BATCH_NAME_MAX, "Una de las personas elegidas no es válida. Actualizá la página."),
+  /**
+   * The second line and the stand the CSV exported (a role, an extra's label,
+   * "Comparte con…"), compared the same way: items record them as detail.
+   */
+  note: z.string().max(PRINT_BATCH_NAME_MAX, "Una de las personas elegidas no es válida. Actualizá la página.").nullable(),
+  standLabel: z
+    .string()
+    .max(PRINT_BATCH_NAME_MAX, "Una de las personas elegidas no es válida. Actualizá la página.")
+    .nullable(),
   named: quantity(POSTGRES_INT_MAX),
   unnamed: quantity(POSTGRES_INT_MAX),
   reprint: z.boolean(),
