@@ -14,8 +14,20 @@ type ActivityDetailsProps = {
 };
 
 export default function ActivityDetails({ activity }: ActivityDetailsProps) {
+  // Removed participants stay listed (with their badge) but hold no slot, so
+  // the counts leave them out, as the Mover menu and the server do.
+  const activeCountOf = (detail: (typeof activity.details)[number]) =>
+    detail.participants.filter((p) => p.removedAt == null).length;
+  const now = new Date();
+  const reservedCountOf = (detailId: number) =>
+    activity.waitlistEntries.filter(
+      (entry) =>
+        entry.notifiedForDetailId === detailId &&
+        entry.expiresAt != null &&
+        new Date(entry.expiresAt) > now,
+    ).length;
   const totalParticipants = activity.details.reduce(
-    (sum, d) => sum + d.participants.length,
+    (sum, d) => sum + activeCountOf(d),
     0,
   );
   const showVariantHeaders = activity.details.length > 1;
@@ -26,8 +38,8 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
     (detail, index) => ({
       id: detail.id,
       label: variantLabel(index, detail.description),
-      activeCount: detail.participants.filter((p) => p.removedAt == null)
-        .length,
+      activeCount: activeCountOf(detail),
+      reservedCount: reservedCountOf(detail.id),
       participationLimit: detail.participationLimit,
       category: detail.category,
     }),
@@ -75,9 +87,10 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
             ...p,
             detail,
           }));
+          const activeCount = activeCountOf(detail);
           const limitLabel = detail.participationLimit
-            ? `${participants.length}/${detail.participationLimit}`
-            : `${participants.length}`;
+            ? `${activeCount}/${detail.participationLimit}`
+            : `${activeCount}`;
 
           return (
             <div key={detail.id} className="flex flex-col gap-2">
@@ -85,7 +98,7 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
                 <h3 className="text-sm font-medium text-muted-foreground">
                   {variantLabel(index, detail.description)} · {limitLabel}{" "}
                   participante
-                  {participants.length !== 1 ? "s" : ""}
+                  {activeCount !== 1 ? "s" : ""}
                 </h3>
               )}
               <ActivityParticipantsTable

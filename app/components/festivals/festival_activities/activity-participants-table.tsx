@@ -180,7 +180,7 @@ function buildColumns(
                 alt={user.displayName ?? "Avatar"}
               />
             </Avatar>
-            <span className="font-medium text-sm truncate max-w-[160px]">
+            <span className="font-medium text-sm min-w-0 max-w-64 break-words wrap-anywhere">
               {user.displayName ?? "—"}
             </span>
           </div>
@@ -343,10 +343,12 @@ export default function ActivityParticipantsTable({
           return (
             <div
               key={participant.id}
-              className="flex items-center justify-between rounded-md border p-3 gap-3"
+              className="flex flex-col gap-2 rounded-md border p-3"
             >
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="text-xs text-muted-foreground shrink-0">
+              {/* Name gets the full width; status and actions wrap below it,
+                  so a phone never squeezes the name to nothing. */}
+              <div className="flex items-start gap-3">
+                <span className="text-xs text-muted-foreground shrink-0 pt-2">
                   {index + 1}
                 </span>
                 <Avatar className="w-8 h-8 shrink-0">
@@ -358,8 +360,8 @@ export default function ActivityParticipantsTable({
                     alt={participant.user.displayName ?? "Avatar"}
                   />
                 </Avatar>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium break-words wrap-anywhere">
                     {participant.user.displayName ?? "—"}
                   </p>
                   {category && (
@@ -369,34 +371,32 @@ export default function ActivityParticipantsTable({
                   )}
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-1 shrink-0">
-                <div className="flex items-center gap-2">
-                  <Badge
-                    variant="outline"
-                    className={`text-xs shrink-0 ${statusConfig.className}`}
-                  >
-                    {statusLabel}
-                  </Badge>
-                  {proof && (
-                    <ParticipantProofViewer
-                      proof={proof}
-                      participantName={
-                        participant.user.displayName ?? "Participante"
-                      }
-                      materialLabel={materialLabel}
-                    />
-                  )}
-                </div>
+              <div className="flex flex-wrap items-center gap-2 pl-[3.25rem]">
+                <Badge
+                  variant="outline"
+                  className={`text-xs ${statusConfig.className}`}
+                >
+                  {statusLabel}
+                </Badge>
+                {proof && (
+                  <ParticipantProofViewer
+                    proof={proof}
+                    participantName={
+                      participant.user.displayName ?? "Participante"
+                    }
+                    materialLabel={materialLabel}
+                  />
+                )}
                 <ParticipantMoveMenu
                   participant={participant}
                   variants={variants}
                 />
-                {participant.removedAt != null && participant.removalReason && (
-                  <p className="text-xs text-muted-foreground italic text-right max-w-[160px]">
-                    {participant.removalReason}
-                  </p>
-                )}
               </div>
+              {participant.removedAt != null && participant.removalReason && (
+                <p className="text-xs text-muted-foreground italic break-words pl-[3.25rem]">
+                  {participant.removalReason}
+                </p>
+              )}
             </div>
           );
         })}

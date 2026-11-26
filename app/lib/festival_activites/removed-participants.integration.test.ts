@@ -154,7 +154,10 @@ async function createActivity(festivalId: number, name: string) {
   return activity.id;
 }
 
-async function createVariant(activityId: number, participationLimit: number | null) {
+async function createVariant(
+  activityId: number,
+  participationLimit: number | null,
+) {
   const [variant] = await integrationDb!
     .insert(festivalActivityDetails)
     .values({ activityId, participationLimit })
@@ -210,15 +213,12 @@ describeDatabase("a removal bars the whole activity", () => {
       enrollFromWaitlistInvitation,
       enrollInBestStandActivity,
     } = await import("@/app/lib/festival_activites/actions"));
-    ({ notifyWaitlistEntry } = await import(
-      "@/app/lib/festival_activites/admin-actions"
-    ));
-    ({ promoteFromWaitlist } = await import(
-      "@/app/lib/festival_activites/waitlist-promotion"
-    ));
-    ({ wasRemovedFromActivity } = await import(
-      "@/app/lib/festival_activites/queries"
-    ));
+    ({ notifyWaitlistEntry } =
+      await import("@/app/lib/festival_activites/admin-actions"));
+    ({ promoteFromWaitlist } =
+      await import("@/app/lib/festival_activites/waitlist-promotion"));
+    ({ wasRemovedFromActivity } =
+      await import("@/app/lib/festival_activites/queries"));
 
     const result = await pool!.query<{ table: string | null }>(
       "select to_regclass('public.festival_activity_waitlist')::text as table",
@@ -287,7 +287,9 @@ describeDatabase("a removal bars the whole activity", () => {
     // Activities, variants, participants and waitlist entries cascade.
     const leftoverFestivals = festivalIds.splice(0);
     if (leftoverFestivals.length > 0) {
-      await db.delete(festivals).where(inArray(festivals.id, leftoverFestivals));
+      await db
+        .delete(festivals)
+        .where(inArray(festivals.id, leftoverFestivals));
     }
     const leftoverUsers = userIds.splice(0);
     if (leftoverUsers.length > 0) {
@@ -341,7 +343,9 @@ describeDatabase("a removal bars the whole activity", () => {
     );
 
     expect(result).toMatchObject({ success: true });
-    expect(await participantRows(unlimitedVariant, newcomer.id)).toHaveLength(1);
+    expect(await participantRows(unlimitedVariant, newcomer.id)).toHaveLength(
+      1,
+    );
   });
 
   it("refuses a waitlist invitation to another variant", async () => {
@@ -360,10 +364,21 @@ describeDatabase("a removal bars the whole activity", () => {
   });
 
   it("skips a removed profile when promoting the waitlist", async () => {
-    const { activityId, variantA, removed } = fixture;
+    const { activityId, variantA, removed, other } = fixture;
     const next = await createUser("next");
     const removedEntry = await addToWaitlist(activityId, removed.id, 1);
     const nextEntry = await addToWaitlist(activityId, next.id, 2);
+    // Free A's only slot, as a removal would; promotion invites nobody into
+    // a full variant.
+    await integrationDb!
+      .update(festivalActivityParticipants)
+      .set({ removedAt: new Date() })
+      .where(
+        and(
+          eq(festivalActivityParticipants.detailsId, variantA),
+          eq(festivalActivityParticipants.userId, other.id),
+        ),
+      );
 
     await promoteFromWaitlist(activityId, variantA);
 
@@ -380,6 +395,23 @@ describeDatabase("a removal bars the whole activity", () => {
     expect(byId.get(nextEntry.id)?.notifiedAt).not.toBeNull();
     expect(sendEmail).toHaveBeenCalledTimes(1);
     expect(sendEmail.mock.calls[0][0]).toMatchObject({ to: [next.email] });
+  });
+
+  it("invites nobody into a variant that is still full", async () => {
+    const { activityId, variantA } = fixture;
+    const next = await createUser("next");
+    const entry = await addToWaitlist(activityId, next.id, 1);
+
+    // A's only slot is held by `other`: nothing was freed.
+    const invited = await promoteFromWaitlist(activityId, variantA);
+
+    expect(invited).toBeNull();
+    const [untouched] = await integrationDb!
+      .select()
+      .from(festivalActivityWaitlist)
+      .where(eq(festivalActivityWaitlist.id, entry.id));
+    expect(untouched.notifiedAt).toBeNull();
+    expect(sendEmail).not.toHaveBeenCalled();
   });
 
   it("refuses a best stand entry after a removal", async () => {

@@ -45,7 +45,11 @@ function getStatus(
   if (status === "invited" || status === "expired" || status === "waiting") {
     return status;
   }
-  return "waiting";
+  // The query returns raw waitlist rows, so derive it from the invitation.
+  if (!entry.notifiedAt) return "waiting";
+  return entry.expiresAt && new Date(entry.expiresAt) > new Date()
+    ? "invited"
+    : "expired";
 }
 
 function NotifyWaitlistButton({

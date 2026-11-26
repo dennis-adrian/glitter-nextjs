@@ -160,6 +160,8 @@ describe("promoteFromWaitlist", () => {
         select: () => ({
           from: () => ({
             where: () => ({
+              // The capacity lock: an unlimited variant always has room.
+              for: async () => [{ limit: null }],
               limit: async () => [
                 {
                   userEmail: invitee.email,
@@ -194,7 +196,10 @@ describe("promoteFromWaitlist", () => {
 
     await promoteFromWaitlist(8, 5);
 
-    await expect(transaction).resolves.toBeUndefined();
+    await expect(transaction).resolves.toEqual({
+      userId: 4,
+      displayName: invitee.displayName,
+    });
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 });

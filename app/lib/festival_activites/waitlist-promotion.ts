@@ -7,7 +7,7 @@ import "server-only";
  * that free a slot and the expired-invitation cron.
  */
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, count, eq, gt, isNull, sql } from "drizzle-orm";
 
 import ActivityWaitlistInvitationEmail from "@/app/emails/activity-waitlist-invitation";
 import { sendEmail } from "@/app/vendors/resend";
@@ -22,10 +22,22 @@ import {
   users,
 } from "@/db/schema";
 
+/** Who was invited to the freed slot, or null when nobody was. */
+export type WaitlistPromotion = {
+  userId: number;
+  displayName: string | null;
+} | null;
+
+/**
+ * Invites the next eligible waiting profile to a slot in `freedVariantId`,
+ * when the variant really has one: active participants plus unexpired
+ * invitations must sit below its limit. A caller that frees a slot in an
+ * over-capacity variant (a move or a removal there) invites nobody.
+ */
 export async function promoteFromWaitlist(
   activityId: number,
   freedVariantId: number,
-) {
+): Promise<WaitlistPromotion> {
   try {
     const [variant] = await db
       .select({
@@ -51,10 +63,40 @@ export async function promoteFromWaitlist(
         ),
       );
 
-    if (!variant || variant.waitlistWindowMinutes == null) return;
+    if (!variant || variant.waitlistWindowMinutes == null) return null;
     const waitlistWindowMinutes = variant.waitlistWindowMinutes;
 
-    await db.transaction(async (tx) => {
+    return await db.transaction(async (tx): Promise<WaitlistPromotion> => {
+      // Locking the variant serializes promotions into it, so two freed-slot
+      // events cannot both count the same last seat.
+      const [capacity] = await tx
+        .select({ limit: festivalActivityDetails.participationLimit })
+        .from(festivalActivityDetails)
+        .where(eq(festivalActivityDetails.id, freedVariantId))
+        .for("update");
+      if (capacity?.limit) {
+        const now = new Date();
+        const [{ activeCount }] = await tx
+          .select({ activeCount: count() })
+          .from(festivalActivityParticipants)
+          .where(
+            and(
+              eq(festivalActivityParticipants.detailsId, freedVariantId),
+              isNull(festivalActivityParticipants.removedAt),
+            ),
+          );
+        const [{ reservedCount }] = await tx
+          .select({ reservedCount: count() })
+          .from(festivalActivityWaitlist)
+          .where(
+            and(
+              eq(festivalActivityWaitlist.notifiedForDetailId, freedVariantId),
+              gt(festivalActivityWaitlist.expiresAt, now),
+            ),
+          );
+        if (activeCount + reservedCount >= capacity.limit) return null;
+      }
+
       const notifiedAt = new Date();
       const expiresAt = new Date(
         Date.now() + waitlistWindowMinutes * 60 * 1000,
@@ -104,7 +146,7 @@ export async function promoteFromWaitlist(
       const claimedEntry = claimResult.rows[0] as
         | { id: number; userId: number }
         | undefined;
-      if (!claimedEntry) return;
+      if (!claimedEntry) return null;
 
       const [nextUser] = await tx
         .select({
@@ -145,8 +187,13 @@ export async function promoteFromWaitlist(
       // window expired. Nothing retries on its own; the next freed seat or an
       // admin's manual invite reaches them.
       assertSent(result);
+      return {
+        userId: claimedEntry.userId,
+        displayName: nextUser.userDisplayName,
+      };
     });
   } catch (error) {
     console.error("Error promoting from waitlist", error);
+    return null;
   }
 }

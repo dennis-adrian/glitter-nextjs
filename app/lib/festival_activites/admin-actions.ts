@@ -911,13 +911,23 @@ export async function restoreActivityParticipant(
  * Moves an active participant to another variant of the same activity. The
  * participation row keeps its id, so proofs, review state and votes travel
  * with it. The target must have room (active participants plus outstanding
- * waitlist reservations) and accept the participant's category. The freed
- * slot in the source variant goes to the waitlist, as with a removal.
+ * waitlist reservations) and accept the participant's category. When the
+ * move leaves the source variant below its limit, the freed slot goes to the
+ * waitlist, as with a removal; `invitedName` then names who was invited.
+ *
+ * `promoteWaitlist: false` is for undoing a move: putting the participant
+ * back restores the earlier state, which had no invitation for that slot.
  */
 export async function moveActivityParticipant(
   participationId: number,
   targetDetailId: number,
-): Promise<{ success: boolean; message: string }> {
+  options: { promoteWaitlist?: boolean } = {},
+): Promise<{
+  success: boolean;
+  message: string;
+  /** Set when the freed source slot went to someone on the waitlist. */
+  invitedName?: string;
+}> {
   const profile = await getAdminProfile();
   if (!profile) {
     return {
@@ -937,30 +947,40 @@ export async function moveActivityParticipant(
 
   try {
     const result = await db.transaction(async (tx): Promise<MoveResult> => {
-      const [participation] = await tx
+      // Lock the row on its own, without joins: a concurrent move that waits
+      // on this lock then re-reads the row as the winner left it, instead of
+      // losing it to a join on the old details_id.
+      const [locked] = await tx
         .select({
           id: festivalActivityParticipants.id,
           userId: festivalActivityParticipants.userId,
           detailsId: festivalActivityParticipants.detailsId,
           removedAt: festivalActivityParticipants.removedAt,
-          activityId: festivalActivityDetails.activityId,
-          userCategory: users.category,
         })
         .from(festivalActivityParticipants)
-        .innerJoin(
-          festivalActivityDetails,
-          eq(
-            festivalActivityDetails.id,
-            festivalActivityParticipants.detailsId,
-          ),
-        )
-        .innerJoin(users, eq(users.id, festivalActivityParticipants.userId))
         .where(eq(festivalActivityParticipants.id, participationId))
-        .for("update", { of: festivalActivityParticipants });
+        .for("update");
 
-      if (!participation) {
+      if (!locked) {
         return { success: false, message: "Participante no encontrado" };
       }
+
+      const [source] = await tx
+        .select({ activityId: festivalActivityDetails.activityId })
+        .from(festivalActivityDetails)
+        .where(eq(festivalActivityDetails.id, locked.detailsId));
+      const [owner] = await tx
+        .select({ category: users.category })
+        .from(users)
+        .where(eq(users.id, locked.userId));
+      if (!source || !owner) {
+        return { success: false, message: "Participante no encontrado" };
+      }
+      const participation = {
+        ...locked,
+        activityId: source.activityId,
+        userCategory: owner.category,
+      };
       if (participation.removedAt) {
         return {
           success: false,
@@ -1065,14 +1085,21 @@ export async function moveActivityParticipant(
 
     if (!result.success) return result;
 
-    try {
-      await promoteFromWaitlist(result.activityId, result.sourceDetailId);
-    } catch (waitlistError) {
-      console.error("Error promoting from waitlist:", waitlistError);
+    let invitedName: string | undefined;
+    if (options.promoteWaitlist !== false) {
+      try {
+        const invited = await promoteFromWaitlist(
+          result.activityId,
+          result.sourceDetailId,
+        );
+        if (invited) invitedName = invited.displayName ?? "un perfil";
+      } catch (waitlistError) {
+        console.error("Error promoting from waitlist:", waitlistError);
+      }
     }
 
     revalidatePath("/dashboard");
-    return { success: true, message: result.message };
+    return { success: true, message: result.message, invitedName };
   } catch (error) {
     console.error("Error moving activity participant:", error);
     return {

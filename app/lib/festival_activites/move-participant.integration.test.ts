@@ -158,9 +158,8 @@ describeDatabase("moving a participant between variants", () => {
     process.env.RESEND_API_KEY ??= "integration-test";
     process.env.UPLOADTHING_TOKEN ??= "integration-test";
 
-    ({ moveActivityParticipant } = await import(
-      "@/app/lib/festival_activites/admin-actions"
-    ));
+    ({ moveActivityParticipant } =
+      await import("@/app/lib/festival_activites/admin-actions"));
   }, 60_000);
 
   beforeEach(async () => {
@@ -215,7 +214,9 @@ describeDatabase("moving a participant between variants", () => {
     }
     const leftoverUsers = userIds.splice(0);
     if (leftoverUsers.length > 0) {
-      await integrationDb!.delete(users).where(inArray(users.id, leftoverUsers));
+      await integrationDb!
+        .delete(users)
+        .where(inArray(users.id, leftoverUsers));
     }
   });
 
@@ -256,13 +257,80 @@ describeDatabase("moving a participant between variants", () => {
       .values({ activityId, userId: waiting.id, position: 1 })
       .returning();
 
-    await moveActivityParticipant(row.id, target);
+    const result = await moveActivityParticipant(row.id, target);
 
+    expect(result.invitedName).toBe("waiting");
     const [invited] = await integrationDb!
       .select()
       .from(festivalActivityWaitlist)
       .where(eq(festivalActivityWaitlist.id, entry.id));
     expect(invited.notifiedForDetailId).toBe(source);
+  });
+
+  it("invites nobody when the source variant is still full after the move", async () => {
+    const { activityId, source, target, participant } = fixture;
+    // Source limit is 1 and holds 2: over capacity, as staff can leave it.
+    const row = await enroll(source, participant.id);
+    await enroll(source, (await createUser("extra")).id);
+    const waiting = await createUser("waiting");
+    const [entry] = await integrationDb!
+      .insert(festivalActivityWaitlist)
+      .values({ activityId, userId: waiting.id, position: 1 })
+      .returning();
+
+    const result = await moveActivityParticipant(row.id, target);
+
+    expect(result.success).toBe(true);
+    expect(result.invitedName).toBeUndefined();
+    const [untouched] = await integrationDb!
+      .select()
+      .from(festivalActivityWaitlist)
+      .where(eq(festivalActivityWaitlist.id, entry.id));
+    expect(untouched.notifiedAt).toBeNull();
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("leaves the waitlist alone when undoing a move", async () => {
+    const { activityId, source, target, participant } = fixture;
+    const row = await enroll(source, participant.id);
+    const waiting = await createUser("waiting");
+    const [entry] = await integrationDb!
+      .insert(festivalActivityWaitlist)
+      .values({ activityId, userId: waiting.id, position: 1 })
+      .returning();
+
+    const result = await moveActivityParticipant(row.id, target, {
+      promoteWaitlist: false,
+    });
+
+    expect(result.success).toBe(true);
+    const [untouched] = await integrationDb!
+      .select()
+      .from(festivalActivityWaitlist)
+      .where(eq(festivalActivityWaitlist.id, entry.id));
+    expect(untouched.notifiedAt).toBeNull();
+  });
+
+  it("keeps one consistent row when the same participant is moved twice at once", async () => {
+    const { activityId, source, target, participant } = fixture;
+    const third = await createVariant(activityId, null);
+    const row = await enroll(source, participant.id);
+
+    const results = await Promise.all([
+      moveActivityParticipant(row.id, target),
+      moveActivityParticipant(row.id, third),
+    ]);
+
+    // The waiting move re-reads the row the winner left; it never loses it.
+    for (const result of results) {
+      expect(result.message).not.toBe("Participante no encontrado");
+    }
+    const rows = await integrationDb!
+      .select()
+      .from(festivalActivityParticipants)
+      .where(eq(festivalActivityParticipants.userId, participant.id));
+    expect(rows).toHaveLength(1);
+    expect([target, third]).toContain(rows[0].detailsId);
   });
 
   it("refuses a full target, counting outstanding invitations", async () => {
