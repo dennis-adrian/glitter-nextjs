@@ -440,7 +440,7 @@ Each phase leaves the app working. What each one shows is spelled out, because t
 - `schema.test.ts`: bounds and refusals of every input schema.
 - `export.test.ts`: header, row order, formula neutralisation, filename, and the route's 401 and bad-id 404.
 - Component tests: sources card (URL sync), rules form, names view (copy text repeats names per named credential), header (`data-installed-title`), batch dialog (default selection, search with accents, undo, live totals, buttons in one row).
-- Update `festival-sections.test.ts` (new key, after Voluntarios), `app-navigation.test.ts`, and `stand-specifications-sector-card.test.tsx` / `product-details.test.tsx` (rule-driven copy; default rules give today's exact strings).
+- Update `festival-sections.test.ts` (new key, after Voluntarios), `app-navigation.test.ts` (Credenciales in the staff sidebar, after Voluntarios), and `stand-specifications-sector-card.test.tsx` / `product-details.test.tsx` (rule-driven copy; default rules give today's exact strings).
 
 **Integration (`pnpm db:test:up && pnpm migrate:test && pnpm test:integration`)**
 
@@ -474,7 +474,7 @@ These were chosen during design and not explicitly confirmed. None blocks implem
 **New**
 
 - `drizzle/0322_credentials.sql` and its snapshot
-- `app/lib/credentials/` — `definitions.ts`, `calculate.ts`, `schema.ts`, `queries.ts`, `actions.ts`, `export.ts`, `page.ts`, `participant-rules.ts`, their tests, and `__mocks__/actions.ts` for Storybook
+- `app/lib/credentials/` — `definitions.ts`, `calculate.ts`, `schema.ts`, `queries.ts`, `actions.ts`, `export.ts`, `load-page.ts`, `participant-rules.ts`, their tests, and `__mocks__/actions.ts` for Storybook
 - `app/(site)/dashboard/festivals/[id]/credentials/` — `page.tsx`, `loading.tsx`, `export/route.ts`
 - `app/components/festivals/credentials/*` (section 8)
 - `scripts/seed/credentials.ts`
@@ -483,7 +483,7 @@ These were chosen during design and not explicitly confirmed. None blocks implem
 **Changed**
 
 - `db/schema.ts`
-- `app/components/festivals/festival-sections.ts` (and its test), `app/components/navbar/screens.ts`
+- `app/components/festivals/festival-sections.ts` (and its test), `app/components/navbar/screens.ts`, `app/components/navbar/app-navigation.test.ts`
 - `app/components/ui/mobile-search-screen.tsx`, `app/components/molecules/stat-tile.tsx` (if the prop route is taken)
 - `app/components/festivals/stand-specifications-sector-card.tsx`, `stand-specifications-cards.tsx`, `app/components/festivals/terms.tsx`, `app/components/pages/profiles/festivals/terms.tsx`
 - `app/components/payments/product-details.tsx` and its two callers

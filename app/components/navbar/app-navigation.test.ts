@@ -190,6 +190,22 @@ describe("buildAppNavigation groups", () => {
     );
   });
 
+  it("lists the festival's Credenciales right after Voluntarios", () => {
+    const items = hrefs(
+      group(
+        buildAppNavigation({
+          viewer: { role: "festival_admin", status: "verified" },
+          activeFestival: { id: 9, name: "Festicker 2026", status: "active" },
+        }),
+        "festival",
+      )!.sections![0].items,
+    );
+
+    expect(items.indexOf("/dashboard/festivals/9/credentials")).toBe(
+      items.indexOf("/dashboard/festivals/9/volunteers") + 1,
+    );
+  });
+
   it("keeps the staff Más short: people, two section screens and the account", () => {
     const more = buildAppNavigation({
       viewer: { role: "admin", status: "verified" },
