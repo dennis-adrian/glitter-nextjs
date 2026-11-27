@@ -134,6 +134,11 @@ export type CredentialsData = {
   volunteerCounts: { accepted: number; withoutRole: number; waiting: number };
   /** The active roster plus archived members selected for this festival. */
   staff: CredentialStaffRow[];
+  /**
+   * Archived members not selected for this festival: not counted and not
+   * offered for selection, only listed so they can be restored.
+   */
+  archivedStaff: Pick<CredentialStaffRow, "id" | "fullName" | "roleLabel">[];
   extras: CredentialExtraRow[];
   ruleRows: CredentialRuleRow[];
   externalOverrides: CredentialExternalOverrideRow[];

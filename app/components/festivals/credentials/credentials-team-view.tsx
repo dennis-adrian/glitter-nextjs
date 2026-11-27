@@ -33,11 +33,13 @@ import {
 import { Checkbox } from "@/app/components/ui/checkbox";
 import {
   removeExtraCredential,
+  restoreStaffMember,
   setFestivalStaffMember,
 } from "@/app/lib/credentials/actions";
 import {
   buildHolders,
   type CredentialExtraRow,
+  type CredentialsData,
   type CredentialStaffRow,
 } from "@/app/lib/credentials/calculate";
 import { CREDENTIALS_COPY, extraCredentialUnitKey } from "@/app/lib/credentials/definitions";
@@ -90,6 +92,59 @@ function StaffRow({ festivalId, member }: { festivalId: number; member: Credenti
       <div className="shrink-0">
         <StaffMemberDialog festivalId={festivalId} member={member} />
       </div>
+    </li>
+  );
+}
+
+/**
+ * An archived member not selected for this festival: no checkbox, since
+ * archived members are not offered for new editions, only "Restaurar".
+ */
+function ArchivedStaffRow({
+  festivalId,
+  member,
+}: {
+  festivalId: number;
+  member: CredentialsData["archivedStaff"][number];
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  function restore() {
+    startTransition(async () => {
+      try {
+        const result = await restoreStaffMember({ festivalId, staffMemberId: member.id });
+        if (!result.success) {
+          toast.error(result.message);
+          return;
+        }
+        toast.success(result.message);
+        router.refresh();
+      } catch (error) {
+        toastActionError(error, CREDENTIALS_COPY.genericError);
+      }
+    });
+  }
+
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 md:px-6">
+      <div className="flex min-w-0 flex-[1_1_12rem] flex-col gap-0.5 py-1">
+        <span className="font-medium wrap-anywhere">{member.fullName}</span>
+        <span className="break-words text-xs text-muted-foreground">
+          {member.roleLabel || "Sin rol"}
+        </span>
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="shrink-0"
+        disabled={isPending}
+        aria-label={`Restaurar a ${member.fullName}`}
+        onClick={restore}
+      >
+        Restaurar
+      </Button>
     </li>
   );
 }
@@ -230,6 +285,21 @@ export default function CredentialsTeamView() {
               ))}
             </ul>
           )}
+          {data.archivedStaff.length > 0 && (
+            <details className="border-t">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-medium md:px-6">
+                Archivadas ({number(data.archivedStaff.length)})
+              </summary>
+              <p className="px-4 pb-2 text-xs text-muted-foreground md:px-6">
+                No se ofrecen para esta edición. Restaurá a quien vuelva al equipo.
+              </p>
+              <ul className="divide-y border-t" aria-label="Archivadas">
+                {data.archivedStaff.map((member) => (
+                  <ArchivedStaffRow key={member.id} festivalId={festivalId} member={member} />
+                ))}
+              </ul>
+            </details>
+          )}
         </Card>
 
         <Card className="min-w-0">
@@ -299,6 +369,7 @@ export default function CredentialsTeamView() {
                         name={holder.name}
                         override={overrides.get(externalId) ?? null}
                         defaultQuantity={rules.external.quantity * holder.standCount}
+                        standCount={holder.standCount}
                       />
                     </div>
                   </div>

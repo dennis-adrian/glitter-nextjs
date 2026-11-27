@@ -15,11 +15,13 @@ import * as schema from "@/db/schema";
 import {
   externalParticipants,
   festivals,
+  festivalStaffMembers,
   reservationExternalParticipants,
   reservationParticipants,
   standReservations,
   standReservationStands,
   stands,
+  staffMembers,
   users,
   volunteerApplications,
   volunteerRoles,
@@ -61,7 +63,12 @@ const describeDatabase = integrationDb ? describe : describe.skip;
 
 let queries: typeof import("@/app/lib/credentials/queries");
 
-const created = { users: [] as number[], festivals: [] as number[], externals: [] as number[] };
+const created = {
+  users: [] as number[],
+  festivals: [] as number[],
+  externals: [] as number[],
+  staff: [] as number[],
+};
 
 const ALL: CredentialFilters = {
   statuses: { verification_payment: true, pending: true },
@@ -222,6 +229,9 @@ describeDatabase("credentials queries", () => {
         .delete(externalParticipants)
         .where(inArray(externalParticipants.id, created.externals));
     }
+    if (created.staff.length) {
+      await db.delete(staffMembers).where(inArray(staffMembers.id, created.staff));
+    }
     if (created.users.length) {
       await db.delete(users).where(inArray(users.id, created.users));
     }
@@ -337,6 +347,49 @@ describeDatabase("credentials queries", () => {
     expect(theirs.volunteers).toEqual([
       expect.objectContaining({ fullName: "Voluntaria ajena", roleName: "Acreditación" }),
     ]);
+  });
+
+  it("lists archived members not selected here apart from the roster", async () => {
+    const festivalId = await createFestival();
+    const other = await createFestival();
+    const tag = randomUUID();
+    const rows = await integrationDb!
+      .insert(staffMembers)
+      .values([
+        { fullName: `Activa ${tag}`, roleLabel: "Producción", isActive: true },
+        { fullName: `Archivada marcada ${tag}`, roleLabel: "Diseño", isActive: false },
+        { fullName: `Archivada sin marcar ${tag}`, roleLabel: "Sonido", isActive: false },
+      ])
+      .returning({ id: staffMembers.id });
+    const [active, archivedSelected, archivedUnselected] = rows.map((row) => row.id);
+    created.staff.push(...rows.map((row) => row.id));
+    await integrationDb!.insert(festivalStaffMembers).values([
+      { festivalId, staffMemberId: archivedSelected! },
+      // Selected elsewhere only: still restorable from this festival.
+      { festivalId: other, staffMemberId: archivedUnselected! },
+    ]);
+
+    const data = (await queries.fetchCredentialsData(integrationDb!, festivalId))!;
+    const staffIds = data.staff.map((member) => member.id);
+    expect(staffIds).toEqual(expect.arrayContaining([active, archivedSelected]));
+    expect(staffIds).not.toContain(archivedUnselected);
+    expect(data.staff.find((member) => member.id === archivedSelected)).toMatchObject({
+      isActive: false,
+      selected: true,
+    });
+    const archivedIds = data.archivedStaff.map((member) => member.id);
+    expect(archivedIds).not.toContain(active);
+    expect(archivedIds).not.toContain(archivedSelected);
+    expect(data.archivedStaff.find((member) => member.id === archivedUnselected)).toEqual({
+      id: archivedUnselected,
+      fullName: `Archivada sin marcar ${tag}`,
+      roleLabel: "Sonido",
+    });
+
+    // Where she is selected, she stays in the roster instead.
+    const theirs = (await queries.fetchCredentialsData(integrationDb!, other))!;
+    expect(theirs.staff.map((member) => member.id)).toContain(archivedUnselected);
+    expect(theirs.archivedStaff.map((member) => member.id)).not.toContain(archivedUnselected);
   });
 
   it("reads external participants and labels them, also on a transaction", async () => {
