@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { and, eq, inArray, like } from "drizzle-orm";
+import { and, eq, inArray, isNull, like } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { NextRequest } from "next/server";
 import { Pool, type PoolClient } from "pg";
@@ -218,6 +218,17 @@ async function removeOwnRows() {
       .where(inArray(siteLinksDailyClicks.id, orphanClickIds));
     orphanClickIds.length = 0;
   }
+  // A run cut short leaves the rows of the links it deleted, with no id to
+  // find them by; on the reserved days no one else writes, they are this
+  // suite's.
+  await integrationDb!
+    .delete(siteLinksDailyClicks)
+    .where(
+      and(
+        isNull(siteLinksDailyClicks.linkId),
+        inArray(siteLinksDailyClicks.day, RESERVED_DAYS),
+      ),
+    );
   await integrationDb!
     .delete(siteLinksDailyViews)
     .where(inArray(siteLinksDailyViews.day, RESERVED_DAYS));

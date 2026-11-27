@@ -70,8 +70,18 @@ BEGIN
 	IF NOT EXISTS (
 		SELECT 1 FROM pg_index
 		WHERE indrelid = 'public.site_links_daily_clicks'::regclass
-			AND indisunique
 			AND indexrelid = 'public.site_links_daily_clicks_link_day_source'::regclass
+			AND indisunique
+			-- Whole, on plain columns, and on exactly these three: only such an
+			-- index serves ON CONFLICT ("link_id", "day", "source").
+			AND indpred IS NULL
+			AND indexprs IS NULL
+			AND indnkeyatts = 3
+			AND (
+				SELECT array_agg(attname::text ORDER BY attname)
+				FROM pg_attribute
+				WHERE attrelid = indrelid AND attnum = ANY (indkey::int2[])
+			) = ARRAY['day', 'link_id', 'source']
 	) THEN
 		RAISE EXCEPTION 'site_links_daily_clicks has no unique index on (link_id, day, source)';
 	END IF;
