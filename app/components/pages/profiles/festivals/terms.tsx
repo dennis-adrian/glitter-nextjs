@@ -1,4 +1,5 @@
 import { fetchUserProfileById } from "@/app/lib/users/queries";
+import { fetchParticipantCredentialRules } from "@/app/lib/credentials/participant-rules";
 import { UserCategory } from "@/app/api/users/definitions";
 import TermsAndConditions from "@/app/components/festivals/terms";
 import PausedAccountTermsMessage from "@/app/components/festivals/paused-account-terms-message";
@@ -76,7 +77,10 @@ export default async function TermsPage(props: TermsPageProps) {
 
   const festivalSectorsWithAllowedCategoriesPromise =
     fetchFestivalSectorsWithAllowedCategories(festival.id);
-  const termsVersion = await termsVersionPromise;
+  const [termsVersion, credentialRules] = await Promise.all([
+    termsVersionPromise,
+    fetchParticipantCredentialRules(festival.id),
+  ]);
 
   return (
     <TermsAndConditions
@@ -94,6 +98,7 @@ export default async function TermsPage(props: TermsPageProps) {
       }
       termsVersion={termsVersion}
       canAcceptTerms={canAcceptTerms}
+      credentialRules={credentialRules}
     />
   );
 }

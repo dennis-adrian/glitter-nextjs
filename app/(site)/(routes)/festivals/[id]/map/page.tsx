@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { z } from "zod";
 import { notFound } from "next/navigation";
 
-import FestivalNavMap from "@/app/components/maps/festival-nav/festival-nav-map";
+import FestivalNavMapPage from "@/app/components/maps/festival-nav/festival-nav-map-page";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { fetchFestivalActivitiesByFestivalId } from "@/app/lib/festivals/queries";
 import { toPublicMapSectors } from "@/app/lib/festival_sectors/public";
@@ -51,7 +51,7 @@ export default async function FestivalMapPage(props: {
     getMapActivityData(publicActivities);
 
   return (
-    <FestivalNavMap
+    <FestivalNavMapPage
       festivalName={festival.name}
       sectors={sectors}
       activityUserIds={activityUserIds}

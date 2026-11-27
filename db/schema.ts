@@ -535,6 +535,11 @@ export const festivalsRelations = relations(festivals, ({ many, one }) => ({
   sanctionFestivals: many(sanctionFestivals),
   creditHolds: many(creditHolds),
   reservationFeatureActions: many(reservationFeatureActions),
+  credentialRules: many(festivalCredentialRules),
+  externalCredentialOverrides: many(festivalExternalCredentialOverrides),
+  staffMembers: many(festivalStaffMembers),
+  extraCredentials: many(festivalExtraCredentials),
+  credentialPrintBatches: many(credentialPrintBatches),
 }));
 
 export const festivalStatusEvents = pgTable(
@@ -2602,6 +2607,7 @@ export const festivalActivityTypeEnum = pgEnum("festival_activity_type", [
   "festival_sticker",
   "coupon_book",
   "sticker_hunt",
+  "stamp_card",
 ]);
 
 export const proofTypeEnum = pgEnum("proof_type", ["image", "text", "both"]);
@@ -8901,6 +8907,343 @@ export const volunteerApplicationAssignedShiftsRelations = relations(
     shift: one(volunteerShifts, {
       fields: [volunteerApplicationAssignedShifts.shiftId],
       references: [volunteerShifts.id],
+    }),
+  }),
+);
+
+/* ------------------------------------------------------------------ */
+/* Festival credentials (docs/PLAN-credenciales.md §5)                 */
+/* ------------------------------------------------------------------ */
+
+export const credentialGroupEnum = pgEnum("credential_group", [
+  "illustration",
+  "entrepreneurship",
+  "gastronomy",
+  "external",
+  "volunteer",
+  "staff",
+]);
+
+export const credentialNamingModeEnum = pgEnum("credential_naming_mode", [
+  "one_per_participant",
+  "all_named",
+  "none",
+]);
+
+/**
+ * A festival's own credential rule for one group. No row means the group uses
+ * `DEFAULT_CREDENTIAL_RULES` (app/lib/credentials/definitions.ts). The naming
+ * mode is only read for the three stand categories.
+ */
+export const festivalCredentialRules = pgTable(
+  "festival_credential_rules",
+  {
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    group: credentialGroupEnum("group").notNull(),
+    quantity: smallint("quantity").notNull(),
+    namingMode: credentialNamingModeEnum("naming_mode"),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({
+      name: "festival_credential_rules_pk",
+      columns: [t.festivalId, t.group],
+    }),
+    check(
+      "festival_credential_rules_quantity_range",
+      sql`${t.quantity} BETWEEN 0 AND 20`,
+    ),
+  ],
+);
+
+/**
+ * The total credentials of one external participant in one festival, in place
+ * of the per-stand rule. `stands_at_override` is how many counted stands the
+ * participant had when it was saved, so a later change can be flagged.
+ */
+export const festivalExternalCredentialOverrides = pgTable(
+  "festival_external_credential_overrides",
+  {
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    externalParticipantId: integer("external_participant_id")
+      .notNull()
+      .references(() => externalParticipants.id, { onDelete: "cascade" }),
+    quantity: smallint("quantity").notNull(),
+    standsAtOverride: smallint("stands_at_override").notNull(),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({
+      name: "festival_external_credential_overrides_pk",
+      columns: [t.festivalId, t.externalParticipantId],
+    }),
+    check(
+      "festival_external_credential_overrides_quantity_range",
+      sql`${t.quantity} BETWEEN 0 AND 50`,
+    ),
+    check(
+      "festival_external_credential_overrides_stands_nonnegative",
+      sql`${t.standsAtOverride} >= 0`,
+    ),
+  ],
+);
+
+/**
+ * The Glitter team roster ("Equipo Glitter"), shared by every festival. Not
+ * linked to `users`: most of the team has no account. Named `staff_members`
+ * because `collaborators` already means participants' own helpers. Rows are
+ * archived (`is_active = false`), never deleted.
+ */
+export const staffMembers = pgTable(
+  "staff_members",
+  {
+    id: serial("id").primaryKey(),
+    fullName: text("full_name").notNull(),
+    roleLabel: text("role_label").notNull().default(""),
+    isActive: boolean("is_active").default(true).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check(
+      "staff_members_full_name_length",
+      sql`char_length(${t.fullName}) BETWEEN 1 AND 120`,
+    ),
+    check(
+      "staff_members_role_label_length",
+      sql`char_length(${t.roleLabel}) <= 80`,
+    ),
+  ],
+);
+
+/** A roster member works this edition: the row's presence is the whole fact. */
+export const festivalStaffMembers = pgTable(
+  "festival_staff_members",
+  {
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    staffMemberId: integer("staff_member_id")
+      .notNull()
+      .references(() => staffMembers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({
+      name: "festival_staff_members_pk",
+      columns: [t.festivalId, t.staffMemberId],
+    }),
+    index("festival_staff_members_staff_member_idx").on(t.staffMemberId),
+  ],
+);
+
+/**
+ * One-off credentials for one edition ("Solo para esta edición"): a named
+ * person (`name` set, quantity 1) or a labelled lot of unnamed credentials
+ * (`name` null, e.g. "Prensa", 6). Not ruled: they count what was typed.
+ */
+export const festivalExtraCredentials = pgTable(
+  "festival_extra_credentials",
+  {
+    id: serial("id").primaryKey(),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    name: text("name"),
+    label: text("label").notNull(),
+    quantity: smallint("quantity").default(1).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("festival_extra_credentials_festival_idx").on(t.festivalId),
+    check(
+      "festival_extra_credentials_named_is_one",
+      sql`${t.name} IS NULL OR ${t.quantity} = 1`,
+    ),
+    check(
+      "festival_extra_credentials_quantity_range",
+      sql`${t.quantity} BETWEEN 1 AND 200`,
+    ),
+    check(
+      "festival_extra_credentials_name_length",
+      sql`${t.name} IS NULL OR char_length(${t.name}) BETWEEN 1 AND 120`,
+    ),
+    check(
+      "festival_extra_credentials_label_length",
+      sql`char_length(${t.label}) BETWEEN 1 AND 80`,
+    ),
+  ],
+);
+
+/**
+ * One "Marcar como enviadas a imprenta" event. `rules` is the resolved rule
+ * set the batch was computed with, kept for the record.
+ */
+export const credentialPrintBatches = pgTable(
+  "credential_print_batches",
+  {
+    id: serial("id").primaryKey(),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    note: text("note"),
+    rules: jsonb("rules").notNull(),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique("credential_print_batches_id_festival_id_unique").on(
+      t.id,
+      t.festivalId,
+    ),
+    index("credential_print_batches_festival_idx").on(
+      t.festivalId,
+      t.createdAt,
+    ),
+    check(
+      "credential_print_batches_note_length",
+      sql`${t.note} IS NULL OR char_length(${t.note}) <= 200`,
+    ),
+  ],
+);
+
+/**
+ * A frozen copy of one print unit as a batch sent it. `unit_key` names the
+ * unit (`participant:<participationId>`, `reservation:<reservationId>`,
+ * `external:<id>`, `volunteer:<applicationId>`, `staff:<id>`, `extra:<id>`)
+ * and deliberately has no foreign key: the history must outlive what it
+ * names, a cancelled reservation being exactly the case the page shows.
+ * `user_id` has no foreign key for the same reason.
+ */
+export const credentialPrintBatchItems = pgTable(
+  "credential_print_batch_items",
+  {
+    id: serial("id").primaryKey(),
+    batchId: integer("batch_id").notNull(),
+    festivalId: integer("festival_id").notNull(),
+    unitKey: text("unit_key").notNull(),
+    group: credentialGroupEnum("group").notNull(),
+    userId: integer("user_id"),
+    printedName: text("printed_name"),
+    detail: text("detail").notNull().default(""),
+    namedCount: smallint("named_count").notNull(),
+    unnamedCount: smallint("unnamed_count").notNull(),
+    isReprint: boolean("is_reprint").default(false).notNull(),
+  },
+  (t) => [
+    foreignKey({
+      name: "credential_print_batch_items_batch_festival_fk",
+      columns: [t.batchId, t.festivalId],
+      foreignColumns: [
+        credentialPrintBatches.id,
+        credentialPrintBatches.festivalId,
+      ],
+    }).onDelete("cascade"),
+    index("credential_print_batch_items_festival_unit_idx").on(
+      t.festivalId,
+      t.unitKey,
+    ),
+    uniqueIndex("credential_print_batch_items_batch_unit_unique").on(
+      t.batchId,
+      t.unitKey,
+    ),
+    check(
+      "credential_print_batch_items_counts_nonnegative",
+      sql`${t.namedCount} >= 0 AND ${t.unnamedCount} >= 0`,
+    ),
+  ],
+);
+
+export const festivalCredentialRulesRelations = relations(
+  festivalCredentialRules,
+  ({ one }) => ({
+    festival: one(festivals, {
+      fields: [festivalCredentialRules.festivalId],
+      references: [festivals.id],
+    }),
+    updatedBy: one(users, {
+      fields: [festivalCredentialRules.updatedByUserId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const festivalExternalCredentialOverridesRelations = relations(
+  festivalExternalCredentialOverrides,
+  ({ one }) => ({
+    festival: one(festivals, {
+      fields: [festivalExternalCredentialOverrides.festivalId],
+      references: [festivals.id],
+    }),
+    externalParticipant: one(externalParticipants, {
+      fields: [festivalExternalCredentialOverrides.externalParticipantId],
+      references: [externalParticipants.id],
+    }),
+  }),
+);
+
+export const staffMembersRelations = relations(staffMembers, ({ many }) => ({
+  festivals: many(festivalStaffMembers),
+}));
+
+export const festivalStaffMembersRelations = relations(
+  festivalStaffMembers,
+  ({ one }) => ({
+    festival: one(festivals, {
+      fields: [festivalStaffMembers.festivalId],
+      references: [festivals.id],
+    }),
+    staffMember: one(staffMembers, {
+      fields: [festivalStaffMembers.staffMemberId],
+      references: [staffMembers.id],
+    }),
+  }),
+);
+
+export const festivalExtraCredentialsRelations = relations(
+  festivalExtraCredentials,
+  ({ one }) => ({
+    festival: one(festivals, {
+      fields: [festivalExtraCredentials.festivalId],
+      references: [festivals.id],
+    }),
+  }),
+);
+
+export const credentialPrintBatchesRelations = relations(
+  credentialPrintBatches,
+  ({ one, many }) => ({
+    festival: one(festivals, {
+      fields: [credentialPrintBatches.festivalId],
+      references: [festivals.id],
+    }),
+    createdBy: one(users, {
+      fields: [credentialPrintBatches.createdByUserId],
+      references: [users.id],
+    }),
+    items: many(credentialPrintBatchItems),
+  }),
+);
+
+export const credentialPrintBatchItemsRelations = relations(
+  credentialPrintBatchItems,
+  ({ one }) => ({
+    batch: one(credentialPrintBatches, {
+      fields: [credentialPrintBatchItems.batchId],
+      references: [credentialPrintBatches.id],
     }),
   }),
 );

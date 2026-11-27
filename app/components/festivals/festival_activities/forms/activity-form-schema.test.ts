@@ -57,6 +57,25 @@ describe("activity form validation", () => {
       }).success,
     ).toBe(true);
   });
+  it("requires image material for a stamp card", () => {
+    const stampCard = {
+      ...valid,
+      type: "stamp_card",
+      proofUploadLimitDate: "2026-09-25T18:00",
+    };
+    for (const proofType of [null, "text", "both"]) {
+      const result = ActivityFormSchema.safeParse({ ...stampCard, proofType });
+      expect(result.success).toBe(false);
+      if (!result.success)
+        expect(
+          result.error.issues.some((issue) => issue.path[0] === "proofType"),
+        ).toBe(true);
+    }
+    expect(
+      ActivityFormSchema.safeParse({ ...stampCard, proofType: "image" })
+        .success,
+    ).toBe(true);
+  });
   it("requires a complete ordered voting period when enabled", () => {
     expect(
       ActivityFormSchema.safeParse({ ...valid, allowsVoting: true }).success,

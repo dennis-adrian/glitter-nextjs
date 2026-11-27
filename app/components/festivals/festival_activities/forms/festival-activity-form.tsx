@@ -9,7 +9,7 @@ import {
 } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CalendarIcon,
   ChevronDownIcon,
@@ -46,6 +46,7 @@ import {
 } from "./activity-form-schema";
 import SectorImageUpload from "@/app/components/festivals/sectors/sector-image-upload";
 import { actionErrorMessage } from "@/app/lib/errors/action-error";
+import { getRequiredProofType } from "@/app/lib/festival_activites/helpers";
 
 const CATEGORY_SELECT_OPTIONS = [
   { value: "illustration", label: "Ilustración" },
@@ -61,6 +62,7 @@ const ACTIVITY_TYPE_OPTIONS = [
   { value: "festival_sticker", label: "Sticker del Festival" },
   { value: "coupon_book", label: "Cuponera de Descuentos" },
   { value: "sticker_hunt", label: "Cacería de Stickers" },
+  { value: "stamp_card", label: "Tarjeta de Sellos" },
 ];
 
 const PROOF_TYPE_OPTIONS = [
@@ -188,6 +190,15 @@ export default function FestivalActivityForm({
     name: ["proofType", "type", "allowsVoting", "waitlistEnabled"],
   });
   const formErrors = form.formState.errors;
+
+  // Choosing a type that cannot run without a kind of material fills it in,
+  // instead of leaving the admin to find out from a validation error.
+  useEffect(() => {
+    const requiredProofType = getRequiredProofType(activityType);
+    if (requiredProofType && !form.getValues("proofType")) {
+      form.setValue("proofType", requiredProofType, { shouldDirty: true });
+    }
+  }, [activityType, form]);
 
   const onSubmit = form.handleSubmit(
     async (data) => {

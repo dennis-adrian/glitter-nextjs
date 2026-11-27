@@ -134,6 +134,7 @@ const ACTIVITY_TYPES = [
   ["festival_sticker", "Sticker del Festival"],
   ["coupon_book", "Cuponera de Descuentos"],
   ["sticker_hunt", "Cacería de Stickers"],
+  ["stamp_card", "Tarjeta de Sellos Navideña"],
 ] as const satisfies ReadonlyArray<readonly [FestivalActivity["type"], string]>;
 
 const STANDARD_ENROLLMENT_TYPES = [
@@ -141,6 +142,7 @@ const STANDARD_ENROLLMENT_TYPES = [
   ["festival_sticker", "Sticker del Festival"],
   ["coupon_book", "Cuponera de Descuentos"],
   ["sticker_hunt", "Cacería de Stickers"],
+  ["stamp_card", "Tarjeta de Sellos Navideña"],
 ] as const satisfies ReadonlyArray<readonly [FestivalActivity["type"], string]>;
 
 const currentProfile = {

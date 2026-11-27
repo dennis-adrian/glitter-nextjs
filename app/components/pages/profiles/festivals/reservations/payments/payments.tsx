@@ -1,5 +1,6 @@
 import { PaymentSummary } from "@/app/components/payments/payment-summary";
 import { ProductDetails } from "@/app/components/payments/product-details";
+import { fetchParticipantCredentialRules } from "@/app/lib/credentials/participant-rules";
 import QRCodeDetails from "@/app/components/payments/qrcode-details";
 import InvoiceUnderReviewPanel from "@/app/components/payments/invoice-under-review-panel";
 import {
@@ -20,6 +21,7 @@ export default async function PaymentsPage(props: PaymentsPageProps) {
   const profile = await getCurrentUserProfile();
   const festival = await fetchBaseFestival(props.festivalId);
   if (!festival || !profile) notFound();
+  const credentialRules = await fetchParticipantCredentialRules(festival.id);
   await protectRoute(profile, props.profileId);
 
   const invoices = await fetchInvoicesByReservation(props.reservationId);
@@ -54,7 +56,11 @@ export default async function PaymentsPage(props: PaymentsPageProps) {
           </h1>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="flex flex-col gap-6">
-              <ProductDetails festival={festival} invoice={invoice} />
+              <ProductDetails
+                festival={festival}
+                invoice={invoice}
+                credentialRules={credentialRules}
+              />
               <PaymentSummary
                 invoice={invoice}
                 festivalId={festival.id}

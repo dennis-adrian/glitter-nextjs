@@ -9,12 +9,24 @@ afterEach(cleanup);
 
 /**
  * Badges stack right to left from the stand's top-right corner. Inset equals
- * the badge radius so the first circle's right edge sits on STAND_SIZE; spacing
- * is 1.1 so four circles still fit between x=0 and STAND_SIZE.
+ * the badge radius (1.3) so the first circle's right edge sits on STAND_SIZE.
+ * Two badges sit 2 apart, so the front one covers only the other's edge; from
+ * three on, the spacing tightens to keep the row inside the stand.
  */
 const FIRST_SLOT = 4.7;
-const SECOND_SLOT = 3.6;
-const THIRD_SLOT = 2.5;
+const SECOND_SLOT = 2.7;
+// Three badges: (STAND_SIZE - 2 * 1.3) / 2 = 1.7 apart.
+const THREE_SECOND_SLOT = 3;
+const THREE_THIRD_SLOT = 1.3;
+
+/** Short names for each activity's badge, to keep the expectations readable. */
+const GLYPH: Record<string, string> = {
+  coupon_book: "%",
+  stamp_passport: "★",
+  sticker_hunt: "♦",
+  stamp_card: "▲",
+  festival_sticker: "✦",
+};
 
 function stand(
   id: number,
@@ -45,6 +57,7 @@ function renderBadges(
     coupon?: number[];
     passport?: number[];
     stickerHunt?: number[];
+    stampCard?: number[];
     festivalSticker?: number[];
   } = {},
 ) {
@@ -56,17 +69,24 @@ function renderBadges(
           coupon_book: new Set(sets.coupon ?? []),
           stamp_passport: new Set(sets.passport ?? []),
           sticker_hunt: new Set(sets.stickerHunt ?? []),
+          stamp_card: new Set(sets.stampCard ?? []),
           festival_sticker: new Set(sets.festivalSticker ?? []),
         }}
       />
     </svg>,
   );
 
-  return Array.from(container.querySelectorAll("text")).map((node) => ({
-    glyph: node.textContent,
-    // Rounded because the slot offsets accumulate binary float error
-    x: Math.round(Number(node.getAttribute("x")) * 1000) / 1000,
-  }));
+  return Array.from(container.querySelectorAll("g[data-activity]")).map(
+    (node) => ({
+      glyph: GLYPH[node.getAttribute("data-activity") ?? ""],
+      // Rounded because the slot offsets accumulate binary float error
+      x:
+        Math.round(
+          Number(node.querySelector(":scope > circle")?.getAttribute("cx")) *
+            1000,
+        ) / 1000,
+    }),
+  );
 }
 
 describe("FestivalNavStandBadges", () => {
@@ -86,7 +106,7 @@ describe("FestivalNavStandBadges", () => {
     ]);
   });
 
-  it("stacks all three activities without overlapping", () => {
+  it("tightens the stack to fit three activities in the stand", () => {
     expect(
       renderBadges([stand(1, [7])], {
         coupon: [7],
@@ -95,12 +115,12 @@ describe("FestivalNavStandBadges", () => {
       }),
     ).toEqual([
       { glyph: "%", x: FIRST_SLOT },
-      { glyph: "★", x: SECOND_SLOT },
-      { glyph: "♦", x: THIRD_SLOT },
+      { glyph: "★", x: THREE_SECOND_SLOT },
+      { glyph: "♦", x: THREE_THIRD_SLOT },
     ]);
   });
 
-  it("keeps four activity badges within the stand", () => {
+  it("keeps every activity badge within the stand", () => {
     const { container } = render(
       <svg>
         <FestivalNavStandBadges
@@ -109,6 +129,7 @@ describe("FestivalNavStandBadges", () => {
             coupon_book: new Set([7]),
             stamp_passport: new Set([7]),
             sticker_hunt: new Set([7]),
+            stamp_card: new Set([7]),
             festival_sticker: new Set([7]),
           }}
         />
@@ -116,19 +137,66 @@ describe("FestivalNavStandBadges", () => {
     );
 
     expect(
-      Array.from(container.querySelectorAll("text")).map(
-        (node) => node.textContent,
+      Array.from(container.querySelectorAll("g[data-activity]")).map((node) =>
+        node.getAttribute("data-activity"),
       ),
-    ).toEqual(["%", "★", "♦", "✦"]);
+    ).toEqual([
+      "coupon_book",
+      "stamp_passport",
+      "sticker_hunt",
+      "stamp_card",
+      "festival_sticker",
+    ]);
+    // Every badge carries its activity's icon, centred in the circle.
+    for (const badge of container.querySelectorAll("g[data-activity]")) {
+      const circle = badge.querySelector(":scope > circle")!;
+      const icon = badge.querySelector(":scope > svg")!;
+      const size = Number(icon.getAttribute("width"));
+      expect(Number(icon.getAttribute("x")) + size / 2).toBeCloseTo(
+        Number(circle.getAttribute("cx")),
+      );
+      expect(Number(icon.getAttribute("y")) + size / 2).toBeCloseTo(
+        Number(circle.getAttribute("cy")),
+      );
+    }
 
-    const circles = Array.from(container.querySelectorAll("circle"));
-    expect(circles).toHaveLength(4);
+    const circles = Array.from(
+      container.querySelectorAll("g[data-activity] > circle"),
+    );
+    expect(circles).toHaveLength(5);
     for (const circle of circles) {
       const cx = Number(circle.getAttribute("cx"));
       const radius = Number(circle.getAttribute("r"));
       expect(cx - radius).toBeGreaterThanOrEqual(0);
       expect(cx + radius).toBeLessThanOrEqual(STAND_SIZE);
     }
+  });
+
+  it("lets the front badge cover only the edge of the one behind it", () => {
+    const { container } = render(
+      <svg>
+        <FestivalNavStandBadges
+          stands={[stand(1, [7])]}
+          activityUserIds={{
+            coupon_book: new Set([7]),
+            stamp_passport: new Set([7]),
+            sticker_hunt: new Set(),
+            stamp_card: new Set(),
+            festival_sticker: new Set(),
+          }}
+        />
+      </svg>,
+    );
+
+    const [back, front] = Array.from(
+      container.querySelectorAll("g[data-activity] > circle"),
+    ).map((circle) => ({
+      cx: Number(circle.getAttribute("cx")),
+      r: Number(circle.getAttribute("r")),
+    }));
+    // The front circle's right edge stays clear of the back badge's centre,
+    // where its symbol is drawn, with room for half the symbol's width.
+    expect(front.cx + front.r).toBeLessThan(back.cx - 0.5);
   });
 
   it("closes the gap when a middle activity is missing", () => {
@@ -167,6 +235,7 @@ describe("FestivalNavStandBadges", () => {
             coupon_book: new Set([7, 8]),
             stamp_passport: new Set(),
             sticker_hunt: new Set(),
+            stamp_card: new Set(),
             festival_sticker: new Set(),
           }}
         />
@@ -177,6 +246,8 @@ describe("FestivalNavStandBadges", () => {
       (node) => node.getAttribute("transform"),
     );
     expect(groups).toEqual(["translate(10, 20)", "translate(30, 40)"]);
-    expect(container.querySelectorAll("circle")).toHaveLength(2);
+    expect(
+      container.querySelectorAll("g[data-activity] > circle"),
+    ).toHaveLength(2);
   });
 });
