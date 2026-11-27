@@ -258,33 +258,40 @@ export default function CredentialsRulesForm() {
   // compares against: the server refuses a save or reset if they are no
   // longer the festival's, so a form that missed a refresh cannot undo
   // another admin's rules. Its own save resets them to what it saved.
-  const baseRules = () => form.formState.defaultValues as CredentialRulesFormInput;
+  const baseRules = () =>
+    structuredClone(form.formState.defaultValues) as CredentialRulesFormInput;
 
-  const save = form.handleSubmit(async (values) => {
-    try {
-      const result = await saveCredentialRules({
-        festivalId,
-        rules: values,
-        baseRules: baseRules(),
-      });
-      if (!result.success) {
-        toast.error(result.message);
-        // Newer rules (a stale base) reach the form through its refresh
-        // effect, which keeps and flags the drafts; a reload would drop them.
+  // The base is read when Guardar is pressed, as the values are (the resolver
+  // reads them then): a refresh landing while they validate would otherwise
+  // pair these values with rules they never saw, and the server would take
+  // them as a reviewed replacement.
+  const save = (base: CredentialRulesFormInput) =>
+    form.handleSubmit(async (values) => {
+      try {
+        const result = await saveCredentialRules({
+          festivalId,
+          rules: values,
+          baseRules: base,
+        });
+        if (!result.success) {
+          toast.error(result.message);
+          // Newer rules (a stale base) reach the form through its refresh
+          // effect, which keeps and flags the drafts; a reload would drop them.
+          router.refresh();
+          return;
+        }
+        toast.success(result.message);
+        setConflicts([]);
+        setReviewing([]);
+        form.reset(values);
         router.refresh();
-        return;
+      } catch (error) {
+        toastActionError(error, CREDENTIALS_COPY.genericError);
       }
-      toast.success(result.message);
-      setConflicts([]);
-      setReviewing([]);
-      form.reset(values);
-      router.refresh();
-    } catch (error) {
-      toastActionError(error, CREDENTIALS_COPY.genericError);
-    }
-  });
+    });
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
+    const base = baseRules();
     const changed = conflicts.filter(
       (path) =>
         !sameValue(form.getValues(path), readField(form.formState.defaultValues, path)),
@@ -304,7 +311,7 @@ export default function CredentialsRulesForm() {
       return;
     }
     setConflicts([]);
-    return save(event);
+    return save(base)(event);
   }
 
   async function onReset() {

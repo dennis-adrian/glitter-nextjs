@@ -10,6 +10,7 @@ import { renderWithCredentials } from "@/app/components/festivals/credentials/te
 import { addReservation, emptyData } from "@/app/lib/credentials/__fixtures__/data";
 import type { CredentialsData } from "@/app/lib/credentials/calculate";
 import { DEFAULT_CREDENTIAL_FILTERS } from "@/app/lib/credentials/definitions";
+import { credentialRulesFormSchema } from "@/app/lib/credentials/schema";
 
 const saveCredentialRules = vi.hoisted(() => vi.fn());
 const resetCredentialRules = vi.hoisted(() => vi.fn());
@@ -237,6 +238,40 @@ describe("CredentialsRulesForm", () => {
       rules: { volunteer: { quantity: 3 }, staff: { quantity: 2 } },
       baseRules: { volunteer: { quantity: 3 }, staff: { quantity: 1 } },
     });
+  });
+
+  it("sends the base it validated against when a refresh lands mid-validation", async () => {
+    saveCredentialRules.mockResolvedValue({ success: true, message: "Reglas guardadas." });
+    // Hold the real resolver's parse (zod awaits a pending run) until the
+    // refresh has landed, then let it run on the values it was handed.
+    const schemaInternals = credentialRulesFormSchema._zod;
+    const run = schemaInternals.run;
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const spy = vi
+      .spyOn(schemaInternals, "run")
+      .mockImplementationOnce((payload, ctx) => held.then(() => run(payload, ctx)) as never);
+    try {
+      const data = festival();
+      const { rerender } = render(page(data));
+      const staff = screen.getByLabelText("Persona del equipo Glitter");
+      fireEvent.change(staff, { target: { value: "2" } });
+      fireEvent.click(screen.getByRole("button", { name: "Guardar reglas" }));
+      await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+
+      // Another admin's save reaches the form while it is still validating.
+      rerender(page(refreshed(data, [{ group: "volunteer", quantity: 3, namingMode: null }])));
+      await act(async () => release());
+      await waitFor(() => expect(saveCredentialRules).toHaveBeenCalledTimes(1));
+      // The values were read before the refresh, so the base must be too:
+      // the server then refuses the stale save instead of undoing the 3.
+      expect(saveCredentialRules.mock.calls[0]![0]).toMatchObject({
+        rules: { volunteer: { quantity: 1 }, staff: { quantity: 2 } },
+        baseRules: { volunteer: { quantity: 1 }, staff: { quantity: 1 } },
+      });
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("locks every field while saving or resetting", async () => {
