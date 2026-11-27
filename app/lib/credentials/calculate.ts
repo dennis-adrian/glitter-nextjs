@@ -173,7 +173,10 @@ export type HolderPrint = {
   /** The most urgent of its units (§6.2). */
   state: PrintState;
   lastPrintedAt: Date | null;
-  /** Credentials still to print for `partial` units. */
+  /**
+   * Credentials still owed: the delta of `partial` units and the whole of
+   * `new` ones, since a holder shows "Faltan" for both together.
+   */
   missing: number;
   /** Credentials printed beyond the entitlement, for `surplus`. */
   surplus: number;
@@ -228,6 +231,14 @@ export type CredentialWarning = {
   message: string;
   /** Statuses of the reservations involved, to apply the status filter. */
   statuses: CountableReservationStatus[];
+  /**
+   * For "duplicate_user": the person and each reservation's label with its
+   * status, so the message lists only the reservations the filters count.
+   */
+  duplicate?: {
+    name: string;
+    reservations: { label: string; status: CountableReservationStatus }[];
+  };
 };
 
 export type CredentialGroupSummary = {
@@ -595,12 +606,15 @@ export function buildHolders(
   }
   for (const { name, reservations } of userReservations.values()) {
     if (reservations.length < 2) continue;
+    const listed = reservations.map((entry) => ({
+      label: entry.label,
+      status: entry.reservation.status,
+    }));
     warnings.push({
       kind: "duplicate_user",
-      message: `${name || CREDENTIALS_COPY.emptyName} está en más de una reserva (${spanishList(
-        reservations.map((entry) => entry.label),
-      )}). Se cuentan todas.`,
-      statuses: reservations.map((entry) => entry.reservation.status),
+      message: duplicateUserMessage(name, listed),
+      statuses: listed.map((entry) => entry.status),
+      duplicate: { name, reservations: listed },
     });
   }
 
@@ -762,6 +776,12 @@ export function buildHolders(
   }
 
   return { holders, warnings };
+}
+
+function duplicateUserMessage(name: string, reservations: { label: string }[]) {
+  return `${name || CREDENTIALS_COPY.emptyName} está en más de una reserva (${spanishList(
+    reservations.map((entry) => entry.label),
+  )}). Se cuentan todas.`;
 }
 
 function simpleHolder({
@@ -935,7 +955,11 @@ export function applyPrintState(
     for (const unit of holder.units) {
       const print = unitPrint(unit, histories.get(unit.key));
       units[unit.key] = print;
-      if (print.state === "partial") {
+      if (print.state === "new") {
+        // Owed in full. Alone it reads "Nueva"; next to a short unit the
+        // holder reads "Faltan", which must count this one too.
+        missing += unit.named + unit.unnamed;
+      } else if (print.state === "partial") {
         missing += print.nameChanged
           ? unit.named + unit.unnamed
           : Math.max(0, unit.named - print.coveredNamed) +
@@ -1073,9 +1097,11 @@ export function summarize(
     return {
       group,
       rule: credentialRuleCopy(group, rules[group]),
-      // A lot of unnamed one-off credentials is not a person.
-      people: live.filter((holder) => !(holder.kind === "extra" && holder.named === 0))
-        .length,
+      // A lot of unnamed one-off credentials is not a person, nor is a
+      // participant a low quantity left without credentials ("Sin credencial").
+      people: live.filter(
+        (holder) => !(holder.kind === "extra" && holder.named === 0) && !holder.noCredential,
+      ).length,
       named,
       unnamed,
       total: named + unnamed,
@@ -1179,9 +1205,24 @@ export function buildView(
   const all = applyPrintState(built.holders, data.batches);
   const holders = all.filter((holder) => holderPassesFilters(holder, filters));
   holders.sort(holderSort);
-  const warnings = built.warnings.filter((warning) => {
+  const warnings = built.warnings.flatMap((warning) => {
+    if (warning.duplicate) {
+      // Only the reservations the filters count: a duplicate needs two.
+      const counted = warning.duplicate.reservations.filter((entry) =>
+        includesStatus(filters, entry.status),
+      );
+      if (counted.length < 2) return [];
+      return [
+        {
+          ...warning,
+          message: duplicateUserMessage(warning.duplicate.name, counted),
+          statuses: counted.map((entry) => entry.status),
+          duplicate: { ...warning.duplicate, reservations: counted },
+        },
+      ];
+    }
     const included = warning.statuses.filter((status) => includesStatus(filters, status));
-    return warning.kind === "duplicate_user" ? included.length >= 2 : included.length > 0;
+    return included.length > 0 ? [warning] : [];
   });
   return {
     rules,

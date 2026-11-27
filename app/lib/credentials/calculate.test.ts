@@ -699,3 +699,75 @@ describe("print state", () => {
     expect(names("baja")).toEqual([]);
   });
 });
+
+describe("headcount, owed counts and duplicate warnings under filters", () => {
+  it("counts a new unit next to a short one in what the holder still needs", () => {
+    const data = emptyData();
+    // Two stands: 1 named for Ana and 3 unnamed. Only 2 unnamed went out.
+    const { reservationId } = addReservation(data, {
+      people: [{ name: "Ana", participationId: 501 }],
+      stands: 2,
+    });
+    data.batches.push(
+      batch([
+        {
+          unitKey: `reservation:${reservationId}`,
+          group: "illustration",
+          userId: null,
+          printedName: null,
+          detail: "",
+          namedCount: 0,
+          unnamedCount: 2,
+          isReprint: false,
+        },
+      ]),
+    );
+    const ana = buildView(data, DEFAULT_CREDENTIAL_RULES, ALL).holders.find(
+      (holder) => holder.name === "Ana",
+    )!;
+    expect(ana.print).toMatchObject({ state: "partial", missing: 2 });
+    expect(batchCountsFor(ana)).toMatchObject({ named: 1, unnamed: 1 });
+    expect(printStateLabel(ana.print!)).toBe("Faltan 2");
+  });
+
+  it("leaves a participant without credential out of the people count", () => {
+    const data = emptyData();
+    addReservation(data, { people: [{ name: "Titular" }, { name: "Socia" }] });
+    const view = buildView(
+      data,
+      resolveRules([{ group: "illustration", quantity: 1, namingMode: null }]),
+      ALL,
+    );
+    // Still listed in Nombres, as "Sin credencial".
+    expect(view.holders.map((holder) => holder.name)).toEqual(["Titular", "Socia"]);
+    const illustration = view.summary.rows.find((row) => row.group === "illustration")!;
+    expect(illustration).toMatchObject({ people: 1, named: 1, unnamed: 0 });
+    expect(view.sources.reservations.accepted).toBe(1);
+  });
+
+  it("lists only the reservations the filters count in a duplicate warning", () => {
+    const data = emptyData();
+    const person = { name: "Repetida", userId: 777 };
+    addReservation(data, { people: [person], label: "A", firstNumber: 1 });
+    addReservation(data, { people: [person], label: "B", firstNumber: 2 });
+    addReservation(data, { people: [person], label: "C", firstNumber: 3, status: "pending" });
+    const duplicate = (filters: CredentialFilters) =>
+      buildView(data, DEFAULT_CREDENTIAL_RULES, filters).warnings.filter(
+        (warning) => warning.kind === "duplicate_user",
+      );
+
+    const all = duplicate(ALL);
+    expect(all).toHaveLength(1);
+    expect(all[0]!.message).toMatch(/A.*1.*B.*2.*C.*3/);
+
+    const withoutPending = duplicate({ ...ALL, statuses: { ...ALL.statuses, pending: false } });
+    expect(withoutPending).toHaveLength(1);
+    expect(withoutPending[0]!.message).toMatch(/A.*1.*B.*2/);
+    expect(withoutPending[0]!.message).not.toMatch(/C.*3/);
+    expect(withoutPending[0]!.statuses).toEqual(["accepted", "accepted"]);
+
+    // One counted reservation is no duplicate.
+    data.reservations[1]!.status = "pending";
+    expect(duplicate({ ...ALL, statuses: { ...ALL.statuses, pending: false } })).toEqual([]);
+  });
+});
