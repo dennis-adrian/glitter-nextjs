@@ -50,8 +50,9 @@ END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS "site_links_daily_clicks_link_day_source" ON "site_links_daily_clicks" USING btree ("link_id","day","source");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "site_links_daily_clicks_day_idx" ON "site_links_daily_clicks" USING btree ("day");--> statement-breakpoint
 -- The counters add to a day's row with ON CONFLICT on these keys, and a
--- deleted link's rows keep their place through this foreign key. Without
--- them the counting fails or goes wrong, so the migration fails here instead.
+-- deleted link's rows keep their place through this foreign key, which
+-- empties a `link_id` that must be able to be empty. Without them the
+-- counting fails or goes wrong, so the migration fails here instead.
 DO $$
 BEGIN
 	IF NOT EXISTS (
@@ -113,5 +114,13 @@ BEGIN
 			)]::int2[]
 	) THEN
 		RAISE EXCEPTION 'site_links_daily_clicks.link_id does not reference site_links with ON DELETE SET NULL';
+	END IF;
+	IF EXISTS (
+		SELECT 1 FROM pg_attribute
+		WHERE attrelid = 'public.site_links_daily_clicks'::regclass
+			AND attname = 'link_id'
+			AND attnotnull
+	) THEN
+		RAISE EXCEPTION 'site_links_daily_clicks.link_id is NOT NULL, so deleting a link with taps would fail: make it nullable (ALTER TABLE site_links_daily_clicks ALTER COLUMN link_id DROP NOT NULL) and run the migration again';
 	END IF;
 END $$;

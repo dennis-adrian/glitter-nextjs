@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, gte, lte, min, sql } from "drizzle-orm";
+import { and, gte, lte, sql, type AnyColumn } from "drizzle-orm";
 
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
@@ -31,6 +31,10 @@ export async function fetchLinksStatistics(
   if (!profile || !canManageLinks(profile.role)) return null;
 
   const range = periodRange(linksDay(now), period);
+  // Days as `YYYY-MM-DD` whatever the server's DateStyle: the driver hands a
+  // `date` over as the server writes it, and the days are compared as text.
+  const isoDay = (day: AnyColumn) =>
+    sql<string>`to_char(${day}, 'YYYY-MM-DD')`;
   // One read-only REPEATABLE READ snapshot, the statements one after another
   // on its one connection. Read apart, a link deleted between the taps and
   // the links would leave taps attributed to no link and to no deleted one.
@@ -39,7 +43,7 @@ export async function fetchLinksStatistics(
       async (tx) => {
         const views = await tx
           .select({
-            day: siteLinksDailyViews.day,
+            day: isoDay(siteLinksDailyViews.day),
             source: siteLinksDailyViews.source,
             views: siteLinksDailyViews.views,
           })
@@ -53,7 +57,7 @@ export async function fetchLinksStatistics(
         const clicks = await tx
           .select({
             linkId: siteLinksDailyClicks.linkId,
-            day: siteLinksDailyClicks.day,
+            day: isoDay(siteLinksDailyClicks.day),
             source: siteLinksDailyClicks.source,
             clicks: sql<number>`sum(${siteLinksDailyClicks.clicks})::int`,
           })
@@ -82,10 +86,18 @@ export async function fetchLinksStatistics(
           .from(siteLinks)
           .orderBy(siteLinks.kind, siteLinks.sortOrder, siteLinks.id);
         const [viewsStart] = await tx
-          .select({ day: min(siteLinksDailyViews.day) })
+          .select({
+            day: sql<
+              string | null
+            >`to_char(min(${siteLinksDailyViews.day}), 'YYYY-MM-DD')`,
+          })
           .from(siteLinksDailyViews);
         const [clicksStart] = await tx
-          .select({ day: min(siteLinksDailyClicks.day) })
+          .select({
+            day: sql<
+              string | null
+            >`to_char(min(${siteLinksDailyClicks.day}), 'YYYY-MM-DD')`,
+          })
           .from(siteLinksDailyClicks);
         return { views, clicks, links, viewsStart, clicksStart };
       },

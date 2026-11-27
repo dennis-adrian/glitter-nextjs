@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { and, eq, inArray, isNull, like, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { NextRequest } from "next/server";
 import { Pool, type PoolClient } from "pg";
@@ -189,10 +189,14 @@ async function viewsOn(day: string, source: LinksSource) {
   return row?.views ?? 0;
 }
 
+/** A day as `YYYY-MM-DD`, whatever the server's DateStyle. */
+const isoDay = (day: typeof siteLinksDailyClicks.day) =>
+  sql<string>`to_char(${day}, 'YYYY-MM-DD')`;
+
 async function clickRows(linkId: number) {
   return integrationDb!
     .select({
-      day: siteLinksDailyClicks.day,
+      day: isoDay(siteLinksDailyClicks.day),
       source: siteLinksDailyClicks.source,
       clicks: siteLinksDailyClicks.clicks,
     })
@@ -444,7 +448,12 @@ describeDatabase("site links statistics", () => {
       const link = await addLink("deleted");
       const [row] = await tapThenDelete(link, "facebook", FUTURE_NOON);
       const [kept] = await integrationDb!
-        .select()
+        .select({
+          linkId: siteLinksDailyClicks.linkId,
+          day: isoDay(siteLinksDailyClicks.day),
+          source: siteLinksDailyClicks.source,
+          clicks: siteLinksDailyClicks.clicks,
+        })
         .from(siteLinksDailyClicks)
         .where(eq(siteLinksDailyClicks.id, row.id));
       expect(kept).toMatchObject({

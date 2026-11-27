@@ -434,6 +434,27 @@ describeDatabase("site links dashboard actions", () => {
       expect((await visibleLinks()).length).toBe(2);
     });
 
+    it("keeps a deleted link's daily taps, with no link, for the statistics", async () => {
+      const link = await addLink("Preinscripción");
+      await queries.recordSiteLinkClick(link.id, "instagram");
+      const [tap] = await integrationDb!
+        .select({ id: siteLinksDailyClicks.id })
+        .from(siteLinksDailyClicks)
+        .where(eq(siteLinksDailyClicks.linkId, link.id));
+
+      // What the dialog promises: the link goes, its taps of each day stay.
+      expect(await actions.deleteSiteLink(link.id)).toEqual({ success: true });
+      const [kept] = await integrationDb!
+        .select()
+        .from(siteLinksDailyClicks)
+        .where(eq(siteLinksDailyClicks.id, tap.id));
+      expect(kept).toMatchObject({
+        linkId: null,
+        source: "instagram",
+        clicks: 1,
+      });
+    });
+
     it("deletes a link, and reports one that is already gone", async () => {
       const link = await addLink("Tiendita");
 
