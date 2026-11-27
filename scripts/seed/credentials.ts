@@ -1,6 +1,10 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
-import { DEFAULT_CREDENTIAL_RULES } from "@/app/lib/credentials/definitions";
+import {
+  COUNTABLE_RESERVATION_STATUSES,
+  CREDENTIALS_COPY,
+  DEFAULT_CREDENTIAL_RULES,
+} from "@/app/lib/credentials/definitions";
 import type { db as DbType } from "@/db";
 import { seedDemoEmail } from "@/scripts/seed/demo-users";
 import {
@@ -70,44 +74,72 @@ export type SeedCredentialsResult = {
   createdBatch: boolean;
 };
 
-async function ensureStand(
-  database: typeof DbType,
+type Tx = Parameters<Parameters<typeof DbType.transaction>[0]>[0];
+
+/**
+ * Whether a live reservation holds one of these stands: an unreleased member
+ * in a counted status, the same rule as the database's one-occupant index
+ * (`stand_reservation_stands_active_stand_unique`). A released or cancelled
+ * one does not block the fixture.
+ */
+async function standsTaken(tx: Tx, standIds: number[]) {
+  if (standIds.length === 0) return false;
+  const rows = await tx
+    .select({ id: standReservationStands.id })
+    .from(standReservationStands)
+    .where(
+      and(
+        inArray(standReservationStands.standId, standIds),
+        isNull(standReservationStands.releasedAt),
+        inArray(standReservationStands.reservationStatus, [...COUNTABLE_RESERVATION_STATUSES]),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+/**
+ * The fixture's stands, in order, or null when a live reservation already
+ * holds any of them. Every existing stand is checked before a missing one is
+ * created, and the caller runs this in the transaction that writes the
+ * reservation, so a skipped or failed run leaves no stand behind.
+ */
+async function claimFixtureStands(
+  tx: Tx,
   festivalId: number,
-  standNumber: number,
-): Promise<number> {
-  const [existing] = await database
-    .select({ id: stands.id })
+  standNumbers: readonly number[],
+): Promise<number[] | null> {
+  const existing = await tx
+    .select({ id: stands.id, standNumber: stands.standNumber })
     .from(stands)
     .where(
       and(
         eq(stands.festivalId, festivalId),
         eq(stands.label, STAND_LABEL),
-        eq(stands.standNumber, standNumber),
+        inArray(stands.standNumber, [...standNumbers]),
       ),
-    )
-    .limit(1);
-  if (existing) return existing.id;
-  const [created] = await database
-    .insert(stands)
-    .values({
-      festivalId,
-      label: STAND_LABEL,
-      standNumber,
-      standCategory: "illustration",
-      status: "reserved",
-    })
-    .returning({ id: stands.id });
-  return created!.id;
-}
-
-/** Whether any reservation of the festival already holds one of these stands. */
-async function standsTaken(database: typeof DbType, standIds: number[]) {
-  const rows = await database
-    .select({ id: standReservationStands.id })
-    .from(standReservationStands)
-    .where(inArray(standReservationStands.standId, standIds))
-    .limit(1);
-  return rows.length > 0;
+    );
+  if (await standsTaken(tx, existing.map((stand) => stand.id))) return null;
+  const ids: number[] = [];
+  for (const standNumber of standNumbers) {
+    const found = existing.find((stand) => stand.standNumber === standNumber);
+    if (found) {
+      ids.push(found.id);
+      continue;
+    }
+    const [created] = await tx
+      .insert(stands)
+      .values({
+        festivalId,
+        label: STAND_LABEL,
+        standNumber,
+        standCategory: "illustration",
+        status: "reserved",
+      })
+      .returning({ id: stands.id });
+    ids.push(created!.id);
+  }
+  return ids;
 }
 
 export async function seedCredentials(
@@ -179,11 +211,14 @@ export async function seedCredentials(
     .onConflictDoNothing()
     .returning({ id: volunteerApplications.id });
 
-  // An external participant on a stand of its own.
-  let createdExternal = false;
-  const externalStand = await ensureStand(database, festival.id, EXTERNAL_STAND);
-  if (!(await standsTaken(database, [externalStand]))) {
-    const [existingExternal] = await database
+  // An external participant on a stand of its own. All or nothing: a stand
+  // membership left without its participant would read as taken on the next
+  // run and never be repaired.
+  const createdExternal = await database.transaction(async (tx) => {
+    const claimed = await claimFixtureStands(tx, festival.id, [EXTERNAL_STAND]);
+    if (!claimed) return false;
+    const externalStand = claimed[0]!;
+    const [existingExternal] = await tx
       .select({ id: externalParticipants.id })
       .from(externalParticipants)
       .where(eq(externalParticipants.displayName, EXTERNAL_NAME))
@@ -191,33 +226,29 @@ export async function seedCredentials(
     const externalId =
       existingExternal?.id ??
       (
-        await database
+        await tx
           .insert(externalParticipants)
           .values({ displayName: EXTERNAL_NAME, type: "social_organization" })
           .returning({ id: externalParticipants.id })
       )[0]!.id;
-    // All or nothing: a stand membership left without its participant would
-    // read as taken on the next run and never be repaired.
-    await database.transaction(async (tx) => {
-      const [reservation] = await tx
-        .insert(standReservations)
-        .values({
-          festivalId: festival.id,
-          standId: externalStand,
-          status: "accepted",
-          source: "admin_assignment",
-          ownerUserId: null,
-        })
-        .returning({ id: standReservations.id });
-      await tx
-        .insert(standReservationStands)
-        .values({ reservationId: reservation!.id, standId: externalStand, position: 0 });
-      await tx
-        .insert(reservationExternalParticipants)
-        .values({ reservationId: reservation!.id, externalParticipantId: externalId });
-    });
-    createdExternal = true;
-  }
+    const [reservation] = await tx
+      .insert(standReservations)
+      .values({
+        festivalId: festival.id,
+        standId: externalStand,
+        status: "accepted",
+        source: "admin_assignment",
+        ownerUserId: null,
+      })
+      .returning({ id: standReservations.id });
+    await tx
+      .insert(standReservationStands)
+      .values({ reservationId: reservation!.id, standId: externalStand, position: 0 });
+    await tx
+      .insert(reservationExternalParticipants)
+      .values({ reservationId: reservation!.id, externalParticipantId: externalId });
+    return true;
+  });
 
   // A reservation holding two stands, for the demo illustrator.
   let createdFullTable = false;
@@ -227,36 +258,32 @@ export async function seedCredentials(
     .where(inArray(users.email, fullTableEmails()))
     .limit(1);
   if (participant) {
-    const standIds: number[] = [];
-    for (const number of FULL_TABLE_STANDS) {
-      standIds.push(await ensureStand(database, festival.id, number));
-    }
-    if (!(await standsTaken(database, standIds))) {
-      await database.transaction(async (tx) => {
-        const [reservation] = await tx
-          .insert(standReservations)
-          .values({
-            festivalId: festival.id,
-            standId: standIds[0]!,
-            status: "accepted",
-            source: "admin_assignment",
-            ownerUserId: participant.id,
-          })
-          .returning({ id: standReservations.id });
-        await tx.insert(standReservationStands).values(
-          standIds.map((standId, position) => ({
-            reservationId: reservation!.id,
-            standId,
-            position,
-          })),
-        );
-        await tx
-          .insert(reservationParticipants)
-          .values({ reservationId: reservation!.id, userId: participant.id })
-          .onConflictDoNothing();
-      });
-      createdFullTable = true;
-    }
+    createdFullTable = await database.transaction(async (tx) => {
+      const standIds = await claimFixtureStands(tx, festival.id, FULL_TABLE_STANDS);
+      if (!standIds) return false;
+      const [reservation] = await tx
+        .insert(standReservations)
+        .values({
+          festivalId: festival.id,
+          standId: standIds[0]!,
+          status: "accepted",
+          source: "admin_assignment",
+          ownerUserId: participant.id,
+        })
+        .returning({ id: standReservations.id });
+      await tx.insert(standReservationStands).values(
+        standIds.map((standId, position) => ({
+          reservationId: reservation!.id,
+          standId,
+          position,
+        })),
+      );
+      await tx
+        .insert(reservationParticipants)
+        .values({ reservationId: reservation!.id, userId: participant.id })
+        .onConflictDoNothing();
+      return true;
+    });
   }
 
   // Two people of the Glitter team, selected for this festival, and a lot
@@ -322,9 +349,22 @@ export async function seedCredentials(
         ),
       )
       .limit(1);
+    // The role it has now, not the one the fixture first gave it: the
+    // application may predate this seed or have been edited since.
     const [volunteer] = await database
-      .select({ id: volunteerApplications.id, fullName: volunteerApplications.fullName })
+      .select({
+        id: volunteerApplications.id,
+        fullName: volunteerApplications.fullName,
+        roleName: volunteerRoles.name,
+      })
       .from(volunteerApplications)
+      .leftJoin(
+        volunteerRoles,
+        and(
+          eq(volunteerRoles.id, volunteerApplications.assignedRoleId),
+          eq(volunteerRoles.festivalId, volunteerApplications.festivalId),
+        ),
+      )
       .where(
         and(
           eq(volunteerApplications.festivalId, festival.id),
@@ -349,7 +389,8 @@ export async function seedCredentials(
         unitKey: `volunteer:${volunteer.id}`,
         group: "volunteer" as const,
         printedName: volunteer.fullName,
-        detail: ROLE_NAMES[0],
+        // The calculator's detail for a volunteer (calculate.ts).
+        detail: volunteer.roleName ?? CREDENTIALS_COPY.noRole,
         namedCount: DEFAULT_CREDENTIAL_RULES.volunteer.quantity,
       },
       member && {
