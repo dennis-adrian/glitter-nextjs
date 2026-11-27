@@ -104,14 +104,17 @@ function requestFocusAfterMove(participationId: number, detailId: number) {
   }, FOCUS_REQUEST_TTL_MS);
 }
 
+/** Whether the last move placed this row in `detailId`; claims nothing. */
+function isFocusPendingFor(participationId: number, detailId: number) {
+  return (
+    pendingFocus?.participationId === participationId &&
+    pendingFocus.detailId === detailId
+  );
+}
+
 /** True once, for the row the last move placed in `detailId`. */
 function claimFocusAfterMove(participationId: number, detailId: number) {
-  if (
-    pendingFocus?.participationId !== participationId ||
-    pendingFocus.detailId !== detailId
-  ) {
-    return false;
-  }
+  if (!isFocusPendingFor(participationId, detailId)) return false;
   pendingFocus = null;
   return true;
 }
@@ -157,6 +160,9 @@ export default function MoveParticipantVariantMenu({
     const trigger = triggerRef.current;
     if (
       !trigger ||
+      // Cheap check first: this runs after every render of every row, and
+      // reading layout below is not free.
+      !isFocusPendingFor(participationId, currentDetailId) ||
       // The table and the phone cards both render the row; one is hidden.
       trigger.getClientRects().length === 0 ||
       !claimFocusAfterMove(participationId, currentDetailId)

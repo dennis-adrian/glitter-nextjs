@@ -100,7 +100,7 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
           return (
             <div key={detail.id} className="flex flex-col gap-2">
               {showVariantHeaders && (
-                <h3 className="text-sm font-medium text-muted-foreground">
+                <h3 className="text-sm font-medium text-muted-foreground break-words">
                   {variantLabel(index, detail.description)} · {limitLabel}{" "}
                   participante
                   {activeCount !== 1 ? "s" : ""}
