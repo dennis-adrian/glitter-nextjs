@@ -13,12 +13,15 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn() }),
   usePathname: () => "/dashboard/festivals/1/credentials",
 }));
-vi.mock("@/app/hooks/use-media-query", () => ({ useMediaQuery: () => true }));
+const isDesktop = vi.hoisted(() => ({ value: true }));
+vi.mock("@/app/hooks/use-media-query", () => ({ useMediaQuery: () => isDesktop.value }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
+  isDesktop.value = true;
 });
 
 /** Lucía and Andrés are new; Camila was printed; Pendiente is hidden by the toggle. */
@@ -152,5 +155,29 @@ describe("PrintBatchDialog", () => {
       0,
     );
     expect(sent).toBe(Number(within(dialog).getByTestId("batch-total").textContent!.split(" ")[0]));
+  });
+
+  it("does not open the phone search while marking", async () => {
+    isDesktop.value = false;
+    // The phone sheet is vaul's drawer, which reads media queries.
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+    }));
+    let finish!: (result: { success: boolean; message: string }) => void;
+    createCredentialPrintBatch.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    renderWithCredentials(<PrintBatchDialog />, { data: festival().data });
+    const dialog = open();
+    const search = within(dialog).getByRole("button", { name: "Buscar por nombre" });
+    expect(search.hasAttribute("disabled")).toBe(false);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Marcar como enviadas" }));
+    await waitFor(() => expect(createCredentialPrintBatch).toHaveBeenCalledTimes(1));
+    expect(search.hasAttribute("disabled")).toBe(true);
+    finish({ success: false, message: "El lote cambió." });
+    await waitFor(() => expect(search.hasAttribute("disabled")).toBe(false));
   });
 });

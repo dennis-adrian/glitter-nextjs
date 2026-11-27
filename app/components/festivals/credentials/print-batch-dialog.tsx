@@ -346,6 +346,8 @@ export default function PrintBatchDialog() {
                     type="button"
                     variant="outline"
                     className="justify-start"
+                    // Opened mid-save, it would outlive the sheet it edits.
+                    disabled={isPending}
                     onClick={() => setSearchOpen(true)}
                   >
                     <SearchIcon className="mr-2 h-4 w-4 shrink-0" aria-hidden />
