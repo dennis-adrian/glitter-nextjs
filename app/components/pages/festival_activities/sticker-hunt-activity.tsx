@@ -31,10 +31,14 @@ export default function StickerHuntActivityPage({
     ? formatDate(activity.proofUploadLimitDate)
     : null;
 
-  const participationLimit = activity.details.reduce(
-    (sum, d) => sum + (d.participationLimit ?? 0),
-    0,
-  );
+  // Enrollment only caps a variant whose limit is above 0, so a total exists
+  // only when every variant is capped. Otherwise enrollment is open-ended.
+  const isFullyCapped =
+    activity.details.length > 0 &&
+    activity.details.every((d) => (d.participationLimit ?? 0) > 0);
+  const participationLimit = isFullyCapped
+    ? activity.details.reduce((sum, d) => sum + (d.participationLimit ?? 0), 0)
+    : null;
 
   const dateTimeFormat = {
     month: "long",
@@ -83,12 +87,12 @@ export default function StickerHuntActivityPage({
               </p>
               <p className="text-sm md:text-base">
                 Esta actividad es exclusiva para ilustradores y{" "}
-                {participationLimit > 0 ? (
+                {participationLimit !== null ? (
                   <>
                     habilitaremos <strong>{participationLimit} cupos</strong>
                   </>
                 ) : (
-                  "habilitaremos cupos limitados"
+                  "no hay un límite de cupos para participar"
                 )}
                 . Los ilustradores que participen en la actividad tendrán un
                 distintivo en el mapa del sitio web para que los visitantes
@@ -139,7 +143,7 @@ export default function StickerHuntActivityPage({
           Los visitantes solo necesitan recolectar{" "}
           <strong>
             10 stickers
-            {participationLimit > 0
+            {participationLimit !== null
               ? ` de los ${participationLimit} posibles`
               : ""}
           </strong>{" "}
@@ -179,13 +183,13 @@ export default function StickerHuntActivityPage({
           <li>
             Inscribirse a la actividad con el botón de inscripción que se
             encuentra al final de la página dentro del periodo de inscripción.{" "}
-            {participationLimit > 0 ? (
+            {participationLimit !== null ? (
               <>
                 El cupo es de{" "}
                 <strong>{participationLimit} participantes</strong>.
               </>
             ) : (
-              "El cupo es limitado."
+              "No hay límite de inscripciones."
             )}
           </li>
           <li>
