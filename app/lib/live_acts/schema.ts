@@ -82,39 +82,33 @@ const fields = {
     .refine((value) => value === true, { error: E.noCost }),
 };
 
-/** Step 1's fields beyond `category`. */
-function tipoShape(category: LiveActCategory) {
-  return category === "other" ? { otherType: fields.otherType } : {};
-}
+const sharedActividad = {
+  actName: fields.actName,
+  resourceLink: fields.resourceLink,
+  socialLinks: fields.socialLinks,
+};
+const describedActividad = {
+  ...sharedActividad,
+  description: fields.requiredDescription,
+};
+const placedActividad = {
+  ...describedActividad,
+  spaceNeeds: fields.spaceNeeds,
+};
 
-/** Step 2's fields for a category. */
-function actividadShape(category: LiveActCategory) {
-  const base = {
-    actName: fields.actName,
-    description:
-      category === "music"
-        ? fields.optionalDescription
-        : fields.requiredDescription,
-    resourceLink: fields.resourceLink,
-    socialLinks: fields.socialLinks,
-  };
-  switch (category) {
-    case "music":
-    case "dance":
-      return base;
-    case "talk":
-    case "other":
-      return { ...base, spaceNeeds: fields.spaceNeeds };
-    case "workshop":
-      return {
-        ...base,
-        workshopCapacity: fields.workshopCapacity,
-        spaceNeeds: fields.spaceNeeds,
-        relatedOffer: fields.relatedOffer,
-        noCostAcknowledged: fields.noCostAcknowledged,
-      };
-  }
-}
+/** Step 2's fields, per category. */
+const ACTIVIDAD_SHAPES = {
+  music: { ...sharedActividad, description: fields.optionalDescription },
+  dance: describedActividad,
+  talk: placedActividad,
+  other: placedActividad,
+  workshop: {
+    ...placedActividad,
+    workshopCapacity: fields.workshopCapacity,
+    relatedOffer: fields.relatedOffer,
+    noCostAcknowledged: fields.noCostAcknowledged,
+  },
+} as const satisfies Record<LiveActCategory, z.ZodRawShape>;
 
 const contactoShape = {
   contactName: nameValidator(),
@@ -132,23 +126,35 @@ const contactoShape = {
 const categoryLiteral = <C extends LiveActCategory>(category: C) =>
   z.literal(category, { error: E.category });
 
-function variant<C extends LiveActCategory>(category: C) {
-  return z.object({
-    category: categoryLiteral(category),
-    ...tipoShape(category),
-    ...actividadShape(category),
-    ...contactoShape,
-  });
-}
-
 export const culturalActivitySchema = z.discriminatedUnion(
   "category",
   [
-    variant("music"),
-    variant("dance"),
-    variant("talk"),
-    variant("workshop"),
-    variant("other"),
+    z.object({
+      category: categoryLiteral("music"),
+      ...ACTIVIDAD_SHAPES.music,
+      ...contactoShape,
+    }),
+    z.object({
+      category: categoryLiteral("dance"),
+      ...ACTIVIDAD_SHAPES.dance,
+      ...contactoShape,
+    }),
+    z.object({
+      category: categoryLiteral("talk"),
+      ...ACTIVIDAD_SHAPES.talk,
+      ...contactoShape,
+    }),
+    z.object({
+      category: categoryLiteral("workshop"),
+      ...ACTIVIDAD_SHAPES.workshop,
+      ...contactoShape,
+    }),
+    z.object({
+      category: categoryLiteral("other"),
+      otherType: fields.otherType,
+      ...ACTIVIDAD_SHAPES.other,
+      ...contactoShape,
+    }),
   ],
   { error: E.category },
 );
@@ -184,7 +190,7 @@ export function buildCulturalActivityStepSchema(
       category: z.enum(CULTURAL_ACTIVITY_CATEGORIES, { error: E.category }),
     });
   }
-  return z.object(actividadShape(category));
+  return z.object(ACTIVIDAD_SHAPES[category]);
 }
 
 /** Which step owns each field, to send a failed full check to its step. */
@@ -194,7 +200,7 @@ export const CULTURAL_ACTIVITY_FIELD_STEPS: ReadonlyMap<string, number> =
     map.set("category", 0);
     map.set("otherType", 0);
     for (const category of CULTURAL_ACTIVITY_CATEGORIES) {
-      for (const field of Object.keys(actividadShape(category))) {
+      for (const field of Object.keys(ACTIVIDAD_SHAPES[category])) {
         map.set(field, 1);
       }
     }
