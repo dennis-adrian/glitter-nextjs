@@ -77,6 +77,13 @@ const accepted = async () => resendReply({ id: "email-1" }, 200);
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // The locked variant as the server would read it: unlimited, any category.
+  lockVariant.mockImplementation(async (_tx, id: number) => ({
+    id,
+    activityId: 8,
+    participationLimit: null,
+    category: null,
+  }));
   vi.stubGlobal("fetch", fetchMock);
   // The SDK logs every API error outside production, and so do the actions.
   vi.spyOn(console, "error").mockImplementation(() => {});

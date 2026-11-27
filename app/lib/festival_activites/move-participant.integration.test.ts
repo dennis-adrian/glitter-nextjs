@@ -1767,4 +1767,112 @@ describeDatabase("moving a participant between variants", () => {
     expect((await waitlistRow(later.id))?.notifiedAt).toBeNull();
     expect(sendEmail).not.toHaveBeenCalled();
   });
+
+  it("passes a manual invitation on when staff changed the picked variant's category meanwhile", async () => {
+    const { festivalId, source, target } = fixture;
+    // Both variants have room; source is picked first.
+    const waiting = await addToWaitlist((await createUser("waiting")).id, 1);
+
+    const [result] = await behindLock(
+      variantLock(source),
+      1,
+      () => [notifyWaitlistEntry(waiting.id, festivalId)],
+      (client) =>
+        client.query(
+          "update festival_activity_details set category = 'gastronomy' where id = $1",
+          [source],
+        ),
+    );
+
+    expect(result).toEqual({
+      success: true,
+      message: "Notificación enviada correctamente",
+    });
+    expect((await waitlistRow(waiting.id))?.notifiedForDetailId).toBe(target);
+    expect(sendEmail).toHaveBeenCalledOnce();
+  });
+
+  it("leaves a waiter on the list when staff changed the variant's category during a bulk promotion", async () => {
+    const { activityId, target } = fixture;
+    const waiting = await addToWaitlist((await createUser("waiting")).id, 1);
+
+    const [result] = await behindLock(
+      variantLock(target),
+      1,
+      () => [promoteWaitlistToVariant(activityId, target)],
+      (client) =>
+        client.query(
+          "update festival_activity_details set category = 'gastronomy' where id = $1",
+          [target],
+        ),
+    );
+
+    expect(result).toMatchObject({ success: true, promoted: 0, skipped: 1 });
+    expect(await waitlistRow(waiting.id)).toBeDefined();
+    expect(await activeIn(target)).toBe(0);
+  });
+
+  it("makes a stand vote wait for a move of any holder enrolled in the variant", async () => {
+    const { festivalId, activityId, source, target } = fixture;
+    await integrationDb!
+      .update(festivalActivities)
+      .set({
+        allowsVoting: true,
+        votingStartDate: new Date(Date.now() - DAY),
+        votingEndDate: new Date(Date.now() + DAY),
+      })
+      .where(eq(festivalActivities.id, activityId));
+    const [stand] = await integrationDb!
+      .insert(stands)
+      .values({ standNumber: 9201, festivalId })
+      .returning({ id: stands.id });
+    standIds.push(stand.id);
+    const [reservation] = await integrationDb!
+      .insert(standReservations)
+      .values({ standId: stand.id, festivalId, status: "accepted" })
+      .returning({ id: standReservations.id });
+    // Two holders share the stand and are both enrolled, with designs.
+    const holders = [];
+    for (const label of ["first-holder", "second-holder"]) {
+      const holder = await createUser(label);
+      await integrationDb!
+        .insert(reservationParticipants)
+        .values({ userId: holder.id, reservationId: reservation.id });
+      const row = await enroll(source, holder.id);
+      await integrationDb!.insert(festivalActivityParticipantProofs).values({
+        participationId: row.id,
+        imageUrl: `https://example.test/${label}.png`,
+      });
+      holders.push(row);
+    }
+    currentProfile.mockResolvedValue(await createUser("voter"));
+
+    // A move of the second holder holds its row while the vote validates
+    // the stand. Locking only one holder would not wait for it.
+    const [result] = await behindLock(
+      {
+        text: "select id from festival_activity_participants where id = $1 for update",
+        values: [holders[1].id],
+      },
+      1,
+      () => [
+        addFestivalActivityVote({
+          activityVariantId: source,
+          votableType: "stand",
+          standId: stand.id,
+        }),
+      ],
+      (client) =>
+        client.query(
+          "update festival_activity_participants set details_id = $1 where id = $2",
+          [target, holders[1].id],
+        ),
+    );
+
+    // The first holder is still in the variant, so the vote stands.
+    expect(result).toEqual({
+      success: true,
+      message: "Voto agregado correctamente",
+    });
+  });
 });

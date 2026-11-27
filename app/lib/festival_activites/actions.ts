@@ -332,7 +332,8 @@ export const addFestivalActivityVote = async (
                     hasUploadedDesign(),
                   ),
                 )
-                .limit(1)
+                // Every enrolled holder, not just one: a move of any of
+                // them waits for the vote and then sees it.
                 .for("share");
 
         if (!enrolledHolder) {

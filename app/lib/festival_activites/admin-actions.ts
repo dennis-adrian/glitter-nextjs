@@ -1408,16 +1408,20 @@ export async function promoteWaitlistToVariant(
         const promotedInTx = await db.transaction(async (tx) => {
           // Re-check capacity under the variant lock, so a concurrent move,
           // enrolment or restore cannot take the same seat.
-          // The limit is the one read under the lock, in case staff just
-          // changed it.
+          // The limit and category are the ones read under the lock, in case
+          // staff just changed them.
           const variant = await lockVariant(tx, targetDetailId);
-          if (variant?.participationLimit) {
+          if (!variant) return "full" as const;
+          if (variant.category && entry.userCategory !== variant.category) {
+            return "wrongCategory" as const;
+          }
+          if (variant.participationLimit) {
             const {
               activeCount: currentActive,
               reservedCount: currentReserved,
             } = await countVariantSeats(tx, targetDetailId);
             if (currentActive + currentReserved >= variant.participationLimit) {
-              return false; // Skip this entry, variant is now full
+              return "full" as const;
             }
           }
 
@@ -1460,6 +1464,12 @@ export async function promoteWaitlistToVariant(
           };
         });
 
+        // Full under the lock: no later entry can take a seat either.
+        if (promotedInTx === "full") break;
+        if (promotedInTx === "wrongCategory") {
+          skipped++;
+          continue;
+        }
         if (promotedInTx) {
           promoted++;
           if (promotedInTx.freedInvitationDetailId != null) {
@@ -1604,17 +1614,11 @@ export async function notifyWaitlistEntry(
         };
       }
 
-      // 4. Prepare invitation window (persisted only with the email)
-      const expiresAt = new Date(
-        Date.now() + activity.waitlistWindowMinutes * 60 * 1000,
-      );
-
       return {
         ok: true as const,
         entry,
         activity,
-        expiresAt,
-        now,
+        windowMinutes: activity.waitlistWindowMinutes,
         candidates,
       };
     });
@@ -1623,7 +1627,7 @@ export async function notifyWaitlistEntry(
       return { success: false, message: txResult.message };
     }
 
-    const { entry, activity, expiresAt, now, candidates } = txResult;
+    const { entry, activity, windowMinutes, candidates } = txResult;
 
     // 5. Claim the seat and send the invitation in one transaction, as
     // promoteFromWaitlist does: the seat is counted again under the variant
@@ -1637,7 +1641,15 @@ export async function notifyWaitlistEntry(
     for (const detail of candidates) {
       const claim = await db.transaction(async (tx) => {
         const variant = await lockVariant(tx, detail.id);
-        if (variant?.participationLimit) {
+        // Staff may have deleted the variant or changed its category since
+        // the pick.
+        if (
+          !variant ||
+          (variant.category && variant.category !== entry.user.category)
+        ) {
+          return "full" as const;
+        }
+        if (variant.participationLimit) {
           const { activeCount, reservedCount } = await countVariantSeats(
             tx,
             detail.id,
@@ -1647,6 +1659,9 @@ export async function notifyWaitlistEntry(
             return "full" as const;
           }
         }
+        // The window runs from the claim, not from before the lock wait.
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + windowMinutes * 60 * 1000);
         const [claimed] = await tx
           .update(festivalActivityWaitlist)
           .set({
