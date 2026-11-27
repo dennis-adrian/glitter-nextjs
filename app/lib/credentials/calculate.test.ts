@@ -535,7 +535,7 @@ describe("print state", () => {
     // instead of moving onto someone's row.
     expect(titular.print!.state).toBe("printed");
     const stale = buildView(data, DEFAULT_CREDENTIAL_RULES, ALL).holders.filter((h) => h.stale);
-    expect(stale.map((holder) => holder.key)).toEqual([`reservation:${reservationId}`]);
+    expect(stale.map((holder) => holder.key)).toEqual([`stale:reservation:${reservationId}`]);
     expect(holderOf(data, "Socia")!.print!.state).toBe("new");
     expect(batchItemsFor(holderOf(data, "Socia")!)).toHaveLength(1);
   });
@@ -567,6 +567,26 @@ describe("print state", () => {
     const items = print(data, [replaced.key]);
     expect(items).toEqual([expect.objectContaining({ printedName: "Socia nueva", isReprint: true })]);
     expect(holderOf(data, "Socia nueva")!.print).toMatchObject({ nameChanged: false, needsPrint: false });
+  });
+
+  it("says Cambió el rol when a team member's or volunteer's role changes, and reprints it", () => {
+    const data = emptyData();
+    data.staff.push({ id: 1, fullName: "Ana", roleLabel: "Logística", isActive: true, selected: true });
+    data.volunteers.push({ applicationId: 4, fullName: "Beto", roleName: null });
+    print(data);
+    data.staff[0]!.roleLabel = "Prensa";
+    data.volunteers[0]!.roleName = "Puerta";
+    for (const name of ["Ana", "Beto"]) {
+      const holder = holderOf(data, name)!;
+      expect(holder.print).toMatchObject({ state: "partial", missing: 1, nameChanged: true, needsPrint: true });
+      expect(printStateLabel(holder.print!)).toBe("Cambió el rol");
+    }
+    expect(print(data, ["staff:1", "volunteer:4"])).toEqual([
+      expect.objectContaining({ unitKey: "volunteer:4", detail: "Puerta", namedCount: 1, isReprint: true }),
+      expect.objectContaining({ unitKey: "staff:1", detail: "Prensa", namedCount: 1, isReprint: true }),
+    ]);
+    expect(holderOf(data, "Ana")!.print).toMatchObject({ state: "printed", nameChanged: false });
+    expect(holderOf(data, "Beto")!.print).toMatchObject({ state: "printed", nameChanged: false });
   });
 
   it("reprints a renamed holder whose entitlement grew in full, then clears", () => {
@@ -669,6 +689,33 @@ describe("print state", () => {
     expect(view.print.staleHolders).toBe(2);
     expect(view.print.staleCredentials).toBe(2);
     expect(isPrintable(stale[0]!)).toBe(false);
+  });
+
+  it("keys a stale unit apart from the live holder that lost it", () => {
+    const data = emptyData();
+    addReservation(data, { people: [{ name: "Ana" }, { name: "Bea" }] });
+    data.volunteers.push({ applicationId: 9, fullName: "Vol", roleName: null });
+    print(data);
+    const rules = resolveRules([
+      { group: "illustration", quantity: 1, namingMode: null },
+      { group: "volunteer", quantity: 0, namingMode: null },
+    ]);
+    const { holders } = buildView(data, rules, ALL);
+    const keys = holders.map((holder) => holder.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(holders.filter((holder) => holder.stale).map((holder) => holder.key)).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^stale:participant:/), "stale:volunteer:9"]),
+    );
+  });
+
+  it("does not count a printed volunteer who is no longer accepted", () => {
+    const data = emptyData();
+    data.volunteers.push({ applicationId: 9, fullName: "Vol", roleName: null });
+    print(data);
+    data.volunteers.splice(0, 1);
+    const view = buildView(data, DEFAULT_CREDENTIAL_RULES, ALL);
+    expect(view.holders.filter((holder) => holder.stale)).toHaveLength(1);
+    expect(view.sources.volunteers).toBe(0);
   });
 
   it("summarises the last batch and what changed since", () => {

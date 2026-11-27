@@ -58,4 +58,17 @@ describe("MobileSearchScreen", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onSearchValueChange).not.toHaveBeenCalled();
   });
+
+  it("names the multi-select listbox and moves between options with the arrows", () => {
+    renderScreen({ selectedValues: [] });
+    const listbox = screen.getByRole("listbox", { name: "Resultados de la búsqueda" });
+    const [ana, beto] = screen.getAllByRole("option");
+    ana!.focus();
+    fireEvent.keyDown(listbox, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(beto);
+    fireEvent.keyDown(listbox, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(beto);
+    fireEvent.keyDown(listbox, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(ana);
+  });
 });

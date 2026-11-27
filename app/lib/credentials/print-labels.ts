@@ -14,7 +14,9 @@ export function shortPrintDate(date: Date): string {
 
 /** The badge text for a holder's print state (§6.2). */
 export function printStateLabel(print: HolderPrint): string {
-  if (print.nameChanged && print.state !== "stale") return "Cambió el nombre";
+  if (print.nameChanged && print.state !== "stale") {
+    return print.roleChanged ? "Cambió el rol" : "Cambió el nombre";
+  }
   switch (print.state) {
     case "new":
       return "Nueva";
