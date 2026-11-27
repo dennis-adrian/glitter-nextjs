@@ -13,6 +13,13 @@ import {
   generateDraftCouponBookPdf,
 } from "@/app/lib/festival_activites/coupon-book-export";
 import { resolvePdfCanvasConfig } from "@/app/lib/festival_activites/coupon-book-print-config";
+import { buildCouponBookParticipantAssignments } from "@/app/lib/festival_activites/coupon-book-builder";
+import {
+  auditCouponBookDraft,
+  describeCouponBookAudit,
+  dropUnprintedRemovedCoupons,
+  isCouponBookAuditBlocking,
+} from "@/app/lib/festival_activites/coupon-book-reconciliation";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 const ParamsSchema = z.object({
@@ -142,6 +149,22 @@ export async function POST(
     return new Response("Actividad no encontrada", { status: 404 });
   }
 
+  // The draft may predate a move, removal or enrollment: refuse it rather than
+  // print a coupon in the wrong book, or none at all.
+  const audit = auditCouponBookDraft(
+    body.draft,
+    buildCouponBookParticipantAssignments(activity),
+  );
+  if (isCouponBookAuditBlocking(audit)) {
+    return Response.json(
+      { error: describeCouponBookAudit(audit), audit },
+      { status: 409 },
+    );
+  }
+  // Coupons of removed participants that would not print change nothing on
+  // paper: drop them so the participation check below does not refuse.
+  const draftToPrint = dropUnprintedRemovedCoupons(body.draft, audit);
+
   const validParticipationIds = new Set<number>();
   for (const detail of activity.details) {
     for (const participant of detail.participants) {
@@ -152,7 +175,7 @@ export async function POST(
   }
 
   const invalidParticipationId = findInvalidDraftParticipationId(
-    body.draft,
+    draftToPrint,
     validParticipationIds,
   );
   if (invalidParticipationId !== null) {
@@ -162,7 +185,7 @@ export async function POST(
     );
   }
 
-  const sanitizedDraft = sanitizeCouponBookDraft(body.draft);
+  const sanitizedDraft = sanitizeCouponBookDraft(draftToPrint);
 
   const suffix =
     body.exportScope.type === "all"

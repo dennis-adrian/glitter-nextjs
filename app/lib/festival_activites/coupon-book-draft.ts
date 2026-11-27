@@ -46,9 +46,16 @@ export type DraftCouponEntry = {
   imageUrl: string | null;
   proofStatus: "approved" | "pending_review";
   layoutOverride?: CouponLayoutOverride | null;
+  /**
+   * The variant (`festival_activity_details.id`) the participant belonged to
+   * when this entry was captured from live data. Drafts saved before this
+   * field existed lack it; reconciliation then infers it from the book the
+   * coupon sits in. Courtesy coupons never carry one.
+   */
+  sourceDetailId?: number | null;
   sourceSnapshot?: Omit<
     DraftCouponEntry,
-    "id" | "layoutOverride" | "sourceSnapshot" | "type"
+    "id" | "layoutOverride" | "sourceSnapshot" | "sourceDetailId" | "type"
   >;
 };
 
@@ -104,7 +111,7 @@ export type CouponBookExportScope =
   | { type: "all" }
   | { type: "book"; bookId: string };
 
-function participantCouponId(participationId: number): string {
+export function participantCouponId(participationId: number): string {
   return `participant-${participationId}`;
 }
 
@@ -125,25 +132,113 @@ function resolveInitialVariantCouponCount(
   return Math.max(MIN_VARIANT_COUPON_COUNT, includedCount);
 }
 
+/**
+ * Book index of the variant each coupon belongs to: the recorded
+ * `sourceDetailId` when present, otherwise the book the coupon is placed in
+ * (drafts saved before the field existed).
+ */
+function resolveEntryBookRanks(draft: CouponBookDraft): Map<string, number> {
+  const rankByDetailId = new Map<number, number>();
+  draft.books.forEach((book, index) => {
+    if (!rankByDetailId.has(book.sourceDetailId)) {
+      rankByDetailId.set(book.sourceDetailId, index);
+    }
+  });
+  const placedRank = new Map<string, number>();
+  draft.books.forEach((book, index) => {
+    for (const pageId of book.pageIds) {
+      for (const couponId of draft.pages[pageId]?.slotCouponIds ?? []) {
+        if (couponId && !placedRank.has(couponId)) {
+          placedRank.set(couponId, index);
+        }
+      }
+    }
+  });
+
+  const ranks = new Map<string, number>();
+  for (const entry of Object.values(draft.entries)) {
+    if (entry.type !== "participant") continue;
+    const recorded =
+      entry.sourceDetailId != null
+        ? rankByDetailId.get(entry.sourceDetailId)
+        : undefined;
+    ranks.set(
+      entry.id,
+      recorded ?? placedRank.get(entry.id) ?? Number.MAX_SAFE_INTEGER,
+    );
+  }
+  return ranks;
+}
+
+/**
+ * Included participant coupons in print order: grouped by the book of their
+ * variant, then by participation id. Books are filled in this order, so a
+ * variant that outgrows its book spills into the next one, but a participant
+ * moved to another variant follows it instead of keeping its old position.
+ */
 export function getGloballyOrderedIncludedParticipantIds(
   draft: CouponBookDraft,
 ): string[] {
+  const ranks = resolveEntryBookRanks(draft);
   return getIncludedParticipantEntries(draft)
-    .sort((a, b) => (a.participationId ?? 0) - (b.participationId ?? 0))
+    .sort(
+      (a, b) =>
+        (ranks.get(a.id) ?? 0) - (ranks.get(b.id) ?? 0) ||
+        (a.participationId ?? 0) - (b.participationId ?? 0),
+    )
     .map((entry) => entry.id);
 }
 
+/**
+ * Assigns included coupons to books. Each book first takes the coupons of its
+ * own variant, up to its coupon count; what does not fit spills, in print
+ * order, into the books that still have room. Within a book coupons keep the
+ * global print order, so spilled coupons precede the book's own.
+ *
+ * When a variant has more coupons than its book holds, the ones already in
+ * that book keep their place and the others spill. So a reflow triggered
+ * elsewhere (another book's count, the inclusion mode) does not evict a
+ * coupon that was relocated into this book.
+ */
 export function partitionParticipantsAcrossBooks(
   draft: CouponBookDraft,
 ): Record<string, string[]> {
   const globalIds = getGloballyOrderedIncludedParticipantIds(draft);
+  const ranks = resolveEntryBookRanks(draft);
+  const order = new Map(globalIds.map((id, index) => [id, index]));
   const assignments: Record<string, string[]> = {};
-  let offset = 0;
+  const overflow: string[] = [];
+
+  draft.books.forEach((book, index) => {
+    const limit = clampVariantCouponCount(book.variantCouponCount);
+    const placedHere = new Set(
+      getDraftBookPages(draft, book.id).flatMap((page) => page.slotCouponIds),
+    );
+    const own = globalIds
+      .filter((id) => ranks.get(id) === index)
+      .sort(
+        (a, b) =>
+          Number(!placedHere.has(a)) - Number(!placedHere.has(b)) ||
+          (order.get(a) ?? 0) - (order.get(b) ?? 0),
+      );
+    assignments[book.id] = own.slice(0, limit);
+    overflow.push(...own.slice(limit));
+  });
+  overflow.push(
+    ...globalIds.filter((id) => {
+      const rank = ranks.get(id);
+      return rank === undefined || rank >= draft.books.length;
+    }),
+  );
+  overflow.sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
 
   for (const book of draft.books) {
     const limit = clampVariantCouponCount(book.variantCouponCount);
-    assignments[book.id] = globalIds.slice(offset, offset + limit);
-    offset += limit;
+    const assigned = assignments[book.id];
+    while (assigned.length < limit && overflow.length > 0) {
+      assigned.push(overflow.shift()!);
+    }
+    assigned.sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
   }
 
   return assignments;
@@ -297,6 +392,7 @@ export function couponBookEntryToDraftEntry(
   entry: CouponBookEntry,
   type: "courtesy" | "participant",
   id?: string,
+  sourceDetailId?: number,
 ): DraftCouponEntry {
   const resolvedId =
     id ??
@@ -318,11 +414,14 @@ export function couponBookEntryToDraftEntry(
     id: resolvedId,
     type,
     ...snapshot,
+    ...(type === "participant" && sourceDetailId !== undefined
+      ? { sourceDetailId }
+      : {}),
     sourceSnapshot: snapshot,
   };
 }
 
-function isEntryIncluded(
+export function isEntryIncluded(
   entry: DraftCouponEntry,
   mode: ParticipantInclusionMode,
 ): boolean {
@@ -435,7 +534,12 @@ export function buildInitialCouponBookDraft(input: {
     for (const entry of variant.entries) {
       if (!entry.participationId) continue;
       const id = participantCouponId(entry.participationId);
-      entries[id] = couponBookEntryToDraftEntry(entry, "participant", id);
+      entries[id] = couponBookEntryToDraftEntry(
+        entry,
+        "participant",
+        id,
+        variant.detailId,
+      );
       if (isEntryIncluded(entries[id], mode)) {
         participantIds.push(id);
       }
@@ -873,7 +977,25 @@ export function mergeDraftWithSource(
     const existing = nextEntries[couponId];
     nextEntries[couponId] = {
       ...sourceEntry,
+      // Keep a recorded variant: a coupon that also changed variant must stay
+      // flagged as moved until relocateMovedCoupons places it.
+      sourceDetailId: existing?.sourceDetailId ?? sourceEntry.sourceDetailId,
       layoutOverride: existing?.layoutOverride ?? null,
+    };
+  }
+
+  // Entries from drafts saved before variants were recorded take their
+  // current variant, so the reflow below places them like a fresh build.
+  // Entries that recorded a variant keep it: a moved coupon is relocated
+  // afterwards (refreshDraftFromSource), because the reflow may spill it back
+  // to its old book when the new one is full.
+  for (const [couponId, entry] of Object.entries(nextEntries)) {
+    if (entry.type !== "participant" || entry.sourceDetailId != null) continue;
+    const sourceEntry = sourceDraft.entries[couponId];
+    if (sourceEntry?.sourceDetailId == null) continue;
+    nextEntries[couponId] = {
+      ...entry,
+      sourceDetailId: sourceEntry.sourceDetailId,
     };
   }
 

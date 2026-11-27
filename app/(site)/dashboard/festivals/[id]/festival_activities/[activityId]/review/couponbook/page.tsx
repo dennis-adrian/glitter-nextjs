@@ -4,10 +4,9 @@ import { z } from "zod";
 import CouponBookPreviewClient from "@/app/components/festivals/festival_activities/coupon-book-preview-client";
 import { fetchSavedCouponBookConfig } from "@/app/lib/festival_activites/coupon-book-config-actions";
 import {
-  buildInitialCouponBookDraft,
-  reconcileDraftWithSource,
-} from "@/app/lib/festival_activites/coupon-book-draft";
-import { buildCouponBookVariants } from "@/app/lib/festival_activites/coupon-book-builder";
+  buildCouponBookParticipantAssignments,
+  buildCouponBookVariants,
+} from "@/app/lib/festival_activites/coupon-book-builder";
 import { fetchParticipationPreviewDataBatch } from "@/app/lib/festival_activites/queries";
 import { fetchFestivalActivityForReview } from "@/app/lib/festivals/actions";
 
@@ -58,14 +57,14 @@ export default async function CouponBookReviewPage({
   });
 
   const saved = await fetchSavedCouponBookConfig(activityId);
-  const sourceDraft = buildInitialCouponBookDraft({
-    festivalId: id,
-    activityId,
-    variants,
-  });
-  const reconciliation = saved.draft
-    ? reconcileDraftWithSource(saved.draft, sourceDraft)
-    : null;
+  const participantAssignments = buildCouponBookParticipantAssignments(
+    activity,
+  ).map((assignment) => ({
+    ...assignment,
+    participantName:
+      previewDataMap[assignment.participationId]?.participantName ??
+      assignment.participantName,
+  }));
 
   return (
     <CouponBookPreviewClient
@@ -76,7 +75,7 @@ export default async function CouponBookReviewPage({
       initialSavedDraft={saved.draft}
       savedRevision={saved.revision}
       savedUpdatedAt={saved.updatedAt}
-      reconciliation={reconciliation}
+      participantAssignments={participantAssignments}
       backUrl="../"
     />
   );
