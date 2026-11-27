@@ -1,11 +1,12 @@
 // @vitest-environment node
 
-import { and, eq, gte, inArray, like } from "drizzle-orm";
+import { and, eq, inArray, like } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { NextRequest } from "next/server";
 import { Pool, type PoolClient } from "pg";
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
   describe,
@@ -32,9 +33,12 @@ import {
  * the rules for what counts, the rate limit, and who may read the numbers.
  *
  * The suite only touches rows of its own: links it adds (removed at the end,
- * with their daily rows), views on days no one else writes (in 2099), and a
- * delta of today's views. It holds the links suites' advisory lock so it never
- * runs while `actions.integration.test.ts` empties `site_links`.
+ * with their daily rows), the rows of the links it deletes (by id), and views
+ * on days kept for it (`RESERVED_DAYS`), which no one else writes. The
+ * endpoints run on a clock pinned to one of those days, so every count is
+ * exact and every request of a test falls in the same rate-limit minute. It
+ * holds the links suites' advisory lock so it never runs while
+ * `actions.integration.test.ts` empties `site_links`.
  */
 
 const currentProfileMock = vi.hoisted(() => vi.fn());
@@ -74,15 +78,58 @@ let clickRoute: ClickRoute;
 let lockClient: PoolClient | null = null;
 
 const LABEL_PREFIX = "stats-it ";
-// A day no one else writes, so totals on it are this suite's alone.
+// Days no one else writes, so totals on them are this suite's alone.
 const FUTURE_NOON = new Date("2099-06-15T16:00:00Z");
 const FUTURE_DAY = "2099-06-15";
+/**
+ * The endpoints' clock: noon in La Paz on a day of its own. In the past, so
+ * the rate limiter's cleanup of buckets older than a day, judged at this
+ * instant, finds none of anyone else's to remove.
+ */
+const ROUTE_NOW = new Date("2001-02-03T16:00:00Z");
+const ROUTE_DAY = "2001-02-03";
+const RESERVED_DAYS = [ROUTE_DAY, FUTURE_DAY, "2099-06-16"];
 
+/** Taken before any clock is pinned: tells this run's callers apart. */
+const RUN_ID = Date.now();
 let ipCounter = 0;
-/** A caller of its own, so one test's rate limit is not another's. */
+/**
+ * A caller of its own, so one test's rate limit is not another's, nor a
+ * previous run's in the same pinned minute.
+ */
 function freshIp() {
   ipCounter += 1;
-  return `198.51.100.${ipCounter}-${Date.now()}`;
+  return `198.51.100.${ipCounter}-${RUN_ID}`;
+}
+
+/** Daily tap rows of links this suite deleted: their `link_id` is gone. */
+const orphanClickIds: number[] = [];
+
+/** Runs the endpoints at `ROUTE_NOW`, as if every request came at once. */
+function pinRouteClock() {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(ROUTE_NOW);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+}
+
+/** Taps `link` at `now`, deletes it, and keeps its rows' ids for cleanup. */
+async function tapThenDelete(
+  link: typeof siteLinks.$inferSelect,
+  source: LinksSource,
+  now: Date,
+) {
+  await queries.recordSiteLinkClick(link.id, source, now);
+  const rows = await integrationDb!
+    .select({ id: siteLinksDailyClicks.id })
+    .from(siteLinksDailyClicks)
+    .where(eq(siteLinksDailyClicks.linkId, link.id));
+  orphanClickIds.push(...rows.map((row) => row.id));
+  await integrationDb!.delete(siteLinks).where(eq(siteLinks.id, link.id));
+  return rows;
 }
 
 function viewRequest(source: string | null, ip: string) {
@@ -165,12 +212,15 @@ async function removeOwnRows() {
       .where(inArray(siteLinksDailyClicks.linkId, ids));
     await integrationDb!.delete(siteLinks).where(inArray(siteLinks.id, ids));
   }
-  await integrationDb!
-    .delete(siteLinksDailyClicks)
-    .where(gte(siteLinksDailyClicks.day, "2099-01-01"));
+  if (orphanClickIds.length > 0) {
+    await integrationDb!
+      .delete(siteLinksDailyClicks)
+      .where(inArray(siteLinksDailyClicks.id, orphanClickIds));
+    orphanClickIds.length = 0;
+  }
   await integrationDb!
     .delete(siteLinksDailyViews)
-    .where(gte(siteLinksDailyViews.day, "2099-01-01"));
+    .where(inArray(siteLinksDailyViews.day, RESERVED_DAYS));
 }
 
 describeDatabase("site links statistics", () => {
@@ -178,6 +228,7 @@ describeDatabase("site links statistics", () => {
     process.env.POSTGRES_URL = testDatabaseUrl;
     process.env.CLERK_SECRET_KEY ??= "sk_test_integration";
     process.env.RESEND_API_KEY ??= "integration-test";
+    process.env.UPLOADTHING_TOKEN ??= "integration-test";
 
     const result = await pool!.query(
       "select 1 from information_schema.tables where table_name = 'site_links_daily_clicks'",
@@ -221,26 +272,19 @@ describeDatabase("site links statistics", () => {
   });
 
   describe("views", () => {
-    it("lands on today's Bolivian day and the source sent", async () => {
-      const today = linksDay(new Date());
-      const before = await viewsOn(today, "tiktok");
+    pinRouteClock();
+
+    it("lands on the request's Bolivian day and the source sent", async () => {
+      expect(linksDay(new Date())).toBe(ROUTE_DAY);
       const response = await viewRoute.POST(viewRequest("tiktok", freshIp()));
       expect(response.status).toBe(204);
-      // The day the request was made, unless it crossed midnight meanwhile.
-      const after =
-        (await viewsOn(today, "tiktok")) +
-        (linksDay(new Date()) === today ? 0 : 1);
-      expect(after).toBe(before + 1);
+      expect(await viewsOn(ROUTE_DAY, "tiktok")).toBe(1);
     });
 
     it("counts an unknown or missing source as other", async () => {
-      const today = linksDay(new Date());
-      const before = await viewsOn(today, "other");
       await viewRoute.POST(viewRequest("myspace", freshIp()));
       await viewRoute.POST(viewRequest(null, freshIp()));
-      if (linksDay(new Date()) === today) {
-        expect(await viewsOn(today, "other")).toBe(before + 2);
-      }
+      expect(await viewsOn(ROUTE_DAY, "other")).toBe(2);
     });
 
     it("puts a view near midnight on Bolivia's day, not UTC's", async () => {
@@ -267,21 +311,19 @@ describeDatabase("site links statistics", () => {
     });
 
     it("holds the rate limit per visitor", async () => {
-      const today = linksDay(new Date());
       const ip = freshIp();
-      const before = await viewsOn(today, "direct");
       for (let i = 0; i < 7; i += 1) {
         await viewRoute.POST(viewRequest("direct", ip));
       }
       await viewRoute.POST(viewRequest("direct", freshIp()));
-      if (linksDay(new Date()) === today) {
-        // Five for the first visitor, one for the second.
-        expect(await viewsOn(today, "direct")).toBe(before + 6);
-      }
+      // Five for the first visitor, one for the second.
+      expect(await viewsOn(ROUTE_DAY, "direct")).toBe(6);
     });
   });
 
   describe("taps", () => {
+    pinRouteClock();
+
     it("adds to the lifetime count and the day's source", async () => {
       const link = await addLink("tap", { clickCount: 100 });
       const response = await clickRoute.POST(
@@ -290,7 +332,7 @@ describeDatabase("site links statistics", () => {
       expect(response.status).toBe(204);
       expect(await clickCount(link.id)).toBe(101);
       expect(await clickRows(link.id)).toEqual([
-        { day: linksDay(new Date()), source: "instagram", clicks: 1 },
+        { day: ROUTE_DAY, source: "instagram", clicks: 1 },
       ]);
     });
 
@@ -353,12 +395,7 @@ describeDatabase("site links statistics", () => {
 
     it("keeps a deleted link's daily rows, with no link", async () => {
       const link = await addLink("deleted");
-      await queries.recordSiteLinkClick(link.id, "facebook", FUTURE_NOON);
-      const [row] = await integrationDb!
-        .select({ id: siteLinksDailyClicks.id })
-        .from(siteLinksDailyClicks)
-        .where(eq(siteLinksDailyClicks.linkId, link.id));
-      await integrationDb!.delete(siteLinks).where(eq(siteLinks.id, link.id));
+      const [row] = await tapThenDelete(link, "facebook", FUTURE_NOON);
       const [kept] = await integrationDb!
         .select()
         .from(siteLinksDailyClicks)
@@ -387,6 +424,11 @@ describeDatabase("site links statistics", () => {
         const link = await addLink(`read ${role}`);
         await queries.recordLinksPageView("tiktok", FUTURE_NOON);
         await queries.recordSiteLinkClick(link.id, "tiktok", FUTURE_NOON);
+        await tapThenDelete(
+          await addLink(`read ${role} gone`),
+          "tiktok",
+          FUTURE_NOON,
+        );
 
         const stats = await statisticsQueries.fetchLinksStatistics(
           7,
@@ -399,8 +441,10 @@ describeDatabase("site links statistics", () => {
         expect(stats!.totals.ctr).not.toBeNull();
         const row = stats!.links.find((r) => r.id === link.id);
         expect(row).toMatchObject({ taps: 1, lifetime: 1, hidden: false });
-        // Rows of earlier tests' deleted link are listed together.
-        expect(stats!.links.some((r) => r.id === null)).toBe(true);
+        // The link deleted above is listed with the other deleted ones.
+        const deleted = stats!.links.find((r) => r.id === null);
+        expect(deleted).toMatchObject({ lifetime: null });
+        expect(deleted!.taps).toBeGreaterThanOrEqual(1);
       },
     );
   });

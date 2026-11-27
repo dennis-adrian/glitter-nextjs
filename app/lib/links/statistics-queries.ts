@@ -31,60 +31,66 @@ export async function fetchLinksStatistics(
   if (!profile || !canManageLinks(profile.role)) return null;
 
   const range = periodRange(linksDay(now), period);
-  const [views, clicks, links, [viewsStart], [clicksStart]] = await Promise.all(
-    [
-      db
-        .select({
-          day: siteLinksDailyViews.day,
-          source: siteLinksDailyViews.source,
-          views: siteLinksDailyViews.views,
-        })
-        .from(siteLinksDailyViews)
-        .where(
-          and(
-            gte(siteLinksDailyViews.day, range.previousFrom),
-            lte(siteLinksDailyViews.day, range.to),
-          ),
-        ),
-      db
-        .select({
-          linkId: siteLinksDailyClicks.linkId,
-          day: siteLinksDailyClicks.day,
-          source: siteLinksDailyClicks.source,
-          clicks: sql<number>`sum(${siteLinksDailyClicks.clicks})::int`,
-        })
-        .from(siteLinksDailyClicks)
-        .where(
-          and(
-            gte(siteLinksDailyClicks.day, range.previousFrom),
-            lte(siteLinksDailyClicks.day, range.to),
-          ),
-        )
-        .groupBy(
-          siteLinksDailyClicks.linkId,
-          siteLinksDailyClicks.day,
-          siteLinksDailyClicks.source,
-        ),
-      db
-        .select({
-          id: siteLinks.id,
-          kind: siteLinks.kind,
-          label: siteLinks.label,
-          isVisible: siteLinks.isVisible,
-          visibleFrom: siteLinks.visibleFrom,
-          visibleUntil: siteLinks.visibleUntil,
-          clickCount: siteLinks.clickCount,
-        })
-        .from(siteLinks)
-        .orderBy(siteLinks.kind, siteLinks.sortOrder, siteLinks.id),
-      db
-        .select({ day: min(siteLinksDailyViews.day) })
-        .from(siteLinksDailyViews),
-      db
-        .select({ day: min(siteLinksDailyClicks.day) })
-        .from(siteLinksDailyClicks),
-    ],
-  );
+  // One read-only REPEATABLE READ snapshot, the statements one after another
+  // on its one connection. Read apart, a link deleted between the taps and
+  // the links would leave taps attributed to no link and to no deleted one.
+  const { views, clicks, links, viewsStart, clicksStart } =
+    await db.transaction(
+      async (tx) => {
+        const views = await tx
+          .select({
+            day: siteLinksDailyViews.day,
+            source: siteLinksDailyViews.source,
+            views: siteLinksDailyViews.views,
+          })
+          .from(siteLinksDailyViews)
+          .where(
+            and(
+              gte(siteLinksDailyViews.day, range.previousFrom),
+              lte(siteLinksDailyViews.day, range.to),
+            ),
+          );
+        const clicks = await tx
+          .select({
+            linkId: siteLinksDailyClicks.linkId,
+            day: siteLinksDailyClicks.day,
+            source: siteLinksDailyClicks.source,
+            clicks: sql<number>`sum(${siteLinksDailyClicks.clicks})::int`,
+          })
+          .from(siteLinksDailyClicks)
+          .where(
+            and(
+              gte(siteLinksDailyClicks.day, range.previousFrom),
+              lte(siteLinksDailyClicks.day, range.to),
+            ),
+          )
+          .groupBy(
+            siteLinksDailyClicks.linkId,
+            siteLinksDailyClicks.day,
+            siteLinksDailyClicks.source,
+          );
+        const links = await tx
+          .select({
+            id: siteLinks.id,
+            kind: siteLinks.kind,
+            label: siteLinks.label,
+            isVisible: siteLinks.isVisible,
+            visibleFrom: siteLinks.visibleFrom,
+            visibleUntil: siteLinks.visibleUntil,
+            clickCount: siteLinks.clickCount,
+          })
+          .from(siteLinks)
+          .orderBy(siteLinks.kind, siteLinks.sortOrder, siteLinks.id);
+        const [viewsStart] = await tx
+          .select({ day: min(siteLinksDailyViews.day) })
+          .from(siteLinksDailyViews);
+        const [clicksStart] = await tx
+          .select({ day: min(siteLinksDailyClicks.day) })
+          .from(siteLinksDailyClicks);
+        return { views, clicks, links, viewsStart, clicksStart };
+      },
+      { isolationLevel: "repeatable read", accessMode: "read only" },
+    );
 
   const starts = [viewsStart?.day, clicksStart?.day].filter(
     (day): day is string => day != null,

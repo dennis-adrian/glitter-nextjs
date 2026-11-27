@@ -13,12 +13,12 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/app/components/ui/chart";
-import { LINKS_ADMIN_PATH } from "@/app/lib/links/definitions";
 import {
   LINKS_SOURCE_LABELS,
   STATS_PERIODS,
   STATS_PERIOD_LABELS,
   formatLinksDay,
+  statisticsHref,
   type LinksStatistics as Statistics,
 } from "@/app/lib/links/statistics";
 import { cn } from "@/app/lib/utils";
@@ -41,11 +41,6 @@ const changeFormat = new Intl.NumberFormat("es-BO", {
 /** A rate, or a dash where there is none: never NaN, never a made-up 0 %. */
 function formatRate(rate: number | null) {
   return rate == null ? "—" : percentFormat.format(rate);
-}
-
-/** The address of the statistics for `period`. */
-export function statisticsHref(period: number) {
-  return `${LINKS_ADMIN_PATH}?vista=estadisticas&periodo=${period}`;
 }
 
 const chartConfig = {

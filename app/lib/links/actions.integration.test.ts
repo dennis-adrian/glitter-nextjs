@@ -19,7 +19,11 @@ import {
   disposableDatabaseProblem,
 } from "@/app/lib/links/disposable-test-database";
 import * as schema from "@/db/schema";
-import { siteLinks, siteLinksSettings } from "@/db/schema";
+import {
+  siteLinks,
+  siteLinksDailyClicks,
+  siteLinksSettings,
+} from "@/db/schema";
 
 /**
  * The `/dashboard/links` actions against a real database: who may call them,
@@ -28,7 +32,10 @@ import { siteLinks, siteLinksSettings } from "@/db/schema";
  *
  * `site_links` has no owner column to scope a test by, so the suite takes the
  * two tables over: it empties them before each test and puts back what was
- * there (the rows migration 0313 seeds) when it ends.
+ * there (the rows migration 0313 seeds) when it ends. Emptying `site_links`
+ * empties the `link_id` of every daily tap row (ON DELETE SET NULL), and the
+ * taps here add rows of their own, so `site_links_daily_clicks` is put back
+ * as it was too, each row with its link.
  */
 
 const currentProfileMock = vi.hoisted(() => vi.fn());
@@ -116,6 +123,7 @@ let queries: Queries;
 
 let savedLinks: (typeof siteLinks.$inferSelect)[] = [];
 let savedSettings: (typeof siteLinksSettings.$inferSelect)[] = [];
+let savedDailyClicks: (typeof siteLinksDailyClicks.$inferSelect)[] = [];
 /**
  * Whether both tables were read before anything was emptied. `afterAll` runs
  * even when `beforeAll` fails, and without this it would empty the tables
@@ -171,6 +179,7 @@ describeDatabase("site links dashboard actions", () => {
 
     savedLinks = await integrationDb!.select().from(siteLinks);
     savedSettings = await integrationDb!.select().from(siteLinksSettings);
+    savedDailyClicks = await integrationDb!.select().from(siteLinksDailyClicks);
     backedUp = true;
 
     actions = await import("@/app/lib/links/actions");
@@ -205,6 +214,19 @@ describeDatabase("site links dashboard actions", () => {
           `select setval(pg_get_serial_sequence('site_links', 'id'),
              greatest((select coalesce(max(id), 0) from site_links),
                       (select last_value from site_links_id_seq)))`,
+        );
+        // After the links, so each saved row finds its link again; the
+        // suite's own tap rows go.
+        await integrationDb.delete(siteLinksDailyClicks);
+        if (savedDailyClicks.length > 0) {
+          await integrationDb
+            .insert(siteLinksDailyClicks)
+            .values(savedDailyClicks);
+        }
+        await pool!.query(
+          `select setval(pg_get_serial_sequence('site_links_daily_clicks', 'id'),
+             greatest((select coalesce(max(id), 0) from site_links_daily_clicks),
+                      (select last_value from site_links_daily_clicks_id_seq)))`,
         );
       }
     } finally {

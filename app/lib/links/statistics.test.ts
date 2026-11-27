@@ -255,6 +255,23 @@ describe("buildLinksStatistics", () => {
     expect(stats.totals.ctr).toBe(0);
   });
 
+  it("does not compare with a previous period that starts on the first, partial day", () => {
+    const input = {
+      period: 7 as const,
+      now: NOW,
+      views: [{ day: "2026-11-19", source: "direct", views: 5 }],
+      clicks: [],
+      links: [],
+    };
+    // The previous period of the 7 days to 2026-11-19 starts on 2026-11-06.
+    expect(
+      buildLinksStatistics({ ...input, firstDay: "2026-11-06" }).previous,
+    ).toBeNull();
+    expect(
+      buildLinksStatistics({ ...input, firstDay: "2026-11-05" }).previous,
+    ).toEqual({ views: 0, taps: 0, ctr: null });
+  });
+
   it("has no change in rate when either period had no views", () => {
     const stats = buildLinksStatistics({
       period: 7,

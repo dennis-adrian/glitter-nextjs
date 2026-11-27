@@ -4,13 +4,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import LinksManager from "@/app/(site)/dashboard/links/links-manager";
-import LinksStatistics, {
-  statisticsHref,
-} from "@/app/(site)/dashboard/links/links-statistics";
+import LinksStatistics from "@/app/(site)/dashboard/links/links-statistics";
 import { listSiteLinksForAdmin } from "@/app/lib/links/actions";
 import { LINKS_ADMIN_PATH, LINKS_PATH } from "@/app/lib/links/definitions";
 import { fetchLinksSettings } from "@/app/lib/links/queries";
-import { toStatsPeriod } from "@/app/lib/links/statistics";
+import { statisticsHref, toStatsPeriod } from "@/app/lib/links/statistics";
 import { fetchLinksStatistics } from "@/app/lib/links/statistics-queries";
 import { publicBaseUrl } from "@/app/lib/urls";
 import { cn } from "@/app/lib/utils";

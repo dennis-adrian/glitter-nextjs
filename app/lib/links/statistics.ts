@@ -1,4 +1,8 @@
-import { isWithinSchedule, type SiteLinkKind } from "./definitions";
+import {
+  LINKS_ADMIN_PATH,
+  isWithinSchedule,
+  type SiteLinkKind,
+} from "./definitions";
 
 /*
  * The statistics of `/links`: where a visit came from, which Bolivian day it
@@ -145,6 +149,15 @@ export function toStatsPeriod(value: unknown): StatsPeriod {
     : DEFAULT_STATS_PERIOD;
 }
 
+/**
+ * The address of the dashboard's statistics for `period`. Here, not in the
+ * statistics component: the page, a server component, builds its tabs with
+ * it, and it may not call a function of a client module.
+ */
+export function statisticsHref(period: number) {
+  return `${LINKS_ADMIN_PATH}?vista=estadisticas&periodo=${period}`;
+}
+
 export type PeriodRange = {
   /** The period: the last `days` days, today included. */
   from: string;
@@ -233,7 +246,8 @@ export type LinksStatistics = {
   totals: StatsTotals;
   /**
    * The previous period, only when it was counted whole: one that falls
-   * before the statistics began would read as a rise from nothing.
+   * before the statistics began, or starts on their first (partial) day,
+   * would read as a rise from nothing.
    */
   previous: StatsTotals | null;
   change: {
@@ -287,8 +301,10 @@ export function buildLinksStatistics(input: {
   };
 
   const totals = totalsWithin(range.from, range.to);
+  // The first day counted is a partial one (the statistics began during
+  // it), so a previous period starting on it was not counted whole either.
   const previous =
-    firstDay != null && firstDay <= range.previousFrom
+    firstDay != null && firstDay < range.previousFrom
       ? totalsWithin(range.previousFrom, range.previousTo)
       : null;
   const change = {
