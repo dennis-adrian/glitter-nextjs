@@ -157,6 +157,38 @@ describe("PrintBatchDialog", () => {
     expect(sent).toBe(Number(within(dialog).getByTestId("batch-total").textContent!.split(" ")[0]));
   });
 
+  it("locks the selection and the note while marking", async () => {
+    let finish!: (result: { success: boolean; message: string }) => void;
+    createCredentialPrintBatch.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    renderWithCredentials(<PrintBatchDialog />, { data: festival().data });
+    const dialog = open();
+    const search = within(dialog).getByLabelText("Quitar o sumar a alguien");
+    // Lucía out and Camila in, so both kinds of hand change are on screen.
+    fireEvent.change(search, { target: { value: "lucia" } });
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Incluir a Lucía Fernández en el lote" }));
+    fireEvent.change(search, { target: { value: "camila" } });
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Incluir a Camila Rojas en el lote" }));
+    const controls = () => [
+      search,
+      within(dialog).getByRole("checkbox", { name: "Incluir a Camila Rojas en el lote" }),
+      within(dialog).getByRole("button", { name: "Volver a incluir" }),
+      within(dialog).getByRole("button", { name: "Quitar" }),
+      within(dialog).getByLabelText("Nota"),
+    ];
+    expect(controls().map((control) => control.hasAttribute("disabled"))).toEqual([false, false, false, false, false]);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Marcar como enviadas" }));
+    await waitFor(() => expect(createCredentialPrintBatch).toHaveBeenCalledTimes(1));
+    expect(controls().map((control) => control.hasAttribute("disabled"))).toEqual([true, true, true, true, true]);
+    // Exporting what is being marked changes nothing, so it stays available.
+    expect(within(dialog).getByRole("button", { name: /Exportar estas/ }).hasAttribute("disabled")).toBe(false);
+
+    finish({ success: false, message: "El lote cambió." });
+    await waitFor(() =>
+      expect(controls().map((control) => control.hasAttribute("disabled"))).toEqual([false, false, false, false, false]),
+    );
+  });
+
   it("does not open the phone search while marking", async () => {
     isDesktop.value = false;
     // The phone sheet is vaul's drawer, which reads media queries.
