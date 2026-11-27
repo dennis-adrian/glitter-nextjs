@@ -166,6 +166,50 @@ describe("notifyWaitlistEntry", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("passes the claim on to the next matching variant once one is full under its lock", async () => {
+    fetchMock.mockImplementation(accepted);
+    const set = vi.fn(() => ({
+      where: () => ({ returning: async () => [{ id: entry.id }] }),
+    }));
+    dbMock.update.mockReturnValue({ set });
+    const twoVariants = {
+      ...entry,
+      activity: {
+        ...entry.activity,
+        details: [
+          { id: 5, category: null, participationLimit: null },
+          { id: 6, category: null, participationLimit: null },
+        ],
+      },
+    };
+    dbMock.transaction.mockImplementation((run) => {
+      const transaction = run({
+        query: {
+          festivalActivityWaitlist: { findFirst: async () => twoVariants },
+        },
+        update: dbMock.update,
+      });
+      transactions.push(transaction);
+      return transaction;
+    });
+    // Staff set a limit on 5 after it was picked, and it is reached.
+    lockVariant.mockImplementation(async (_tx, id: number) =>
+      id === 5 ? { id, participationLimit: 1 } : { id },
+    );
+    countVariantSeats.mockResolvedValue({ activeCount: 1, reservedCount: 0 });
+
+    await expect(notifyWaitlistEntry(entry.id, 2)).resolves.toEqual({
+      success: true,
+      message: "Notificación enviada correctamente",
+    });
+    expect(lockVariant.mock.calls.map(([, id]) => id)).toEqual([5, 6]);
+    expect(set).toHaveBeenCalledOnce();
+    expect(set).toHaveBeenCalledWith(
+      expect.objectContaining({ notifiedForDetailId: 6 }),
+    );
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
   it("sends nothing when another invitation claimed the entry first", async () => {
     dbMock.update.mockReturnValue({
       set: () => ({ where: () => ({ returning: async () => [] }) }),

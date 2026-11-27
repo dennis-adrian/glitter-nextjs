@@ -61,7 +61,8 @@ export async function processExpiredWaitlistNotifications() {
         }
       }
 
-      await db
+      // Matches nothing once the entry was renewed or dropped meanwhile.
+      const [deleted] = await db
         .delete(festivalActivityWaitlist)
         .where(
           and(
@@ -76,9 +77,10 @@ export async function processExpiredWaitlistNotifications() {
             eq(festivalActivityWaitlist.notifiedAt, notifiedAt),
             eq(festivalActivityWaitlist.expiresAt, expiresAt),
           ),
-        );
+        )
+        .returning({ id: festivalActivityWaitlist.id });
 
-      processed++;
+      if (deleted) processed++;
     } catch (error) {
       console.error("Error processing expired waitlist entry", entry.id, error);
     }

@@ -216,14 +216,29 @@ export async function countVariantSeats(
 }
 
 /**
+ * Condition on a `festivalActivityWaitlist` query: the entry's profile has no
+ * participation, active or removed, in any variant of the activity. A removal
+ * bars the whole activity, and an enrolled profile's entry (one left behind by
+ * an older enrolment) could never be accepted.
+ */
+export function notInActivity(activityId: number) {
+  return sql`NOT EXISTS (
+    SELECT 1
+    FROM ${festivalActivityParticipants}
+    INNER JOIN ${festivalActivityDetails}
+      ON ${festivalActivityDetails.id} = ${festivalActivityParticipants.detailsId}
+    WHERE ${festivalActivityDetails.activityId} = ${activityId}
+      AND ${festivalActivityParticipants.userId} = ${festivalActivityWaitlist.userId}
+  )`;
+}
+
+/**
  * Waitlist entries due an invitation to a seat in a variant of `category`
  * (null: any category): not yet invited, and with no participation in any
- * variant of the activity. A removal bars the whole activity, and an enrolled
- * profile's entry (one left behind by an older enrolment) could never be
- * accepted. `exceptUserId`
- * leaves out that profile's own entry. The query must join `users` on the
- * entry's userId. Waitlist promotion claims from these, and self-enrolment
- * yields to them, so both use this one predicate.
+ * variant of the activity (see `notInActivity`). `exceptUserId` leaves out
+ * that profile's own entry. The query must join `users` on the entry's
+ * userId. Waitlist promotion claims from these, and self-enrolment yields to
+ * them, so both use this one predicate.
  */
 export function eligibleWaitlistEntries(
   activityId: number,
@@ -237,14 +252,7 @@ export function eligibleWaitlistEntries(
     options.exceptUserId !== undefined
       ? ne(festivalActivityWaitlist.userId, options.exceptUserId)
       : undefined,
-    sql`NOT EXISTS (
-      SELECT 1
-      FROM ${festivalActivityParticipants}
-      INNER JOIN ${festivalActivityDetails}
-        ON ${festivalActivityDetails.id} = ${festivalActivityParticipants.detailsId}
-      WHERE ${festivalActivityDetails.activityId} = ${activityId}
-        AND ${festivalActivityParticipants.userId} = ${festivalActivityWaitlist.userId}
-    )`,
+    notInActivity(activityId),
   )!;
 }
 

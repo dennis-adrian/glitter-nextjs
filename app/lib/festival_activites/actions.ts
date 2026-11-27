@@ -44,7 +44,10 @@ import {
   lockVariant,
   wasRemovedFromActivity,
 } from "@/app/lib/festival_activites/queries";
-import { promoteFromWaitlist } from "@/app/lib/festival_activites/waitlist-promotion";
+import {
+  isPromotionFailure,
+  promoteFromWaitlist,
+} from "@/app/lib/festival_activites/waitlist-promotion";
 import {
   getCurrentUserProfile,
   requireProfileOwnerOrAdmin,
@@ -120,6 +123,20 @@ async function consumeOwnWaitlistEntry(
     entry?.notifiedForDetailId != null &&
     entry.notifiedForDetailId !== enrolledDetailId;
   return otherVariant ? entry.notifiedForDetailId : null;
+}
+
+/**
+ * Invites the next waiter to a seat once an enrolment committed. No job
+ * retries it, so a failure is logged for staff to invite by hand.
+ */
+async function offerSeatOn(activityId: number, detailId: number) {
+  const promotion = await promoteFromWaitlist(activityId, detailId);
+  if (isPromotionFailure(promotion)) {
+    console.error("Could not offer a seat to the waitlist", {
+      activityId,
+      detailId,
+    });
+  }
 }
 
 /** A vote the rules refuse; its message is shown to the voter as is. */
@@ -504,8 +521,11 @@ export async function enrollInActivity(
         }
 
         // For waitlist-enabled activities, a freed seat goes to the waitlist
-        // first: only an invited profile takes it directly.
+        // first: an invited profile takes it directly.
         if (dbActivity.waitlistWindowMinutes && limit !== Infinity) {
+          // Locked until the commit, after the variant as documented at
+          // lockVariant, so a concurrent staff invitation waits and finds
+          // the entry gone instead of inviting this profile elsewhere.
           const [invitation] = await tx
             .select({ id: festivalActivityWaitlist.id })
             .from(festivalActivityWaitlist)
@@ -518,18 +538,14 @@ export async function enrollInActivity(
                 gt(festivalActivityWaitlist.expiresAt, new Date()),
               ),
             )
-            .limit(1);
+            .limit(1)
+            .for("update");
 
           if (!invitation) {
-            // A removed row stays in the variant, so total >= limit marks a
-            // seat a removal freed.
-            const [{ totalCount }] = await tx
-              .select({ totalCount: count() })
-              .from(festivalActivityParticipants)
-              .where(eq(festivalActivityParticipants.detailsId, detailsId));
-            // A move leaves no row behind, and a failed or expired invitation
-            // stops holding its seat, so also leave a free seat to each
-            // waiter a promotion would invite before this profile.
+            // A seat freed by a removal or a move, by a raised limit, or held
+            // by a failed or expired invitation goes to each eligible waiter
+            // a promotion would invite before this profile. With nobody
+            // eligible ahead it is open to anyone.
             const [ownEntry] = await tx
               .select({ position: festivalActivityWaitlist.position })
               .from(festivalActivityWaitlist)
@@ -556,10 +572,7 @@ export async function enrollInActivity(
                 ),
               );
 
-            if (
-              totalCount >= limit ||
-              activeCount + reservedCount + aheadCount >= limit
-            ) {
+            if (activeCount + reservedCount + aheadCount >= limit) {
               // Nothing else may offer that seat (a raised limit, a failed
               // promotion), so invite the first waiter once this commits.
               offerSeatToWaitlist = aheadCount > 0;
@@ -592,13 +605,13 @@ export async function enrollInActivity(
 
       if (!result.success) {
         if (offerSeatToWaitlist) {
-          await promoteFromWaitlist(dbActivity.id, detailsId);
+          await offerSeatOn(dbActivity.id, detailsId);
         }
         return result;
       }
       const { freedInvitationDetailId, ...enrolled } = result;
       if (freedInvitationDetailId != null) {
-        await promoteFromWaitlist(dbActivity.id, freedInvitationDetailId);
+        await offerSeatOn(dbActivity.id, freedInvitationDetailId);
       }
 
       await notifyAdminsOfEnrollment({
@@ -657,7 +670,7 @@ export async function enrollInActivity(
       }
       const { freedInvitationDetailId, ...enrolled } = result;
       if (freedInvitationDetailId != null) {
-        await promoteFromWaitlist(dbActivity.id, freedInvitationDetailId);
+        await offerSeatOn(dbActivity.id, freedInvitationDetailId);
       }
 
       await notifyAdminsOfEnrollment({

@@ -799,7 +799,7 @@ describeDatabase("moving a participant between variants", () => {
     const move = await moveActivityParticipant(row.id, target);
     expect(move.invitedName).toBe("waiting");
 
-    // The moved row left source, so no removed row marks the seat as freed.
+    // The invitation holds the seat the move freed.
     currentProfile.mockResolvedValue(outsider);
     const taken = await enrollInActivity(
       outsider as BaseProfile,
@@ -877,6 +877,36 @@ describeDatabase("moving a participant between variants", () => {
     });
     expect(sendEmail).not.toHaveBeenCalled();
     expect((await waitlistRow(entry.id))?.notifiedAt).toBeNull();
+  });
+
+  it("passes a manual invitation on to the next variant once the first filled before its claim", async () => {
+    const { festivalId, source, target } = fixture;
+    const waiting = await createUser("waiting");
+    const entry = await addToWaitlist(waiting.id, 1);
+    const seated = await createUser("seated");
+
+    // Both variants have room when picked; source's seat is taken while the
+    // claim waits for it.
+    const [result] = await behindLock(
+      variantLock(source),
+      1,
+      () => [notifyWaitlistEntry(entry.id, festivalId)],
+      (client) =>
+        client.query(
+          "insert into festival_activity_participants (details_id, user_id) values ($1, $2)",
+          [source, seated.id],
+        ),
+    );
+
+    expect(result).toEqual({
+      success: true,
+      message: "Notificación enviada correctamente",
+    });
+    expect((await waitlistRow(entry.id))?.notifiedForDetailId).toBe(target);
+    expect(sendEmail).toHaveBeenCalledOnce();
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: [waiting.email] }),
+    );
   });
 
   it("keeps no manual invitation whose email failed", async () => {
@@ -978,6 +1008,122 @@ describeDatabase("moving a participant between variants", () => {
       .from(festivalActivityWaitlist)
       .where(eq(festivalActivityWaitlist.id, entry.id));
     expect(kept).toBeDefined();
+  });
+
+  it.each([
+    {
+      change: "enrolled in another variant",
+      // Leaving the entry behind, as an older enrolment did, so only the
+      // claim's check of every variant stops the promotion.
+      write: (client: PoolClient, entry: WaitlistRow) =>
+        client.query(
+          "insert into festival_activity_participants (details_id, user_id) values ($1, $2)",
+          [fixture.source, entry.userId],
+        ),
+      enrolledInSource: true,
+    },
+    {
+      change: "left the waitlist",
+      write: (client: PoolClient, entry: WaitlistRow) =>
+        client.query("delete from festival_activity_waitlist where id = $1", [
+          entry.id,
+        ]),
+      enrolledInSource: false,
+    },
+  ])(
+    "promotes nobody who $change while the promotion waited for the variant",
+    async ({ write, enrolledInSource }) => {
+      const { activityId, source, target } = fixture;
+      const waiting = await createUser("waiting");
+      const entry = await addToWaitlist(waiting.id, 1);
+
+      const [result] = await behindLock(
+        variantLock(target),
+        1,
+        () => [promoteWaitlistToVariant(activityId, target)],
+        (client) => write(client, entry),
+      );
+
+      expect(result).toMatchObject({ success: true, promoted: 0 });
+      expect(await activeIn(target)).toBe(0);
+      const rows = await integrationDb!
+        .select()
+        .from(festivalActivityParticipants)
+        .where(eq(festivalActivityParticipants.userId, waiting.id));
+      expect(rows.map((row) => row.detailsId)).toEqual(
+        enrolledInSource ? [source] : [],
+      );
+    },
+  );
+
+  it("skips the stale entry of a profile already enrolled, and promotes the next", async () => {
+    const { activityId, source, target } = fixture;
+    // An entry an older enrolment left behind.
+    const enrolled = await createUser("enrolled");
+    await enroll(source, enrolled.id);
+    await addToWaitlist(enrolled.id, 1);
+    const next = await createUser("next");
+    const nextEntry = await addToWaitlist(next.id, 2);
+
+    const result = await promoteWaitlistToVariant(activityId, target);
+
+    expect(result).toMatchObject({ success: true, promoted: 1 });
+    const rows = await integrationDb!
+      .select()
+      .from(festivalActivityParticipants)
+      .where(eq(festivalActivityParticipants.userId, enrolled.id));
+    expect(rows.map((row) => row.detailsId)).toEqual([source]);
+    expect(await activeIn(target)).toBe(1);
+    expect(await waitlistRow(nextEntry.id)).toBeUndefined();
+  });
+
+  it("offers on the seat of an invitation a bulk promotion consumed", async () => {
+    const { activityId, source, target } = fixture;
+    // One seat left in target, for the first waiter, invited to source.
+    await enroll(target, (await createUser("seated")).id);
+    const invited = await createUser("invited");
+    const invitedEntry = await addToWaitlist(invited.id, 1, invitedTo(source));
+    const next = await createUser("next");
+    const nextEntry = await addToWaitlist(next.id, 2);
+
+    const result = await promoteWaitlistToVariant(activityId, target);
+
+    expect(result).toMatchObject({ success: true, promoted: 1 });
+    expect(await waitlistRow(invitedEntry.id)).toBeUndefined();
+    expect((await waitlistRow(nextEntry.id))?.notifiedForDetailId).toBe(source);
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: [next.email] }),
+    );
+  });
+
+  it("offers on a consumed invitation's seat only once the bulk promotion is done", async () => {
+    const { activityId, source, target } = fixture;
+    // Both target seats free: the first waiter, invited to source, and the
+    // next one get them, so only the third is due the source seat.
+    const invited = await createUser("invited");
+    await addToWaitlist(invited.id, 1, invitedTo(source));
+    const next = await createUser("next");
+    await addToWaitlist(next.id, 2);
+    const third = await createUser("third");
+    const thirdEntry = await addToWaitlist(third.id, 3);
+
+    const result = await promoteWaitlistToVariant(activityId, target);
+
+    expect(result).toMatchObject({ success: true, promoted: 2 });
+    const rows = await integrationDb!
+      .select()
+      .from(festivalActivityParticipants)
+      .where(eq(festivalActivityParticipants.detailsId, target));
+    expect(rows.map((row) => row.userId).sort()).toEqual(
+      [invited.id, next.id].sort(),
+    );
+    expect((await waitlistRow(thirdEntry.id))?.notifiedForDetailId).toBe(
+      source,
+    );
+    expect(sendEmail).toHaveBeenCalledOnce();
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: [third.email] }),
+    );
   });
 
   it("refuses a vote that waited for a move of the participant", async () => {
@@ -1319,7 +1465,7 @@ describeDatabase("moving a participant between variants", () => {
     const move = await moveActivityParticipant(row.id, target);
     expect(move).toMatchObject({ success: true, invitationFailed: true });
 
-    // No invitation holds the seat, and the moved row left no removed one.
+    // No invitation holds the seat, but it is due to the waiter ahead.
     expect(await enrollAs(await createUser("outsider"), source)).toEqual({
       success: false,
       message: RESERVED_MESSAGE,
@@ -1464,6 +1610,47 @@ describeDatabase("moving a participant between variants", () => {
     ).toMatchObject({ success: true });
   });
 
+  it("lets anyone take a seat a removal freed when nobody eligible waits", async () => {
+    const { source, target, participant } = fixture;
+    // Source limit is 1; its only row was removed, and nobody waits.
+    await enroll(source, participant.id, true);
+
+    expect(await enrollAs(await createUser("outsider"), source)).toMatchObject({
+      success: true,
+    });
+    // The removed profile itself stays barred.
+    expect(await enrollAs(participant, target)).toEqual({
+      success: false,
+      message: "No podés volver a inscribirte después de haber sido removido",
+    });
+  });
+
+  it("leaves a seat a removal freed to an eligible waiter, and offers it to them", async () => {
+    const { source, participant } = fixture;
+    await enroll(source, participant.id, true);
+    const waiting = await createUser("waiting");
+    const entry = await addToWaitlist(waiting.id, 1);
+
+    expect(await enrollAs(await createUser("outsider"), source)).toEqual({
+      success: false,
+      message: RESERVED_MESSAGE,
+    });
+    expect((await waitlistRow(entry.id))?.notifiedForDetailId).toBe(source);
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: [waiting.email] }),
+    );
+  });
+
+  it("lets the first waiter take a seat a removal freed that nobody offered", async () => {
+    const { source, participant } = fixture;
+    await enroll(source, participant.id, true);
+    const waiting = await createUser("waiting");
+    const entry = await addToWaitlist(waiting.id, 1);
+
+    expect(await enrollAs(waiting, source)).toMatchObject({ success: true });
+    expect(await waitlistRow(entry.id)).toBeUndefined();
+  });
+
   it("refuses an undo into a full variant someone entered since the move", async () => {
     const { activityId, source, target, participant } = fixture;
     const open = await createVariant(activityId, null);
@@ -1515,13 +1702,17 @@ describeDatabase("moving a participant between variants", () => {
     const next = await addToWaitlist((await createUser("next")).id, 2);
     sendEmail.mockResolvedValueOnce(emailRejected);
 
-    await processExpiredWaitlistNotifications();
+    expect(await processExpiredWaitlistNotifications()).toEqual({
+      processed: 0,
+    });
 
     // The invitation failed, so the next run must try again.
     expect(await waitlistRow(expired.id)).toBeDefined();
     expect((await waitlistRow(next.id))?.notifiedAt).toBeNull();
 
-    await processExpiredWaitlistNotifications();
+    expect(await processExpiredWaitlistNotifications()).toEqual({
+      processed: 1,
+    });
 
     expect(await waitlistRow(expired.id)).toBeUndefined();
     const invited = await waitlistRow(next.id);
@@ -1532,6 +1723,30 @@ describeDatabase("moving a participant between variants", () => {
     await processExpiredWaitlistNotifications();
     expect(sendEmail).toHaveBeenCalledTimes(2);
     expect(await waitlistRow(next.id)).toEqual(invited);
+  });
+
+  it("keeps and does not count an expired invitation renewed while the cron offered its seat on", async () => {
+    const { source, target } = fixture;
+    const expired = await addToWaitlist((await createUser("expired")).id, 1, {
+      notifiedAt: new Date(Date.now() - 2 * DAY),
+      expiresAt: new Date(Date.now() - DAY),
+      notifiedForDetailId: source,
+    });
+    await addToWaitlist((await createUser("next")).id, 2);
+    const renewal = invitedTo(target);
+    // Staff renew the invitation between the cron's read and its delete.
+    sendEmail.mockImplementationOnce(async () => {
+      await integrationDb!
+        .update(festivalActivityWaitlist)
+        .set(renewal)
+        .where(eq(festivalActivityWaitlist.id, expired.id));
+      return { data: { id: "email-1" }, error: null, headers: null };
+    });
+
+    expect(await processExpiredWaitlistNotifications()).toEqual({
+      processed: 0,
+    });
+    expect(await waitlistRow(expired.id)).toMatchObject(renewal);
   });
 
   it("drops an expired invitation without inviting twice when its seat was already offered on", async () => {
