@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { randomUUID } from "crypto";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -142,6 +142,21 @@ async function createReservation(
       .values(userIds.map((userId) => ({ userId, reservationId: reservation!.id })));
   }
   return reservation!.id;
+}
+
+/** Resolves once the connection named `applicationName` waits for a lock on `table`. */
+async function waitForLock(applicationName: string, table: string) {
+  for (let attempt = 0; attempt < 500; attempt += 1) {
+    const { rows } = await pool!.query<{ waiting: number }>(
+      `SELECT count(*)::int AS waiting
+         FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid
+        WHERE NOT l.granted AND l.relation = $1::regclass AND a.application_name = $2`,
+      [table, applicationName],
+    );
+    if (rows[0]!.waiting > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`${applicationName} never waited on ${table}`);
 }
 
 describeDatabase("credentials queries", () => {
@@ -306,17 +321,45 @@ describeDatabase("credentials queries", () => {
     ]);
   });
 
-  it("reads the same data on one read-only snapshot for the page", async () => {
+  it("reads the page on one snapshot, even when a reservation stops counting mid-read", async () => {
     const festivalId = await createFestival();
-    await createReservation(festivalId, {
-      standCount: 2,
+    const reservationId = await createReservation(festivalId, {
       userIds: [await createUser("Instantánea")],
     });
 
-    const snapshot = await queries.fetchCredentialsSnapshot(integrationDb!, festivalId);
-    expect(snapshot).toEqual(await queries.fetchCredentialsData(integrationDb!, festivalId));
-    expect(snapshot!.reservations).toHaveLength(1);
-    expect(snapshot!.participants).toHaveLength(1);
+    // The read gets its own named connection, so the wait below is its own.
+    const applicationName = `credentials-snapshot-${randomUUID()}`;
+    const readerPool = new Pool({ connectionString: testDatabaseUrl, max: 1, application_name: applicationName });
+    const blocker = await pool!.connect();
+    try {
+      // Pause the read on its participants statement, after its reservations
+      // statement, and reject the reservation meanwhile.
+      await blocker.query("BEGIN");
+      await blocker.query("LOCK TABLE participations IN ACCESS EXCLUSIVE MODE");
+      const reading = queries.fetchCredentialsSnapshot(
+        drizzle(readerPool, { schema }) as never,
+        festivalId,
+      );
+      await waitForLock(applicationName, "participations");
+      await integrationDb!
+        .update(standReservations)
+        .set({ status: "rejected" })
+        .where(eq(standReservations.id, reservationId));
+      await blocker.query("COMMIT");
+
+      // Read from before the rejection: the reservation keeps its participant,
+      // rather than turning up without people.
+      const data = await reading;
+      expect(data!.reservations.map((reservation) => reservation.id)).toEqual([reservationId]);
+      expect(data!.participants).toEqual([expect.objectContaining({ reservationId })]);
+      expect(buildView(data!, DEFAULT_CREDENTIAL_RULES, ALL).warnings).toEqual([]);
+    } finally {
+      await blocker.query("ROLLBACK").catch(() => undefined);
+      blocker.release();
+      await readerPool.end();
+    }
+
+    expect((await queries.fetchCredentialsSnapshot(integrationDb!, festivalId))!.reservations).toEqual([]);
     expect(await queries.fetchCredentialsSnapshot(integrationDb!, 2_000_000_000)).toBeNull();
   });
 });

@@ -192,7 +192,7 @@ New folder `app/lib/credentials/`, modelled on the admin side of volunteers (`ap
 5. The roster with a selected flag, one-off entries, rule rows, external overrides.
 6. Batches and their items.
 
-The page and the CSV export read through `fetchCredentialsSnapshot`: one read-only `REPEATABLE READ` transaction, statements one after another, so a reservation that stops counting mid-read cannot keep its row while losing its participants, and an undo cannot leave a batch header without its items. The actions call `fetchCredentialsData(tx, …)` on their own `READ COMMITTED` transaction, one statement after another, after their advisory lock; under `REPEATABLE READ` the lock statement would take the snapshot before its wait and miss a batch committed meanwhile. There the reads are still separate snapshots, so `buildHolders` must tolerate a participant row whose reservation is missing.
+The page and the CSV export read through `fetchCredentialsSnapshot`: one read-only `REPEATABLE READ` transaction, statements one after another, so a reservation that stops counting mid-read cannot keep its row while losing its participants, and an undo cannot leave a batch header without its items. The actions call `fetchCredentialsData(tx, …)` on their own `READ COMMITTED` transaction, one statement after another: the batch action after its batch and rules locks (under `REPEATABLE READ` the first lock statement would take the snapshot before its wait and miss a batch committed meanwhile), the external override without a lock. There the reads are still separate snapshots, so `buildHolders` must tolerate a participant row whose reservation is missing.
 
 All three statuses are always loaded (a few hundred rows at most). The status and group toggles are applied by the pure calculator, so they respond instantly in the browser without another request.
 
@@ -265,7 +265,7 @@ Every action follows the shape of `app/lib/volunteers/admin-actions.ts`:
 | `/dashboard/festivals/[id]/credentials` | The page. The tab comes from `?tab=` (`resumen` default, `nombres`, `equipo`, `reglas`). | M1–M4, M6 |
 | `/dashboard/festivals/[id]/credentials/export` | CSV download (`GET`). Accepts the same status and group params as the page. | — |
 
-`page.tsx` is an async server component. It exports `metadata = { title: "Credenciales" }`, awaits `params` and `searchParams` (both are Promises in this Next version), calls `loadCredentialsPage`, then `fetchCredentialsData(db, festivalId)`, and renders the header, the tab links and one view. Add `loading.tsx` with a skeleton.
+`page.tsx` is an async server component. It exports `metadata = { title: "Credenciales" }`, awaits `params` and `searchParams` (both are Promises in this Next version), calls `loadCredentialsPage`, then `fetchCredentialsSnapshot(db, festivalId)` (§6.1), and renders the header, the tab links and one view. Add `loading.tsx` with a skeleton.
 
 `export/route.ts` does its own gating, like `volunteers/export/route.ts`: `requireAdminOrFestivalAdmin` (401 "No autorizado"), then zod params (404). It answers with a UTF-8 BOM, `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment` and `Cache-Control: private, no-store`. Filename `credenciales-<slug|id>-<yyyy-MM-dd>.csv` with the date in `America/La_Paz`.
 

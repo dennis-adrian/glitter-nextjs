@@ -48,8 +48,10 @@ export type CredentialsDatabase =
 
 type Options = {
   /**
-   * Statements in flight at once: at most 3 from a page, and 1 (one after
-   * another) on a transaction, which has a single connection.
+   * Statements in flight at once: 1 (one after another) on a transaction,
+   * which has a single connection, as every caller does; at most 3 on the
+   * module `db`, which only tests use (the page reads through
+   * `fetchCredentialsSnapshot`).
    */
   concurrency?: number;
 };
@@ -376,10 +378,11 @@ export async function fetchCredentialsData(
  * counting would keep its row but lose its participants ("no tiene
  * participantes"), and an undone batch could keep its header but lose its items.
  *
- * Not for the actions. There the first statement is the advisory lock, and
- * under REPEATABLE READ its snapshot would be taken before the wait, missing a
- * batch committed meanwhile. They read on their own READ COMMITTED transaction
- * after the lock, which also keeps the batch history whole.
+ * Not for the actions, which call `fetchCredentialsData` on their own READ
+ * COMMITTED transaction. The batch action reads after its batch and rules
+ * locks: under REPEATABLE READ the first lock statement would take the
+ * snapshot before its wait and miss a batch committed meanwhile. The external
+ * override reads unlocked.
  */
 export function fetchCredentialsSnapshot(
   database: typeof db,
