@@ -221,7 +221,13 @@ export default function PrintBatchDialog() {
 
   return (
     <>
-      <DrawerDialog isDesktop={isDesktop} open={open} onOpenChange={openWith}>
+      <DrawerDialog
+        isDesktop={isDesktop}
+        open={open}
+        // A swipe would only half-close the sheet while marking keeps it open.
+        dismissible={!isPending}
+        onOpenChange={openWith}
+      >
         <DrawerDialogTrigger isDesktop={isDesktop}>
           <Button type="button" wrap>
             <PrinterIcon className="mr-2 h-4 w-4 shrink-0" aria-hidden />
