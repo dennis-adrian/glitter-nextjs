@@ -3,6 +3,7 @@ import { render, cleanup, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ProductDetails } from "@/app/components/payments/product-details";
+import { DEFAULT_CREDENTIAL_RULES } from "@/app/lib/credentials/definitions";
 
 function member(id: number, position: number, releasedAt: Date | null = null) {
   return {
@@ -63,6 +64,40 @@ describe("reservation entitlements", () => {
     );
     expect(screen.getByText(/2 sillas/)).toBeTruthy();
     expect(screen.getByText(/2 credenciales/)).toBeTruthy();
+  });
+});
+
+describe("credentials follow the festival's rules", () => {
+  afterEach(cleanup);
+
+  it("multiplies the rule's quantity per stand", () => {
+    render(
+      <ProductDetails
+        festival={festival}
+        invoice={invoice([member(1, 0), member(2, 1)])}
+        credentialRules={{
+          ...DEFAULT_CREDENTIAL_RULES,
+          illustration: { quantity: 3, namingMode: "one_per_participant" },
+        }}
+      />,
+    );
+    expect(screen.getByText(/6 credenciales/)).toBeTruthy();
+    // Chairs are not ruled by credentials.
+    expect(screen.getByText(/4 sillas/)).toBeTruthy();
+  });
+
+  it("leaves the line out when the rule gives none", () => {
+    render(
+      <ProductDetails
+        festival={festival}
+        invoice={invoice([member(1, 0)])}
+        credentialRules={{
+          ...DEFAULT_CREDENTIAL_RULES,
+          illustration: { quantity: 0, namingMode: "none" },
+        }}
+      />,
+    );
+    expect(screen.queryByText(/credencial/)).toBeNull();
   });
 });
 

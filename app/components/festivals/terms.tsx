@@ -30,6 +30,7 @@ import {
 } from "@/app/lib/festival-terms/acceptance";
 import type { FestivalTermsVersionWithSections } from "@/app/lib/festival-terms/definitions";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
+import type { CredentialRules } from "@/app/lib/credentials/definitions";
 import { formatFullDate } from "@/app/lib/formatters";
 import { ArrowRightIcon } from "lucide-react";
 import Image from "next/image";
@@ -48,6 +49,8 @@ type TermsAndConditionsProps = {
   >;
   termsVersion: FestivalTermsVersionWithSections | null;
   canAcceptTerms: boolean;
+  /** The festival's credential rules as participants may read them. */
+  credentialRules?: CredentialRules;
 };
 
 export default function TermsAndConditions(props: TermsAndConditionsProps) {
@@ -155,6 +158,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
               props.festivalSectorsWithAllowedCategoriesPromise
             }
             fullSectors={props.festivalSectors}
+            credentialRules={props.credentialRules}
           />
 
           <div className="mb-4 text-xs text-muted-foreground">

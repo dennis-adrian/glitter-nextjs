@@ -29,6 +29,12 @@ type MobileSearchSharedProps<T extends string | number = string | number> = {
   messages?: MobileSearchMessages;
   renderOption?: (option: SearchOption) => ReactNode;
   onSelect: (value: T) => void;
+  /**
+   * Opt-in multi-select: the values currently picked. Rows become options
+   * with `aria-selected`, in a multi-selectable listbox; the caller draws the
+   * check mark through `renderOption`. Left out, nothing changes.
+   */
+  selectedValues?: ReadonlyArray<string | number>;
 };
 
 type MobileSearchScreenProps<T extends string | number = string | number> =
@@ -41,6 +47,14 @@ type MobileSearchScreenProps<T extends string | number = string | number> =
     title: string;
     onOpenChange: (open: boolean) => void;
     onSearchValueChange: (value: string) => void;
+    /** Opt-in: keep the search text after a pick (for picking several). */
+    keepSearchOnSelect?: boolean;
+    /**
+     * Opt-in: the header button's label ("Listo"). With it the button only
+     * closes the screen; without it, it reads "Cancelar" and also clears the
+     * search, as before.
+     */
+    dismissLabel?: string;
   };
 
 export default function MobileSearchScreen<T extends string | number>({
@@ -58,6 +72,9 @@ export default function MobileSearchScreen<T extends string | number>({
   onOpenChange,
   onSearchValueChange,
   onSelect,
+  selectedValues,
+  keepSearchOnSelect = false,
+  dismissLabel,
 }: MobileSearchScreenProps<T>) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -71,12 +88,12 @@ export default function MobileSearchScreen<T extends string | number>({
 
   const handleCancel = () => {
     onOpenChange(false);
-    onSearchValueChange("");
+    if (!dismissLabel) onSearchValueChange("");
   };
 
   const handleSelect = (value: T) => {
     onSelect(value);
-    onSearchValueChange("");
+    if (!keepSearchOnSelect) onSearchValueChange("");
   };
 
   return (
@@ -128,7 +145,7 @@ export default function MobileSearchScreen<T extends string | number>({
               size="sm"
               onClick={handleCancel}
             >
-              Cancelar
+              {dismissLabel ?? "Cancelar"}
             </Button>
           </div>
 
@@ -147,6 +164,7 @@ export default function MobileSearchScreen<T extends string | number>({
                 options={options}
                 renderOption={renderOption}
                 onSelect={handleSelect}
+                selectedValues={selectedValues}
               />
             )}
           </div>
@@ -183,7 +201,9 @@ function MobileSearchScreenContent<T extends string | number>({
   options,
   onSelect,
   renderOption,
+  selectedValues,
 }: MobileSearchSharedProps<T>) {
+  const multi = selectedValues !== undefined;
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground">
@@ -207,11 +227,19 @@ function MobileSearchScreenContent<T extends string | number>({
         <h3 className="text-sm font-medium">Resultados de la búsqueda</h3>
         {headerActions}
       </div>
-      <ul role="listbox" className="flex flex-col gap-2 pb-6">
+      <ul
+        role="listbox"
+        aria-multiselectable={multi || undefined}
+        className="flex flex-col gap-2 pb-6"
+      >
         {options.map((option) => (
-          <li key={option.value}>
+          <li key={option.value} role={multi ? "none" : undefined}>
             <button
               type="button"
+              role={multi ? "option" : undefined}
+              aria-selected={
+                multi ? selectedValues.includes(option.value) : undefined
+              }
               disabled={option.disabled}
               onClick={() => onSelect(option.value as T)}
               className={cn(
