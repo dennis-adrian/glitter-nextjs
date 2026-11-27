@@ -29,8 +29,8 @@ vi.mock("@/app/components/dashboard/programs/session-detail-view", () => ({
   ),
 }));
 
-import ProgramSessionPage from "@/app/dashboard/programs/[id]/sessions/[sessionId]/page";
-import StandaloneSessionPage from "@/app/dashboard/programs/sessions/[sessionId]/page";
+import ProgramSessionPage from "@/app/(site)/dashboard/programs/[id]/sessions/[sessionId]/page";
+import StandaloneSessionPage from "@/app/(site)/dashboard/programs/sessions/[sessionId]/page";
 
 afterEach(cleanup);
 

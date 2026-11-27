@@ -2203,8 +2203,64 @@
     {
       "idx": 315,
       "version": "7",
-      "when": 1795049101298,
-      "tag": "0315_site_links_statistics",
+      "when": 1795047563626,
+      "tag": "0315_user_email_changes",
+      "breakpoints": true
+    },
+    {
+      "idx": 316,
+      "version": "7",
+      "when": 1795121010820,
+      "tag": "0316_volunteers",
+      "breakpoints": true
+    },
+    {
+      "idx": 317,
+      "version": "7",
+      "when": 1795127812964,
+      "tag": "0317_volunteer_motivation_500",
+      "breakpoints": true
+    },
+    {
+      "idx": 318,
+      "version": "7",
+      "when": 1795130000000,
+      "tag": "0318_volunteer_festival_scoped_fks",
+      "breakpoints": true
+    },
+    {
+      "idx": 319,
+      "version": "7",
+      "when": 1795138771018,
+      "tag": "0319_volunteer_application_reviewer",
+      "breakpoints": true
+    },
+    {
+      "idx": 320,
+      "version": "7",
+      "when": 1795365093419,
+      "tag": "0320_volunteer_admin_v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 321,
+      "version": "7",
+      "when": 1795570880726,
+      "tag": "0321_add_stamp_card_activity_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 322,
+      "version": "7",
+      "when": 1795722891545,
+      "tag": "0322_credentials",
+      "breakpoints": true
+    },
+    {
+      "idx": 323,
+      "version": "7",
+      "when": 1795804370162,
+      "tag": "0323_site_links_statistics",
       "breakpoints": true
     }
   ]

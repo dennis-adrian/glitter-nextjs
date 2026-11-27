@@ -147,6 +147,39 @@ describe("resolveScreen", () => {
     expect(resolveScreen("/dashboard/festivals", ctx(admin, null))).toBeNull();
   });
 
+  it("hangs the volunteer admin's screens from its inbox", () => {
+    expect(
+      resolveScreen("/dashboard/festivals/9/volunteers", ctx(festivalAdmin)),
+    ).toMatchObject({
+      title: "Voluntarios",
+      parentHref: "/dashboard/festivals/9",
+    });
+    expect(
+      resolveScreen(
+        "/dashboard/festivals/9/volunteers/setup",
+        ctx(festivalAdmin),
+      ),
+    ).toMatchObject({
+      title: "Roles, turnos y fechas",
+      parentHref: "/dashboard/festivals/9/volunteers",
+    });
+    expect(
+      resolveScreen("/dashboard/festivals/9/volunteers/12", ctx(admin)),
+    ).toMatchObject({
+      title: "Postulación",
+      parentHref: "/dashboard/festivals/9/volunteers",
+    });
+    expect(
+      resolveScreen(
+        "/dashboard/festivals/9/volunteers/shifts/4",
+        ctx(festivalAdmin),
+      ),
+    ).toMatchObject({
+      title: "Turno",
+      parentHref: "/dashboard/festivals/9/volunteers",
+    });
+  });
+
   it("treats the festival in progress as Festivales' own page for unverified profiles", () => {
     expect(resolveScreen("/festivals/9", ctx(pending, { id: 9 }))).toBeNull();
     expect(

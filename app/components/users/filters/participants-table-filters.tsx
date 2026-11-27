@@ -6,7 +6,7 @@ import Search from "@/app/components/ui/search";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { IncludeAdminsFilter } from "@/app/components/users/filters/include-admins-filter";
-import { ParticipantSearchParamsSchema } from "@/app/dashboard/users/schemas";
+import { ParticipantSearchParamsSchema } from "@/app/(site)/dashboard/users/schemas";
 import {
   isParticipantStatus,
   participantStatusOptions,

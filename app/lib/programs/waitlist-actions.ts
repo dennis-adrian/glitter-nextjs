@@ -181,8 +181,8 @@ export async function joinWaitlist(
       return { success: false, message: outcome.message };
     }
 
-    revalidatePath("/programs", "layout");
-    revalidatePath("/dashboard/programs", "layout");
+    revalidatePath("/(site)/(routes)/programs", "layout");
+    revalidatePath("/(site)/dashboard/programs", "layout");
 
     return {
       success: true,
@@ -254,8 +254,8 @@ export async function withdrawFromWaitlist(
       return { success: false, message: "No estás en esta lista de espera" };
     }
 
-    revalidatePath("/programs", "layout");
-    revalidatePath("/dashboard/programs", "layout");
+    revalidatePath("/(site)/(routes)/programs", "layout");
+    revalidatePath("/(site)/dashboard/programs", "layout");
 
     return { success: true, message: "Te sacamos de la lista de espera" };
   } catch (error) {

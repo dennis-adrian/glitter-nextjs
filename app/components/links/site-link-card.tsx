@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 
 import SiteLinkIcon, {
   SiteLinkThumb,
@@ -139,29 +138,23 @@ export default function SiteLinkCard({
     </>
   );
 
-  if (preview || isExternalLink(link.href)) {
-    return (
-      <a
-        href={link.href}
-        className={cardClass}
-        onClick={preview ? undefined : () => recordClick(link)}
-        // A mailto opens the mail app; a new tab for it would stay blank.
-        {...(email == null
-          ? { target: "_blank", rel: "noopener noreferrer" }
-          : {})}
-      >
-        {content}
-      </a>
-    );
-  }
-
+  // A plain link even to a page of this site: `/links` sits outside the
+  // site's layout and loads neither Clerk nor the site's header, so a full
+  // page load is what lets Clerk refresh a signed-in visitor's session (a
+  // client navigation to a protected page would find it expired) and lets
+  // the site's header render on the server.
+  const opensElsewhere = preview || isExternalLink(link.href);
   return (
-    <Link
+    <a
       href={link.href}
       className={cardClass}
-      onClick={() => recordClick(link)}
+      onClick={preview ? undefined : () => recordClick(link)}
+      // A mailto opens the mail app; a new tab for it would stay blank.
+      {...(opensElsewhere && email == null
+        ? { target: "_blank", rel: "noopener noreferrer" }
+        : {})}
     >
       {content}
-    </Link>
+    </a>
   );
 }

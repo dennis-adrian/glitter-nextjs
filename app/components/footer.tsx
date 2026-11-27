@@ -8,7 +8,10 @@ import { MailIcon } from "lucide-react";
 
 import GlitterLogo from "@/app/components/landing/glitter-logo";
 import BrandIcon from "@/app/components/brand-icon";
-import { LINKS_PATH } from "@/app/lib/links/definitions";
+import {
+  VOLUNTEER_APPLY_PATH,
+  VOLUNTEERS_PATH,
+} from "@/app/lib/volunteers/definitions";
 import {
   SITE_CONTACT_EMAIL,
   SOCIAL_LINKS,
@@ -37,8 +40,8 @@ export default function Footer({
 
   if (signedIn) return null;
   if (pathname === "/") return null;
-  // The links page already is the list of socials and contact.
-  if (pathname === LINKS_PATH) return null;
+  // The volunteer form is a focused flow with its own chrome.
+  if (pathname === VOLUNTEER_APPLY_PATH) return null;
   // Admin screens are sized to the viewport; the site footer only pushes
   // their tables and actions below the fold.
   if (pathname?.startsWith("/dashboard")) return null;
@@ -63,6 +66,14 @@ export default function Footer({
                   className="text-muted-foreground hover:text-primary"
                 >
                   Festicker
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href={VOLUNTEERS_PATH}
+                  className="text-muted-foreground hover:text-primary"
+                >
+                  Voluntarios
                 </Link>
               </li>
               {blogEnabled ? (

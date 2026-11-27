@@ -64,7 +64,10 @@ export async function createUserProfile() {
   // The Clerk account itself, not a viewer: a profile is only ever created
   // for the account that is signed in.
   const clerkUser = await getCurrentClerkUserDetails();
-  const email = clerkUser?.emailAddresses[0]?.emailAddress;
+  // The primary, not the first: mid-change an account can carry two.
+  const email =
+    clerkUser?.primaryEmailAddress?.emailAddress ??
+    clerkUser?.emailAddresses[0]?.emailAddress;
   if (!clerkUser || !email) {
     return { success: false, message: "No autorizado" };
   }

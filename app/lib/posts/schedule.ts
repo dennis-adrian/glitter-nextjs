@@ -37,9 +37,9 @@ export async function publishDueScheduledPosts(
     .returning({ slug: posts.slug });
 
   if (promoted.length > 0) {
-    revalidatePath("/blog", "layout");
+    revalidatePath("/(site)/(routes)/blog", "layout");
     for (const row of promoted) {
-      revalidatePath(`/blog/${row.slug}`, "page");
+      revalidatePath(`/blog/${row.slug}`);
     }
   }
 

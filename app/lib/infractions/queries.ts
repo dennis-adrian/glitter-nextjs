@@ -16,7 +16,7 @@ import {
   type SQL,
 } from "drizzle-orm";
 
-import type { InfractionSearchParams } from "@/app/dashboard/infractions/schemas";
+import type { InfractionSearchParams } from "@/app/(site)/dashboard/infractions/schemas";
 import type {
   InfractionBase,
   InfractionStatus,

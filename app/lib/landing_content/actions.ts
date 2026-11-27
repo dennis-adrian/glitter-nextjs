@@ -67,7 +67,7 @@ export async function saveLandingPageDraft(input: SaveInput) {
         conflict: true as const,
         message: "El borrador cambió. Recargá antes de guardar.",
       };
-    revalidatePath("/dashboard/landing", "page");
+    revalidatePath("/(site)/dashboard/landing", "page");
     return {
       ok: true as const,
       version: inserted[0].version,
@@ -98,7 +98,7 @@ export async function saveLandingPageDraft(input: SaveInput) {
       conflict: true as const,
       message: "El borrador cambió. Recargá antes de guardar.",
     };
-  revalidatePath("/dashboard/landing", "page");
+  revalidatePath("/(site)/dashboard/landing", "page");
   return {
     ok: true as const,
     version: updated[0].version,
@@ -151,8 +151,8 @@ export async function publishLandingPageDraft({
       message: "El borrador cambió. Recargá antes de publicar.",
     };
   expireSharedCache(SHARED_CACHE_TAGS.landingContent);
-  revalidatePath("/", "page");
-  revalidatePath("/dashboard/landing", "page");
+  revalidatePath("/(site)", "page");
+  revalidatePath("/(site)/dashboard/landing", "page");
   return {
     ok: true as const,
     publicationId: result.id,

@@ -6,8 +6,10 @@ import {
   type ParticipantSearchEntry,
 } from "@/app/components/maps/festival-nav/festival-nav-participant-search";
 import type { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
+import { hasActivityParticipant } from "@/app/components/maps/map-participants";
 import { getPublicCategoryLabel } from "@/app/lib/maps/helpers";
 import {
+  hasActiveStandFilters,
   matchesStandActivityFilters,
   matchesStandStatusFilter,
   type StandActivityUserIds,
@@ -72,6 +74,47 @@ export function filterFestivalParticipants({
     }
     return participantMatchesQuery(participant, normalizedQuery);
   });
+}
+
+/**
+ * Stands the map should keep lit for the legend's filters alone, or null when
+ * none is on.
+ *
+ * Activities are resolved over each stand's occupants with the same rule the
+ * badges are drawn with, so a stand showing a selected marker always matches.
+ * Search entries would not do: they leave out anyone without a display name
+ * and any reservation not yet accepted, both of which still carry a badge.
+ */
+export function getStandFilterMatchingStandIds({
+  sectors,
+  standFilters,
+  activityUserIds,
+}: {
+  sectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
+  standFilters: StandFilters;
+  activityUserIds: StandActivityUserIds;
+}): number[] | null {
+  if (!hasActiveStandFilters(standFilters)) return null;
+
+  const matching: number[] = [];
+
+  for (const sector of sectors) {
+    for (const stand of sector.stands) {
+      if (stand.status === "disabled") continue;
+      if (!matchesStandStatusFilter(stand, standFilters.status)) continue;
+      if (
+        standFilters.activities.length > 0 &&
+        !standFilters.activities.some((activity) =>
+          hasActivityParticipant(stand, activityUserIds[activity]),
+        )
+      ) {
+        continue;
+      }
+      matching.push(stand.id);
+    }
+  }
+
+  return matching;
 }
 
 export type ParticipantSort = "stand" | "name";
@@ -168,28 +211,21 @@ export function getMatchingStandIds({
   standFilters: StandFilters;
   activityUserIds: StandActivityUserIds;
 }): number[] | null {
-  const filtersParticipants =
-    query.trim().length > 0 ||
-    category !== "all" ||
-    standFilters.activities.length > 0;
-  const filtersStatus = standFilters.status !== "all";
-
-  if (!filtersParticipants && !filtersStatus) return null;
-
-  const matching = new Set<number>();
-
-  if (!filtersParticipants) {
-    for (const sector of sectors) {
-      for (const stand of sector.stands) {
-        if (stand.status === "disabled") continue;
-        if (matchesStandStatusFilter(stand, standFilters.status)) {
-          matching.add(stand.id);
-        }
-      }
-    }
-
-    return Array.from(matching);
+  // Only the legend is on: resolve it over the stands themselves, with the
+  // same occupant rule the badges are drawn with, so every stand showing a
+  // selected marker stays lit.
+  if (query.trim().length === 0 && category === "all") {
+    return getStandFilterMatchingStandIds({
+      sectors,
+      standFilters,
+      activityUserIds,
+    });
   }
+
+  // A text or category filter describes a named participant, so it can only
+  // go through the search entries.
+  const filtersStatus = standFilters.status !== "all";
+  const matching = new Set<number>();
 
   for (const entry of searchEntries) {
     if (!participantSearchEntryMatchesFilters(entry, query, category)) continue;
@@ -212,4 +248,35 @@ export function getMatchingStandIds({
   }
 
   return Array.from(matching);
+}
+
+/**
+ * Counted over what the map is actually drawing, so the number tracks the
+ * sector the visitor is looking at. -1 is every sector.
+ */
+export function countShownStands(
+  sectors: FestivalSectorWithStandsWithReservationsWithParticipants[],
+  activeSectorIndex: number,
+  matchingStandIds: number[] | null,
+): { shown: number; total: number } {
+  const scopedSectors =
+    activeSectorIndex === -1
+      ? sectors
+      : [sectors[activeSectorIndex]].filter(Boolean);
+  const scopedStandIds = scopedSectors.flatMap((sector) =>
+    sector.stands
+      .filter((stand) => stand.status !== "disabled")
+      .map((stand) => stand.id),
+  );
+
+  if (matchingStandIds == null) {
+    return { shown: scopedStandIds.length, total: scopedStandIds.length };
+  }
+
+  const matchingStandIdSet = new Set(matchingStandIds);
+  return {
+    shown: scopedStandIds.filter((standId) => matchingStandIdSet.has(standId))
+      .length,
+    total: scopedStandIds.length,
+  };
 }

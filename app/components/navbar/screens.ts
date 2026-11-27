@@ -277,6 +277,20 @@ export const SCREENS: Record<string, ScreenDef> = {
   },
   [`${FEST}/finance`]: { title: "Finanzas", parent: FEST },
   [`${FEST}/collaborators`]: { title: "Colaboradores", parent: FEST },
+  [`${FEST}/volunteers`]: { title: "Voluntarios", parent: FEST },
+  [`${FEST}/volunteers/setup`]: {
+    title: "Roles, turnos y fechas",
+    parent: `${FEST}/volunteers`,
+  },
+  [`${FEST}/volunteers/[applicationId]`]: {
+    title: "Postulación",
+    parent: `${FEST}/volunteers`,
+  },
+  [`${FEST}/volunteers/shifts/[shiftId]`]: {
+    title: "Turno",
+    parent: `${FEST}/volunteers`,
+  },
+  [`${FEST}/credentials`]: { title: "Credenciales", parent: FEST },
   [`${FEST}/allowed_participants`]: {
     title: "Participantes habilitados",
     parent: FEST,

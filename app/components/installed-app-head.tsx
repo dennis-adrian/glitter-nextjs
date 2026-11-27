@@ -1,5 +1,4 @@
 import { installedAppName } from "@/app/lib/installable-app";
-import { MARK_INSTALLED_APP_SCRIPT } from "@/app/lib/installed-app-mode";
 import { LAUNCH_SCREENS } from "@/app/lib/launch-screens";
 
 /**
@@ -11,21 +10,21 @@ import { LAUNCH_SCREENS } from "@/app/lib/launch-screens";
  * metadata into <body> when the page has an async `generateMetadata` (the
  * home page does), and browsers read these only from <head>. React moves
  * these tags into <head> when they render before its first bytes go out, so
- * the root layout renders them itself, ahead of anything that waits for data.
+ * the site's layout (SiteChrome) renders them itself, ahead of anything that
+ * waits for data.
  *
  * Next still adds its own manifest link for app/manifest.ts: in <head> on
  * pages whose metadata is not streamed, in <body> on the rest. Browsers use
  * whichever comes first in <head>; both name the same file and, on a
  * preview, both send cookies.
  *
- * It also renders the script that marks the installed app's window, first in
- * <body> so it runs before anything below it paints.
+ * The script that marks the installed app's window is the root layout's, not
+ * this: the `(site)` layout remounts when a navigation crosses into or out of
+ * the group, and React never runs a script it inserts on the client.
  */
 export default function InstalledAppHead() {
   return (
     <>
-      {/* Not moved into <head>; it stays where the root layout puts it. */}
-      <script dangerouslySetInnerHTML={{ __html: MARK_INSTALLED_APP_SCRIPT }} />
       {/* With cookies, so a preview behind Vercel's login can serve it, as
           Next's own link does there. */}
       <link

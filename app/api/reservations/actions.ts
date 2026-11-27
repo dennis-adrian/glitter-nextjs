@@ -39,8 +39,8 @@ export async function rejectReservation(input: unknown) {
     }
 
     scheduleReservationNotificationJobs(outcome.jobIds);
-    revalidatePath("/dashboard/festivals/[id]/reservations", "page");
-    revalidatePath("/dashboard/festivals/[id]/payments", "page");
+    revalidatePath("/(site)/dashboard/festivals/[id]/reservations", "page");
+    revalidatePath("/(site)/dashboard/festivals/[id]/payments", "page");
     return { success: true, message: "Reserva cancelada correctamente" };
   } catch (error) {
     console.error(error);

@@ -1,7 +1,7 @@
 import { formatDate, formatDisplayDate } from "@/app/lib/formatters";
 import { Separator } from "@/app/components/ui/separator";
 import { DateTime } from "luxon";
-import ReactBarcode from "@/app/(routes)/festivals/[id]/registration/barcode";
+import ReactBarcode from "@/app/(site)/(routes)/festivals/[id]/registration/barcode";
 import Image from "next/image";
 import type {
   TicketFestivalView,

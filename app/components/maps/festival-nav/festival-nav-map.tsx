@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
@@ -20,7 +27,12 @@ import {
   indexJointGroupsByStandId,
   resolveJointGroups,
 } from "@/app/lib/stands/groups";
-import type { StandActivityUserIds } from "@/app/lib/maps/stand-filters";
+import type {
+  StandActivityFilter,
+  StandActivityUserIds,
+  StandFilters,
+  StandStatusFilter,
+} from "@/app/lib/maps/stand-filters";
 import { cn } from "@/app/lib/utils";
 
 type FestivalNavMapProps = {
@@ -39,6 +51,13 @@ type FestivalNavMapProps = {
     requestId: number;
   } | null;
   matchingStandIds?: number[] | null;
+  /** Turns the legend into a filter control; omit for a read-only key. */
+  standFilters?: StandFilters;
+  onStandFiltersChange?: (filters: StandFilters) => void;
+  selectableStatuses?: Exclude<StandStatusFilter, "all">[];
+  selectableActivities?: StandActivityFilter[];
+  /** Shown under the legend, e.g. how many stands the filters leave lit. */
+  filterSummary?: ReactNode;
 };
 
 export default function FestivalNavMap({
@@ -53,6 +72,11 @@ export default function FestivalNavMap({
   onActiveSectorIndexChange,
   participantLocateRequest,
   matchingStandIds,
+  standFilters,
+  onStandFiltersChange,
+  selectableStatuses,
+  selectableActivities,
+  filterSummary,
 }: FestivalNavMapProps) {
   // The embedded page starts compact; the dedicated map keeps its all-sector
   // overview.
@@ -254,7 +278,9 @@ export default function FestivalNavMap({
       {/* Compact header */}
       {!embedded ? (
         <div className="px-4">
-          <h1 className="break-words text-base font-semibold">{festivalName}</h1>
+          <h1 className="break-words text-base font-semibold">
+            {festivalName}
+          </h1>
           <p className="text-xs text-muted-foreground">Mapa del festival</p>
         </div>
       ) : null}
@@ -266,7 +292,9 @@ export default function FestivalNavMap({
             ref={controlsRef}
             className={cn(
               "z-20 border-b bg-background",
-              embedded ? "relative" : "sticky top-[calc(var(--app-header-height)+var(--top-chrome-extra,0px))]",
+              embedded
+                ? "relative"
+                : "sticky top-[calc(var(--app-header-height)+var(--top-chrome-extra,0px))]",
             )}
           >
             <FestivalNavSearch
@@ -290,8 +318,17 @@ export default function FestivalNavMap({
               embedded ? "px-0" : "px-4 md:px-0",
             )}
           >
-            <div className={cn("w-full", !embedded && "md:max-w-3xl")}>
-              <FestivalNavMapLegend activityTypes={activityTypes} />
+            <div
+              className={cn("w-full space-y-1", !embedded && "md:max-w-3xl")}
+            >
+              <FestivalNavMapLegend
+                activityTypes={activityTypes}
+                filters={standFilters}
+                onFiltersChange={onStandFiltersChange}
+                selectableStatuses={selectableStatuses}
+                selectableActivities={selectableActivities}
+              />
+              {filterSummary}
             </div>
           </div>
         </>

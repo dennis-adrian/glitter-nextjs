@@ -151,7 +151,7 @@ export async function reviewFestivalParticipationRequest(
 
     if (!outcome.success) return outcome;
     scheduleReservationNotificationJobs(outcome.jobIds);
-    revalidatePath("/dashboard", "layout");
+    revalidatePath("/(site)/dashboard", "layout");
     return {
       success: true,
       message:
@@ -247,7 +247,7 @@ export async function reviewBecomeArtistRequest(
     });
 
     if (!outcome.success) return outcome;
-    revalidatePath("/dashboard", "layout");
+    revalidatePath("/(site)/dashboard", "layout");
     return {
       success: true,
       message:

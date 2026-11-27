@@ -40,8 +40,8 @@ export async function addLatePartnerAction(input: unknown) {
   if (result.success) {
     scheduleReservationNotificationJobs(result.data.jobIds);
     try {
-      revalidatePath("/profiles", "layout");
-      revalidatePath("/dashboard/festivals/[id]/reservations", "page");
+      revalidatePath("/(site)/(routes)/profiles", "layout");
+      revalidatePath("/(site)/dashboard/festivals/[id]/reservations", "page");
     } catch (error) {
       console.error("[late-partner] revalidatePath failed", error);
     }

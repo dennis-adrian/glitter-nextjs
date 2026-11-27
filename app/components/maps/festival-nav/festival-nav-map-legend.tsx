@@ -144,10 +144,10 @@ export default function FestivalNavMapLegend({
                     }
                     swatch={
                       <span
-                        className={`flex size-3.5 shrink-0 items-center justify-center rounded-full border text-[7px] font-bold leading-none text-white ${marker.swatchClassName}`}
+                        className={`flex size-4 shrink-0 items-center justify-center rounded-full border text-white ${marker.swatchClassName}`}
                         aria-hidden="true"
                       >
-                        {marker.symbol}
+                        <marker.Icon className="size-2.5" strokeWidth={2.75} />
                       </span>
                     }
                   />

@@ -7,6 +7,7 @@ import { forgetPushDevices } from "@/app/lib/notifications/push/devices";
 import { scrubNotificationsNamingUser } from "@/app/lib/notifications/scrub";
 import { detachPostsForDeletedUser } from "@/app/lib/posts/anonymization";
 import { anonymizeProgramPurchasesForUser } from "@/app/lib/programs/anonymization";
+import { scrubEmailChangesForUser } from "@/app/lib/users/email-changes";
 import {
   checkClerkLogin,
   deleteClerkLogin,
@@ -404,6 +405,8 @@ export async function finalizeProfileDeletion(input: {
       // Their queued disciplinary notices keep only what history and dedupe
       // need: the address and details go, and unsent ones are failed.
       await scrubDisciplinaryNotificationJobsForUser(tx, input.profileId, now);
+      // The audit of their address changes stays, without the addresses.
+      await scrubEmailChangesForUser(tx, input.profileId);
 
       await tx.delete(users).where(eq(users.id, input.profileId));
       await tx

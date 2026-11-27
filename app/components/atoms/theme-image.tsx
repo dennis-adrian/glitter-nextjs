@@ -13,7 +13,8 @@ type ThemeImageProps = Omit<ImageProps, "src" | "preload"> & {
  * Leave `loading` at its lazy default where you can: the browser skips a lazy
  * image while it is `display: none`, so only the visible one downloads.
  * `loading="eager"` fetches both, which is only worth it for a small image
- * that is the page's largest contentful paint (the navbar wordmark).
+ * that is the page's largest contentful paint (the navbar and sidebar
+ * wordmarks).
  */
 export default function ThemeImage({
   srcLight,

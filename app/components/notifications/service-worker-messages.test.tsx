@@ -9,6 +9,11 @@ const router = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 import { onNotificationsChanged } from "@/app/components/notifications/notification-events";
+import {
+  SITE_CHROME_ATTRIBUTE,
+  SITE_CHROME_READY_EVENT,
+  SITE_TOASTS_ATTRIBUTE,
+} from "@/app/lib/site-chrome";
 import ServiceWorkerMessages, {
   pageLoad,
 } from "@/app/components/notifications/service-worker-messages";
@@ -37,6 +42,7 @@ let store: Map<string, string>;
 /** Whether the worker has made its cache yet; reading must not make it. */
 let cacheExists: boolean;
 let container: FakeContainer;
+let siteChrome: HTMLElement;
 /** The display mode an installed app reports, on any platform. */
 let standalone = false;
 let assign: ReturnType<typeof vi.spyOn>;
@@ -133,6 +139,13 @@ beforeEach(() => {
     matches: standalone && query === "(display-mode: standalone)",
   }));
   window.history.pushState({}, "", "/");
+  sessionStorage.clear();
+  // A page of the site, with Clerk and the toasts (SiteChrome's marker).
+  siteChrome = document.createElement("div");
+  siteChrome.setAttribute(SITE_CHROME_ATTRIBUTE, "");
+  // Its toasts listening, as SiteChromeReady marks them.
+  siteChrome.setAttribute(SITE_TOASTS_ATTRIBUTE, "");
+  document.body.append(siteChrome);
   Object.defineProperty(document, "visibilityState", {
     configurable: true,
     value: "visible",
@@ -147,6 +160,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  siteChrome.remove();
   cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -429,6 +443,295 @@ describe("going to a tapped notification", () => {
   });
 });
 
+describe("outside the site's layout (/links, the root 404)", () => {
+  beforeEach(() => {
+    siteChrome.remove();
+    iPhoneApp();
+  });
+
+  it("opens a tap with a full load, as Clerk is not there to renew the session", async () => {
+    render(<ServiceWorkerMessages />);
+    await settle();
+    await send(openMessage());
+    await settle();
+    expect(router.push).not.toHaveBeenCalled();
+    expect(assign).toHaveBeenCalledWith("/my_notifications/41/open");
+  });
+
+  const arrival = () => ({
+    id: 41,
+    title: "Notificación 41",
+    body: "",
+    url: "/my_notifications/41/open",
+    href: ITEM_PAGE,
+    at: Date.now(),
+  });
+
+  /** The site's layout as the server sends it: its toasts not yet hydrated. */
+  function siteChromeHydrating() {
+    siteChrome.removeAttribute(SITE_TOASTS_ATTRIBUTE);
+    document.body.append(siteChrome);
+  }
+
+  function toastsMount() {
+    siteChrome.setAttribute(SITE_TOASTS_ATTRIBUTE, "");
+    act(() => {
+      window.dispatchEvent(new Event(SITE_CHROME_READY_EVENT));
+    });
+  }
+
+  it("offers nothing where no toast can show, and offers it once the site's toasts mount", async () => {
+    const { unmount } = render(<ServiceWorkerMessages />);
+    await settle();
+    // Posted once; the worker keeps it after posting.
+    const arrived = arrival();
+    await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrived });
+    keep(ARRIVALS_PATH, [arrived]);
+    expect(toastMock).not.toHaveBeenCalled();
+    expect(sessionStorage.length).toBe(1);
+
+    // The site's layout mounts its toasts in this same document.
+    siteChromeHydrating();
+    toastsMount();
+    await settle();
+    expect(toastMock).toHaveBeenCalledTimes(1);
+    expect(toastMock.mock.calls[0]?.[0]).toBe("Notificación 41");
+    // Forgotten once offered, so no later page offers it again.
+    expect(sessionStorage.length).toBe(0);
+
+    unmount();
+    render(<ServiceWorkerMessages />);
+    await settle();
+    toastsMount();
+    await settle();
+    expect(toastMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers it on the site's page that a full load opens next, once its toasts mount", async () => {
+    const { unmount } = render(<ServiceWorkerMessages />);
+    await settle();
+    const arrived = arrival();
+    await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrived });
+    keep(ARRIVALS_PATH, [arrived]);
+    unmount();
+
+    // A full load into the site: a new page, the same window, its layout
+    // still hydrating when this mounts.
+    siteChromeHydrating();
+    render(<ServiceWorkerMessages />);
+    await settle();
+    expect(toastMock).not.toHaveBeenCalled();
+
+    toastsMount();
+    await settle();
+    expect(toastMock).toHaveBeenCalledTimes(1);
+    expect(toastMock.mock.calls[0]?.[0]).toBe("Notificación 41");
+  });
+
+  it("holds them while the app is in the background, for its return", async () => {
+    render(<ServiceWorkerMessages />);
+    await settle();
+    const arrived = arrival();
+    await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrived });
+    keep(ARRIVALS_PATH, [arrived]);
+
+    siteChromeHydrating();
+    setVisibility("hidden");
+    toastsMount();
+    await settle();
+    expect(toastMock).not.toHaveBeenCalled();
+
+    setVisibility("visible");
+    await settle();
+    await settle();
+    expect(toastMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens a kept tap in place while the site's layout still hydrates", async () => {
+    siteChromeHydrating();
+    keep(LAST_TAP_PATH, {
+      id: 41,
+      url: "/my_notifications/41/open",
+      href: ITEM_PAGE,
+      tapId: newTapId(),
+      at: Date.now(),
+    });
+    render(<ServiceWorkerMessages />);
+    await settle();
+    await settle();
+    expect(router.push).toHaveBeenCalledWith(ITEM_PAGE);
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("holds a live arrival while the site's layout hydrates, for its toasts", async () => {
+    siteChromeHydrating();
+    render(<ServiceWorkerMessages />);
+    await settle();
+    await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrival() });
+    // Inside the site, but its Toaster is not listening yet.
+    expect(toastMock).not.toHaveBeenCalled();
+
+    toastsMount();
+    await settle();
+    expect(toastMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps held arrivals for the next page when a kept tap reloads this one", async () => {
+    const { unmount } = render(<ServiceWorkerMessages />);
+    await settle();
+    const arrived = arrival();
+    await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrived });
+    keep(ARRIVALS_PATH, [arrived]);
+    unmount();
+
+    // The next page lands with a kept tap whose session cannot be renewed,
+    // so the tap reloads; its toasts mount while the renewal is still out.
+    let fail = () => {};
+    vi.stubGlobal("Clerk", {
+      session: {
+        getToken: () =>
+          new Promise<string>((_resolve, reject) => {
+            fail = () => reject(new Error("offline"));
+          }),
+      },
+    });
+    keep(LAST_TAP_PATH, {
+      id: 42,
+      url: "/my_notifications/42/open",
+      href: "/my_notifications/42",
+      tapId: newTapId(),
+      at: Date.now(),
+    });
+    siteChromeHydrating();
+    render(<ServiceWorkerMessages />);
+    toastsMount();
+    await settle();
+    // Nothing offered while it is unknown whether the page stays.
+    expect(toastMock).not.toHaveBeenCalled();
+    await act(async () => fail());
+    await settle();
+    await settle();
+    expect(assign).toHaveBeenCalledWith("/my_notifications/42/open");
+    expect(toastMock).not.toHaveBeenCalled();
+    // Still held, for the page the reload opens.
+    expect(sessionStorage.length).toBe(1);
+  });
+
+  it("holds them when the app goes to the background before the page mounts", async () => {
+    const { unmount } = render(<ServiceWorkerMessages />);
+    await settle();
+    const arrived = arrival();
+    await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrived });
+    keep(ARRIVALS_PATH, [arrived]);
+    unmount();
+
+    // The site's page loads with its toasts ready, behind the lock screen.
+    document.body.append(siteChrome);
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    });
+    render(<ServiceWorkerMessages />);
+    await settle();
+    await settle();
+    expect(toastMock).not.toHaveBeenCalled();
+    expect(sessionStorage.length).toBe(1);
+
+    setVisibility("visible");
+    await settle();
+    await settle();
+    expect(toastMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps an arrival for the next page when a tap without a landing reloads this one", async () => {
+    document.body.append(siteChrome);
+    render(<ServiceWorkerMessages />);
+    await settle();
+    // An older push: its tap opens through a full load.
+    await send(openMessage("/my_notifications/41/open", null));
+    expect(assign).toHaveBeenCalledWith("/my_notifications/41/open");
+    await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrival() });
+    expect(toastMock).not.toHaveBeenCalled();
+    expect(sessionStorage.length).toBe(1);
+  });
+
+  it("offers held arrivals when a return finishes a kept tap in place", async () => {
+    const { unmount } = render(<ServiceWorkerMessages />);
+    await settle();
+    const arrived = arrival();
+    await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrived });
+    keep(ARRIVALS_PATH, [arrived]);
+    unmount();
+
+    // The site's page mounts behind the lock screen; the person then taps
+    // another notification, which brings it forward without going there.
+    document.body.append(siteChrome);
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    });
+    render(<ServiceWorkerMessages />);
+    await settle();
+    keep(LAST_TAP_PATH, {
+      id: 42,
+      url: "/my_notifications/42/open",
+      href: "/my_notifications/42",
+      tapId: newTapId(),
+      at: Date.now(),
+    });
+    setVisibility("visible");
+    await settle();
+    await settle();
+    expect(router.push).toHaveBeenCalledWith("/my_notifications/42");
+    expect(toastMock).toHaveBeenCalledTimes(1);
+    expect(toastMock.mock.calls[0]?.[0]).toBe("Notificación 41");
+  });
+
+  it("holds a worker-opened tap's held arrivals until the page has stayed or reloaded", async () => {
+    const { unmount } = render(<ServiceWorkerMessages />);
+    await settle();
+    const arrived = arrival();
+    await send({ type: SW_NOTIFICATION_RECEIVED, arrival: arrived });
+    keep(ARRIVALS_PATH, [arrived]);
+    unmount();
+
+    let fail = () => {};
+    vi.stubGlobal("Clerk", {
+      session: {
+        getToken: () =>
+          new Promise<string>((_resolve, reject) => {
+            fail = () => reject(new Error("offline"));
+          }),
+      },
+    });
+    document.body.append(siteChrome);
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    });
+    render(<ServiceWorkerMessages />);
+    await settle();
+    // The worker opens the tap here (forgetting its kept copy), and the app
+    // comes forward while the session renewal is still out.
+    await send({ ...openMessage(), id: 42, href: "/my_notifications/42" });
+    setVisibility("visible");
+    await settle();
+    expect(toastMock).not.toHaveBeenCalled();
+
+    await act(async () => fail());
+    await settle();
+    await settle();
+    expect(assign).toHaveBeenCalledWith("/my_notifications/41/open");
+    expect(toastMock).not.toHaveBeenCalled();
+    expect(sessionStorage.length).toBe(1);
+  });
+
+  it("renders nothing, so nothing paints ahead of the page", () => {
+    const { container: root } = render(<ServiceWorkerMessages />);
+    expect(root.childNodes).toHaveLength(0);
+  });
+});
+
 describe("a tap the device did not deliver", () => {
   function keepTap(overrides: Record<string, unknown> = {}) {
     keep(LAST_TAP_PATH, {
@@ -560,6 +863,29 @@ describe("notifications that arrived while the iPhone app was in the background"
 
   beforeEach(() => {
     iPhoneApp();
+  });
+
+  it("still offers it when the app is put away again before the return is read", async () => {
+    render(<ServiceWorkerMessages />);
+    await settle();
+    const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
+    setVisibility("hidden");
+    await tick();
+    // After the app went away, before it went away the second time.
+    const latest = arrival(Date.now());
+    keep(ARRIVALS_PATH, [latest]);
+    await tick();
+    // Back, and away again (the app switcher) before the cache answers.
+    setVisibility("visible");
+    setVisibility("hidden");
+    await settle();
+    expect(toastMock).not.toHaveBeenCalled();
+
+    setVisibility("visible");
+    await settle();
+    await settle();
+    expect(toastMock).toHaveBeenCalledTimes(1);
+    expect(toastMock.mock.calls[0]?.[0]).toBe(latest.title);
   });
 
   it("offers the one that arrived, opening it from the toast", async () => {

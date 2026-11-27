@@ -18,6 +18,8 @@ export const SHARED_CACHE_TAGS = {
   festivals: "festivals",
   storeSettings: "store-settings",
   landingContent: "landing-content",
+  /** The `/links` page's links and settings. */
+  siteLinks: "site-links",
 } as const;
 
 export type SharedCacheTag =

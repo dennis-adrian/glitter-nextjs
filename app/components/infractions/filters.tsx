@@ -8,7 +8,7 @@ import type { SearchOption } from "@/app/components/ui/search-input/search-conte
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
-import { InfractionSearchParamsSchema } from "@/app/dashboard/infractions/schemas";
+import { InfractionSearchParamsSchema } from "@/app/(site)/dashboard/infractions/schemas";
 import { searchUsersForInfraction } from "@/app/lib/infractions/actions";
 import {
   infractionSeverityLabel,

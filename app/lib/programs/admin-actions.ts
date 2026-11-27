@@ -142,8 +142,8 @@ function discountColumns(data: DiscountFields) {
 }
 
 function revalidatePrograms() {
-  revalidatePath("/dashboard/programs", "layout");
-  revalidatePath("/programs", "layout");
+  revalidatePath("/(site)/dashboard/programs", "layout");
+  revalidatePath("/(site)/(routes)/programs", "layout");
 }
 
 /**

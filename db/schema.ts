@@ -16,6 +16,7 @@ import {
   serial,
   smallint,
   text,
+  time,
   timestamp,
   unique,
   uniqueIndex,
@@ -195,6 +196,66 @@ export const userStatusEventsRelations = relations(
   }),
 );
 
+/**
+ * One row per time an admin changed the address a person signs in with. It is
+ * the audit of who moved whom from which address to which, and the durable
+ * record of a change in flight. Clerk changes outside any transaction, so a
+ * row with `clerk_changed_at` set and `completed_at` null is a run that
+ * stopped before the database followed. Running the action again finishes
+ * the change on a NEW row and leaves that one as history, so only the latest
+ * row for a user says whether the database is still behind.
+ * Deleting the profile blanks both addresses and keeps the rest.
+ */
+export const userEmailChanges = pgTable(
+  "user_email_changes",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    /** Kept as text so the audit still names the account once a row is gone. */
+    clerkId: text("clerk_id").notNull(),
+    /** Equal to `newEmail`, case aside, on a resync. Blank once deleted. */
+    oldEmail: text("old_email").notNull(),
+    newEmail: text("new_email").notNull(),
+    changedByUserId: integer("changed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    /** Connected accounts removed in Clerk, e.g. `oauth_google`. */
+    unlinkedProviders: text("unlinked_providers")
+      .array()
+      .default(sql`'{}'::text[]`)
+      .notNull(),
+    clerkChangedAt: timestamp("clerk_changed_at"),
+    completedAt: timestamp("completed_at"),
+    /** A code, never a Clerk or driver message: those can quote an address. */
+    lastError: text("last_error"),
+    /** `sent`, or a log-safe failure type such as `resend:validation_error`. */
+    oldNoticeStatus: text("old_notice_status"),
+    newNoticeStatus: text("new_notice_status"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("user_email_changes_user_created_idx").on(t.userId, t.createdAt),
+  ],
+);
+export const userEmailChangesRelations = relations(
+  userEmailChanges,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [userEmailChanges.userId],
+      references: [users.id],
+      relationName: "emailChanges",
+    }),
+    changedBy: one(users, {
+      fields: [userEmailChanges.changedByUserId],
+      references: [users.id],
+      relationName: "emailChangesMade",
+    }),
+  }),
+);
+
 export const usersRelations = relations(users, ({ many, one }) => ({
   userRequests: many(userRequests),
   userSocials: many(userSocials),
@@ -235,6 +296,10 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   }),
   createdStatusEvents: many(userStatusEvents, {
     relationName: "createdUserStatusEvents",
+  }),
+  emailChanges: many(userEmailChanges, { relationName: "emailChanges" }),
+  emailChangesMade: many(userEmailChanges, {
+    relationName: "emailChangesMade",
   }),
   impersonationsAsAdmin: many(impersonationSessions, {
     relationName: "impersonationsAsAdmin",
@@ -470,6 +535,11 @@ export const festivalsRelations = relations(festivals, ({ many, one }) => ({
   sanctionFestivals: many(sanctionFestivals),
   creditHolds: many(creditHolds),
   reservationFeatureActions: many(reservationFeatureActions),
+  credentialRules: many(festivalCredentialRules),
+  externalCredentialOverrides: many(festivalExternalCredentialOverrides),
+  staffMembers: many(festivalStaffMembers),
+  extraCredentials: many(festivalExtraCredentials),
+  credentialPrintBatches: many(credentialPrintBatches),
 }));
 
 export const festivalStatusEvents = pgTable(
@@ -2595,6 +2665,7 @@ export const festivalActivityTypeEnum = pgEnum("festival_activity_type", [
   "festival_sticker",
   "coupon_book",
   "sticker_hunt",
+  "stamp_card",
 ]);
 
 export const proofTypeEnum = pgEnum("proof_type", ["image", "text", "both"]);
@@ -8473,6 +8544,764 @@ export const impersonationSessionsRelations = relations(
       fields: [impersonationSessions.subjectUserId],
       references: [users.id],
       relationName: "impersonationsAsSubject",
+    }),
+  }),
+);
+/**
+ * Volunteer recruitment (`/voluntarios`).
+ *
+ * Roles and shifts are configured per festival and read by the public page,
+ * the form, the confirmation email and the admin. They are never deleted once
+ * an application references them: `is_active = false` hides them from the
+ * public form and keeps them on the applications that chose them. The foreign
+ * keys from applications are `no action`, so a delete of a referenced role or
+ * shift fails instead of silently dropping what an applicant picked.
+ *
+ * Times are `timestamp` holding UTC wall-clock, like every other column here;
+ * the festival's own clock (America/La_Paz) is applied when they are shown.
+ */
+export const volunteerApplicationStatusEnum = pgEnum(
+  "volunteer_application_status",
+  ["pending", "accepted", "rejected", "waitlist"],
+);
+
+export const volunteerReferralSourceEnum = pgEnum("volunteer_referral_source", [
+  "instagram",
+  "tiktok",
+  "friends",
+  "university",
+  "other",
+]);
+
+export const volunteerRoles = pgTable(
+  "volunteer_roles",
+  {
+    id: serial("id").primaryKey(),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** One line, shown on the role's card. */
+    description: text("description").notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("volunteer_roles_festival_name_unique").on(
+      t.festivalId,
+      t.name,
+    ),
+    index("volunteer_roles_festival_idx").on(t.festivalId, t.sortOrder),
+    unique("volunteer_roles_id_festival_id_unique").on(t.id, t.festivalId),
+  ],
+);
+
+export const volunteerShifts = pgTable(
+  "volunteer_shifts",
+  {
+    id: serial("id").primaryKey(),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    /** What the shift is for ("Montaje", "Festival (turno A)"). */
+    label: text("label").notNull(),
+    startsAt: timestamp("starts_at").notNull(),
+    endsAt: timestamp("ends_at").notNull(),
+    /** How many volunteers the shift needs; 0 while undecided. */
+    neededHeadcount: integer("needed_headcount").default(0).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("volunteer_shifts_festival_idx").on(t.festivalId, t.sortOrder),
+    unique("volunteer_shifts_id_festival_id_unique").on(t.id, t.festivalId),
+    check(
+      "volunteer_shifts_ends_after_start",
+      sql`${t.endsAt} > ${t.startsAt}`,
+    ),
+    check(
+      "volunteer_shifts_needed_headcount_nonnegative",
+      sql`${t.neededHeadcount} >= 0`,
+    ),
+  ],
+);
+
+/**
+ * One row per festival that runs a volunteer call. The public page shows the
+ * call with the latest closing date; after `applications_close_at` it shows
+ * "Convocatoria cerrada" and the server refuses new applications.
+ */
+export const volunteerCallSettings = pgTable("volunteer_call_settings", {
+  id: serial("id").primaryKey(),
+  festivalId: integer("festival_id")
+    .notNull()
+    .unique()
+    .references(() => festivals.id, { onDelete: "cascade" }),
+  applicationsCloseAt: timestamp("applications_close_at").notNull(),
+  /**
+   * The induction every volunteer attends, as a La Paz calendar date; null
+   * until it is scheduled ("fecha por confirmar").
+   */
+  inductionDate: date("induction_date"),
+  /** Its start on La Paz's clock ("18:00"); null when only the day is known. */
+  inductionTime: time("induction_time"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const volunteerApplications = pgTable(
+  "volunteer_applications",
+  {
+    id: serial("id").primaryKey(),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    fullName: text("full_name").notNull(),
+    birthdate: date("birthdate").notNull(),
+    phone: text("phone").notNull(),
+    /** Trimmed and lowercased; one application per email and festival. */
+    email: text("email").notNull(),
+    zone: text("zone"),
+    firstChoiceRoleId: integer("first_choice_role_id").notNull(),
+    secondChoiceRoleId: integer("second_choice_role_id").notNull(),
+    /** Keys from VOLUNTEER_EXPERIENCE_OPTIONS (app/lib/volunteers). */
+    experience: text("experience")
+      .array()
+      .default(sql`'{}'::text[]`)
+      .notNull(),
+    experienceNotes: text("experience_notes"),
+    portfolio: text("portfolio"),
+    motivation: text("motivation").notNull(),
+    emergencyContactName: text("emergency_contact_name").notNull(),
+    emergencyContactPhone: text("emergency_contact_phone").notNull(),
+    referralSource: volunteerReferralSourceEnum("referral_source").notNull(),
+    /**
+     * The two required consents (shift commitment and induction, data
+     * processing) are given together; this is when, and which privacy note
+     * the applicant was shown.
+     */
+    consentedAt: timestamp("consented_at").notNull(),
+    privacyNoticeVersion: text("privacy_notice_version").notNull(),
+    /**
+     * Optional: whether they authorised use of their image in festival photos
+     * and videos ("Autorizó" / "No autorizó"). Never required to apply.
+     */
+    imageConsent: boolean("image_consent").default(false).notNull(),
+    status: volunteerApplicationStatusEnum("status")
+      .default("pending")
+      .notNull(),
+    assignedRoleId: integer("assigned_role_id"),
+    adminNotes: text("admin_notes"),
+    /**
+     * The admin who last changed the status, assignment or notes, and when.
+     * Null until someone reviews it; kept (as null) if that user is deleted.
+     */
+    reviewedByUserId: integer("reviewed_by_user_id").references(
+      () => users.id,
+      { onDelete: "set null" },
+    ),
+    reviewedAt: timestamp("reviewed_at"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("volunteer_applications_festival_email_unique").on(
+      t.festivalId,
+      t.email,
+    ),
+    index("volunteer_applications_festival_status_idx").on(
+      t.festivalId,
+      t.status,
+    ),
+    unique("volunteer_applications_id_festival_id_unique").on(
+      t.id,
+      t.festivalId,
+    ),
+    // Every role an application names belongs to the application's festival.
+    foreignKey({
+      name: "volunteer_applications_first_choice_role_festival_fk",
+      columns: [t.firstChoiceRoleId, t.festivalId],
+      foreignColumns: [volunteerRoles.id, volunteerRoles.festivalId],
+    }),
+    foreignKey({
+      name: "volunteer_applications_second_choice_role_festival_fk",
+      columns: [t.secondChoiceRoleId, t.festivalId],
+      foreignColumns: [volunteerRoles.id, volunteerRoles.festivalId],
+    }),
+    foreignKey({
+      name: "volunteer_applications_assigned_role_festival_fk",
+      columns: [t.assignedRoleId, t.festivalId],
+      foreignColumns: [volunteerRoles.id, volunteerRoles.festivalId],
+    }),
+    check(
+      "volunteer_applications_distinct_role_choices",
+      sql`${t.firstChoiceRoleId} <> ${t.secondChoiceRoleId}`,
+    ),
+    check(
+      "volunteer_applications_email_normalized",
+      sql`${t.email} = lower(btrim(${t.email}))`,
+    ),
+    check(
+      "volunteer_applications_motivation_length",
+      sql`char_length(${t.motivation}) <= 500`,
+    ),
+  ],
+);
+
+/** The shifts an applicant said they can do. */
+export const volunteerApplicationAvailableShifts = pgTable(
+  "volunteer_application_available_shifts",
+  {
+    applicationId: integer("application_id").notNull(),
+    shiftId: integer("shift_id").notNull(),
+    /** The application's festival; the shift must belong to it too. */
+    festivalId: integer("festival_id").notNull(),
+    /**
+     * False for the shifts the applicant marked on the form; true for one an
+     * admin added since (volunteer_availability_changes says who and when).
+     */
+    addedByAdmin: boolean("added_by_admin").default(false).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.applicationId, t.shiftId] }),
+    index("volunteer_application_available_shifts_shift_idx").on(t.shiftId),
+    foreignKey({
+      name: "volunteer_application_available_shifts_application_fk",
+      columns: [t.applicationId, t.festivalId],
+      foreignColumns: [
+        volunteerApplications.id,
+        volunteerApplications.festivalId,
+      ],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "volunteer_application_available_shifts_shift_fk",
+      columns: [t.shiftId, t.festivalId],
+      foreignColumns: [volunteerShifts.id, volunteerShifts.festivalId],
+    }),
+  ],
+);
+
+/** The shifts an admin assigned to an applicant (PR 2). */
+export const volunteerApplicationAssignedShifts = pgTable(
+  "volunteer_application_assigned_shifts",
+  {
+    applicationId: integer("application_id").notNull(),
+    shiftId: integer("shift_id").notNull(),
+    /** The application's festival; the shift must belong to it too. */
+    festivalId: integer("festival_id").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.applicationId, t.shiftId] }),
+    index("volunteer_application_assigned_shifts_shift_idx").on(t.shiftId),
+    foreignKey({
+      name: "volunteer_application_assigned_shifts_application_fk",
+      columns: [t.applicationId, t.festivalId],
+      foreignColumns: [
+        volunteerApplications.id,
+        volunteerApplications.festivalId,
+      ],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "volunteer_application_assigned_shifts_shift_fk",
+      columns: [t.shiftId, t.festivalId],
+      foreignColumns: [volunteerShifts.id, volunteerShifts.festivalId],
+    }),
+  ],
+);
+
+/**
+ * Every admin change to the shifts an applicant can cover: who, when, what
+ * was added and removed, the assignments the removal took with it, and an
+ * optional reason ("lo pidió por WhatsApp"). Shift ids, not foreign keys:
+ * shifts are never deleted, and the log reads as it was.
+ */
+export const volunteerAvailabilityChanges = pgTable(
+  "volunteer_availability_changes",
+  {
+    id: serial("id").primaryKey(),
+    applicationId: integer("application_id").notNull(),
+    festivalId: integer("festival_id").notNull(),
+    changedByUserId: integer("changed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    addedShiftIds: integer("added_shift_ids")
+      .array()
+      .default(sql`'{}'::int[]`)
+      .notNull(),
+    removedShiftIds: integer("removed_shift_ids")
+      .array()
+      .default(sql`'{}'::int[]`)
+      .notNull(),
+    /** Removed shifts the applicant was assigned to; unassigned on save. */
+    unassignedShiftIds: integer("unassigned_shift_ids")
+      .array()
+      .default(sql`'{}'::int[]`)
+      .notNull(),
+    reason: text("reason"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("volunteer_availability_changes_application_idx").on(
+      t.applicationId,
+      t.createdAt,
+    ),
+    foreignKey({
+      name: "volunteer_availability_changes_application_fk",
+      columns: [t.applicationId, t.festivalId],
+      foreignColumns: [
+        volunteerApplications.id,
+        volunteerApplications.festivalId,
+      ],
+    }).onDelete("cascade"),
+    check(
+      "volunteer_availability_changes_reason_length",
+      sql`char_length(${t.reason}) <= 300`,
+    ),
+  ],
+);
+
+/**
+ * The team's internal notes on an application, one row per note, oldest
+ * first. Older notes live in volunteer_applications.admin_notes.
+ */
+export const volunteerApplicationNotes = pgTable(
+  "volunteer_application_notes",
+  {
+    id: serial("id").primaryKey(),
+    applicationId: integer("application_id").notNull(),
+    festivalId: integer("festival_id").notNull(),
+    authorUserId: integer("author_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("volunteer_application_notes_application_idx").on(
+      t.applicationId,
+      t.createdAt,
+    ),
+    foreignKey({
+      name: "volunteer_application_notes_application_fk",
+      columns: [t.applicationId, t.festivalId],
+      foreignColumns: [
+        volunteerApplications.id,
+        volunteerApplications.festivalId,
+      ],
+    }).onDelete("cascade"),
+    check(
+      "volunteer_application_notes_body_length",
+      sql`char_length(${t.body}) between 1 and 2000`,
+    ),
+  ],
+);
+
+export const volunteerRolesRelations = relations(volunteerRoles, ({ one }) => ({
+  festival: one(festivals, {
+    fields: [volunteerRoles.festivalId],
+    references: [festivals.id],
+  }),
+}));
+
+export const volunteerShiftsRelations = relations(
+  volunteerShifts,
+  ({ one }) => ({
+    festival: one(festivals, {
+      fields: [volunteerShifts.festivalId],
+      references: [festivals.id],
+    }),
+  }),
+);
+
+export const volunteerApplicationsRelations = relations(
+  volunteerApplications,
+  ({ one, many }) => ({
+    festival: one(festivals, {
+      fields: [volunteerApplications.festivalId],
+      references: [festivals.id],
+    }),
+    firstChoiceRole: one(volunteerRoles, {
+      fields: [volunteerApplications.firstChoiceRoleId],
+      references: [volunteerRoles.id],
+    }),
+    secondChoiceRole: one(volunteerRoles, {
+      fields: [volunteerApplications.secondChoiceRoleId],
+      references: [volunteerRoles.id],
+    }),
+    assignedRole: one(volunteerRoles, {
+      fields: [volunteerApplications.assignedRoleId],
+      references: [volunteerRoles.id],
+    }),
+    availableShifts: many(volunteerApplicationAvailableShifts),
+    assignedShifts: many(volunteerApplicationAssignedShifts),
+  }),
+);
+
+export const volunteerApplicationAvailableShiftsRelations = relations(
+  volunteerApplicationAvailableShifts,
+  ({ one }) => ({
+    application: one(volunteerApplications, {
+      fields: [volunteerApplicationAvailableShifts.applicationId],
+      references: [volunteerApplications.id],
+    }),
+    shift: one(volunteerShifts, {
+      fields: [volunteerApplicationAvailableShifts.shiftId],
+      references: [volunteerShifts.id],
+    }),
+  }),
+);
+
+export const volunteerApplicationAssignedShiftsRelations = relations(
+  volunteerApplicationAssignedShifts,
+  ({ one }) => ({
+    application: one(volunteerApplications, {
+      fields: [volunteerApplicationAssignedShifts.applicationId],
+      references: [volunteerApplications.id],
+    }),
+    shift: one(volunteerShifts, {
+      fields: [volunteerApplicationAssignedShifts.shiftId],
+      references: [volunteerShifts.id],
+    }),
+  }),
+);
+
+/* ------------------------------------------------------------------ */
+/* Festival credentials (docs/PLAN-credenciales.md §5)                 */
+/* ------------------------------------------------------------------ */
+
+export const credentialGroupEnum = pgEnum("credential_group", [
+  "illustration",
+  "entrepreneurship",
+  "gastronomy",
+  "external",
+  "volunteer",
+  "staff",
+]);
+
+export const credentialNamingModeEnum = pgEnum("credential_naming_mode", [
+  "one_per_participant",
+  "all_named",
+  "none",
+]);
+
+/**
+ * A festival's own credential rule for one group. No row means the group uses
+ * `DEFAULT_CREDENTIAL_RULES` (app/lib/credentials/definitions.ts). The naming
+ * mode is only read for the three stand categories.
+ */
+export const festivalCredentialRules = pgTable(
+  "festival_credential_rules",
+  {
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    group: credentialGroupEnum("group").notNull(),
+    quantity: smallint("quantity").notNull(),
+    namingMode: credentialNamingModeEnum("naming_mode"),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({
+      name: "festival_credential_rules_pk",
+      columns: [t.festivalId, t.group],
+    }),
+    check(
+      "festival_credential_rules_quantity_range",
+      sql`${t.quantity} BETWEEN 0 AND 20`,
+    ),
+  ],
+);
+
+/**
+ * The total credentials of one external participant in one festival, in place
+ * of the per-stand rule. `stands_at_override` is how many counted stands the
+ * participant had when it was saved, so a later change can be flagged.
+ */
+export const festivalExternalCredentialOverrides = pgTable(
+  "festival_external_credential_overrides",
+  {
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    externalParticipantId: integer("external_participant_id")
+      .notNull()
+      .references(() => externalParticipants.id, { onDelete: "cascade" }),
+    quantity: smallint("quantity").notNull(),
+    standsAtOverride: smallint("stands_at_override").notNull(),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({
+      name: "festival_external_credential_overrides_pk",
+      columns: [t.festivalId, t.externalParticipantId],
+    }),
+    check(
+      "festival_external_credential_overrides_quantity_range",
+      sql`${t.quantity} BETWEEN 0 AND 50`,
+    ),
+    check(
+      "festival_external_credential_overrides_stands_nonnegative",
+      sql`${t.standsAtOverride} >= 0`,
+    ),
+  ],
+);
+
+/**
+ * The Glitter team roster ("Equipo Glitter"), shared by every festival. Not
+ * linked to `users`: most of the team has no account. Named `staff_members`
+ * because `collaborators` already means participants' own helpers. Rows are
+ * archived (`is_active = false`), never deleted.
+ */
+export const staffMembers = pgTable(
+  "staff_members",
+  {
+    id: serial("id").primaryKey(),
+    fullName: text("full_name").notNull(),
+    roleLabel: text("role_label").notNull().default(""),
+    isActive: boolean("is_active").default(true).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check(
+      "staff_members_full_name_length",
+      sql`char_length(${t.fullName}) BETWEEN 1 AND 120`,
+    ),
+    check(
+      "staff_members_role_label_length",
+      sql`char_length(${t.roleLabel}) <= 80`,
+    ),
+  ],
+);
+
+/** A roster member works this edition: the row's presence is the whole fact. */
+export const festivalStaffMembers = pgTable(
+  "festival_staff_members",
+  {
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    staffMemberId: integer("staff_member_id")
+      .notNull()
+      .references(() => staffMembers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({
+      name: "festival_staff_members_pk",
+      columns: [t.festivalId, t.staffMemberId],
+    }),
+    index("festival_staff_members_staff_member_idx").on(t.staffMemberId),
+  ],
+);
+
+/**
+ * One-off credentials for one edition ("Solo para esta edición"): a named
+ * person (`name` set, quantity 1) or a labelled lot of unnamed credentials
+ * (`name` null, e.g. "Prensa", 6). Not ruled: they count what was typed.
+ */
+export const festivalExtraCredentials = pgTable(
+  "festival_extra_credentials",
+  {
+    id: serial("id").primaryKey(),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    name: text("name"),
+    label: text("label").notNull(),
+    quantity: smallint("quantity").default(1).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("festival_extra_credentials_festival_idx").on(t.festivalId),
+    check(
+      "festival_extra_credentials_named_is_one",
+      sql`${t.name} IS NULL OR ${t.quantity} = 1`,
+    ),
+    check(
+      "festival_extra_credentials_quantity_range",
+      sql`${t.quantity} BETWEEN 1 AND 200`,
+    ),
+    check(
+      "festival_extra_credentials_name_length",
+      sql`${t.name} IS NULL OR char_length(${t.name}) BETWEEN 1 AND 120`,
+    ),
+    check(
+      "festival_extra_credentials_label_length",
+      sql`char_length(${t.label}) BETWEEN 1 AND 80`,
+    ),
+  ],
+);
+
+/**
+ * One "Marcar como enviadas a imprenta" event. `rules` is the resolved rule
+ * set the batch was computed with, kept for the record.
+ */
+export const credentialPrintBatches = pgTable(
+  "credential_print_batches",
+  {
+    id: serial("id").primaryKey(),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    note: text("note"),
+    rules: jsonb("rules").notNull(),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique("credential_print_batches_id_festival_id_unique").on(
+      t.id,
+      t.festivalId,
+    ),
+    index("credential_print_batches_festival_idx").on(
+      t.festivalId,
+      t.createdAt,
+    ),
+    check(
+      "credential_print_batches_note_length",
+      sql`${t.note} IS NULL OR char_length(${t.note}) <= 200`,
+    ),
+  ],
+);
+
+/**
+ * A frozen copy of one print unit as a batch sent it. `unit_key` names the
+ * unit (`participant:<participationId>`, `reservation:<reservationId>`,
+ * `external:<id>`, `volunteer:<applicationId>`, `staff:<id>`, `extra:<id>`)
+ * and deliberately has no foreign key: the history must outlive what it
+ * names, a cancelled reservation being exactly the case the page shows.
+ * `user_id` has no foreign key for the same reason.
+ */
+export const credentialPrintBatchItems = pgTable(
+  "credential_print_batch_items",
+  {
+    id: serial("id").primaryKey(),
+    batchId: integer("batch_id").notNull(),
+    festivalId: integer("festival_id").notNull(),
+    unitKey: text("unit_key").notNull(),
+    group: credentialGroupEnum("group").notNull(),
+    userId: integer("user_id"),
+    printedName: text("printed_name"),
+    detail: text("detail").notNull().default(""),
+    namedCount: smallint("named_count").notNull(),
+    unnamedCount: smallint("unnamed_count").notNull(),
+    isReprint: boolean("is_reprint").default(false).notNull(),
+  },
+  (t) => [
+    foreignKey({
+      name: "credential_print_batch_items_batch_festival_fk",
+      columns: [t.batchId, t.festivalId],
+      foreignColumns: [
+        credentialPrintBatches.id,
+        credentialPrintBatches.festivalId,
+      ],
+    }).onDelete("cascade"),
+    index("credential_print_batch_items_festival_unit_idx").on(
+      t.festivalId,
+      t.unitKey,
+    ),
+    uniqueIndex("credential_print_batch_items_batch_unit_unique").on(
+      t.batchId,
+      t.unitKey,
+    ),
+    check(
+      "credential_print_batch_items_counts_nonnegative",
+      sql`${t.namedCount} >= 0 AND ${t.unnamedCount} >= 0`,
+    ),
+  ],
+);
+
+export const festivalCredentialRulesRelations = relations(
+  festivalCredentialRules,
+  ({ one }) => ({
+    festival: one(festivals, {
+      fields: [festivalCredentialRules.festivalId],
+      references: [festivals.id],
+    }),
+    updatedBy: one(users, {
+      fields: [festivalCredentialRules.updatedByUserId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const festivalExternalCredentialOverridesRelations = relations(
+  festivalExternalCredentialOverrides,
+  ({ one }) => ({
+    festival: one(festivals, {
+      fields: [festivalExternalCredentialOverrides.festivalId],
+      references: [festivals.id],
+    }),
+    externalParticipant: one(externalParticipants, {
+      fields: [festivalExternalCredentialOverrides.externalParticipantId],
+      references: [externalParticipants.id],
+    }),
+  }),
+);
+
+export const staffMembersRelations = relations(staffMembers, ({ many }) => ({
+  festivals: many(festivalStaffMembers),
+}));
+
+export const festivalStaffMembersRelations = relations(
+  festivalStaffMembers,
+  ({ one }) => ({
+    festival: one(festivals, {
+      fields: [festivalStaffMembers.festivalId],
+      references: [festivals.id],
+    }),
+    staffMember: one(staffMembers, {
+      fields: [festivalStaffMembers.staffMemberId],
+      references: [staffMembers.id],
+    }),
+  }),
+);
+
+export const festivalExtraCredentialsRelations = relations(
+  festivalExtraCredentials,
+  ({ one }) => ({
+    festival: one(festivals, {
+      fields: [festivalExtraCredentials.festivalId],
+      references: [festivals.id],
+    }),
+  }),
+);
+
+export const credentialPrintBatchesRelations = relations(
+  credentialPrintBatches,
+  ({ one, many }) => ({
+    festival: one(festivals, {
+      fields: [credentialPrintBatches.festivalId],
+      references: [festivals.id],
+    }),
+    createdBy: one(users, {
+      fields: [credentialPrintBatches.createdByUserId],
+      references: [users.id],
+    }),
+    items: many(credentialPrintBatchItems),
+  }),
+);
+
+export const credentialPrintBatchItemsRelations = relations(
+  credentialPrintBatchItems,
+  ({ one }) => ({
+    batch: one(credentialPrintBatches, {
+      fields: [credentialPrintBatchItems.batchId],
+      references: [credentialPrintBatches.id],
     }),
   }),
 );

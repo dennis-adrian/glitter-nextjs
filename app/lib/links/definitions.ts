@@ -517,6 +517,32 @@ export function isWithinSchedule(schedule: LinkSchedule, now: Date): boolean {
   return state === "always" || state === "running";
 }
 
+/** A visible link as the public page stores it: with its schedule. */
+export type ScheduledPublicSiteLink = PublicSiteLink & LinkSchedule;
+
+/**
+ * The links `/links` shows at `now`, in the order given: those whose schedule
+ * has started and not ended, without the schedule itself. The rows are the
+ * visible ones only; the switch is checked by the query.
+ */
+export function linksShownAt(
+  links: ScheduledPublicSiteLink[],
+  now: Date,
+): PublicSiteLink[] {
+  return links
+    .filter((link) => isWithinSchedule(link, now))
+    .map(({ id, kind, label, href, icon, iconSvg, imageUrl, layout }) => ({
+      id,
+      kind,
+      label,
+      href,
+      icon,
+      iconSvg,
+      imageUrl,
+      layout,
+    }));
+}
+
 /**
  * A line for the dashboard about a link's schedule, or null when it has
  * none: "Se muestra desde el 20 nov, 18:30", "Dejó de mostrarse el …".

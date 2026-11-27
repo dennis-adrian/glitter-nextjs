@@ -721,7 +721,7 @@ async function processClaimedNotificationJob(
       sanctionNotificationEnqueueRetryPayloadSchema.safeParse(job.payload);
     if (retryPayload.success) {
       const input = retryPayload.data;
-      const payload = await buildSanctionLifecycleNotificationSnapshot(db, {
+      const snapshot = await buildSanctionLifecycleNotificationSnapshot(db, {
         sanctionId: input.sanctionId,
         kind: input.kind,
         participantNote: input.participantNote,
@@ -733,6 +733,22 @@ async function processClaimedNotificationJob(
       // The snapshot and the inbox copy its enqueue could not write commit
       // together: once hydrated, the job is never hydrated again.
       const prepared = await db.transaction(async (tx) => {
+        // The address is read again under a share lock on the profile. An
+        // email change holds that row while it moves the queued mail, and
+        // skips a job not hydrated yet: read before it committed, the snapshot
+        // would put the old address back on the job after it.
+        const [current] = await tx
+          .select({ email: users.email })
+          .from(users)
+          .where(eq(users.id, snapshot.profile.id))
+          .limit(1)
+          .for("share");
+        const payload = current
+          ? {
+              ...snapshot,
+              profile: { ...snapshot.profile, email: current.email },
+            }
+          : snapshot;
         const [row] = await tx
           .update(disciplinaryNotificationJobs)
           .set({

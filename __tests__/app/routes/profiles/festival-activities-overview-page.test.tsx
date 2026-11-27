@@ -50,7 +50,7 @@ vi.mock("@/app/components/pages/festival_activities/passport-activity", () => ({
   default: () => null,
 }));
 
-import ParticipantsActivityPage from "@/app/(routes)/profiles/[profileId]/festivals/[festivalId]/activity/page";
+import ParticipantsActivityPage from "@/app/(site)/(routes)/profiles/[profileId]/festivals/[festivalId]/activity/page";
 
 type PageProps = Parameters<typeof ParticipantsActivityPage>[0];
 

@@ -33,13 +33,50 @@ import { siteLinks, siteLinksSettings } from "@/db/schema";
 
 const currentProfileMock = vi.hoisted(() => vi.fn());
 const revalidatePathMock = vi.hoisted(() => vi.fn());
+/**
+ * Next's data cache, in memory: values keyed and tagged as `unstable_cache`
+ * keys and tags them, stored as JSON as Next stores them, and dropped by
+ * `revalidateTag`. Lets the suite see what `/links` serves after a write.
+ */
+const nextCache = vi.hoisted(() => {
+  const entries = new Map<string, { tags: string[]; json: string }>();
+  return {
+    entries,
+    unstable_cache:
+      <Args extends unknown[], Result>(
+        fn: (...args: Args) => Promise<Result>,
+        keyParts: string[],
+        options: { tags?: string[] },
+      ) =>
+      async (...args: Args): Promise<Result> => {
+        const key = JSON.stringify([keyParts, args]);
+        const hit = entries.get(key);
+        if (hit) return JSON.parse(hit.json) as Result;
+        const value = await fn(...args);
+        entries.set(key, {
+          tags: options.tags ?? [],
+          json: JSON.stringify(value),
+        });
+        return value;
+      },
+    revalidateTag: vi.fn((tag: string) => {
+      for (const [key, entry] of entries) {
+        if (entry.tags.includes(tag)) entries.delete(key);
+      }
+    }),
+  };
+});
 // What reaches UploadThing and other people's sites stays out of this suite;
 // which addresses are ours is the real rule.
 const importLinkImageMock = vi.hoisted(() => vi.fn());
 const removeLinkImageMock = vi.hoisted(() => vi.fn());
 
 vi.mock("server-only", () => ({}));
-vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("next/cache", () => ({
+  revalidatePath: revalidatePathMock,
+  revalidateTag: nextCache.revalidateTag,
+  unstable_cache: nextCache.unstable_cache,
+}));
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: currentProfileMock,
 }));
@@ -101,6 +138,11 @@ function rowsOf(kind: "link" | "social") {
     .orderBy(asc(siteLinks.sortOrder), asc(siteLinks.id));
 }
 
+/** The links `/links` shows now, read the way the page reads them. */
+async function visibleLinks() {
+  return (await queries.fetchLinksPage()).links;
+}
+
 async function addLink(label: string, href = "/store") {
   const result = await actions.createSiteLink({ label, href, icon: "link" });
   expect(result).toEqual({ success: true });
@@ -140,6 +182,8 @@ describeDatabase("site links dashboard actions", () => {
     await integrationDb!.delete(siteLinksSettings);
     currentProfileMock.mockReset();
     revalidatePathMock.mockReset();
+    nextCache.entries.clear();
+    nextCache.revalidateTag.mockClear();
     importLinkImageMock.mockReset();
     removeLinkImageMock.mockReset();
     signInAs("admin");
@@ -192,6 +236,7 @@ describeDatabase("site links dashboard actions", () => {
         });
         const [social] = await rowsOf("social");
         revalidatePathMock.mockReset();
+        nextCache.revalidateTag.mockClear();
 
         signInAs(role);
         const denied = { success: false, message: "No tienes permisos." };
@@ -220,6 +265,7 @@ describeDatabase("site links dashboard actions", () => {
           [],
         );
         expect(revalidatePathMock).not.toHaveBeenCalled();
+        expect(nextCache.revalidateTag).not.toHaveBeenCalled();
       },
     );
 
@@ -253,11 +299,11 @@ describeDatabase("site links dashboard actions", () => {
         isVisible: true,
         clickCount: 0,
       });
-      expect(revalidatePathMock).toHaveBeenCalledWith("/links", "page");
-      expect(revalidatePathMock).toHaveBeenCalledWith(
-        "/dashboard/links",
-        "page",
-      );
+      expect(nextCache.revalidateTag).toHaveBeenCalledWith("site-links", {
+        expire: 0,
+      });
+      expect(revalidatePathMock).toHaveBeenCalledWith("/links");
+      expect(revalidatePathMock).toHaveBeenCalledWith("/dashboard/links");
     });
 
     it("turns a bare email into a mailto", async () => {
@@ -352,7 +398,7 @@ describeDatabase("site links dashboard actions", () => {
       await queries.recordSiteLinkClick(hidden.id, "direct");
       await queries.recordSiteLinkClick(shown.id, "direct");
 
-      const visible = await queries.fetchVisibleSiteLinks();
+      const visible = await visibleLinks();
       expect(visible.map((row) => row.id)).toEqual([shown.id]);
       const rows = await rowsOf("link");
       expect(rows.map((row) => [row.isVisible, row.clickCount])).toEqual([
@@ -361,7 +407,7 @@ describeDatabase("site links dashboard actions", () => {
       ]);
 
       await actions.setSiteLinkVisible(hidden.id, true);
-      expect((await queries.fetchVisibleSiteLinks()).length).toBe(2);
+      expect((await visibleLinks()).length).toBe(2);
     });
 
     it("deletes a link, and reports one that is already gone", async () => {
@@ -399,7 +445,7 @@ describeDatabase("site links dashboard actions", () => {
       expect(camera.icon).toBe("lucide:camera");
       expect(camera.iconSvg).toContain('stroke="currentColor"');
 
-      const visible = await queries.fetchVisibleSiteLinks();
+      const visible = await visibleLinks();
       expect(visible.map((row) => row.iconSvg)).toEqual([
         spotify.iconSvg,
         camera.iconSvg,
@@ -459,7 +505,7 @@ describeDatabase("site links dashboard actions", () => {
       ).toEqual({ success: true });
 
       expect((await rowsOf("link"))[0].imageUrl).toBe(IMAGE);
-      expect((await queries.fetchVisibleSiteLinks())[0].imageUrl).toBe(IMAGE);
+      expect((await visibleLinks())[0].imageUrl).toBe(IMAGE);
     });
 
     it.each([
@@ -497,9 +543,7 @@ describeDatabase("site links dashboard actions", () => {
 
       const rows = await rowsOf("link");
       expect(rows.map((row) => row.layout)).toEqual(["classic", "featured"]);
-      expect((await queries.fetchVisibleSiteLinks())[1].layout).toBe(
-        "featured",
-      );
+      expect((await visibleLinks())[1].layout).toBe("featured");
 
       // Back to classic, keeping its image as a thumbnail.
       await actions.updateSiteLink(rows[1].id, {
@@ -770,7 +814,7 @@ describeDatabase("site links dashboard actions", () => {
         visibleUntil: fromNow(-60),
       });
 
-      const visible = await queries.fetchVisibleSiteLinks();
+      const visible = await visibleLinks();
       expect(visible.map((row) => row.label)).toEqual(["Siempre", "En curso"]);
       // The dashboard still has all four.
       expect(await rowsOf("link")).toHaveLength(4);
@@ -784,7 +828,7 @@ describeDatabase("site links dashboard actions", () => {
       });
       const [link] = await rowsOf("link");
       await actions.setSiteLinkVisible(link.id, false);
-      expect(await queries.fetchVisibleSiteLinks()).toEqual([]);
+      expect(await visibleLinks()).toEqual([]);
     });
 
     it("does not count a tap on a link outside its schedule", async () => {
@@ -847,7 +891,7 @@ describeDatabase("site links dashboard actions", () => {
         },
       });
       expect(await settings()).toHaveLength(1);
-      expect(revalidatePathMock).toHaveBeenCalledWith("/links", "page");
+      expect(revalidatePathMock).toHaveBeenCalledWith("/links");
 
       // And the position, saved after, keeps the header.
       await actions.setSocialPosition("top");
@@ -1098,7 +1142,7 @@ describeDatabase("site links dashboard actions", () => {
         "B",
       ]);
 
-      const visible = await queries.fetchVisibleSiteLinks();
+      const visible = await visibleLinks();
       expect(
         visible.filter((row) => row.kind === "link").map((row) => row.label),
       ).toEqual(["C", "A", "B"]);
@@ -1135,6 +1179,132 @@ describeDatabase("site links dashboard actions", () => {
       ).toBe(false);
 
       expect((await rowsOf("link")).map((row) => row.id)).toEqual([a.id, b.id]);
+    });
+  });
+
+  describe("the cached public page", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("is served from the cache, and every dashboard write shows on it at once", async () => {
+      const link = await addLink("Tiendita");
+      expect((await visibleLinks()).map((row) => row.label)).toEqual([
+        "Tiendita",
+      ]);
+
+      // A change made outside the dashboard waits for the cache's lifetime.
+      await integrationDb!
+        .update(siteLinks)
+        .set({ label: "Cambiado a mano" })
+        .where(eq(siteLinks.id, link.id));
+      expect((await visibleLinks()).map((row) => row.label)).toEqual([
+        "Tiendita",
+      ]);
+
+      // One saved from the dashboard expires it.
+      await actions.updateSiteLink(link.id, {
+        label: "Tienda",
+        href: "/store",
+        icon: "link",
+      });
+      expect((await visibleLinks()).map((row) => row.label)).toEqual([
+        "Tienda",
+      ]);
+
+      await actions.setSiteLinkVisible(link.id, false);
+      expect(await visibleLinks()).toEqual([]);
+      await actions.setSiteLinkVisible(link.id, true);
+      expect(await visibleLinks()).toHaveLength(1);
+
+      await actions.createSocialLink({
+        network: "instagram",
+        value: "@glitter",
+      });
+      expect((await visibleLinks()).map((row) => row.kind)).toEqual([
+        "link",
+        "social",
+      ]);
+
+      await actions.setSocialPosition("bottom");
+      expect((await queries.fetchLinksPage()).socialPosition).toBe("bottom");
+
+      await actions.updateLinksHeader({
+        title: "Glitter links",
+        description: "Festivales y más",
+      });
+      expect((await queries.fetchLinksPage()).header).toMatchObject({
+        title: "Glitter links",
+        description: "Festivales y más",
+      });
+
+      await actions.deleteSiteLink(link.id);
+      expect((await visibleLinks()).map((row) => row.kind)).toEqual(["social"]);
+    });
+
+    it("reports and shows a write when cleaning up its old image fails", async () => {
+      const IMAGE = "https://abc123.ufs.sh/f/miniatura-1";
+      const base = { label: "Quiz", href: "/quiz", icon: "link" };
+      await actions.createSiteLink({ ...base, imageUrl: IMAGE });
+      const [link] = await rowsOf("link");
+      expect((await visibleLinks())[0].imageUrl).toBe(IMAGE);
+
+      removeLinkImageMock.mockRejectedValue(new Error("UploadThing caído"));
+      nextCache.revalidateTag.mockClear();
+      revalidatePathMock.mockClear();
+
+      // The write lands and is reported saved: the cleanup after it is
+      // best-effort…
+      await expect(
+        actions.updateSiteLink(link.id, { ...base, label: "Quiz nuevo" }),
+      ).resolves.toEqual({ success: true });
+      // …and the page shows it.
+      expect(nextCache.revalidateTag).toHaveBeenCalledWith("site-links", {
+        expire: 0,
+      });
+      expect(revalidatePathMock).toHaveBeenCalledWith("/links");
+      expect(await visibleLinks()).toMatchObject([
+        { label: "Quiz nuevo", imageUrl: null },
+      ]);
+
+      nextCache.revalidateTag.mockClear();
+      await expect(actions.deleteSiteLink(link.id)).resolves.toEqual({
+        success: true,
+      });
+      expect(await visibleLinks()).toEqual([]);
+    });
+
+    it("puts a scheduled link on and off the page at its time, from the cached rows", async () => {
+      const start = new Date("2026-11-20T12:00:00.000Z");
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(start);
+      await actions.createSiteLink({
+        label: "Siempre",
+        href: "/a",
+        icon: "link",
+      });
+      // From 12:30 to 13:00 in UTC, 08:30 to 09:00 in Bolivia.
+      await actions.createSiteLink({
+        label: "Preventa",
+        href: "/b",
+        icon: "link",
+        visibleFrom: "2026-11-20T08:30",
+        visibleUntil: "2026-11-20T09:00",
+      });
+      const labels = async () => (await visibleLinks()).map((row) => row.label);
+
+      expect(await labels()).toEqual(["Siempre"]);
+
+      // Nothing is written in between: the rows are the cached ones, and only
+      // the time they are judged at moves.
+      const cached = nextCache.entries.size;
+      vi.setSystemTime(new Date("2026-11-20T12:30:00.000Z"));
+      expect(await labels()).toEqual(["Siempre", "Preventa"]);
+      vi.setSystemTime(new Date("2026-11-20T12:59:59.000Z"));
+      expect(await labels()).toEqual(["Siempre", "Preventa"]);
+      vi.setSystemTime(new Date("2026-11-20T13:00:00.000Z"));
+      expect(await labels()).toEqual(["Siempre"]);
+      expect(nextCache.entries.size).toBe(cached);
     });
   });
 

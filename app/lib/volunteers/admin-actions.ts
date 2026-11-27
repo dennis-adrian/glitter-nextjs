@@ -1,0 +1,1580 @@
+"use server";
+
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { DateTime } from "luxon";
+import { revalidatePath } from "next/cache";
+
+import { loggableError } from "@/app/lib/errors/loggable-error";
+import { isUniqueViolationOn } from "@/app/lib/errors/postgres";
+import { STORE_TIMEZONE } from "@/app/lib/formatters";
+import { IMPERSONATION_READ_ONLY_RESULT } from "@/app/lib/impersonation/definitions";
+import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
+import {
+  canAssignVolunteer,
+  daysOverShiftLimit,
+  decideShiftAssignment,
+  defaultAssignedRoleId,
+  VOLUNTEER_ADMIN_COPY,
+  VOLUNTEER_STATUS_LABELS,
+  type VolunteerAdminResult,
+} from "@/app/lib/volunteers/admin-definitions";
+import {
+  type VolunteerActiveInput,
+  volunteerActiveInputSchema,
+  type VolunteerCallSettingsInput,
+  volunteerCallSettingsInputSchema,
+  type VolunteerReviewInput,
+  volunteerReviewInputSchema,
+  type VolunteerRoleInput,
+  volunteerRoleInputSchema,
+  type VolunteerRoleMoveInput,
+  volunteerRoleMoveInputSchema,
+  type VolunteerShiftAssignmentInput,
+  volunteerShiftAssignmentInputSchema,
+  type VolunteerShiftInput,
+  volunteerShiftInputSchema,
+  type VolunteerStatusInput,
+  volunteerStatusInputSchema,
+} from "@/app/lib/volunteers/admin-schema";
+import {
+  fetchAcceptedPeoplePage,
+  fetchPendingReviewPage,
+  type VolunteerPersonItem,
+  type VolunteerReviewItem,
+} from "@/app/lib/volunteers/admin-task-queries";
+import {
+  availabilityDiff,
+  VOLUNTEER_LIST_BATCH,
+  type VolunteerAvailabilityInput,
+  volunteerAvailabilityInputSchema,
+  type VolunteerDecisionInput,
+  volunteerDecisionInputSchema,
+  type VolunteerListPageInput,
+  volunteerListPageInputSchema,
+  type VolunteerNoteInput,
+  volunteerNoteInputSchema,
+  type VolunteerPersonAssignmentInput,
+  volunteerPersonAssignmentInputSchema,
+  type VolunteerReviewPageInput,
+  volunteerReviewPageInputSchema,
+  type VolunteerShiftBatchInput,
+  volunteerShiftBatchInputSchema,
+} from "@/app/lib/volunteers/admin-tasks";
+import {
+  VOLUNTEER_MAX_SHIFTS_PER_DAY,
+  type VolunteerApplicationStatus,
+} from "@/app/lib/volunteers/definitions";
+import { db } from "@/db";
+import { isImpersonationReadOnlyError } from "@/db/write-guard";
+import {
+  festivals,
+  volunteerApplicationAssignedShifts,
+  volunteerApplicationAvailableShifts,
+  volunteerApplicationNotes,
+  volunteerApplications,
+  volunteerAvailabilityChanges,
+  volunteerCallSettings,
+  volunteerRoles,
+  volunteerShifts,
+} from "@/db/schema";
+
+/**
+ * The volunteer admin's writes. Admins and festival admins alike; every write
+ * is scoped by the row's id AND the festival in the URL, so an id from another
+ * festival finds nothing. Applicants hear about decisions over WhatsApp, so
+ * nothing here sends email.
+ *
+ * Applications hold strangers' personal data: errors are logged only through
+ * `loggableError`, never as they come (drizzle's carry the query's params).
+ */
+
+const FESTIVAL_NOT_FOUND = "No encontramos ese festival. Actualizá la página.";
+const ROLE_NOT_FOUND = "No encontramos ese rol. Actualizá la página.";
+const SHIFT_NOT_FOUND = "No encontramos ese turno. Actualizá la página.";
+const ROLE_UNAVAILABLE = "Ese rol ya no está disponible. Actualizá la página.";
+const SHIFT_UNAVAILABLE =
+  "Uno de los turnos ya no está disponible. Actualizá la página.";
+const ROLE_NAME_TAKEN = "Ya hay un rol con ese nombre.";
+const SHIFT_INACTIVE = "Ese turno está desactivado.";
+
+/** A refusal decided inside a transaction; rolls it back. */
+class Refusal extends Error {}
+
+const UNAUTHORIZED: VolunteerAdminResult = {
+  success: false,
+  message: VOLUNTEER_ADMIN_COPY.unauthorized,
+};
+
+function refused(message: string): VolunteerAdminResult {
+  return { success: false, message };
+}
+
+function invalid(error: {
+  issues: { message: string }[];
+}): VolunteerAdminResult {
+  return refused(
+    error.issues[0]?.message ?? "Revisá los datos e intentá de nuevo.",
+  );
+}
+
+function failure(
+  error: unknown,
+  context: string,
+  festivalId: number,
+): VolunteerAdminResult {
+  if (error instanceof Refusal) return refused(error.message);
+  if (isImpersonationReadOnlyError(error))
+    return IMPERSONATION_READ_ONLY_RESULT;
+  console.error(context, { festivalId, ...loggableError(error) });
+  return refused(VOLUNTEER_ADMIN_COPY.genericError);
+}
+
+/**
+ * Every festival's volunteer screens: a typed path names the route's folder
+ * (`[id]`, route group included), not one festival's address.
+ */
+function revalidateApplications() {
+  revalidatePath("/(site)/dashboard/festivals/[id]/volunteers", "layout");
+}
+
+/** Settings, roles and shifts also show on the public page. */
+function revalidateCall() {
+  revalidatePath("/(site)/dashboard/festivals/[id]/volunteers", "layout");
+  revalidatePath("/(site)/(routes)/voluntarios", "layout");
+}
+
+/**
+ * An application's next updatedAt, given the one its row lock read: now, or
+ * 1 ms past `current` when the clock has not passed it (two writes in one
+ * millisecond, a server whose clock is behind). Strictly increasing, so the
+ * updatedAt a screen loaded, or an undo holds, never matches a later write.
+ */
+function nextRevision(current: Date) {
+  return new Date(Math.max(Date.now(), current.getTime() + 1));
+}
+
+/** Who reviewed it, and its next revision (see nextRevision). */
+function reviewedBy(profileId: number, current: Date) {
+  const now = nextRevision(current);
+  return { reviewedByUserId: profileId, reviewedAt: now, updatedAt: now };
+}
+
+/** "el sábado 19 de diciembre y el domingo 20 de diciembre" */
+function spanishDays(days: string[]) {
+  const names = days.map(
+    (day) =>
+      `el ${DateTime.fromISO(day, { zone: STORE_TIMEZONE })
+        .setLocale("es")
+        .toFormat("cccc d 'de' LLLL")}`,
+  );
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} y ${names.at(-1)}`;
+}
+
+function laPazDay(date: Date) {
+  return DateTime.fromJSDate(date, { zone: STORE_TIMEZONE }).toISODate()!;
+}
+
+/** "Lucía Mamani, Andrés Quispe y Ana Pérez" */
+function spanishList(items: string[]) {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} y ${items.at(-1)}`;
+}
+
+async function festivalExists(festivalId: number) {
+  const [festival] = await db
+    .select({ id: festivals.id })
+    .from(festivals)
+    .where(eq(festivals.id, festivalId))
+    .limit(1);
+  return Boolean(festival);
+}
+
+/* ------------------------------------------------------------------ */
+/* Applications                                                        */
+/* ------------------------------------------------------------------ */
+
+export async function updateVolunteerApplicationStatus(
+  input: VolunteerStatusInput,
+): Promise<VolunteerAdminResult> {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) return UNAUTHORIZED;
+  const parsed = volunteerStatusInputSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, applicationId, status } = parsed.data;
+
+  try {
+    // Locked like every other write, for its next revision.
+    await db.transaction(async (tx) => {
+      const application = await lockApplication(tx, festivalId, applicationId);
+      await tx
+        .update(volunteerApplications)
+        .set({ status, ...reviewedBy(profile.id, application.updatedAt) })
+        .where(
+          and(
+            eq(volunteerApplications.id, applicationId),
+            eq(volunteerApplications.festivalId, festivalId),
+          ),
+        );
+    });
+  } catch (error) {
+    return failure(error, "Error updating a volunteer status", festivalId);
+  }
+
+  revalidateApplications();
+  return {
+    success: true,
+    message: `Estado actualizado: ${VOLUNTEER_STATUS_LABELS[status]}.`,
+  };
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Validates and stores an accepted application's role and shifts, replacing
+ * the shifts it had. Any active shift of the festival may be given, not only
+ * those the applicant marked. A role or shift deactivated since it was
+ * assigned may stay assigned. More than VOLUNTEER_MAX_SHIFTS_PER_DAY on a La
+ * Paz day is the public rule, but admins may make exceptions: it saves, and
+ * the days are returned (yyyy-MM-dd) for a warning. Throws a Refusal; the
+ * caller holds the application's row lock.
+ */
+async function replaceAssignment(
+  tx: Tx,
+  {
+    festivalId,
+    applicationId,
+    currentRoleId,
+    roleId,
+    shiftIds,
+  }: {
+    festivalId: number;
+    applicationId: number;
+    currentRoleId: number | null;
+    roleId: number | null;
+    shiftIds: number[];
+  },
+): Promise<string[]> {
+  let overLimit: string[] = [];
+  if (roleId !== null) {
+    const [role] = await tx
+      .select({ isActive: volunteerRoles.isActive })
+      .from(volunteerRoles)
+      .where(
+        and(
+          eq(volunteerRoles.id, roleId),
+          eq(volunteerRoles.festivalId, festivalId),
+        ),
+      );
+    if (!role || (!role.isActive && roleId !== currentRoleId)) {
+      throw new Refusal(ROLE_UNAVAILABLE);
+    }
+  }
+
+  if (shiftIds.length > 0) {
+    const [shifts, current] = await Promise.all([
+      tx
+        .select({
+          id: volunteerShifts.id,
+          startsAt: volunteerShifts.startsAt,
+          isActive: volunteerShifts.isActive,
+        })
+        .from(volunteerShifts)
+        .where(
+          and(
+            inArray(volunteerShifts.id, shiftIds),
+            eq(volunteerShifts.festivalId, festivalId),
+          ),
+        ),
+      tx
+        .select({ shiftId: volunteerApplicationAssignedShifts.shiftId })
+        .from(volunteerApplicationAssignedShifts)
+        .where(
+          eq(volunteerApplicationAssignedShifts.applicationId, applicationId),
+        ),
+    ]);
+    const alreadyAssigned = new Set(current.map((row) => row.shiftId));
+    if (
+      shifts.length !== shiftIds.length ||
+      shifts.some((shift) => !shift.isActive && !alreadyAssigned.has(shift.id))
+    ) {
+      throw new Refusal(SHIFT_UNAVAILABLE);
+    }
+    overLimit = daysOverShiftLimit(shifts);
+  }
+
+  await tx
+    .delete(volunteerApplicationAssignedShifts)
+    .where(
+      and(
+        eq(volunteerApplicationAssignedShifts.applicationId, applicationId),
+        eq(volunteerApplicationAssignedShifts.festivalId, festivalId),
+      ),
+    );
+  if (shiftIds.length > 0) {
+    await tx
+      .insert(volunteerApplicationAssignedShifts)
+      .values(
+        shiftIds.map((shiftId) => ({ applicationId, shiftId, festivalId })),
+      );
+  }
+  return overLimit;
+}
+
+/**
+ * The detail page's "Decisión y asignación" card, in one transaction: the
+ * status and the notes, and, when the new status is "accepted", the role and
+ * shifts (see replaceAssignment). Under any other status the stored
+ * assignment is left as it is and the incoming role and shifts are ignored:
+ * the form locks them, and an assignment outlives a status change. More
+ * than VOLUNTEER_MAX_SHIFTS_PER_DAY on a day saves with a warning.
+ */
+export async function saveVolunteerReview(
+  input: VolunteerReviewInput,
+): Promise<VolunteerAdminResult> {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) return UNAUTHORIZED;
+  const parsed = volunteerReviewInputSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const {
+    festivalId,
+    applicationId,
+    status,
+    roleId,
+    shiftIds,
+    adminNotes,
+    loadedUpdatedAt,
+  } = parsed.data;
+
+  let overLimit: string[] = [];
+  try {
+    await db.transaction(async (tx) => {
+      const application = await lockApplication(tx, festivalId, applicationId);
+      // Changed since the form loaded (another tab, the shift screen): its
+      // role, shifts and status would overwrite those changes.
+      if (
+        application.updatedAt.getTime() !== new Date(loadedUpdatedAt).getTime()
+      ) {
+        throw new Refusal(VOLUNTEER_ADMIN_COPY.staleReview);
+      }
+
+      const assigning = canAssignVolunteer(status);
+      if (assigning) {
+        overLimit = await replaceAssignment(tx, {
+          festivalId,
+          applicationId,
+          currentRoleId: application.assignedRoleId,
+          roleId,
+          shiftIds,
+        });
+      }
+
+      await tx
+        .update(volunteerApplications)
+        .set({
+          status,
+          adminNotes,
+          ...(assigning ? { assignedRoleId: roleId } : {}),
+          ...reviewedBy(profile.id, application.updatedAt),
+        })
+        .where(
+          and(
+            eq(volunteerApplications.id, applicationId),
+            eq(volunteerApplications.festivalId, festivalId),
+          ),
+        );
+    });
+  } catch (error) {
+    return failure(error, "Error saving a volunteer review", festivalId);
+  }
+
+  revalidateApplications();
+  return withOverLimitWarning("Cambios guardados.", overLimit);
+}
+
+/**
+ * A success, with a warning when an application was left holding more than
+ * VOLUNTEER_MAX_SHIFTS_PER_DAY on some La Paz days (yyyy-MM-dd).
+ */
+function withOverLimitWarning(
+  message: string,
+  overLimit: string[],
+): VolunteerAdminResult {
+  if (overLimit.length === 0) return { success: true, message };
+  return {
+    success: true,
+    message,
+    warning: `${message} Quedó con más de ${VOLUNTEER_MAX_SHIFTS_PER_DAY} turnos ${spanishDays(overLimit)}.`,
+  };
+}
+
+/**
+ * Locks an application of the festival for the rest of the transaction.
+ * Throws a Refusal when the festival has no such application.
+ */
+async function lockApplication(
+  tx: Tx,
+  festivalId: number,
+  applicationId: number,
+) {
+  const [application] = await tx
+    .select({
+      fullName: volunteerApplications.fullName,
+      status: volunteerApplications.status,
+      assignedRoleId: volunteerApplications.assignedRoleId,
+      firstChoiceRoleId: volunteerApplications.firstChoiceRoleId,
+      secondChoiceRoleId: volunteerApplications.secondChoiceRoleId,
+      updatedAt: volunteerApplications.updatedAt,
+    })
+    .from(volunteerApplications)
+    .where(
+      and(
+        eq(volunteerApplications.id, applicationId),
+        eq(volunteerApplications.festivalId, festivalId),
+      ),
+    )
+    .for("update");
+  if (!application) throw new Refusal(VOLUNTEER_ADMIN_COPY.notFound);
+  return application;
+}
+
+/** Whether the application holds the shift. */
+async function holdsShift(tx: Tx, applicationId: number, shiftId: number) {
+  const [row] = await tx
+    .select({ shiftId: volunteerApplicationAssignedShifts.shiftId })
+    .from(volunteerApplicationAssignedShifts)
+    .where(
+      and(
+        eq(volunteerApplicationAssignedShifts.applicationId, applicationId),
+        eq(volunteerApplicationAssignedShifts.shiftId, shiftId),
+      ),
+    );
+  return Boolean(row);
+}
+
+/** Whether the application marked the shift as one it can cover. */
+async function marksShift(tx: Tx, applicationId: number, shiftId: number) {
+  const [row] = await tx
+    .select({ shiftId: volunteerApplicationAvailableShifts.shiftId })
+    .from(volunteerApplicationAvailableShifts)
+    .where(
+      and(
+        eq(volunteerApplicationAvailableShifts.applicationId, applicationId),
+        eq(volunteerApplicationAvailableShifts.shiftId, shiftId),
+      ),
+    );
+  return Boolean(row);
+}
+
+/**
+ * The shift screen's "Asignar": adds one active shift of the festival to an
+ * application, keeping its other shifts. A pending or waitlisted application
+ * also becomes accepted while VOLUNTEER_ASSIGN_AUTO_ACCEPTS is on (see
+ * decideShiftAssignment); a rejected one is refused. Someone with no role
+ * gets their 1st choice, or their 2nd when the 1st is inactive. More than
+ * VOLUNTEER_MAX_SHIFTS_PER_DAY that day saves with a warning. Already
+ * assigned: a success that changes nothing.
+ */
+export async function assignVolunteerShift(
+  input: VolunteerShiftAssignmentInput,
+): Promise<VolunteerAdminResult> {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) return UNAUTHORIZED;
+  const parsed = volunteerShiftAssignmentInputSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, shiftId, applicationId } = parsed.data;
+
+  let outcome: {
+    fullName: string;
+    changed: boolean;
+    accepted: boolean;
+    overLimit: string[];
+  };
+  try {
+    outcome = await db.transaction(async (tx) => {
+      const application = await lockApplication(tx, festivalId, applicationId);
+      const decision = decideShiftAssignment(application.status);
+      if (decision.kind === "refuse") throw new Refusal(decision.message);
+
+      const [shift] = await tx
+        .select({
+          startsAt: volunteerShifts.startsAt,
+          isActive: volunteerShifts.isActive,
+        })
+        .from(volunteerShifts)
+        .where(
+          and(
+            eq(volunteerShifts.id, shiftId),
+            eq(volunteerShifts.festivalId, festivalId),
+          ),
+        );
+      if (!shift) throw new Refusal(SHIFT_NOT_FOUND);
+      const { fullName } = application;
+      if (await holdsShift(tx, applicationId, shiftId)) {
+        return { fullName, changed: false, accepted: false, overLimit: [] };
+      }
+      if (!shift.isActive) throw new Refusal(SHIFT_INACTIVE);
+
+      let assignedRoleId = application.assignedRoleId;
+      if (assignedRoleId === null) {
+        const activeRoles = await tx
+          .select({ id: volunteerRoles.id })
+          .from(volunteerRoles)
+          .where(
+            and(
+              eq(volunteerRoles.festivalId, festivalId),
+              eq(volunteerRoles.isActive, true),
+              inArray(volunteerRoles.id, [
+                application.firstChoiceRoleId,
+                application.secondChoiceRoleId,
+              ]),
+            ),
+          );
+        assignedRoleId = defaultAssignedRoleId(
+          application,
+          new Set(activeRoles.map((role) => role.id)),
+        );
+      }
+
+      await tx
+        .insert(volunteerApplicationAssignedShifts)
+        .values({ applicationId, shiftId, festivalId });
+      await tx
+        .update(volunteerApplications)
+        .set({
+          ...(decision.accept ? { status: "accepted" as const } : {}),
+          assignedRoleId,
+          ...reviewedBy(profile.id, application.updatedAt),
+        })
+        .where(
+          and(
+            eq(volunteerApplications.id, applicationId),
+            eq(volunteerApplications.festivalId, festivalId),
+          ),
+        );
+
+      const held = await tx
+        .select({ startsAt: volunteerShifts.startsAt })
+        .from(volunteerApplicationAssignedShifts)
+        .innerJoin(
+          volunteerShifts,
+          eq(volunteerShifts.id, volunteerApplicationAssignedShifts.shiftId),
+        )
+        .where(
+          eq(volunteerApplicationAssignedShifts.applicationId, applicationId),
+        );
+      const day = laPazDay(shift.startsAt);
+      return {
+        fullName,
+        changed: true,
+        accepted: decision.accept,
+        overLimit: daysOverShiftLimit(held).filter((over) => over === day),
+      };
+    });
+  } catch (error) {
+    return failure(error, "Error assigning a volunteer shift", festivalId);
+  }
+
+  if (!outcome.changed) {
+    return {
+      success: true,
+      message: `Ese turno ya estaba asignado a ${outcome.fullName}.`,
+    };
+  }
+  revalidateApplications();
+  const message = outcome.accepted
+    ? `Turno asignado a ${outcome.fullName}. Su postulación pasó a Aceptada.`
+    : `Turno asignado a ${outcome.fullName}.`;
+  return withOverLimitWarning(message, outcome.overLimit);
+}
+
+/**
+ * The shift screen's "Quitar": removes only this shift from the application;
+ * its status, role and other shifts stay. Not assigned: a success that
+ * changes nothing.
+ */
+export async function unassignVolunteerShift(
+  input: VolunteerShiftAssignmentInput,
+): Promise<VolunteerAdminResult> {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) return UNAUTHORIZED;
+  const parsed = volunteerShiftAssignmentInputSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, shiftId, applicationId } = parsed.data;
+
+  let outcome: { fullName: string; changed: boolean };
+  try {
+    outcome = await db.transaction(async (tx) => {
+      const { fullName, updatedAt } = await lockApplication(
+        tx,
+        festivalId,
+        applicationId,
+      );
+      const removed = await tx
+        .delete(volunteerApplicationAssignedShifts)
+        .where(
+          and(
+            eq(volunteerApplicationAssignedShifts.applicationId, applicationId),
+            eq(volunteerApplicationAssignedShifts.shiftId, shiftId),
+            eq(volunteerApplicationAssignedShifts.festivalId, festivalId),
+          ),
+        )
+        .returning({ shiftId: volunteerApplicationAssignedShifts.shiftId });
+      if (removed.length === 0) return { fullName, changed: false };
+
+      await tx
+        .update(volunteerApplications)
+        .set(reviewedBy(profile.id, updatedAt))
+        .where(
+          and(
+            eq(volunteerApplications.id, applicationId),
+            eq(volunteerApplications.festivalId, festivalId),
+          ),
+        );
+      return { fullName, changed: true };
+    });
+  } catch (error) {
+    return failure(error, "Error unassigning a volunteer shift", festivalId);
+  }
+
+  if (!outcome.changed) {
+    return {
+      success: true,
+      message: `${outcome.fullName} ya no estaba en este turno.`,
+    };
+  }
+  revalidateApplications();
+  return {
+    success: true,
+    message: `Quitamos a ${outcome.fullName} de este turno.`,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* The call: settings, roles and shifts                                */
+/* ------------------------------------------------------------------ */
+
+/** Creates the festival's call the first time, then updates it. */
+export async function updateVolunteerCallSettings(
+  input: VolunteerCallSettingsInput,
+): Promise<VolunteerAdminResult> {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) return UNAUTHORIZED;
+  const parsed = volunteerCallSettingsInputSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, applicationsCloseAt, inductionDate, inductionTime } =
+    parsed.data;
+
+  try {
+    if (!(await festivalExists(festivalId))) {
+      return refused(FESTIVAL_NOT_FOUND);
+    }
+    const values = { applicationsCloseAt, inductionDate, inductionTime };
+    await db
+      .insert(volunteerCallSettings)
+      .values({ festivalId, ...values })
+      .onConflictDoUpdate({
+        target: volunteerCallSettings.festivalId,
+        set: { ...values, updatedAt: new Date() },
+      });
+  } catch (error) {
+    return failure(error, "Error saving volunteer call settings", festivalId);
+  }
+
+  revalidateCall();
+  return { success: true, message: "Convocatoria guardada." };
+}
+
+/**
+ * Creates a role (active) without `roleId`, last unless `sortOrder` is given,
+ * or updates that one, keeping its place unless `sortOrder` is given.
+ */
+export async function saveVolunteerRole(
+  input: VolunteerRoleInput,
+): Promise<VolunteerAdminResult> {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) return UNAUTHORIZED;
+  const parsed = volunteerRoleInputSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, roleId, name, description, sortOrder } = parsed.data;
+
+  try {
+    if (roleId === undefined) {
+      if (!(await festivalExists(festivalId))) {
+        return refused(FESTIVAL_NOT_FOUND);
+      }
+      await db.insert(volunteerRoles).values({
+        festivalId,
+        name,
+        description,
+        sortOrder:
+          sortOrder ??
+          sql<number>`(
+            select coalesce(max(${volunteerRoles.sortOrder}), 0) + 1
+            from ${volunteerRoles}
+            where ${volunteerRoles.festivalId} = ${festivalId}
+          )`,
+        isActive: true,
+      });
+    } else {
+      const [updated] = await db
+        .update(volunteerRoles)
+        .set({
+          name,
+          description,
+          ...(sortOrder === undefined ? {} : { sortOrder }),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(volunteerRoles.id, roleId),
+            eq(volunteerRoles.festivalId, festivalId),
+          ),
+        )
+        .returning({ id: volunteerRoles.id });
+      if (!updated) return refused(ROLE_NOT_FOUND);
+    }
+  } catch (error) {
+    if (
+      isUniqueViolationOn(
+        error,
+        (constraint) => constraint === "volunteer_roles_festival_name_unique",
+      )
+    ) {
+      return refused(ROLE_NAME_TAKEN);
+    }
+    return failure(error, "Error saving a volunteer role", festivalId);
+  }
+
+  revalidateCall();
+  return {
+    success: true,
+    message: roleId === undefined ? "Rol creado." : "Rol actualizado.",
+  };
+}
+
+/**
+ * The roles table's up/down buttons: swaps the role with its neighbour in
+ * the festival's order (sortOrder, then id) and renumbers every role 1..n,
+ * so ties and gaps from older data are gone after the first move. At either
+ * end it changes nothing.
+ */
+export async function moveVolunteerRole(
+  input: VolunteerRoleMoveInput,
+): Promise<VolunteerAdminResult> {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) return UNAUTHORIZED;
+  const parsed = volunteerRoleMoveInputSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, roleId, direction } = parsed.data;
+
+  try {
+    await db.transaction(async (tx) => {
+      const roles = await tx
+        .select({ id: volunteerRoles.id, sortOrder: volunteerRoles.sortOrder })
+        .from(volunteerRoles)
+        .where(eq(volunteerRoles.festivalId, festivalId))
+        .orderBy(asc(volunteerRoles.sortOrder), asc(volunteerRoles.id))
+        .for("update");
+      const index = roles.findIndex((role) => role.id === roleId);
+      if (index === -1) throw new Refusal(ROLE_NOT_FOUND);
+      const target = direction === "up" ? index - 1 : index + 1;
+      if (target < 0 || target >= roles.length) return;
+
+      const order = [...roles];
+      [order[index], order[target]] = [order[target]!, order[index]!];
+      const now = new Date();
+      for (const [position, role] of order.entries()) {
+        if (role.sortOrder === position + 1) continue;
+        await tx
+          .update(volunteerRoles)
+          .set({ sortOrder: position + 1, updatedAt: now })
+          .where(
+            and(
+              eq(volunteerRoles.id, role.id),
+              eq(volunteerRoles.festivalId, festivalId),
+            ),
+          );
+      }
+    });
+  } catch (error) {
+    return failure(error, "Error moving a volunteer role", festivalId);
+  }
+
+  revalidateCall();
+  return { success: true, message: "Orden actualizado." };
+}
+
+/** Roles are never deleted: applications keep naming them. */
+export async function setVolunteerRoleActive(
+  input: VolunteerActiveInput,
+): Promise<VolunteerAdminResult> {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) return UNAUTHORIZED;
+  const parsed = volunteerActiveInputSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, id, isActive } = parsed.data;
+
+  try {
+    const [updated] = await db
+      .update(volunteerRoles)
+      .set({ isActive, updatedAt: new Date() })
+      .where(
+        and(
+          eq(volunteerRoles.id, id),
+          eq(volunteerRoles.festivalId, festivalId),
+        ),
+      )
+      .returning({ id: volunteerRoles.id });
+    if (!updated) return refused(ROLE_NOT_FOUND);
+  } catch (error) {
+    return failure(error, "Error toggling a volunteer role", festivalId);
+  }
+
+  revalidateCall();
+  return {
+    success: true,
+    message: isActive ? "Rol activado." : "Rol desactivado.",
+  };
+}
+
+/**
+ * The people assigned to `shiftId` (any status: assignments stay when an
+ * application leaves "accepted") who would hold more than
+ * VOLUNTEER_MAX_SHIFTS_PER_DAY on the La Paz day of `startsAt` if the shift
+ * started then, by name; empty when the move respects the limit for everyone.
+ */
+async function shiftMoveConflicts(
+  tx: Tx,
+  {
+    festivalId,
+    shiftId,
+    startsAt,
+  }: { festivalId: number; shiftId: number; startsAt: Date },
+): Promise<string[]> {
+  const assigned = await tx
+    .select({ applicationId: volunteerApplicationAssignedShifts.applicationId })
+    .from(volunteerApplicationAssignedShifts)
+    .where(
+      and(
+        eq(volunteerApplicationAssignedShifts.shiftId, shiftId),
+        eq(volunteerApplicationAssignedShifts.festivalId, festivalId),
+      ),
+    );
+  if (assigned.length === 0) return [];
+
+  const rows = await tx
+    .select({
+      applicationId: volunteerApplications.id,
+      fullName: volunteerApplications.fullName,
+      shiftId: volunteerShifts.id,
+      startsAt: volunteerShifts.startsAt,
+    })
+    .from(volunteerApplicationAssignedShifts)
+    .innerJoin(
+      volunteerApplications,
+      eq(
+        volunteerApplications.id,
+        volunteerApplicationAssignedShifts.applicationId,
+      ),
+    )
+    .innerJoin(
+      volunteerShifts,
+      eq(volunteerShifts.id, volunteerApplicationAssignedShifts.shiftId),
+    )
+    .where(
+      and(
+        inArray(
+          volunteerApplicationAssignedShifts.applicationId,
+          assigned.map((row) => row.applicationId),
+        ),
+        eq(volunteerApplicationAssignedShifts.festivalId, festivalId),
+      ),
+    )
+    .orderBy(
+      asc(volunteerApplications.fullName),
+      asc(volunteerApplications.id),
+    );
+
+  const byApplication = new Map<
+    number,
+    { fullName: string; shifts: { startsAt: Date }[] }
+  >();
+  for (const row of rows) {
+    const entry = byApplication.get(row.applicationId) ?? {
+      fullName: row.fullName,
+      shifts: [],
+    };
+    entry.shifts.push({
+      startsAt: row.shiftId === shiftId ? startsAt : row.startsAt,
+    });
+    byApplication.set(row.applicationId, entry);
+  }
+  const day = laPazDay(startsAt);
+  return [...byApplication.values()]
+    .filter(({ shifts }) => daysOverShiftLimit(shifts).includes(day))
+    .map(({ fullName }) => fullName);
+}
+
+/**
+ * Numbers the festival's shifts 1..n by start (then id), so the public page,
+ * which lists them by sortOrder, shows them chronologically.
+ */
+async function renumberShifts(tx: Tx, festivalId: number) {
+  await tx.execute(sql`
+    update ${volunteerShifts}
+    set sort_order = ordered.position
+    from (
+      select id, row_number() over (order by starts_at, id)::int as position
+      from ${volunteerShifts}
+      where festival_id = ${festivalId}
+    ) as ordered
+    where ${volunteerShifts.id} = ordered.id
+      and ${volunteerShifts.sortOrder} <> ordered.position
+  `);
+}
+
+/**
+ * Creates a shift (active) without `shiftId`, or updates that one, then
+ * renumbers the festival's shifts chronologically. A move to another La Paz
+ * day that leaves someone assigned with more than
+ * VOLUNTEER_MAX_SHIFTS_PER_DAY on it saves, with a warning naming them (only
+ * in the answer, never in the logs).
+ */
+export async function saveVolunteerShift(
+  input: VolunteerShiftInput,
+): Promise<VolunteerAdminResult> {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) return UNAUTHORIZED;
+  const parsed = volunteerShiftInputSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, shiftId, label, startsAt, endsAt, neededHeadcount } =
+    parsed.data;
+  const values = { label, startsAt, endsAt, neededHeadcount };
+
+  let overLimit: string[] = [];
+  try {
+    if (shiftId === undefined) {
+      if (!(await festivalExists(festivalId))) {
+        return refused(FESTIVAL_NOT_FOUND);
+      }
+      await db.transaction(async (tx) => {
+        await tx
+          .insert(volunteerShifts)
+          .values({ festivalId, ...values, isActive: true });
+        await renumberShifts(tx, festivalId);
+      });
+    } else {
+      await db.transaction(async (tx) => {
+        const [shift] = await tx
+          .select({ startsAt: volunteerShifts.startsAt })
+          .from(volunteerShifts)
+          .where(
+            and(
+              eq(volunteerShifts.id, shiftId),
+              eq(volunteerShifts.festivalId, festivalId),
+            ),
+          )
+          .for("update");
+        if (!shift) throw new Refusal(SHIFT_NOT_FOUND);
+
+        // Within its day a shift changes nobody's count for that day.
+        if (laPazDay(shift.startsAt) !== laPazDay(startsAt)) {
+          overLimit = await shiftMoveConflicts(tx, {
+            festivalId,
+            shiftId,
+            startsAt,
+          });
+        }
+
+        await tx
+          .update(volunteerShifts)
+          .set({ ...values, updatedAt: new Date() })
+          .where(
+            and(
+              eq(volunteerShifts.id, shiftId),
+              eq(volunteerShifts.festivalId, festivalId),
+            ),
+          );
+        await renumberShifts(tx, festivalId);
+      });
+    }
+  } catch (error) {
+    return failure(error, "Error saving a volunteer shift", festivalId);
+  }
+
+  revalidateCall();
+  const message =
+    shiftId === undefined ? "Turno creado." : "Turno actualizado.";
+  if (overLimit.length === 0) return { success: true, message };
+  return {
+    success: true,
+    message,
+    warning: `${message} ${spanishList(overLimit)} ${
+      overLimit.length === 1 ? "quedó" : "quedaron"
+    } con más de ${VOLUNTEER_MAX_SHIFTS_PER_DAY} turnos ${spanishDays([laPazDay(startsAt)])}.`,
+  };
+}
+
+/** Shifts are never deleted: applications keep naming them. */
+export async function setVolunteerShiftActive(
+  input: VolunteerActiveInput,
+): Promise<VolunteerAdminResult> {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) return UNAUTHORIZED;
+  const parsed = volunteerActiveInputSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, id, isActive } = parsed.data;
+
+  try {
+    const [updated] = await db
+      .update(volunteerShifts)
+      .set({ isActive, updatedAt: new Date() })
+      .where(
+        and(
+          eq(volunteerShifts.id, id),
+          eq(volunteerShifts.festivalId, festivalId),
+        ),
+      )
+      .returning({ id: volunteerShifts.id });
+    if (!updated) return refused(SHIFT_NOT_FOUND);
+  } catch (error) {
+    return failure(error, "Error toggling a volunteer shift", festivalId);
+  }
+
+  revalidateCall();
+  return {
+    success: true,
+    message: isActive ? "Turno activado." : "Turno desactivado.",
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* By task: Revisar and Asignar                                        */
+/* ------------------------------------------------------------------ */
+
+const DECISION_VERBS: Record<VolunteerApplicationStatus, string> = {
+  accepted: "Aceptaste a",
+  rejected: "No aceptaste a",
+  waitlist: "Dejaste en espera a",
+  pending: "Volvió a pendientes:",
+};
+
+/** A decision's answer: what it was before, for "Deshacer". */
+export type VolunteerDecisionResult =
+  | {
+      success: true;
+      message: string;
+      previousStatus: VolunteerApplicationStatus;
+      /** The updatedAt it left (ISO), for "Deshacer". */
+      decidedAt: string;
+    }
+  | { success: false; message: string };
+
+/**
+ * Revisar's "No aceptar", "En espera" and "Aceptar", and their "Deshacer"
+ * (back to the status it had), refused when the application changed since
+ * `expectedUpdatedAt`. Saves the note being typed with it. The
+ * applicant hears nothing: no email, no notice. An assignment outlives the
+ * change, as everywhere in the admin.
+ */
+export async function decideVolunteerApplication(
+  input: VolunteerDecisionInput,
+): Promise<VolunteerDecisionResult> {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) return { success: false, message: UNAUTHORIZED.message };
+  const parsed = volunteerDecisionInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false,
+      message:
+        parsed.error.issues[0]?.message ??
+        "Revisá los datos e intentá de nuevo.",
+    };
+  }
+  const { festivalId, applicationId, status, note, expectedUpdatedAt } =
+    parsed.data;
+
+  let outcome: {
+    fullName: string;
+    previousStatus: VolunteerApplicationStatus;
+    decidedAt: Date;
+  };
+  try {
+    outcome = await db.transaction(async (tx) => {
+      const application = await lockApplication(tx, festivalId, applicationId);
+      if (
+        expectedUpdatedAt !== undefined &&
+        application.updatedAt.getTime() !==
+          new Date(expectedUpdatedAt).getTime()
+      ) {
+        throw new Refusal(VOLUNTEER_ADMIN_COPY.staleReview);
+      }
+      const review = reviewedBy(profile.id, application.updatedAt);
+      await tx
+        .update(volunteerApplications)
+        .set({ status, ...review })
+        .where(
+          and(
+            eq(volunteerApplications.id, applicationId),
+            eq(volunteerApplications.festivalId, festivalId),
+          ),
+        );
+      if (note) {
+        await tx.insert(volunteerApplicationNotes).values({
+          applicationId,
+          festivalId,
+          authorUserId: profile.id,
+          body: note,
+        });
+      }
+      return {
+        fullName: application.fullName,
+        previousStatus: application.status,
+        decidedAt: review.updatedAt,
+      };
+    });
+  } catch (error) {
+    const result = failure(
+      error,
+      "Error deciding a volunteer application",
+      festivalId,
+    );
+    return { success: false, message: result.message };
+  }
+
+  revalidateApplications();
+  return {
+    success: true,
+    message: `${DECISION_VERBS[status]} ${outcome.fullName}`,
+    previousStatus: outcome.previousStatus,
+    decidedAt: outcome.decidedAt.toISOString(),
+  };
+}
+
+/** "Agregar una nota": one more internal note, signed by whoever wrote it. */
+export async function addVolunteerNote(
+  input: VolunteerNoteInput,
+): Promise<VolunteerAdminResult> {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) return UNAUTHORIZED;
+  const parsed = volunteerNoteInputSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, applicationId, body } = parsed.data;
+
+  try {
+    await db.transaction(async (tx) => {
+      await lockApplication(tx, festivalId, applicationId);
+      await tx.insert(volunteerApplicationNotes).values({
+        applicationId,
+        festivalId,
+        authorUserId: profile.id,
+        body,
+      });
+    });
+  } catch (error) {
+    return failure(error, "Error adding a volunteer note", festivalId);
+  }
+
+  revalidateApplications();
+  return { success: true, message: "Nota guardada." };
+}
+
+/**
+ * The shift screen's "Asignar N personas", in one transaction: each person
+ * gets the shift (keeping their others) and the role picked beside them, or,
+ * not picked, the role they have now (their 1st choice, or 2nd when the 1st
+ * is inactive, when they have none), so a role changed elsewhere since the
+ * screen loaded is kept. The screen offers accepted people who marked the
+ * shift; someone who no longer marks it is refused (the person screen is
+ * where an unmarked shift is given), and someone already on it is left as
+ * they are, role included. The server applies the same status rule
+ * as the single "Asignar" (decideShiftAssignment), so
+ * VOLUNTEER_ASSIGN_AUTO_ACCEPTS keeps deciding what happens to anyone else.
+ * More than VOLUNTEER_MAX_SHIFTS_PER_DAY that day saves, with a warning
+ * naming them.
+ */
+export async function assignVolunteersToShift(
+  input: VolunteerShiftBatchInput,
+): Promise<VolunteerAdminResult> {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) return UNAUTHORIZED;
+  const parsed = volunteerShiftBatchInputSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, shiftId, people } = parsed.data;
+
+  let outcome: { assigned: number; overLimit: string[]; day: string };
+  try {
+    outcome = await db.transaction(async (tx) => {
+      const [shift] = await tx
+        .select({
+          startsAt: volunteerShifts.startsAt,
+          isActive: volunteerShifts.isActive,
+        })
+        .from(volunteerShifts)
+        .where(
+          and(
+            eq(volunteerShifts.id, shiftId),
+            eq(volunteerShifts.festivalId, festivalId),
+          ),
+        );
+      if (!shift) throw new Refusal(SHIFT_NOT_FOUND);
+      if (!shift.isActive) throw new Refusal(SHIFT_INACTIVE);
+
+      // A festival has a handful: all of them, for picks and defaults alike.
+      const roles = await tx
+        .select({ id: volunteerRoles.id, isActive: volunteerRoles.isActive })
+        .from(volunteerRoles)
+        .where(eq(volunteerRoles.festivalId, festivalId));
+      const roleById = new Map(roles.map((role) => [role.id, role]));
+      const activeRoleIds = new Set(
+        roles.filter((role) => role.isActive).map((role) => role.id),
+      );
+
+      const day = laPazDay(shift.startsAt);
+      const overLimit: string[] = [];
+      let assigned = 0;
+      // In id order, so two batches over the same people lock alike.
+      const ordered = [...people].sort(
+        (a, b) => a.applicationId - b.applicationId,
+      );
+      for (const person of ordered) {
+        const application = await lockApplication(
+          tx,
+          festivalId,
+          person.applicationId,
+        );
+        const decision = decideShiftAssignment(application.status);
+        if (decision.kind === "refuse") {
+          throw new Refusal(`${application.fullName}: ${decision.message}`);
+        }
+        // Assigned to it since the screen loaded: nothing changes, as with
+        // the single "Asignar".
+        if (await holdsShift(tx, person.applicationId, shiftId)) continue;
+        if (!(await marksShift(tx, person.applicationId, shiftId))) {
+          throw new Refusal(
+            `${application.fullName} ya no puede cubrir este turno. Actualizá la página.`,
+          );
+        }
+
+        let roleId: number | null;
+        if (person.roleId === undefined) {
+          roleId =
+            application.assignedRoleId ??
+            defaultAssignedRoleId(application, activeRoleIds);
+        } else {
+          if (person.roleId !== null) {
+            const role = roleById.get(person.roleId);
+            if (
+              !role ||
+              (!role.isActive && person.roleId !== application.assignedRoleId)
+            ) {
+              throw new Refusal(`${application.fullName}: ${ROLE_UNAVAILABLE}`);
+            }
+          }
+          roleId = person.roleId;
+        }
+
+        await tx.insert(volunteerApplicationAssignedShifts).values({
+          applicationId: person.applicationId,
+          shiftId,
+          festivalId,
+        });
+        assigned += 1;
+        await tx
+          .update(volunteerApplications)
+          .set({
+            ...(decision.accept ? { status: "accepted" as const } : {}),
+            assignedRoleId: roleId,
+            ...reviewedBy(profile.id, application.updatedAt),
+          })
+          .where(
+            and(
+              eq(volunteerApplications.id, person.applicationId),
+              eq(volunteerApplications.festivalId, festivalId),
+            ),
+          );
+
+        const held = await tx
+          .select({ startsAt: volunteerShifts.startsAt })
+          .from(volunteerApplicationAssignedShifts)
+          .innerJoin(
+            volunteerShifts,
+            eq(volunteerShifts.id, volunteerApplicationAssignedShifts.shiftId),
+          )
+          .where(
+            eq(
+              volunteerApplicationAssignedShifts.applicationId,
+              person.applicationId,
+            ),
+          );
+        if (daysOverShiftLimit(held).includes(day)) {
+          overLimit.push(application.fullName);
+        }
+      }
+      return { assigned, overLimit, day };
+    });
+  } catch (error) {
+    return failure(error, "Error assigning volunteers to a shift", festivalId);
+  }
+
+  revalidateApplications();
+  const message =
+    outcome.assigned === 1
+      ? "Asignaste 1 persona."
+      : `Asignaste ${outcome.assigned} personas.`;
+  if (outcome.overLimit.length === 0) return { success: true, message };
+  return {
+    success: true,
+    message,
+    warning: `${message} ${spanishList(outcome.overLimit)} ${
+      outcome.overLimit.length === 1 ? "quedó" : "quedaron"
+    } con más de ${VOLUNTEER_MAX_SHIFTS_PER_DAY} turnos ${spanishDays([outcome.day])}.`,
+  };
+}
+
+/**
+ * "Guardar asignación" for one accepted person: their role and the full set
+ * of shifts (see replaceAssignment). Refused when the application changed
+ * since the screen loaded, or is no longer accepted.
+ */
+export async function saveVolunteerPersonAssignment(
+  input: VolunteerPersonAssignmentInput,
+): Promise<VolunteerAdminResult> {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) return UNAUTHORIZED;
+  const parsed = volunteerPersonAssignmentInputSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, applicationId, roleId, shiftIds, loadedUpdatedAt } =
+    parsed.data;
+
+  let overLimit: string[] = [];
+  try {
+    await db.transaction(async (tx) => {
+      const application = await lockApplication(tx, festivalId, applicationId);
+      if (
+        application.updatedAt.getTime() !== new Date(loadedUpdatedAt).getTime()
+      ) {
+        throw new Refusal(VOLUNTEER_ADMIN_COPY.staleReview);
+      }
+      if (!canAssignVolunteer(application.status)) {
+        throw new Refusal(VOLUNTEER_ADMIN_COPY.assignmentLocked);
+      }
+      overLimit = await replaceAssignment(tx, {
+        festivalId,
+        applicationId,
+        currentRoleId: application.assignedRoleId,
+        roleId,
+        shiftIds,
+      });
+      await tx
+        .update(volunteerApplications)
+        .set({
+          assignedRoleId: roleId,
+          ...reviewedBy(profile.id, application.updatedAt),
+        })
+        .where(
+          and(
+            eq(volunteerApplications.id, applicationId),
+            eq(volunteerApplications.festivalId, festivalId),
+          ),
+        );
+    });
+  } catch (error) {
+    return failure(error, "Error saving a volunteer assignment", festivalId);
+  }
+
+  revalidateApplications();
+  return withOverLimitWarning("Asignación guardada.", overLimit);
+}
+
+/**
+ * "Turnos que puede": replaces the shifts the person can cover with
+ * `shiftIds`. A removed shift they were assigned to is unassigned too. Adds
+ * only active shifts of the festival; an inactive one already marked may
+ * stay. Logs who changed what, when and why in volunteer_availability_changes.
+ */
+export async function updateVolunteerAvailability(
+  input: VolunteerAvailabilityInput,
+): Promise<VolunteerAdminResult> {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) return UNAUTHORIZED;
+  const parsed = volunteerAvailabilityInputSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const { festivalId, applicationId, shiftIds, reason, loadedUpdatedAt } =
+    parsed.data;
+
+  let changed = false;
+  try {
+    await db.transaction(async (tx) => {
+      const application = await lockApplication(tx, festivalId, applicationId);
+      if (
+        application.updatedAt.getTime() !== new Date(loadedUpdatedAt).getTime()
+      ) {
+        throw new Refusal(VOLUNTEER_ADMIN_COPY.staleReview);
+      }
+      const [current, assigned] = await Promise.all([
+        tx
+          .select({ shiftId: volunteerApplicationAvailableShifts.shiftId })
+          .from(volunteerApplicationAvailableShifts)
+          .where(
+            and(
+              eq(
+                volunteerApplicationAvailableShifts.applicationId,
+                applicationId,
+              ),
+              eq(volunteerApplicationAvailableShifts.festivalId, festivalId),
+            ),
+          ),
+        tx
+          .select({ shiftId: volunteerApplicationAssignedShifts.shiftId })
+          .from(volunteerApplicationAssignedShifts)
+          .where(
+            and(
+              eq(
+                volunteerApplicationAssignedShifts.applicationId,
+                applicationId,
+              ),
+              eq(volunteerApplicationAssignedShifts.festivalId, festivalId),
+            ),
+          ),
+      ]);
+      const diff = availabilityDiff(
+        current.map((row) => row.shiftId),
+        shiftIds,
+        assigned.map((row) => row.shiftId),
+      );
+      if (diff.added.length === 0 && diff.removed.length === 0) return;
+      changed = true;
+
+      if (diff.added.length > 0) {
+        const shifts = await tx
+          .select({
+            id: volunteerShifts.id,
+            isActive: volunteerShifts.isActive,
+          })
+          .from(volunteerShifts)
+          .where(
+            and(
+              inArray(volunteerShifts.id, diff.added),
+              eq(volunteerShifts.festivalId, festivalId),
+            ),
+          );
+        if (
+          shifts.length !== diff.added.length ||
+          shifts.some((shift) => !shift.isActive)
+        ) {
+          throw new Refusal(SHIFT_UNAVAILABLE);
+        }
+        await tx.insert(volunteerApplicationAvailableShifts).values(
+          diff.added.map((shiftId) => ({
+            applicationId,
+            shiftId,
+            festivalId,
+            addedByAdmin: true,
+          })),
+        );
+      }
+      if (diff.removed.length > 0) {
+        await tx
+          .delete(volunteerApplicationAvailableShifts)
+          .where(
+            and(
+              eq(
+                volunteerApplicationAvailableShifts.applicationId,
+                applicationId,
+              ),
+              eq(volunteerApplicationAvailableShifts.festivalId, festivalId),
+              inArray(
+                volunteerApplicationAvailableShifts.shiftId,
+                diff.removed,
+              ),
+            ),
+          );
+      }
+      if (diff.unassigned.length > 0) {
+        await tx
+          .delete(volunteerApplicationAssignedShifts)
+          .where(
+            and(
+              eq(
+                volunteerApplicationAssignedShifts.applicationId,
+                applicationId,
+              ),
+              eq(volunteerApplicationAssignedShifts.festivalId, festivalId),
+              inArray(
+                volunteerApplicationAssignedShifts.shiftId,
+                diff.unassigned,
+              ),
+            ),
+          );
+      }
+      await tx.insert(volunteerAvailabilityChanges).values({
+        applicationId,
+        festivalId,
+        changedByUserId: profile.id,
+        addedShiftIds: diff.added,
+        removedShiftIds: diff.removed,
+        unassignedShiftIds: diff.unassigned,
+        reason,
+      });
+      // Bumps updatedAt, so a screen loaded before this refuses to save.
+      await tx
+        .update(volunteerApplications)
+        .set({ updatedAt: nextRevision(application.updatedAt) })
+        .where(
+          and(
+            eq(volunteerApplications.id, applicationId),
+            eq(volunteerApplications.festivalId, festivalId),
+          ),
+        );
+    });
+  } catch (error) {
+    return failure(error, "Error updating a volunteer's shifts", festivalId);
+  }
+
+  if (!changed) return { success: true, message: "No había cambios." };
+  revalidateApplications();
+  return { success: true, message: "Turnos actualizados." };
+}
+
+/* ------------------------------------------------------------------ */
+/* Infinite lists (reads)                                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Refused or malformed: throws, so the list offers to try again instead of
+ * taking it for the end (an empty batch).
+ */
+class ListPageRefused extends Error {}
+
+/** The next batch of Revisar's list; throws when refused. */
+export async function loadVolunteerReviewPage(
+  input: VolunteerReviewPageInput,
+): Promise<VolunteerReviewItem[]> {
+  if (!(await requireAdminOrFestivalAdmin())) {
+    throw new ListPageRefused(VOLUNTEER_ADMIN_COPY.unauthorized);
+  }
+  const parsed = volunteerReviewPageInputSchema.safeParse(input);
+  if (!parsed.success) throw new ListPageRefused("Invalid list page request");
+  const { festivalId, sort, seenIds } = parsed.data;
+  return fetchPendingReviewPage(
+    festivalId,
+    sort,
+    seenIds,
+    VOLUNTEER_LIST_BATCH,
+  );
+}
+
+/** The next batch of "Por persona"; throws when refused. */
+export async function loadVolunteerPeoplePage(
+  input: VolunteerListPageInput,
+): Promise<VolunteerPersonItem[]> {
+  if (!(await requireAdminOrFestivalAdmin())) {
+    throw new ListPageRefused(VOLUNTEER_ADMIN_COPY.unauthorized);
+  }
+  const parsed = volunteerListPageInputSchema.safeParse(input);
+  if (!parsed.success) throw new ListPageRefused("Invalid list page request");
+  const { festivalId, seenIds } = parsed.data;
+  return fetchAcceptedPeoplePage(festivalId, seenIds, VOLUNTEER_LIST_BATCH);
+}

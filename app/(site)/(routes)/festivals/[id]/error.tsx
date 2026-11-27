@@ -1,0 +1,36 @@
+"use client";
+
+import { useEffect } from "react";
+
+import { Button } from "@/components/ui/button";
+import StaleDeploymentNotice from "@/app/components/common/stale-deployment-notice";
+import { isStaleDeploymentError } from "@/app/lib/errors/action-error";
+
+export default function Error({
+  error,
+  retry,
+}: {
+  error: Error & { digest?: string };
+  retry: () => void;
+}) {
+  useEffect(() => {
+    // Optionally log the error to an error reporting service
+    console.error(error);
+  }, [error]);
+
+  if (isStaleDeploymentError(error)) return <StaleDeploymentNotice />;
+
+  return (
+    <main className="flex h-full flex-col items-center justify-center">
+      <h2 className="text-center my-4">¡Algo salió mal!</h2>
+      <Button
+        onClick={
+          // Attempt to recover by trying to re-render the route
+          () => retry()
+        }
+      >
+        Intenta de nuevo
+      </Button>
+    </main>
+  );
+}
