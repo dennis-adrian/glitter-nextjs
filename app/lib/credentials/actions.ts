@@ -642,7 +642,7 @@ function credentialCount(count: number) {
 
 /**
  * "Marcar como enviadas a imprenta". The client names holders with the name,
- * second line, stand and counts it showed and exported, and the latest batch it saw. Under the
+ * group, second line, stand and counts it showed and exported, and the latest batch it saw. Under the
  * festival's batch lock the history must still end at that batch, and the
  * names and counts are recomputed from live data; any difference refuses the
  * whole batch. So a stale screen or a second admin cannot record a unit
@@ -686,6 +686,7 @@ export async function createCredentialPrintBatch(
         const counts = batchCountsFor(holder);
         if (
           holder.name !== expected.name ||
+          holder.group !== expected.group ||
           holder.note !== expected.note ||
           holder.standLabel !== expected.standLabel ||
           counts.named !== expected.named ||

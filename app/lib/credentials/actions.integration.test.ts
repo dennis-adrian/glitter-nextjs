@@ -540,6 +540,7 @@ describeDatabase("credentials actions", () => {
           const holder = holders.find((entry) => entry.key === key && !entry.stale);
           return {
             key,
+            group: holder?.group ?? "illustration",
             name: holder?.name ?? "",
             note: holder?.note ?? null,
             standLabel: holder?.standLabel ?? null,
@@ -787,6 +788,34 @@ describeDatabase("credentials actions", () => {
       expect(await items(festivalId)).toEqual([
         expect.objectContaining({ unitKey: key, namedCount: 2, unnamedCount: 0, isReprint: false }),
       ]);
+    });
+
+    it("refuses a batch whose stand category changed after the dialog showed it", async () => {
+      const festivalId = await createFestival();
+      const user = await createUser("Categoría cambiante");
+      const { standIds, participationIds } = await createReservation(festivalId, { userIds: [user] });
+      const key = `participant:${participationIds[0]}`;
+      const before = await shown(festivalId, [key]);
+      expect(before.holders[0]).toMatchObject({ group: "illustration", named: 1, unnamed: 1 });
+      // Both categories have the same default rule, so only the group differs.
+      await integrationDb!
+        .update(stands)
+        .set({ standCategory: "entrepreneurship" })
+        .where(eq(stands.id, standIds[0]!));
+      expect(await actions.createCredentialPrintBatch({ festivalId, ...before })).toEqual({
+        success: false,
+        message: BATCH_CHANGED,
+      });
+      expect(await items(festivalId)).toEqual([]);
+      // Reopened, the new group is what gets shown and recorded.
+      const again = await shown(festivalId, [key]);
+      expect(again.holders[0]).toMatchObject({ group: "entrepreneurship", named: 1, unnamed: 1 });
+      expect((await actions.createCredentialPrintBatch({ festivalId, ...again })).success).toBe(true);
+      const groups = await integrationDb!
+        .select({ group: schema.credentialPrintBatchItems.group })
+        .from(schema.credentialPrintBatchItems)
+        .where(eq(schema.credentialPrintBatchItems.festivalId, festivalId));
+      expect(groups.map((row) => row.group)).toEqual(["entrepreneurship", "entrepreneurship"]);
     });
 
     it("refuses a batch whose holder was renamed after the dialog showed it", async () => {

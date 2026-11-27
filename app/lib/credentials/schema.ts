@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   CATEGORY_CREDENTIAL_GROUPS,
+  CREDENTIAL_GROUPS,
   CREDENTIAL_NAMING_MODES,
   CREDENTIAL_RULE_QUANTITY_MAX,
   EXTERNAL_CREDENTIAL_QUANTITY_MAX,
@@ -195,6 +196,13 @@ const batchHolder = z.object({
     .string()
     .max(PRINT_BATCH_NAME_MAX, "Una de las personas elegidas no es válida. Actualizá la página.")
     .nullable(),
+  /**
+   * The group the CSV exported ("Grupo"): items record it, so a stand
+   * category changed meanwhile refuses the batch even when the counts match.
+   */
+  group: z.enum(CREDENTIAL_GROUPS, {
+    error: "Una de las personas elegidas no es válida. Actualizá la página.",
+  }),
   named: quantity(POSTGRES_INT_MAX),
   unnamed: quantity(POSTGRES_INT_MAX),
   reprint: z.boolean(),

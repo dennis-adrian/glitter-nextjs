@@ -210,6 +210,7 @@ describe("print batches", () => {
   it("takes known holders with the counts shown, once each, with an optional note", () => {
     const holder = (key: string) => ({
       key,
+      group: "staff" as const,
       name: "Ana",
       note: null,
       standLabel: "A1",
@@ -217,7 +218,7 @@ describe("print batches", () => {
       unnamed: 0,
       reprint: false,
     });
-    const press = { key: "extra:9", name: "Prensa", note: "6 credenciales sin nombre", standLabel: null };
+    const press = { key: "extra:9", group: "staff" as const, name: "Prensa", note: "6 credenciales sin nombre", standLabel: null };
     expect(
       createPrintBatchSchema.parse({
         festivalId: 1,
@@ -242,6 +243,23 @@ describe("print batches", () => {
         holders: [{ ...holder("staff:1"), note: undefined }],
       }).success,
     ).toBe(false);
+    // So is the group the CSV exported, and it must be a known one.
+    expect(
+      createPrintBatchSchema.safeParse({
+        festivalId: 1,
+        lastBatchId: null,
+        holders: [{ ...holder("staff:1"), group: undefined }],
+      }).success,
+    ).toBe(false);
+    expect(
+      firstMessage(
+        createPrintBatchSchema.safeParse({
+          festivalId: 1,
+          lastBatchId: null,
+          holders: [{ ...holder("staff:1"), group: "artist" }],
+        }),
+      ),
+    ).toBe("Una de las personas elegidas no es válida. Actualizá la página.");
     // The history version is required, so an old client cannot skip the check.
     expect(createPrintBatchSchema.safeParse({ festivalId: 1, holders: [holder("staff:1")] }).success).toBe(false);
     expect(
