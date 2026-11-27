@@ -512,6 +512,13 @@ export async function enrollInActivity(
           message: "Ya estás inscrito en esta actividad",
         };
       }
+      // Again, after the active check: staff may have removed the profile
+      // from another variant since the check above. Removals take no lock
+      // here, so the active check alone would see that participation gone
+      // and let the profile in; this read comes later and sees the removal.
+      if (await wasRemovedFromActivity(tx, dbActivity.id, activeProfile.id)) {
+        return { success: false, message: removedParticipantMessage };
+      }
 
       const { activeCount, reservedCount } =
         limit === Infinity
@@ -1502,14 +1509,17 @@ export async function enrollFromWaitlistInvitation(
             : "Ya estás inscrito en esta actividad",
         );
       }
-      if (await wasRemovedFromActivity(tx, entry.activityId, userId)) {
-        throw new Error(removedParticipantMessage);
-      }
       // Active in another variant: the invitation came from an entry an
       // earlier enrolment left behind.
       await lockProfileInActivity(tx, entry.activityId, userId);
       if (await isActiveInActivity(tx, entry.activityId, userId)) {
         throw new Error("Ya estás inscrito en esta actividad");
+      }
+      // Read after the active check, not before: a staff removal of that
+      // other participation, committed in between, would pass both checks
+      // the other way round.
+      if (await wasRemovedFromActivity(tx, entry.activityId, userId)) {
+        throw new Error(removedParticipantMessage);
       }
 
       // Verify capacity one more time

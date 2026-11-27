@@ -88,7 +88,8 @@ const FUTURE_DAY = "2099-06-15";
 /**
  * The endpoints' clock: noon in La Paz on a day of its own. In the past, so
  * the rate limiter's cleanup of buckets older than a day, judged at this
- * instant, finds none of anyone else's to remove.
+ * instant, finds none of anyone else's to remove. That does not protect this
+ * suite's own buckets from anyone else's cleanup: see `holdingBucket`.
  */
 const ROUTE_NOW = new Date("2001-02-03T16:00:00Z");
 const ROUTE_DAY = "2001-02-03";
@@ -109,6 +110,33 @@ function freshIp() {
   callerIps.push(ip);
   return ip;
 }
+
+/**
+ * Runs `requests` while this suite holds the rate-limit bucket `key` (made by
+ * a first request) against deletion. Another process on this database sweeps
+ * buckets older than a day by its own clock, the real one, and would remove
+ * this one, stamped at `ROUTE_NOW`, between two requests. KEY SHARE blocks
+ * that delete but not the endpoints' upsert, so the counter still counts.
+ */
+async function holdingBucket(key: string, requests: () => Promise<unknown>) {
+  const client = await pool!.connect();
+  try {
+    await client.query("begin");
+    const { rowCount } = await client.query(
+      "select 1 from action_rate_limits where key = $1 for key share",
+      [key],
+    );
+    expect(rowCount).toBe(1);
+    await requests();
+  } finally {
+    await client.query("rollback").catch(() => {});
+    client.release();
+  }
+}
+
+/** The bucket key of `ip` as the endpoints build it. */
+const fingerprintOf = (ip: string) =>
+  rateLimit.callerFingerprint(new Headers({ "x-real-ip": ip }));
 
 /** Daily tap rows of links this suite deleted: their `link_id` is gone. */
 const orphanClickIds: number[] = [];
@@ -363,9 +391,12 @@ describeDatabase("site links statistics", () => {
 
     it("holds the rate limit per visitor", async () => {
       const ip = freshIp();
-      for (let i = 0; i < 7; i += 1) {
-        await viewRoute.POST(viewRequest("direct", ip));
-      }
+      await viewRoute.POST(viewRequest("direct", ip));
+      await holdingBucket(`site-links-view:${fingerprintOf(ip)}`, async () => {
+        for (let i = 1; i < 7; i += 1) {
+          await viewRoute.POST(viewRequest("direct", ip));
+        }
+      });
       await viewRoute.POST(viewRequest("direct", freshIp()));
       // Five for the first visitor, one for the second.
       expect(await viewsOn(ROUTE_DAY, "direct")).toBe(6);
@@ -436,9 +467,15 @@ describeDatabase("site links statistics", () => {
     it("holds the rate limit per visitor and link", async () => {
       const link = await addLink("limited");
       const ip = freshIp();
-      for (let i = 0; i < 8; i += 1) {
-        await clickRoute.POST(...clickRequest(link.id, "direct", ip));
-      }
+      await clickRoute.POST(...clickRequest(link.id, "direct", ip));
+      await holdingBucket(
+        `site-link-click:${link.id}:${fingerprintOf(ip)}`,
+        async () => {
+          for (let i = 1; i < 8; i += 1) {
+            await clickRoute.POST(...clickRequest(link.id, "direct", ip));
+          }
+        },
+      );
       expect(await clickCount(link.id)).toBe(5);
       await clickRoute.POST(...clickRequest(link.id, "direct", freshIp()));
       expect(await clickCount(link.id)).toBe(6);

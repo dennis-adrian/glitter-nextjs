@@ -49,9 +49,11 @@ export async function processExpiredWaitlistNotifications() {
         const promotion = await promoteFromWaitlist(
           entry.activityId,
           entry.notifiedForDetailId,
+          { deferIfLocked: true },
         );
         // Keep the expired entry, so the next run retries the invitation
-        // instead of leaving the seat unoffered.
+        // instead of leaving the seat unoffered: the send failed, or the
+        // waiter due the seat is held by another transaction for now.
         if (isPromotionFailure(promotion)) {
           console.error(
             "Could not invite the next waitlisted profile; keeping expired entry",

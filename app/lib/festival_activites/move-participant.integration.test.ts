@@ -1737,6 +1737,42 @@ describeDatabase("moving a participant between variants", () => {
     expect(await waitlistRow(next.id)).toEqual(invited);
   });
 
+  it("keeps an expired invitation while another transaction holds the waiter due its seat", async () => {
+    const { source } = fixture;
+    const expired = await addToWaitlist((await createUser("expired")).id, 1, {
+      notifiedAt: new Date(Date.now() - 2 * DAY),
+      expiresAt: new Date(Date.now() - DAY),
+      notifiedForDetailId: source,
+    });
+    const next = await addToWaitlist((await createUser("next")).id, 2);
+
+    // As a promotion into another variant holds the row through its send,
+    // and then rolls back.
+    const client = await pool!.connect();
+    try {
+      await client.query("begin");
+      await client.query(
+        "select 1 from festival_activity_waitlist where id = $1 for update",
+        [next.id],
+      );
+      expect(await processExpiredWaitlistNotifications()).toEqual({
+        processed: 0,
+      });
+      await client.query("rollback");
+    } finally {
+      client.release();
+    }
+
+    expect(await waitlistRow(expired.id)).toBeDefined();
+    expect((await waitlistRow(next.id))?.notifiedAt).toBeNull();
+
+    // Released, the waiter gets the seat on the next run.
+    expect(await processExpiredWaitlistNotifications()).toEqual({
+      processed: 1,
+    });
+    expect((await waitlistRow(next.id))?.notifiedForDetailId).toBe(source);
+  });
+
   it("keeps and does not count an expired invitation renewed while the cron offered its seat on", async () => {
     const { source, target } = fixture;
     const expired = await addToWaitlist((await createUser("expired")).id, 1, {
