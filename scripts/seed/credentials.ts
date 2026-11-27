@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { DEFAULT_CREDENTIAL_RULES } from "@/app/lib/credentials/definitions";
 import type { db as DbType } from "@/db";
+import { seedDemoEmail } from "@/scripts/seed/demo-users";
 import {
   credentialPrintBatches,
   credentialPrintBatchItems,
@@ -44,7 +45,15 @@ const EXTERNAL_NAME = "Refugio Huellitas (demo)";
 const STAND_LABEL = "Z";
 const EXTERNAL_STAND = 901;
 const FULL_TABLE_STANDS = [902, 903] as const;
-const FULL_TABLE_EMAIL = "illustration+clerk_test@example.com";
+/**
+ * The demo illustrator. Its local row stores the notification address
+ * (`SEED_DEMO_EMAIL_BASE`'s `+illustration`), not the `+clerk_test` one Clerk
+ * signs in with; the latter is kept for databases seeded before that split.
+ */
+const fullTableEmails = () => [
+  seedDemoEmail("illustration"),
+  "illustration+clerk_test@example.com",
+];
 const STAFF = [
   { fullName: "Daniela Arce (demo)", roleLabel: "Dirección" },
   { fullName: "Rodrigo Molina (demo)", roleLabel: "Producción" },
@@ -215,7 +224,7 @@ export async function seedCredentials(
   const [participant] = await database
     .select({ id: users.id })
     .from(users)
-    .where(eq(users.email, FULL_TABLE_EMAIL))
+    .where(inArray(users.email, fullTableEmails()))
     .limit(1);
   if (participant) {
     const standIds: number[] = [];
