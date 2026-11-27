@@ -163,6 +163,11 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
  * Lock order, to stay free of deadlocks: the participant row a writer moves
  * or restores first, then the variant, then waitlist rows. A transaction
  * never locks two variants.
+ *
+ * NO KEY UPDATE, not UPDATE: it still excludes the other seat writers and
+ * staff edits of the variant, but not the KEY SHARE a foreign-key check
+ * takes. Promotions hold it through an email send, and FOR UPDATE would make
+ * every vote, participant or invitation pointing at the variant wait for it.
  */
 export async function lockVariant(tx: Tx, detailId: number) {
   const [variant] = await tx
@@ -174,7 +179,7 @@ export async function lockVariant(tx: Tx, detailId: number) {
     })
     .from(festivalActivityDetails)
     .where(eq(festivalActivityDetails.id, detailId))
-    .for("update");
+    .for("no key update");
   return variant;
 }
 

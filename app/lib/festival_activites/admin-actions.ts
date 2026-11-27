@@ -33,6 +33,7 @@ import {
   inArray,
   isNull,
   lte,
+  ne,
   or,
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -1042,6 +1043,7 @@ export async function moveActivityParticipant(
       const [source] = await tx
         .select({
           activityId: festivalActivityDetails.activityId,
+          activityType: festivalActivities.type,
           festivalId: festivalActivities.festivalId,
         })
         .from(festivalActivityDetails)
@@ -1149,6 +1151,43 @@ export async function moveActivityParticipant(
           success: false,
           message: "El participante ya tiene un registro en esa variante",
         };
+      }
+
+      // Best stand takes one entry per stand in a variant, as
+      // enrollInBestStandActivity enforces; a stand partner may already hold
+      // the target's entry for the stand.
+      if (source.activityType === "best_stand") {
+        const [standTaken] = await tx
+          .select({ id: festivalActivityParticipants.id })
+          .from(festivalActivityParticipants)
+          .innerJoin(
+            reservationParticipants,
+            eq(
+              reservationParticipants.userId,
+              festivalActivityParticipants.userId,
+            ),
+          )
+          .innerJoin(
+            standReservations,
+            eq(standReservations.id, reservationParticipants.reservationId),
+          )
+          .where(
+            and(
+              eq(festivalActivityParticipants.detailsId, targetDetailId),
+              eq(standReservations.festivalId, source.festivalId),
+              eq(standReservations.status, "accepted"),
+              inArray(standReservations.standId, heldStands),
+              ne(festivalActivityParticipants.userId, participation.userId),
+            ),
+          )
+          .limit(1);
+        if (standTaken) {
+          return {
+            success: false,
+            message:
+              "Otro participante ya registró este stand en la variante de destino",
+          };
+        }
       }
 
       if (target.participationLimit) {

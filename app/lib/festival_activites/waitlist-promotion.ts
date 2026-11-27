@@ -82,12 +82,14 @@ export async function promoteFromWaitlist(
 
     return await db.transaction(async (tx): Promise<WaitlistPromotion> => {
       // Locking the variant serializes promotions into it, so two freed-slot
-      // events cannot both count the same last seat.
+      // events cannot both count the same last seat. NO KEY UPDATE, as in
+      // lockVariant: held through the email send, it must not block the
+      // foreign-key checks of votes and enrolments into the variant.
       const [capacity] = await tx
         .select({ limit: festivalActivityDetails.participationLimit })
         .from(festivalActivityDetails)
         .where(eq(festivalActivityDetails.id, freedVariantId))
-        .for("update");
+        .for("no key update");
       if (capacity?.limit) {
         const now = new Date();
         const [{ activeCount }] = await tx

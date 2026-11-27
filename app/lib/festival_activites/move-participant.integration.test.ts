@@ -1875,4 +1875,90 @@ describeDatabase("moving a participant between variants", () => {
       message: "Voto agregado correctamente",
     });
   });
+
+  it("lets foreign-key writes into a variant through while its promotion sends the email", async () => {
+    const { source, target, participant } = fixture;
+    const row = await enroll(source, participant.id);
+    await addToWaitlist((await createUser("waiting")).id, 1);
+    const bystander = await createUser("bystander");
+    let insertError: unknown = "not attempted";
+    sendEmail.mockImplementationOnce(async () => {
+      // The promotion holds source through this send. A row pointing at
+      // source checks the foreign key, which must not wait for it.
+      const client = await pool!.connect();
+      try {
+        await client.query("begin");
+        await client.query("set local lock_timeout = '1s'");
+        await client.query(
+          "insert into festival_activity_participants (details_id, user_id) values ($1, $2)",
+          [source, bystander.id],
+        );
+        await client.query("commit");
+        insertError = null;
+      } catch (error) {
+        await client.query("rollback");
+        insertError = error;
+      } finally {
+        client.release();
+      }
+      return { data: { id: "email-1" }, error: null, headers: null };
+    });
+
+    const move = await moveActivityParticipant(row.id, target);
+
+    expect(move.invitedName).toBe("waiting");
+    expect(insertError).toBeNull();
+  });
+
+  it("refuses a best stand move into a variant where a stand partner holds the stand", async () => {
+    const { festivalId } = fixture;
+    const now = Date.now();
+    const [activity] = await integrationDb!
+      .insert(festivalActivities)
+      .values({
+        festivalId,
+        name: "Mejor stand",
+        type: "best_stand",
+        registrationStartDate: new Date(now - DAY),
+        registrationEndDate: new Date(now + DAY),
+      })
+      .returning({ id: festivalActivities.id });
+    const first = await createVariant(activity.id, null, "illustration");
+    const second = await createVariant(activity.id, null, "illustration");
+    const third = await createVariant(activity.id, null, "illustration");
+    const [stand] = await integrationDb!
+      .insert(stands)
+      .values({ standNumber: 9202, festivalId })
+      .returning({ id: stands.id });
+    standIds.push(stand.id);
+    const [reservation] = await integrationDb!
+      .insert(standReservations)
+      .values({ standId: stand.id, festivalId, status: "accepted" })
+      .returning({ id: standReservations.id });
+    const partners = [];
+    for (const [label, variant] of [
+      ["partner-a", first],
+      ["partner-b", second],
+    ] as const) {
+      const partner = await createUser(label);
+      await integrationDb!
+        .insert(reservationParticipants)
+        .values({ userId: partner.id, reservationId: reservation.id });
+      partners.push(await enroll(variant, partner.id));
+    }
+
+    const refused = await moveActivityParticipant(partners[1].id, first);
+
+    expect(refused).toEqual({
+      success: false,
+      message:
+        "Otro participante ya registró este stand en la variante de destino",
+    });
+    expect((await participation(partners[1].id)).detailsId).toBe(second);
+
+    // A variant where nobody holds the stand takes the move.
+    expect(await moveActivityParticipant(partners[1].id, third)).toMatchObject({
+      success: true,
+    });
+  });
 });
