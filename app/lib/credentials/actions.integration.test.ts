@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { randomUUID } from "crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -288,11 +288,14 @@ describeDatabase("credentials actions", () => {
       const first = { ...DEFAULT_FORM, gastronomy: { quantity: 3, namingMode: "all_named" as const } };
       const second = { ...DEFAULT_FORM, volunteer: { quantity: 2 }, staff: { quantity: 3 } };
       for (let round = 0; round < 5; round += 1) {
-        await Promise.all([
+        // All three must land: a failed write would leave the survivors'
+        // state, which the outcomes below accept, and hide the failure.
+        const results = await Promise.all([
           actions.saveCredentialRules({ festivalId, rules: first }),
           actions.saveCredentialRules({ festivalId, rules: second }),
           actions.resetCredentialRules({ festivalId }),
         ]);
+        expect(results.map((result) => result.success)).toEqual([true, true, true]);
         const groups = (await ruleRows(festivalId)).map((row) => row.group).sort();
         expect([[], ["gastronomy"], ["staff", "volunteer"]]).toContainEqual(groups);
       }
@@ -301,22 +304,24 @@ describeDatabase("credentials actions", () => {
     it("never touches another festival's rules", async () => {
       const mine = await createFestival();
       const other = await createFestival();
-      await actions.saveCredentialRules({
-        festivalId: other,
-        rules: { ...DEFAULT_FORM, staff: { quantity: 3 } },
-      });
-      await actions.resetCredentialRules({ festivalId: mine });
+      // Both start with a rule, so a reset that ignored the festival either
+      // way (kept mine or cleared theirs) shows.
       expect(
-        await integrationDb!
-          .select({ quantity: festivalCredentialRules.quantity })
-          .from(festivalCredentialRules)
-          .where(
-            and(
-              eq(festivalCredentialRules.festivalId, other),
-              eq(festivalCredentialRules.group, "staff"),
-            ),
-          ),
-      ).toEqual([{ quantity: 3 }]);
+        (await actions.saveCredentialRules({
+          festivalId: mine,
+          rules: { ...DEFAULT_FORM, volunteer: { quantity: 2 } },
+        })).success,
+      ).toBe(true);
+      expect(
+        (await actions.saveCredentialRules({
+          festivalId: other,
+          rules: { ...DEFAULT_FORM, staff: { quantity: 3 } },
+        })).success,
+      ).toBe(true);
+      expect(await ruleRows(mine)).toEqual([{ group: "volunteer", quantity: 2, namingMode: null }]);
+      expect((await actions.resetCredentialRules({ festivalId: mine })).success).toBe(true);
+      expect(await ruleRows(mine)).toEqual([]);
+      expect(await ruleRows(other)).toEqual([{ group: "staff", quantity: 3, namingMode: null }]);
     });
   });
   describe("external participants", () => {
@@ -701,29 +706,33 @@ describeDatabase("credentials actions", () => {
 
     it("refuses a batch whose team member's role changed after the dialog showed it", async () => {
       const festivalId = await createFestival();
+      // The roster is shared by every festival: a unique name finds this member.
+      const name = `Rol cambiante ${randomUUID()}`;
       expect(
-        (await actions.createStaffMember({ festivalId, fullName: "Rol cambiante", roleLabel: "Montaje" })).success,
+        (await actions.createStaffMember({ festivalId, fullName: name, roleLabel: "Montaje" })).success,
       ).toBe(true);
       const [member] = await integrationDb!
         .select({ id: schema.staffMembers.id })
         .from(schema.staffMembers)
-        .where(eq(schema.staffMembers.fullName, "Rol cambiante"));
+        .where(eq(schema.staffMembers.fullName, name));
       created.staff.push(member!.id);
       const key = `staff:${member!.id}`;
       const before = await shown(festivalId, [key]);
-      expect(before.holders[0]).toMatchObject({ name: "Rol cambiante", note: "Montaje" });
-      await actions.updateStaffMember({
-        festivalId,
-        staffMemberId: member!.id,
-        fullName: "Rol cambiante",
-        roleLabel: "Producción",
-      });
+      expect(before.holders[0]).toMatchObject({ name, note: "Montaje" });
+      expect(
+        (await actions.updateStaffMember({
+          festivalId,
+          staffMemberId: member!.id,
+          fullName: name,
+          roleLabel: "Producción",
+        })).success,
+      ).toBe(true);
       expect(await actions.createCredentialPrintBatch({ festivalId, ...before })).toEqual({
         success: false,
         message: BATCH_CHANGED,
       });
       expect((await send(festivalId, [key])).success).toBe(true);
-      expect((await items(festivalId))[0]).toMatchObject({ unitKey: key, printedName: "Rol cambiante" });
+      expect((await items(festivalId))[0]).toMatchObject({ unitKey: key, printedName: name });
     });
 
     it("refuses a batch whose holder was renamed after the dialog showed it", async () => {
@@ -762,7 +771,131 @@ describeDatabase("credentials actions", () => {
           namedCount: 1,
           unnamedCount: 0,
         }),
-      ).rejects.toThrow();
+      ).rejects.toMatchObject({
+        cause: { code: "23503", constraint: "credential_print_batch_items_batch_festival_fk" },
+      });
+    });
+
+    describe("removing a one-off entry", () => {
+      const REMOVED = { success: true, message: "Credencial quitada." };
+      const NEEDS_CONFIRMATION = {
+        success: false,
+        message:
+          "Esa credencial ya se mandó a imprenta. Confirmá que querés quitarla: va a figurar en Nombres como «Ya no corresponde».",
+        needsConfirmation: true,
+      };
+      const extraIds = async (festivalId: number) =>
+        (
+          await integrationDb!
+            .select({ id: schema.festivalExtraCredentials.id })
+            .from(schema.festivalExtraCredentials)
+            .where(eq(schema.festivalExtraCredentials.festivalId, festivalId))
+            .orderBy(schema.festivalExtraCredentials.id)
+        ).map((row) => row.id);
+
+      it("removes a printed entry only when the removal confirms it", async () => {
+        const festivalId = await createFestival();
+        const other = await createFestival();
+        for (const extra of [
+          { kind: "named" as const, name: "Lucía Rojas", label: "Fotografía" },
+          { kind: "unnamed" as const, label: "Prensa", quantity: 3 },
+        ]) {
+          expect((await actions.addExtraCredential({ festivalId, extra })).success).toBe(true);
+        }
+        const [printed, unprinted] = await extraIds(festivalId);
+        const printedKey = `extra:${printed}`;
+        expect((await send(festivalId, [printedKey])).success).toBe(true);
+        // The same key in another festival's history is not this entry's.
+        const [theirs] = await integrationDb!
+          .insert(schema.credentialPrintBatches)
+          .values({ festivalId: other, rules: {} })
+          .returning({ id: schema.credentialPrintBatches.id });
+        await integrationDb!.insert(schema.credentialPrintBatchItems).values({
+          batchId: theirs!.id,
+          festivalId: other,
+          unitKey: `extra:${unprinted}`,
+          group: "staff",
+          namedCount: 0,
+          unnamedCount: 3,
+        });
+
+        expect(
+          await actions.removeExtraCredential({ festivalId, extraCredentialId: unprinted! }),
+        ).toEqual(REMOVED);
+        expect(
+          await actions.removeExtraCredential({ festivalId, extraCredentialId: printed! }),
+        ).toEqual(NEEDS_CONFIRMATION);
+        expect(await extraIds(festivalId)).toEqual([printed]);
+
+        expect(
+          await actions.removeExtraCredential({
+            festivalId,
+            extraCredentialId: printed!,
+            confirmPrinted: true,
+          }),
+        ).toEqual(REMOVED);
+        expect(await extraIds(festivalId)).toEqual([]);
+        // Its batch keeps it, so Nombres can show it as no longer due.
+        expect(await items(festivalId)).toEqual([
+          expect.objectContaining({ unitKey: printedKey, printedName: "Lucía Rojas" }),
+        ]);
+      });
+
+      it("waits for a batch being recorded and sees it as printed", async () => {
+        const festivalId = await createFestival();
+        expect(
+          (await actions.addExtraCredential({
+            festivalId,
+            extra: { kind: "named", name: "Tomás Vaca", label: "Prensa" },
+          })).success,
+        ).toBe(true);
+        const [extraId] = await extraIds(festivalId);
+        // Another admin's batch, mid-transaction under the festival's batch lock.
+        const client = await pool!.connect();
+        try {
+          await client.query("BEGIN");
+          await client.query(
+            "SELECT pg_advisory_xact_lock(hashtext('credential_print_batches'), $1)",
+            [festivalId],
+          );
+          const { pid } = (
+            await client.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")
+          ).rows[0]!;
+          const removal = actions.removeExtraCredential({ festivalId, extraCredentialId: extraId! });
+          // Without the batch lock, the removal would find no item yet and delete.
+          await vi.waitFor(
+            async () => {
+              const { rows } = await pool!.query<{ waiting: number }>(
+                "SELECT count(*)::int AS waiting FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))",
+                [pid],
+              );
+              expect(rows[0]!.waiting).toBeGreaterThan(0);
+            },
+            { timeout: 3_000, interval: 20 },
+          );
+          const batch = (
+            await client.query<{ id: number }>(
+              "INSERT INTO credential_print_batches (festival_id, rules) VALUES ($1, '{}') RETURNING id",
+              [festivalId],
+            )
+          ).rows[0]!;
+          await client.query(
+            `INSERT INTO credential_print_batch_items
+               (batch_id, festival_id, unit_key, "group", printed_name, named_count, unnamed_count)
+             VALUES ($1, $2, $3, 'staff', 'Tomás Vaca', 1, 0)`,
+            [batch.id, festivalId, `extra:${extraId}`],
+          );
+          await client.query("COMMIT");
+          expect(await removal).toEqual(NEEDS_CONFIRMATION);
+        } catch (error) {
+          // Frees the lock if the test failed before committing.
+          await client.query("ROLLBACK");
+          throw error;
+        } finally {
+          client.release();
+        }
+        expect(await extraIds(festivalId)).toEqual([extraId]);
+      });
     });
 
     it("undoes only the latest batch, and only for admins", async () => {

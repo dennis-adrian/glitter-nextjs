@@ -138,6 +138,7 @@ export async function fetchCredentialsData(
           .select({
             participationId: reservationParticipants.id,
             reservationId: reservationParticipants.reservationId,
+            ownerUserId: standReservations.ownerUserId,
             userId: users.id,
             displayName: users.displayName,
             firstName: users.firstName,
@@ -311,6 +312,16 @@ export async function fetchCredentialsData(
       });
     }
     reservations.set(row.id, reservation);
+  }
+  // The owner only orders a reservation's people (the first one carries the
+  // unnamed credentials), and a participant transfer moves the participation
+  // and the owner in one commit. So the owner comes from the statement that
+  // reads the people: a transfer committed between the two statements would
+  // otherwise hand the unnamed credentials to a partner, a state that never
+  // existed, and a print batch matching the screen would be refused.
+  for (const row of participantRows) {
+    const reservation = reservations.get(row.reservationId);
+    if (reservation) reservation.ownerUserId = row.ownerUserId;
   }
 
   const statusCounts = new Map(volunteerStatusRows.map((row) => [row.status, row]));

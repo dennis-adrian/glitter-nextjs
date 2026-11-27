@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { emptyData } from "@/app/lib/credentials/__fixtures__/data";
+import { buildHolders } from "@/app/lib/credentials/calculate";
 import {
   credentialFilterParams,
   credentialParticipantLines,
@@ -8,6 +10,7 @@ import {
   credentialsPath,
   DEFAULT_CREDENTIAL_FILTERS,
   DEFAULT_CREDENTIAL_RULES,
+  extraCredentialUnitKey,
   parseCredentialFilters,
   parseCredentialTab,
 } from "@/app/lib/credentials/definitions";
@@ -113,5 +116,24 @@ describe("parseCredentialTab", () => {
     expect(parseCredentialTab(["equipo"])).toBe("equipo");
     expect(parseCredentialTab("otra")).toBe("resumen");
     expect(parseCredentialTab(undefined)).toBe("resumen");
+  });
+});
+
+describe("extraCredentialUnitKey", () => {
+  /** Removal looks printed entries up by it, so it must be what batches record. */
+  it("is the key buildHolders gives a one-off entry and its unit", () => {
+    const data = emptyData();
+    data.extras.push(
+      { id: 41, name: null, label: "Prensa", quantity: 6 },
+      { id: 42, name: "Marcelo Peredo", label: "Fotografía", quantity: 1 },
+    );
+    const extras = buildHolders(data, DEFAULT_CREDENTIAL_RULES).holders.filter(
+      (holder) => holder.kind === "extra",
+    );
+    expect(extras.map((holder) => [holder.key, holder.units.map((unit) => unit.key)])).toEqual([
+      [extraCredentialUnitKey(41), [extraCredentialUnitKey(41)]],
+      [extraCredentialUnitKey(42), [extraCredentialUnitKey(42)]],
+    ]);
+    expect(extraCredentialUnitKey(41)).toBe("extra:41");
   });
 });

@@ -1,12 +1,12 @@
 // @vitest-environment node
 
 import { randomUUID } from "crypto";
-import { inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { buildView } from "@/app/lib/credentials/calculate";
+import { buildView, type CredentialsData } from "@/app/lib/credentials/calculate";
 import {
   DEFAULT_CREDENTIAL_RULES,
   type CredentialFilters,
@@ -98,12 +98,15 @@ async function createReservation(
     standCount = 1,
     releasedStands = 0,
     userIds = [],
+    ownerUserId = userIds[0] ?? null,
   }: {
     status?: "accepted" | "verification_payment" | "pending" | "cancelled" | "rejected" | "released";
     category?: "illustration" | "gastronomy" | "entrepreneurship";
     standCount?: number;
     releasedStands?: number;
+    /** Participations are created in this order. */
     userIds?: number[];
+    ownerUserId?: number | null;
   },
 ) {
   const db = integrationDb!;
@@ -125,7 +128,7 @@ async function createReservation(
       standId: standRows[0]!.id,
       festivalId,
       status,
-      ownerUserId: userIds[0] ?? null,
+      ownerUserId,
     })
     .returning({ id: standReservations.id });
   await db.insert(standReservationStands).values(
@@ -142,6 +145,53 @@ async function createReservation(
       .values(userIds.map((userId) => ({ userId, reservationId: reservation!.id })));
   }
   return reservation!.id;
+}
+
+type Settled<T> = { value: T } | { error: unknown };
+
+/** Never rejects, so a read can be awaited on every exit path. */
+function settle<T>(promise: Promise<T>): Promise<Settled<T>> {
+  return promise.then(
+    (value) => ({ value }),
+    (error: unknown) => ({ error }),
+  );
+}
+
+/**
+ * Waits until the read's own connection (found by its application name)
+ * queues for a lock on `table`. Only that connection counts: in a full
+ * integration run other files query the same tables, and their waits would
+ * end this one before the read got there. A read that settles first fails
+ * the wait as itself, not as a timeout.
+ */
+async function waitForLock(
+  table: string,
+  applicationName: string,
+  reading: Promise<Settled<unknown>>,
+) {
+  const state: { settled?: Settled<unknown> } = {};
+  void reading.then((settled) => {
+    state.settled = settled;
+  });
+  for (let attempt = 0; ; attempt += 1) {
+    if (state.settled) {
+      throw "error" in state.settled
+        ? state.settled.error
+        : new Error(`The read finished without waiting for ${table}.`);
+    }
+    const { rows } = await pool!.query<{ waiting: number }>(
+      `SELECT count(*)::int AS waiting
+       FROM pg_locks l JOIN pg_stat_activity a USING (pid)
+       WHERE l.locktype = 'relation' AND NOT l.granted
+         AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database())
+         AND l.relation = $1::regclass
+         AND a.application_name = $2`,
+      [table, applicationName],
+    );
+    if (rows[0]!.waiting > 0) return;
+    if (attempt > 250) throw new Error(`Nothing waited for ${table}.`);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
 }
 
 describeDatabase("credentials queries", () => {
@@ -182,6 +232,7 @@ describeDatabase("credentials queries", () => {
     const solo = await createUser("Solo");
     const full = await createUser("Mesa completa");
     const released = await createUser("Con un espacio liberado");
+    const verifying = await createUser("En verificación");
     const pending = await createUser("Pendiente");
     const cancelled = await createUser("Cancelada");
     const rejected = await createUser("Rechazada");
@@ -194,6 +245,10 @@ describeDatabase("credentials queries", () => {
       standCount: 1,
       releasedStands: 1,
     });
+    await createReservation(festivalId, {
+      userIds: [verifying],
+      status: "verification_payment",
+    });
     await createReservation(festivalId, { userIds: [pending], status: "pending" });
     await createReservation(festivalId, { userIds: [cancelled], status: "cancelled" });
     await createReservation(festivalId, { userIds: [rejected], status: "rejected" });
@@ -205,6 +260,7 @@ describeDatabase("credentials queries", () => {
       "accepted",
       "accepted",
       "pending",
+      "verification_payment",
     ]);
     expect(data.reservations.find((reservation) => reservation.id === fullId)!.stands).toHaveLength(2);
 
@@ -217,6 +273,7 @@ describeDatabase("credentials queries", () => {
       "Mesa completa": [1, 3],
       // The released half is ignored: one stand, 2 credentials.
       "Con un espacio liberado": [1, 1],
+      "En verificación": [1, 1],
       Pendiente: [1, 1],
     });
   });
@@ -304,5 +361,87 @@ describeDatabase("credentials queries", () => {
     expect(view.holders).toEqual([
       expect.objectContaining({ key: `external:${external!.id}`, named: 4 }),
     ]);
+  });
+
+  it("reads the owner with the people, so a transfer committed mid-read keeps the unnamed ones on the owner", async () => {
+    const festivalId = await createFestival();
+    const owner = await createUser("Titular");
+    const partner = await createUser("Socia");
+    // The same person's new account: the transfer changes no name, so the
+    // screen before and after it is the same.
+    const newAccount = await createUser("Titular");
+    // The partner's participation is the older one: only the owner puts the
+    // owner first, with the 2 unnamed credentials.
+    const reservationId = await createReservation(festivalId, {
+      userIds: [partner, owner],
+      ownerUserId: owner,
+      standCount: 2,
+    });
+    const [participation] = await integrationDb!
+      .select({ id: reservationParticipants.id })
+      .from(reservationParticipants)
+      .where(
+        and(
+          eq(reservationParticipants.reservationId, reservationId),
+          eq(reservationParticipants.userId, owner),
+        ),
+      );
+    const byName = (data: CredentialsData) =>
+      Object.fromEntries(
+        buildView(data, DEFAULT_CREDENTIAL_RULES, ALL).holders.map((holder) => [
+          holder.name,
+          [holder.named, holder.unnamed],
+        ]),
+      );
+    const screen = { Titular: [1, 2], Socia: [1, 0] };
+    expect(byName((await queries.fetchCredentialsData(integrationDb!, festivalId))!)).toEqual(
+      screen,
+    );
+
+    // A participant transfer moves the participation and the owner in one
+    // commit. Locking the people's table holds the read's people statement
+    // until that commit, after its reservations statement has run: the
+    // transfer lands between the two.
+    const applicationName = `credentials-read-${randomUUID()}`;
+    const readPool = new Pool({
+      connectionString: testDatabaseUrl,
+      max: 1,
+      application_name: applicationName,
+    });
+    const transfer: PoolClient = await pool!.connect();
+    let reading: Promise<Settled<CredentialsData | null>> | null = null;
+    try {
+      await transfer.query("BEGIN");
+      await transfer.query("LOCK TABLE participations IN ACCESS EXCLUSIVE MODE");
+      await transfer.query("UPDATE participations SET user_id = $1 WHERE id = $2", [
+        newAccount,
+        participation!.id,
+      ]);
+      await transfer.query("UPDATE stand_reservations SET owner_user_id = $1 WHERE id = $2", [
+        newAccount,
+        reservationId,
+      ]);
+      reading = settle(
+        drizzle(readPool, { schema }).transaction((tx) =>
+          queries.fetchCredentialsData(tx, festivalId, { concurrency: 1 }),
+        ),
+      );
+      await waitForLock("participations", applicationName, reading);
+      await transfer.query("COMMIT");
+    } finally {
+      await transfer.query("ROLLBACK").catch(() => undefined);
+      transfer.release();
+      await reading;
+      await readPool.end();
+    }
+
+    const read = (await reading)!;
+    if ("error" in read) throw read.error;
+    const data = read.value!;
+    // The people statement saw the transfer, which committed while it waited.
+    expect(new Set(data.participants.map((participant) => participant.user.id))).toEqual(
+      new Set([partner, newAccount]),
+    );
+    expect(byName(data)).toEqual(screen);
   });
 });

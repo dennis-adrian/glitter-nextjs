@@ -8,6 +8,7 @@ import {
   externalCredentialQuantitySchema,
   festivalStaffMemberSchema,
   printBatchRefSchema,
+  removeExtraCredentialSchema,
   saveCredentialRulesSchema,
   updateExtraCredentialSchema,
   updateStaffMemberSchema,
@@ -136,6 +137,25 @@ describe("one-off credentials", () => {
     ).toBe("La cantidad puede ser como máximo 200.");
     expect(
       updateExtraCredentialSchema.safeParse({ festivalId: 1, extraCredentialId: 3, label: "" }).success,
+    ).toBe(false);
+  });
+
+  it("removes without confirming a printed entry unless told", () => {
+    expect(removeExtraCredentialSchema.parse({ festivalId: "1", extraCredentialId: "3" })).toEqual({
+      festivalId: 1,
+      extraCredentialId: 3,
+      confirmPrinted: false,
+    });
+    expect(
+      removeExtraCredentialSchema.parse({ festivalId: 1, extraCredentialId: 3, confirmPrinted: true })
+        .confirmPrinted,
+    ).toBe(true);
+    expect(
+      removeExtraCredentialSchema.safeParse({
+        festivalId: 1,
+        extraCredentialId: 3,
+        confirmPrinted: "true",
+      }).success,
     ).toBe(false);
   });
 });

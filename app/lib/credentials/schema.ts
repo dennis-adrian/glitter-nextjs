@@ -150,6 +150,15 @@ export type UpdateExtraCredentialInput = z.input<typeof updateExtraCredentialSch
 export const extraCredentialRefSchema = z.object({ festivalId: id, extraCredentialId: id });
 export type ExtraCredentialRefInput = z.input<typeof extraCredentialRefSchema>;
 
+export const removeExtraCredentialSchema = extraCredentialRefSchema.extend({
+  /**
+   * The admin saw the "ya se mandó a imprenta" warning. Without it a printed
+   * entry stays: the screen's print history can predate the latest batch.
+   */
+  confirmPrinted: z.boolean().default(false),
+});
+export type RemoveExtraCredentialInput = z.input<typeof removeExtraCredentialSchema>;
+
 /* Print batches ----------------------------------------------------- */
 
 const holderKey = z

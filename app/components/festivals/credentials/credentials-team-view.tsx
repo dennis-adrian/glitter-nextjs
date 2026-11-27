@@ -3,7 +3,7 @@
 import { AlertTriangleIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useOptimistic, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { useCredentials } from "@/app/components/festivals/credentials/credentials-context";
@@ -40,7 +40,7 @@ import {
   type CredentialExtraRow,
   type CredentialStaffRow,
 } from "@/app/lib/credentials/calculate";
-import { CREDENTIALS_COPY } from "@/app/lib/credentials/definitions";
+import { CREDENTIALS_COPY, extraCredentialUnitKey } from "@/app/lib/credentials/definitions";
 import { toastActionError } from "@/app/lib/errors/action-error";
 import { cn } from "@/app/lib/utils";
 
@@ -105,13 +105,25 @@ function ExtraRow({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  // Controlled, so the server can open it too: `printed` comes from the
+  // history this screen loaded, which can predate the latest batch.
+  const [confirming, setConfirming] = useState(false);
   const title = extra.name ?? extra.label;
 
-  function remove() {
+  function remove(confirmPrinted: boolean) {
     startTransition(async () => {
       try {
-        const result = await removeExtraCredential({ festivalId, extraCredentialId: extra.id });
+        const result = await removeExtraCredential({
+          festivalId,
+          extraCredentialId: extra.id,
+          confirmPrinted,
+        });
         if (!result.success) {
+          if ("needsConfirmation" in result) {
+            setConfirming(true);
+            router.refresh();
+            return;
+          }
           toast.error(result.message);
           return;
         }
@@ -123,14 +135,14 @@ function ExtraRow({
     });
   }
 
-  const removeButton = (
+  const removeButton = (onClick?: () => void) => (
     <Button
       type="button"
       variant="ghost"
       size="sm"
       disabled={isPending}
       aria-label={`Quitar ${title}`}
-      onClick={printed ? undefined : remove}
+      onClick={onClick}
     >
       Quitar
     </Button>
@@ -148,26 +160,28 @@ function ExtraRow({
       </div>
       <div className="flex shrink-0 gap-1">
         <ExtraCredentialDialog festivalId={festivalId} extra={extra} />
-        {printed ? (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>{removeButton}</AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle className="wrap-anywhere">¿Quitar {title}?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Ya se mandó a imprenta. Si la quitás, figura en Nombres como «Ya no
-                  corresponde».
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={remove}>Quitar</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        ) : (
-          removeButton
-        )}
+        <AlertDialog open={confirming} onOpenChange={setConfirming}>
+          {printed ? (
+            <AlertDialogTrigger asChild>{removeButton()}</AlertDialogTrigger>
+          ) : (
+            // Not printed as far as this screen knows: a plain button with no
+            // warning, unless the server answers it was printed meanwhile.
+            removeButton(() => remove(false))
+          )}
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="wrap-anywhere">¿Quitar {title}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Ya se mandó a imprenta. Si la quitás, figura en Nombres como «Ya no
+                corresponde».
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={() => remove(true)}>Quitar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </li>
   );
@@ -176,8 +190,9 @@ function ExtraRow({
 /** Equipo y externos (M3). */
 export default function CredentialsTeamView() {
   const { festivalId, data, rules } = useCredentials();
+  // Over the roster shown: the active members plus archived ones still
+  // selected here, who keep their credential.
   const selectedCount = data.staff.filter((member) => member.selected).length;
-  const activeCount = data.staff.filter((member) => member.isActive).length;
   const printedUnits = new Set(
     data.batches.flatMap((batch) => batch.items.map((item) => item.unitKey)),
   );
@@ -199,7 +214,7 @@ export default function CredentialsTeamView() {
               <CardTitle className="text-lg">Equipo Glitter</CardTitle>
               <CardDescription>
                 La lista se guarda para todas las ediciones. Marcá quiénes trabajan en esta:{" "}
-                {number(selectedCount)} de {number(activeCount)}.
+                {number(selectedCount)} de {number(data.staff.length)}.
               </CardDescription>
             </div>
             <StaffMemberDialog festivalId={festivalId} />
@@ -238,7 +253,7 @@ export default function CredentialsTeamView() {
                   key={extra.id}
                   festivalId={festivalId}
                   extra={extra}
-                  printed={printedUnits.has(`extra:${extra.id}`)}
+                  printed={printedUnits.has(extraCredentialUnitKey(extra.id))}
                 />
               ))}
             </ul>
@@ -304,8 +319,8 @@ export default function CredentialsTeamView() {
           <CardHeader>
             <CardTitle className="text-lg">Voluntarios</CardTitle>
             <CardDescription>
-              Se toman solos de las postulaciones aceptadas, con el rol asignado. Acá no hay nada
-              que cargar.
+              Se toman solos de todas las postulaciones aceptadas, tengan rol o no: la credencial
+              lleva el rol asignado o «{CREDENTIALS_COPY.noRole}». Acá no hay nada que cargar.
             </CardDescription>
           </CardHeader>
           <CardContent>

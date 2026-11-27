@@ -240,7 +240,7 @@ Every action follows the shape of `app/lib/volunteers/admin-actions.ts`:
 | `setExternalCredentialQuantity` | Upserts or deletes one override and stores `stands_at_override`. Refuses an external participant that has no counted reservation in the festival. |
 | `createStaffMember`, `updateStaffMember`, `archiveStaffMember`, `restoreStaffMember` | Roster maintenance. Archive sets `is_active = false`; rows are never deleted. |
 | `setFestivalStaffMember` | Ticks or unticks one roster member for the festival. Refuses ticking an archived member; unticking is always allowed. |
-| `addExtraCredential`, `updateExtraCredential`, `removeExtraCredential` | One-off entries. Update keeps the id, so raising "Prensa" from 6 to 8 shows "Faltan 2" instead of 8 new. The name of a named entry cannot be edited. |
+| `addExtraCredential`, `updateExtraCredential`, `removeExtraCredential` | One-off entries. Update keeps the id, so raising "Prensa" from 6 to 8 shows "Faltan 2" instead of 8 new. The name of a named entry cannot be edited. Remove takes the print-batch lock, then the entry's row lock, and checks the history itself: an entry already sent to print goes only with `confirmPrinted`; otherwise nothing changes and the answer carries `needsConfirmation`, so the screen warns even when its own history predates the latest batch. |
 | `createCredentialPrintBatch` | Input: `festivalId`, `lastBatchId` (the latest batch the dialog was opened on, null for none), `holders[]` (`key`, and the `name`, `note`, `standLabel`, `named`, `unnamed` and `reprint` the dialog showed and exported), `note`. See below. |
 | `deleteCredentialPrintBatch` | Removes the most recent batch of the festival only, for undoing a mistake. `admin` only. Takes the same lock as create. |
 

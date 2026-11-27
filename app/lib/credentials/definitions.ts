@@ -382,6 +382,15 @@ export type CredentialsResult =
   | { success: true; message: string }
   | { success: false; message: string };
 
+/**
+ * `removeExtraCredential`'s answer. An entry already sent to print goes only
+ * when the call confirms it; otherwise nothing changes and `needsConfirmation`
+ * asks the screen to warn first.
+ */
+export type RemoveExtraCredentialResult =
+  | CredentialsResult
+  | { success: false; message: string; needsConfirmation: true };
+
 export const CREDENTIALS_COPY = {
   title: "Credenciales",
   subtitle:
@@ -410,6 +419,14 @@ export const PRINT_STATES = [
   "stale",
 ] as const;
 export type PrintState = (typeof PRINT_STATES)[number];
+
+/**
+ * A one-off entry's holder and unit key, the `unit_key` its print batch items
+ * record. Must match what `buildHolders` (calculate.ts) gives extras.
+ */
+export function extraCredentialUnitKey(extraCredentialId: number): string {
+  return `extra:${extraCredentialId}`;
+}
 
 /** Most urgent first: a row's badge is its most urgent unit's. */
 export const PRINT_STATE_URGENCY: readonly PrintState[] = [

@@ -16,10 +16,12 @@ import {
 import {
   CREDENTIAL_GROUPS,
   CREDENTIALS_COPY,
+  extraCredentialUnitKey,
   isCategoryGroup,
   type CredentialGroup,
   type CredentialRule,
   type CredentialsResult,
+  type RemoveExtraCredentialResult,
 } from "@/app/lib/credentials/definitions";
 import { fetchCredentialsData } from "@/app/lib/credentials/queries";
 import {
@@ -27,10 +29,10 @@ import {
   createPrintBatchSchema,
   createStaffMemberSchema,
   externalCredentialQuantitySchema,
-  extraCredentialRefSchema,
   festivalOnlySchema,
   festivalStaffMemberSchema,
   printBatchRefSchema,
+  removeExtraCredentialSchema,
   saveCredentialRulesSchema,
   staffMemberRefSchema,
   updateExtraCredentialSchema,
@@ -39,10 +41,10 @@ import {
   type CreatePrintBatchInput,
   type CreateStaffMemberInput,
   type ExternalCredentialQuantityInput,
-  type ExtraCredentialRefInput,
   type FestivalOnlyInput,
   type FestivalStaffMemberInput,
   type PrintBatchRefInput,
+  type RemoveExtraCredentialInput,
   type SaveCredentialRulesInput,
   type StaffMemberRefInput,
   type UpdateExtraCredentialInput,
@@ -467,6 +469,8 @@ export async function setFestivalStaffMember(
 
 const EXTRA_NOT_FOUND = "No encontramos esa credencial. Actualizá la página.";
 const EXTRA_NAMED_IS_ONE = "Una credencial con nombre es siempre una.";
+const EXTRA_PRINTED_NEEDS_CONFIRMATION =
+  "Esa credencial ya se mandó a imprenta. Confirmá que querés quitarla: va a figurar en Nombres como «Ya no corresponde».";
 
 async function lockExtra(tx: Tx, festivalId: number, extraCredentialId: number) {
   const [extra] = await tx
@@ -552,28 +556,56 @@ export async function updateExtraCredential(
 
 /**
  * Removes an entry. One already sent to print stays in its batch and shows
- * as "Ya no corresponde"; the screen warns before calling this.
+ * as "Ya no corresponde", so it goes only with `confirmPrinted`. The screen
+ * warns from the history it loaded, which can predate the latest batch, so
+ * the history is checked here; a printed entry without confirmation stays
+ * and the answer asks for it.
  */
 export async function removeExtraCredential(
-  input: ExtraCredentialRefInput,
-): Promise<CredentialsResult> {
+  input: RemoveExtraCredentialInput,
+): Promise<RemoveExtraCredentialResult> {
   const auth = await authorize();
   if (auth.blocked) return auth.blocked;
-  const parsed = extraCredentialRefSchema.safeParse(input);
+  const parsed = removeExtraCredentialSchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
-  const { festivalId, extraCredentialId } = parsed.data;
+  const { festivalId, extraCredentialId, confirmPrinted } = parsed.data;
 
+  let removed: boolean;
   try {
-    await db.transaction(async (tx) => {
+    removed = await db.transaction(async (tx) => {
+      // The batch lock, so no batch is recorded or undone between the check
+      // and the delete (batches read extras without row locks). Always
+      // before the row lock: batch writes never lock an extra's row and
+      // updates never take the batch lock, so nothing waits the other way.
+      await lockFestivalBatches(tx, festivalId);
       await lockExtra(tx, festivalId, extraCredentialId);
+      const [printed] = await tx
+        .select({ id: credentialPrintBatchItems.id })
+        .from(credentialPrintBatchItems)
+        .where(
+          and(
+            eq(credentialPrintBatchItems.festivalId, festivalId),
+            eq(credentialPrintBatchItems.unitKey, extraCredentialUnitKey(extraCredentialId)),
+          ),
+        )
+        .limit(1);
+      if (printed && !confirmPrinted) return false;
       await tx
         .delete(festivalExtraCredentials)
         .where(eq(festivalExtraCredentials.id, extraCredentialId));
+      return true;
     });
   } catch (error) {
     return failure(error, "Error removing a one-off credential", festivalId);
   }
 
+  if (!removed) {
+    return {
+      success: false,
+      message: EXTRA_PRINTED_NEEDS_CONFIRMATION,
+      needsConfirmation: true,
+    };
+  }
   revalidateCredentials();
   return { success: true, message: "Credencial quitada." };
 }
@@ -595,7 +627,8 @@ const NOT_LATEST_BATCH = "Solo se puede deshacer el último lote enviado a impre
 /**
  * Serialises batch writes per festival, so two admins cannot record the same
  * unit twice. Not the festival row lock: that one is the reservation flow's
- * throughput ceiling.
+ * throughput ceiling. Removing a one-off entry takes it too, before the
+ * entry's row lock.
  */
 async function lockFestivalBatches(tx: Tx, festivalId: number) {
   await tx.execute(
