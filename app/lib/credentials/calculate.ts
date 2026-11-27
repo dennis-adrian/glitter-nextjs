@@ -1097,8 +1097,8 @@ export function summarize(
     return {
       group,
       rule: credentialRuleCopy(group, rules[group]),
-      // A lot of unnamed one-off credentials is not a person, nor is a
-      // participant a low quantity left without credentials ("Sin credencial").
+      // A lot of unnamed one-off credentials is not a person, nor is any
+      // holder a quantity left without credentials ("Sin credencial").
       people: live.filter(
         (holder) => !(holder.kind === "extra" && holder.named === 0) && !holder.noCredential,
       ).length,

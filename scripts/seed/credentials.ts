@@ -124,6 +124,9 @@ async function claimFixtureStands(
   for (const standNumber of standNumbers) {
     const found = existing.find((stand) => stand.standNumber === standNumber);
     if (found) {
+      // A cancelled reservation frees its stand ("available"); booking it
+      // again marks it reserved, as the app's own booking paths do.
+      await tx.update(stands).set({ status: "reserved" }).where(eq(stands.id, found.id));
       ids.push(found.id);
       continue;
     }
