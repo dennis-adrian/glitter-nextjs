@@ -38,7 +38,8 @@ import {
  * The credentials page's reads, always scoped by festival. The database handle
  * is the first argument with no default, so the batch action can pass its
  * transaction: calling the module-level `db` inside one would take a second
- * pooled connection (docs/PLAN-database-reliability-hardening.md §2).
+ * pooled connection (docs/PLAN-database-reliability-hardening.md §2). The page
+ * and the CSV export read through `fetchCredentialsSnapshot`.
  */
 
 export type CredentialsDatabase =
@@ -47,8 +48,10 @@ export type CredentialsDatabase =
 
 type Options = {
   /**
-   * Statements in flight at once: at most 3 from a page, and 1 (one after
-   * another) on a transaction, which has a single connection.
+   * Statements in flight at once: 1 (one after another) on a transaction,
+   * which has a single connection, as every caller does; at most 3 on the
+   * module `db`, which only tests use (the page reads through
+   * `fetchCredentialsSnapshot`).
    */
   concurrency?: number;
 };
@@ -377,4 +380,27 @@ export async function fetchCredentialsData(
       items: itemsByBatch.get(row.id) ?? [],
     })),
   };
+}
+
+/**
+ * The page's and the CSV export's read: every statement on one read-only
+ * REPEATABLE READ snapshot, one after another on a single connection. Separate
+ * statements could otherwise straddle a write: a reservation that stops
+ * counting would keep its row but lose its participants ("no tiene
+ * participantes"), and an undone batch could keep its header but lose its items.
+ *
+ * Not for the actions, which call `fetchCredentialsData` on their own READ
+ * COMMITTED transaction. The batch action reads after its batch and rules
+ * locks: under REPEATABLE READ the first lock statement would take the
+ * snapshot before its wait and miss a batch committed meanwhile. The external
+ * override reads unlocked.
+ */
+export function fetchCredentialsSnapshot(
+  database: typeof db,
+  festivalId: number,
+): Promise<CredentialsData | null> {
+  return database.transaction(
+    (tx) => fetchCredentialsData(tx, festivalId, { concurrency: 1 }),
+    { isolationLevel: "repeatable read", accessMode: "read only" },
+  );
 }

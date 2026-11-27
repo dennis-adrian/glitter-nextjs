@@ -735,6 +735,35 @@ describeDatabase("credentials actions", () => {
       expect((await items(festivalId))[0]).toMatchObject({ unitKey: key, printedName: name });
     });
 
+    it("refuses a batch whose rules changed after the dialog showed it", async () => {
+      const festivalId = await createFestival();
+      const fullName = `Regla cambiante ${randomUUID()}`;
+      expect((await actions.createStaffMember({ festivalId, fullName, roleLabel: "Montaje" })).success).toBe(true);
+      const [member] = await integrationDb!
+        .select({ id: schema.staffMembers.id })
+        .from(schema.staffMembers)
+        .where(eq(schema.staffMembers.fullName, fullName));
+      created.staff.push(member!.id);
+      const key = `staff:${member!.id}`;
+      const before = await shown(festivalId, [key]);
+      expect(before.holders[0]).toMatchObject({ name: fullName, named: 1, unnamed: 0, reprint: false });
+      // Another admin raises the team's rule while the dialog is open.
+      expect(
+        (await actions.saveCredentialRules({ festivalId, rules: { ...DEFAULT_FORM, staff: { quantity: 2 } } }))
+          .success,
+      ).toBe(true);
+      expect(await actions.createCredentialPrintBatch({ festivalId, ...before })).toEqual({
+        success: false,
+        message: BATCH_CHANGED,
+      });
+      expect(await items(festivalId)).toEqual([]);
+      // Reopened, the new count is what gets shown and recorded.
+      expect((await send(festivalId, [key])).success).toBe(true);
+      expect(await items(festivalId)).toEqual([
+        expect.objectContaining({ unitKey: key, namedCount: 2, unnamedCount: 0, isReprint: false }),
+      ]);
+    });
+
     it("refuses a batch whose holder was renamed after the dialog showed it", async () => {
       const festivalId = await createFestival();
       const user = await createUser("Nombre viejo");

@@ -93,6 +93,8 @@ export default function StaffMemberDialog({
     <DrawerDialog
       isDesktop={isDesktop}
       open={open}
+      // A swipe would only half-close the sheet while a write keeps it open.
+      dismissible={!isPending}
       onOpenChange={(next) => {
         // Held open while saving or archiving: the write closes the session
         // that started it.

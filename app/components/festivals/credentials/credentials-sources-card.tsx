@@ -18,8 +18,9 @@ function count(value: number, one: string, many: string) {
 }
 
 /**
- * "Qué se cuenta": which reservations and groups the page counts. Client
- * state mirrored to the URL; nothing here is saved.
+ * "Qué se cuenta": which reservations and groups the page counts. The
+ * toggles write the URL, which holds them (see `CredentialsProvider`);
+ * nothing here is saved.
  */
 export default function CredentialsSourcesCard({
   groups = ["external", "volunteer", "staff"],

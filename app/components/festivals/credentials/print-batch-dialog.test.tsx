@@ -13,20 +13,23 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn() }),
   usePathname: () => "/dashboard/festivals/1/credentials",
 }));
-vi.mock("@/app/hooks/use-media-query", () => ({ useMediaQuery: () => true }));
+const isDesktop = vi.hoisted(() => ({ value: true }));
+vi.mock("@/app/hooks/use-media-query", () => ({ useMediaQuery: () => isDesktop.value }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
+  isDesktop.value = true;
 });
 
 /** Lucía and Andrés are new; Camila was printed; Pendiente is hidden by the toggle. */
 function festival() {
   const data = emptyData();
   const camila = addReservation(data, { people: [{ name: "Camila Rojas" }] });
-  addReservation(data, { people: [{ name: "Lucía Fernández" }] });
-  addReservation(data, { category: "gastronomy", people: [{ name: "Andrés Vaca" }] });
+  const lucia = addReservation(data, { people: [{ name: "Lucía Fernández" }] });
+  const andres = addReservation(data, { category: "gastronomy", people: [{ name: "Andrés Vaca" }] });
   addReservation(data, { people: [{ name: "Pendiente" }], status: "pending" });
   data.batches.push(
     batch([
@@ -52,7 +55,7 @@ function festival() {
       },
     ]),
   );
-  return { data, camila };
+  return { data, camila, lucia, andres };
 }
 
 function open() {
@@ -113,7 +116,7 @@ describe("PrintBatchDialog", () => {
 
   it("keeps Cancelar and Marcar como enviadas in one row and sends the counts it shows", async () => {
     createCredentialPrintBatch.mockResolvedValue({ success: true, message: "Listo." });
-    const { data } = festival();
+    const { data, lucia, andres } = festival();
     renderWithCredentials(<PrintBatchDialog />, { data });
     const dialog = open();
     const footer = within(dialog).getByTestId("batch-footer");
@@ -131,13 +134,19 @@ describe("PrintBatchDialog", () => {
     // The print history it was opened on: the fixture's one batch.
     expect(data.batches).toHaveLength(1);
     expect(input.lastBatchId).toBe(data.batches[0]!.id);
-    expect(input.holders).toHaveLength(2);
-    expect(
-      input.holders.every(
-        (holder: { key: string; name: string }) =>
-          holder.key.startsWith("participant:") && holder.name.length > 0,
+    // Exactly the pre-selected two, each with the counts it was shown.
+    const byKey = Object.fromEntries(
+      input.holders.map(
+        (holder: { key: string; name: string; named: number; unnamed: number }) => [
+          holder.key,
+          { name: holder.name, named: holder.named, unnamed: holder.unnamed },
+        ],
       ),
-    ).toBe(true);
+    );
+    expect(byKey).toEqual({
+      [`participant:${lucia.participations[0]}`]: { name: "Lucía Fernández", named: 1, unnamed: 1 },
+      [`participant:${andres.participations[0]}`]: { name: "Andrés Vaca", named: 2, unnamed: 0 },
+    });
     const sent = input.holders.reduce(
       (sum: number, holder: { named: number; unnamed: number; reprint: boolean }) => {
         expect(holder.reprint).toBe(false);
@@ -146,5 +155,61 @@ describe("PrintBatchDialog", () => {
       0,
     );
     expect(sent).toBe(Number(within(dialog).getByTestId("batch-total").textContent!.split(" ")[0]));
+  });
+
+  it("locks the selection and the note while marking", async () => {
+    let finish!: (result: { success: boolean; message: string }) => void;
+    createCredentialPrintBatch.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    renderWithCredentials(<PrintBatchDialog />, { data: festival().data });
+    const dialog = open();
+    const search = within(dialog).getByLabelText("Quitar o sumar a alguien");
+    // Lucía out and Camila in, so both kinds of hand change are on screen.
+    fireEvent.change(search, { target: { value: "lucia" } });
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Incluir a Lucía Fernández en el lote" }));
+    fireEvent.change(search, { target: { value: "camila" } });
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Incluir a Camila Rojas en el lote" }));
+    const controls = () => [
+      search,
+      within(dialog).getByRole("checkbox", { name: "Incluir a Camila Rojas en el lote" }),
+      within(dialog).getByRole("button", { name: "Volver a incluir" }),
+      within(dialog).getByRole("button", { name: "Quitar" }),
+      within(dialog).getByLabelText("Nota"),
+    ];
+    expect(controls().map((control) => control.hasAttribute("disabled"))).toEqual([false, false, false, false, false]);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Marcar como enviadas" }));
+    await waitFor(() => expect(createCredentialPrintBatch).toHaveBeenCalledTimes(1));
+    expect(controls().map((control) => control.hasAttribute("disabled"))).toEqual([true, true, true, true, true]);
+    // Exporting what is being marked changes nothing, so it stays available.
+    expect(within(dialog).getByRole("button", { name: /Exportar estas/ }).hasAttribute("disabled")).toBe(false);
+
+    finish({ success: false, message: "El lote cambió." });
+    await waitFor(() =>
+      expect(controls().map((control) => control.hasAttribute("disabled"))).toEqual([false, false, false, false, false]),
+    );
+  });
+
+  it("does not open the phone search while marking", async () => {
+    isDesktop.value = false;
+    // The phone sheet is vaul's drawer, which reads media queries.
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+    }));
+    let finish!: (result: { success: boolean; message: string }) => void;
+    createCredentialPrintBatch.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    renderWithCredentials(<PrintBatchDialog />, { data: festival().data });
+    const dialog = open();
+    const search = within(dialog).getByRole("button", { name: "Buscar por nombre" });
+    expect(search.hasAttribute("disabled")).toBe(false);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Marcar como enviadas" }));
+    await waitFor(() => expect(createCredentialPrintBatch).toHaveBeenCalledTimes(1));
+    expect(search.hasAttribute("disabled")).toBe(true);
+    finish({ success: false, message: "El lote cambió." });
+    await waitFor(() => expect(search.hasAttribute("disabled")).toBe(false));
   });
 });

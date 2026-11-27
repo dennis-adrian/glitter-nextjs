@@ -165,8 +165,13 @@ export type UnitPrint = {
   coveredUnnamed: number;
   /** Date of the last item for this unit, reprints included. */
   lastPrintedAt: Date | null;
-  /** The last item's printed name differs from the current one. */
+  /**
+   * What the last item printed differs from now: the name, or for staff and
+   * volunteers the role on its second line.
+   */
   nameChanged: boolean;
+  /** Of those, only the role changed. */
+  roleChanged: boolean;
 };
 
 export type HolderPrint = {
@@ -181,6 +186,8 @@ export type HolderPrint = {
   /** Credentials printed beyond the entitlement, for `surplus`. */
   surplus: number;
   nameChanged: boolean;
+  /** Only a role changed (staff, volunteers), for the badge. */
+  roleChanged: boolean;
   /** New, short, or renamed: what the batch dialog pre-selects. */
   needsPrint: boolean;
   units: Record<string, UnitPrint>;
@@ -854,6 +861,23 @@ type UnitHistory = {
   last: CredentialBatchItemRow;
 };
 
+/** Units whose printed second line is the role: a new role is new artwork. */
+function printsDetail(unitKey: string) {
+  return unitKey.startsWith("staff:") || unitKey.startsWith("volunteer:");
+}
+
+/** How the printed artwork of `current` differs from the `last` item's. */
+function artworkChange(
+  unitKey: string,
+  current: { printedName: string | null; detail: string },
+  last: CredentialBatchItemRow,
+): { changed: boolean; roleOnly: boolean } {
+  if (current.printedName == null) return { changed: false, roleOnly: false };
+  const name = (last.printedName ?? "") !== current.printedName;
+  const role = printsDetail(unitKey) && last.detail !== current.detail;
+  return { changed: name || role, roleOnly: role && !name };
+}
+
 function unitHistories(batches: readonly CredentialBatchRow[]) {
   const histories = new Map<string, UnitHistory>();
   const ordered = [...batches].sort(
@@ -871,11 +895,10 @@ function unitHistories(batches: readonly CredentialBatchRow[]) {
       const renamed =
         previous != null &&
         previous.coveredNamed + previous.coveredUnnamed > 0 &&
-        item.printedName != null &&
-        (previous.last.printedName ?? "") !== item.printedName;
+        artworkChange(item.unitKey, item, previous.last).changed;
       if (renamed) {
-        // Printed under a new name: the earlier copies carry the old one, so
-        // what this item sends is all that is covered now.
+        // Printed under a new name (or role): the earlier copies carry the
+        // old one, so what this item sends is all that is covered now.
         history.coveredNamed = item.namedCount;
         history.coveredUnnamed = item.unnamedCount;
       } else if (!item.isReprint) {
@@ -898,15 +921,16 @@ function unitPrint(unit: CredentialUnit, history: UnitHistory | undefined): Unit
       coveredUnnamed: history?.coveredUnnamed ?? 0,
       lastPrintedAt: history?.lastPrintedAt ?? null,
       nameChanged: false,
+      roleChanged: false,
     };
   }
   const short =
     history.coveredNamed < unit.named || history.coveredUnnamed < unit.unnamed;
   const over =
     history.coveredNamed > unit.named || history.coveredUnnamed > unit.unnamed;
-  const nameChanged =
-    unit.printedName != null &&
-    (history.last.printedName ?? "") !== unit.printedName;
+  const change = artworkChange(unit.key, unit, history.last);
+  const nameChanged = change.changed;
+  const roleChanged = change.roleOnly;
   if (nameChanged && unit.named + unit.unnamed > 0) {
     // The copies out there carry the old name: the whole entitlement is owed
     // again, which is what the next batch sends (batchItemFor).
@@ -916,6 +940,7 @@ function unitPrint(unit: CredentialUnit, history: UnitHistory | undefined): Unit
       coveredUnnamed: history.coveredUnnamed,
       lastPrintedAt: history.lastPrintedAt,
       nameChanged,
+      roleChanged,
     };
   }
   return {
@@ -924,6 +949,7 @@ function unitPrint(unit: CredentialUnit, history: UnitHistory | undefined): Unit
     coveredUnnamed: history.coveredUnnamed,
     lastPrintedAt: history.lastPrintedAt,
     nameChanged,
+    roleChanged,
   };
 }
 
@@ -952,6 +978,7 @@ export function applyPrintState(
     let surplus = 0;
     let lastPrintedAt: Date | null = null;
     let nameChanged = false;
+    let renamedOnly = false;
     for (const unit of holder.units) {
       const print = unitPrint(unit, histories.get(unit.key));
       units[unit.key] = print;
@@ -977,6 +1004,7 @@ export function applyPrintState(
         lastPrintedAt = print.lastPrintedAt;
       }
       nameChanged ||= print.nameChanged;
+      renamedOnly ||= print.nameChanged && !print.roleChanged;
     }
     const state = mostUrgent(Object.values(units).map((unit) => unit.state));
     const print: HolderPrint = {
@@ -985,6 +1013,7 @@ export function applyPrintState(
       missing,
       surplus,
       nameChanged,
+      roleChanged: nameChanged && !renamedOnly,
       needsPrint: state === "new" || state === "partial" || nameChanged,
       units,
     };
@@ -1013,7 +1042,9 @@ export function applyPrintState(
       unnamed: 0,
     };
     stale.push({
-      key: unitKey,
+      // Its own namespace: a live holder can keep this unit's key with no
+      // units left (a printed person whose credential was taken away).
+      key: `stale:${unitKey}`,
       kind,
       group: item.group,
       name,
@@ -1038,6 +1069,7 @@ export function applyPrintState(
         missing: 0,
         surplus: history.coveredNamed + history.coveredUnnamed,
         nameChanged: false,
+        roleChanged: false,
         needsPrint: false,
         units: {
           [unitKey]: {
@@ -1046,6 +1078,7 @@ export function applyPrintState(
             coveredUnnamed: history.coveredUnnamed,
             lastPrintedAt: history.lastPrintedAt,
             nameChanged: false,
+            roleChanged: false,
           },
         },
       },
@@ -1139,7 +1172,8 @@ function sourceCounts(
     reservations,
     externals: holders.filter((holder) => holder.kind === "external" && !holder.stale)
       .length,
-    volunteers: holders.filter((holder) => holder.kind === "volunteer").length,
+    volunteers: holders.filter((holder) => holder.kind === "volunteer" && !holder.stale)
+      .length,
     staff: holders.filter(
       (holder) => holder.group === "staff" && !holder.stale && holder.kind === "staff",
     ).length,

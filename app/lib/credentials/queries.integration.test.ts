@@ -444,4 +444,49 @@ describeDatabase("credentials queries", () => {
     );
     expect(byName(data)).toEqual(screen);
   });
+
+  it("reads the page on one snapshot, even when a reservation stops counting mid-read", async () => {
+    const festivalId = await createFestival();
+    const reservationId = await createReservation(festivalId, {
+      userIds: [await createUser("Instantánea")],
+    });
+
+    // The read gets its own named connection, so the wait below is its own.
+    const applicationName = `credentials-snapshot-${randomUUID()}`;
+    const readerPool = new Pool({ connectionString: testDatabaseUrl, max: 1, application_name: applicationName });
+    const blocker = await pool!.connect();
+    let reading: Promise<Settled<CredentialsData | null>> | null = null;
+    try {
+      // Pause the read on its participants statement, after its reservations
+      // statement, and reject the reservation meanwhile.
+      await blocker.query("BEGIN");
+      await blocker.query("LOCK TABLE participations IN ACCESS EXCLUSIVE MODE");
+      reading = settle(
+        queries.fetchCredentialsSnapshot(drizzle(readerPool, { schema }) as never, festivalId),
+      );
+      await waitForLock("participations", applicationName, reading);
+      await integrationDb!
+        .update(standReservations)
+        .set({ status: "rejected" })
+        .where(eq(standReservations.id, reservationId));
+      await blocker.query("COMMIT");
+
+      // Read from before the rejection: the reservation keeps its participant,
+      // rather than turning up without people.
+      const read = await reading;
+      if ("error" in read) throw read.error;
+      const data = read.value;
+      expect(data!.reservations.map((reservation) => reservation.id)).toEqual([reservationId]);
+      expect(data!.participants).toEqual([expect.objectContaining({ reservationId })]);
+      expect(buildView(data!, DEFAULT_CREDENTIAL_RULES, ALL).warnings).toEqual([]);
+    } finally {
+      await blocker.query("ROLLBACK").catch(() => undefined);
+      blocker.release();
+      await reading;
+      await readerPool.end();
+    }
+
+    expect((await queries.fetchCredentialsSnapshot(integrationDb!, festivalId))!.reservations).toEqual([]);
+    expect(await queries.fetchCredentialsSnapshot(integrationDb!, 2_000_000_000)).toBeNull();
+  });
 });

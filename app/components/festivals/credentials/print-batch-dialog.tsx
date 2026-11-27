@@ -221,7 +221,13 @@ export default function PrintBatchDialog() {
 
   return (
     <>
-      <DrawerDialog isDesktop={isDesktop} open={open} onOpenChange={openWith}>
+      <DrawerDialog
+        isDesktop={isDesktop}
+        open={open}
+        // A swipe would only half-close the sheet while marking keeps it open.
+        dismissible={!isPending}
+        onOpenChange={openWith}
+      >
         <DrawerDialogTrigger isDesktop={isDesktop}>
           <Button type="button" wrap>
             <PrinterIcon className="mr-2 h-4 w-4 shrink-0" aria-hidden />
@@ -246,6 +252,8 @@ export default function PrintBatchDialog() {
             </DrawerDialogDescription>
           </DrawerDialogHeader>
 
+          {/* While marking, the selection and note are locked: the request
+              already carries them, so an edit now would not be recorded. */}
           <div
             className={cn(
               "flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto",
@@ -304,6 +312,7 @@ export default function PrintBatchDialog() {
                       placeholder="Buscar por nombre"
                       value={query}
                       autoComplete="off"
+                      disabled={isPending}
                       onChange={(event) => setQuery(event.target.value)}
                       className="pl-9"
                     />
@@ -320,6 +329,7 @@ export default function PrintBatchDialog() {
                             <Checkbox
                               id={`batch-${holder.key}`}
                               checked={chosenSet.has(holder.key)}
+                              disabled={isPending}
                               onCheckedChange={() => toggle(holder.key)}
                               aria-label={`Incluir a ${holder.name} en el lote`}
                               className="mt-0.5"
@@ -340,6 +350,8 @@ export default function PrintBatchDialog() {
                     type="button"
                     variant="outline"
                     className="justify-start"
+                    // Opened mid-save, it would also outlive the sheet it edits.
+                    disabled={isPending}
                     onClick={() => setSearchOpen(true)}
                   >
                     <SearchIcon className="mr-2 h-4 w-4 shrink-0" aria-hidden />
@@ -366,7 +378,14 @@ export default function PrintBatchDialog() {
                           {holderDetail(holder)}
                         </span>
                       </div>
-                      <Button type="button" variant="ghost" size="sm" wrap onClick={() => toggle(holder.key)}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        wrap
+                        disabled={isPending}
+                        onClick={() => toggle(holder.key)}
+                      >
                         Volver a incluir
                       </Button>
                     </li>
@@ -380,7 +399,14 @@ export default function PrintBatchDialog() {
                           {holderDetail(holder)}
                         </span>
                       </div>
-                      <Button type="button" variant="ghost" size="sm" wrap onClick={() => toggle(holder.key)}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        wrap
+                        disabled={isPending}
+                        onClick={() => toggle(holder.key)}
+                      >
                         Quitar
                       </Button>
                     </li>
@@ -396,6 +422,7 @@ export default function PrintBatchDialog() {
                 value={note}
                 maxLength={PRINT_BATCH_NOTE_MAX}
                 placeholder="Opcional, por ejemplo la imprenta o el pedido"
+                disabled={isPending}
                 onChange={(event) => setNote(event.target.value)}
               />
             </section>

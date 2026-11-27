@@ -192,7 +192,7 @@ New folder `app/lib/credentials/`, modelled on the admin side of volunteers (`ap
 5. The roster with a selected flag, one-off entries, rule rows, external overrides.
 6. Batches and their items.
 
-From the page, run at most three statements at a time. From inside a transaction, await them one after another. `buildHolders` must tolerate a participant row whose reservation is missing, because the reads are separate statements.
+The page and the CSV export read through `fetchCredentialsSnapshot`: one read-only `REPEATABLE READ` transaction, statements one after another, so a reservation that stops counting mid-read cannot keep its row while losing its participants, and an undo cannot leave a batch header without its items. The actions call `fetchCredentialsData(tx, …)` on their own `READ COMMITTED` transaction, one statement after another: the batch action after its batch and rules locks (under `REPEATABLE READ` the first lock statement would take the snapshot before its wait and miss a batch committed meanwhile), the external override without a lock. There the reads are still separate snapshots, so `buildHolders` must tolerate a participant row whose reservation is missing.
 
 All three statuses are always loaded (a few hundred rows at most). The status and group toggles are applied by the pure calculator, so they respond instantly in the browser without another request.
 
@@ -219,7 +219,7 @@ Rules that keep this consistent:
 - `applyPrintState` always runs on the holders built from **all three statuses and all groups**. Filters are applied afterwards. `stale` means absent from the unfiltered set, so a printed pending reservation does not turn "Ya no corresponde" just because the "Pendientes" toggle is off.
 - The page and the export route both call `buildView(data, rules, filters)`, so they cannot disagree.
 - Stale units are not in the live data; they are rebuilt from their batch items.
-- If the name stored in a unit's last item differs from the current printed name, the unit is `partial` with its whole entitlement missing (the copies out there carry the old name), never `surplus`, and the row shows "Cambió el nombre" (amber) instead of "Faltan" or "Sobran". The next batch sends that full entitlement under the new name as a reprint, so a rename that comes with a raise or a cut is printed whole and the badge clears. This covers an admin replacing the partner on a reservation (`admin-service.ts` rewrites the participation's `user_id` to a different person).
+- If the name stored in a unit's last item differs from the current printed name (for team members and volunteers, also the role, which is printed as the second line; the badge then reads "Cambió el rol"), the unit is `partial` with its whole entitlement missing (the copies out there carry the old name), never `surplus`, and the row shows "Cambió el nombre" (amber) instead of "Faltan" or "Sobran". The next batch sends that full entitlement under the new name as a reprint, so a rename that comes with a raise or a cut is printed whole and the badge clears. This covers an admin replacing the partner on a reservation (`admin-service.ts` rewrites the participation's `user_id` to a different person).
 - A row's badge is the most urgent of its units, in the order `stale`, `partial`, `new`, `surplus`, `printed`.
 
 ### 6.3 Writes
@@ -246,7 +246,7 @@ Every action follows the shape of `app/lib/volunteers/admin-actions.ts`:
 
 `createCredentialPrintBatch`, inside one transaction:
 
-1. Takes `pg_advisory_xact_lock(hashtext('credential_print_batches'), festivalId)` so two admins cannot record the same unit twice. Do not reuse `lockFestivalRow`; it is the reservation flow's throughput ceiling.
+1. Takes `pg_advisory_xact_lock(hashtext('credential_print_batches'), festivalId)` so two admins cannot record the same unit twice. Do not reuse `lockFestivalRow`; it is the reservation flow's throughput ceiling. Then takes the rules lock too, so a rule save cannot land between the separate reads of step 2.
 2. Calls `fetchCredentialsData(tx, festivalId)` and recomputes holders and print state from live data. Counts come from the server, never from the client.
 3. Refuses the batch when the festival's latest batch (by `created_at`, then `id`, as undo orders it) is no longer `lastBatchId`: another batch was recorded or undone meanwhile, so even matching counts may be a second copy of the same reprint. Refuses any key that is not a current holder, and any holder whose entitlement is zero. Refuses the whole batch when a holder's recomputed name, second line (a role, an extra's label), stand, counts or reprint flag differ from what the client sent, so what is recorded is what was exported to the printer, and a stale screen or a second admin cannot record a reprint nobody saw.
 4. Writes the items of each selected holder (`batchItemsFor`). A holder that needs printing sends only its units that do (new, short or renamed) and leaves its printed units out; a holder with nothing left to print sends every unit as a reprint. An item stores only what this batch sends:
@@ -265,7 +265,7 @@ Every action follows the shape of `app/lib/volunteers/admin-actions.ts`:
 | `/dashboard/festivals/[id]/credentials` | The page. The tab comes from `?tab=` (`resumen` default, `nombres`, `equipo`, `reglas`). | M1–M4, M6 |
 | `/dashboard/festivals/[id]/credentials/export` | CSV download (`GET`). Accepts the same status and group params as the page. | — |
 
-`page.tsx` is an async server component. It exports `metadata = { title: "Credenciales" }`, awaits `params` and `searchParams` (both are Promises in this Next version), calls `loadCredentialsPage`, then `fetchCredentialsData(db, festivalId)`, and renders the header, the tab links and one view. Add `loading.tsx` with a skeleton.
+`page.tsx` is an async server component. It exports `metadata = { title: "Credenciales" }`, awaits `params` and `searchParams` (both are Promises in this Next version), calls `loadCredentialsPage`, then `fetchCredentialsSnapshot(db, festivalId)` (§6.1), and renders the header, the tab links and one view. Add `loading.tsx` with a skeleton.
 
 `export/route.ts` does its own gating, like `volunteers/export/route.ts`: `requireAdminOrFestivalAdmin` (401 "No autorizado"), then zod params (404). It answers with a UTF-8 BOM, `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment` and `Cache-Control: private, no-store`. Filename `credenciales-<slug|id>-<yyyy-MM-dd>.csv` with the date in `America/La_Paz`.
 
