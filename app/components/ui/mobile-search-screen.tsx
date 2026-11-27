@@ -32,7 +32,9 @@ type MobileSearchSharedProps<T extends string | number = string | number> = {
   /**
    * Opt-in multi-select: the values currently picked. Rows become options
    * with `aria-selected`, in a multi-selectable listbox; the caller draws the
-   * check mark through `renderOption`. Left out, nothing changes.
+   * check mark through `renderOption`. Left out, nothing changes. Search
+   * results only: `suggestedOptions` stay the partner search's single-pick
+   * list, without `renderOption`.
    */
   selectedValues?: ReadonlyArray<string | number>;
 };
