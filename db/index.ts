@@ -42,7 +42,8 @@ function redactQueryParams(query: string, params: unknown[]): unknown[] {
 
   // A volunteer application is a stranger's name, birth date, phones, email
   // and free text, and nothing in its params is worth reading in a log.
-  if (/volunteer_applications/i.test(query)) {
+  // A cultural activity postulation (public form) is the same.
+  if (/volunteer_applications|"live_acts"/i.test(query)) {
     return params.map((param) =>
       typeof param === "string" ? "[REDACTED_VOLUNTEER]" : param,
     );
