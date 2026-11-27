@@ -25,8 +25,8 @@ afterEach(() => {
 function festival() {
   const data = emptyData();
   const camila = addReservation(data, { people: [{ name: "Camila Rojas" }] });
-  addReservation(data, { people: [{ name: "Lucía Fernández" }] });
-  addReservation(data, { category: "gastronomy", people: [{ name: "Andrés Vaca" }] });
+  const lucia = addReservation(data, { people: [{ name: "Lucía Fernández" }] });
+  const andres = addReservation(data, { category: "gastronomy", people: [{ name: "Andrés Vaca" }] });
   addReservation(data, { people: [{ name: "Pendiente" }], status: "pending" });
   data.batches.push(
     batch([
@@ -52,7 +52,7 @@ function festival() {
       },
     ]),
   );
-  return { data, camila };
+  return { data, camila, lucia, andres };
 }
 
 function open() {
@@ -113,7 +113,7 @@ describe("PrintBatchDialog", () => {
 
   it("keeps Cancelar and Marcar como enviadas in one row and sends the counts it shows", async () => {
     createCredentialPrintBatch.mockResolvedValue({ success: true, message: "Listo." });
-    const { data } = festival();
+    const { data, lucia, andres } = festival();
     renderWithCredentials(<PrintBatchDialog />, { data });
     const dialog = open();
     const footer = within(dialog).getByTestId("batch-footer");
@@ -131,13 +131,19 @@ describe("PrintBatchDialog", () => {
     // The print history it was opened on: the fixture's one batch.
     expect(data.batches).toHaveLength(1);
     expect(input.lastBatchId).toBe(data.batches[0]!.id);
-    expect(input.holders).toHaveLength(2);
-    expect(
-      input.holders.every(
-        (holder: { key: string; name: string }) =>
-          holder.key.startsWith("participant:") && holder.name.length > 0,
+    // Exactly the pre-selected two, each with the counts it was shown.
+    const byKey = Object.fromEntries(
+      input.holders.map(
+        (holder: { key: string; name: string; named: number; unnamed: number }) => [
+          holder.key,
+          { name: holder.name, named: holder.named, unnamed: holder.unnamed },
+        ],
       ),
-    ).toBe(true);
+    );
+    expect(byKey).toEqual({
+      [`participant:${lucia.participations[0]}`]: { name: "Lucía Fernández", named: 1, unnamed: 1 },
+      [`participant:${andres.participations[0]}`]: { name: "Andrés Vaca", named: 2, unnamed: 0 },
+    });
     const sent = input.holders.reduce(
       (sum: number, holder: { named: number; unnamed: number; reprint: boolean }) => {
         expect(holder.reprint).toBe(false);
