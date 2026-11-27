@@ -989,7 +989,9 @@ export function applyPrintState(
       unnamed: 0,
     };
     stale.push({
-      key: unitKey,
+      // Its own namespace: a live holder can keep this unit's key with no
+      // units left (a printed person whose credential was taken away).
+      key: `stale:${unitKey}`,
       kind,
       group: item.group,
       name,
@@ -1113,7 +1115,8 @@ function sourceCounts(
     reservations,
     externals: holders.filter((holder) => holder.kind === "external" && !holder.stale)
       .length,
-    volunteers: holders.filter((holder) => holder.kind === "volunteer").length,
+    volunteers: holders.filter((holder) => holder.kind === "volunteer" && !holder.stale)
+      .length,
     staff: holders.filter(
       (holder) => holder.group === "staff" && !holder.stale && holder.kind === "staff",
     ).length,

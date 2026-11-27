@@ -535,7 +535,7 @@ describe("print state", () => {
     // instead of moving onto someone's row.
     expect(titular.print!.state).toBe("printed");
     const stale = buildView(data, DEFAULT_CREDENTIAL_RULES, ALL).holders.filter((h) => h.stale);
-    expect(stale.map((holder) => holder.key)).toEqual([`reservation:${reservationId}`]);
+    expect(stale.map((holder) => holder.key)).toEqual([`stale:reservation:${reservationId}`]);
     expect(holderOf(data, "Socia")!.print!.state).toBe("new");
     expect(batchItemsFor(holderOf(data, "Socia")!)).toHaveLength(1);
   });
@@ -669,6 +669,33 @@ describe("print state", () => {
     expect(view.print.staleHolders).toBe(2);
     expect(view.print.staleCredentials).toBe(2);
     expect(isPrintable(stale[0]!)).toBe(false);
+  });
+
+  it("keys a stale unit apart from the live holder that lost it", () => {
+    const data = emptyData();
+    addReservation(data, { people: [{ name: "Ana" }, { name: "Bea" }] });
+    data.volunteers.push({ applicationId: 9, fullName: "Vol", roleName: null });
+    print(data);
+    const rules = resolveRules([
+      { group: "illustration", quantity: 1, namingMode: null },
+      { group: "volunteer", quantity: 0, namingMode: null },
+    ]);
+    const { holders } = buildView(data, rules, ALL);
+    const keys = holders.map((holder) => holder.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(holders.filter((holder) => holder.stale).map((holder) => holder.key)).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^stale:participant:/), "stale:volunteer:9"]),
+    );
+  });
+
+  it("does not count a printed volunteer who is no longer accepted", () => {
+    const data = emptyData();
+    data.volunteers.push({ applicationId: 9, fullName: "Vol", roleName: null });
+    print(data);
+    data.volunteers.splice(0, 1);
+    const view = buildView(data, DEFAULT_CREDENTIAL_RULES, ALL);
+    expect(view.holders.filter((holder) => holder.stale)).toHaveLength(1);
+    expect(view.sources.volunteers).toBe(0);
   });
 
   it("summarises the last batch and what changed since", () => {

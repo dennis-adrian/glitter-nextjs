@@ -46,11 +46,19 @@ export function useCredentials(): CredentialsContextValue {
   return value;
 }
 
+/** One string per set of filters, as the URL encodes them. */
+function filtersKey(filters: CredentialFilters) {
+  return new URLSearchParams(credentialFilterParams(filters)).toString();
+}
+
 /**
  * The page's live state. The status and group toggles are client state,
  * mirrored to the URL (`?estados=`, `?grupos=`) so a filtered view can be
  * shared and the export link carries the same filters; the calculator runs
  * here, so they answer instantly.
+ *
+ * Back, forward or a link to this page with other filters keeps the provider
+ * mounted, so the filters the page parses from that URL are read back in.
  */
 export function CredentialsProvider({
   festivalId,
@@ -70,6 +78,13 @@ export function CredentialsProvider({
   const router = useRouter();
   const pathname = usePathname();
   const [filters, setFilterState] = useState(initialFilters);
+  const urlKey = filtersKey(initialFilters);
+  const [seenUrlKey, setSeenUrlKey] = useState(urlKey);
+  // Adjusted during render, so the new URL never paints with the old filters.
+  if (urlKey !== seenUrlKey) {
+    setSeenUrlKey(urlKey);
+    if (urlKey !== filtersKey(filters)) setFilterState(initialFilters);
+  }
   const rules = useMemo(() => resolveRules(data.ruleRows), [data.ruleRows]);
   const view = useMemo(() => buildView(data, rules, filters), [data, rules, filters]);
 

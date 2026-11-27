@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { CredentialsProvider } from "@/app/components/festivals/credentials/credentials-context";
 import CredentialsSourcesCard from "@/app/components/festivals/credentials/credentials-sources-card";
 import CredentialsSummaryView from "@/app/components/festivals/credentials/credentials-summary-view";
 import { renderWithCredentials } from "@/app/components/festivals/credentials/test-utils";
@@ -11,6 +12,11 @@ import {
   addReservation,
   emptyData,
 } from "@/app/lib/credentials/__fixtures__/data";
+import {
+  DEFAULT_CREDENTIAL_FILTERS,
+  parseCredentialFilters,
+  type CredentialFilters,
+} from "@/app/lib/credentials/definitions";
 
 const replace = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({
@@ -68,5 +74,35 @@ describe("CredentialsSourcesCard", () => {
       { scroll: false },
     );
     expect(screen.getByText("Total a producir").parentElement!.textContent).toContain("6");
+  });
+
+  it("reads the filters back from a URL it did not write, as on Back", () => {
+    const data = festival();
+    const page = (filters: CredentialFilters) => (
+      <CredentialsProvider
+        festivalId={data.festival.id}
+        tab="resumen"
+        data={data}
+        initialFilters={filters}
+        isAdmin
+      >
+        <CredentialsSummaryView groups={["external", "volunteer"]} />
+      </CredentialsProvider>
+    );
+    const total = () => screen.getByText("Total a producir").parentElement!.textContent;
+    const { rerender } = render(page(DEFAULT_CREDENTIAL_FILTERS));
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Pendientes" }));
+    expect(total()).toContain("7");
+    // Its own write lands: the page hands back the same filters.
+    rerender(page(parseCredentialFilters({ estados: "pendientes" })));
+    expect(total()).toContain("7");
+
+    // Back to the URL without filters.
+    rerender(page(DEFAULT_CREDENTIAL_FILTERS));
+    expect(total()).toContain("5");
+    expect(screen.getByRole("checkbox", { name: "Pendientes" }).getAttribute("data-state")).toBe(
+      "unchecked",
+    );
   });
 });
