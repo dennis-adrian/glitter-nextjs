@@ -22,6 +22,7 @@ import {
   festivalTermsSections,
   festivalTermsVersions,
 } from "@/db/schema";
+import { isSafeTestDatabase } from "@/test-utils/safe-test-database";
 
 const fetchDraftFestivalTermsVersion = vi.hoisted(() => vi.fn());
 const dbMock = vi.hoisted(() => ({
@@ -49,15 +50,6 @@ vi.mock("@/db", () => ({
 }));
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
-
-function isSafeTestDatabase(url: string): boolean {
-  try {
-    const databaseName = decodeURIComponent(new URL(url).pathname.slice(1));
-    return /(^|[_-])(test|ci)([_-]|$)/i.test(databaseName);
-  } catch {
-    return false;
-  }
-}
 
 if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
   throw new Error(

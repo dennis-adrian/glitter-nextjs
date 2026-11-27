@@ -35,6 +35,7 @@ import {
   userRequests,
   users,
 } from "@/db/schema";
+import { isSafeTestDatabase } from "@/test-utils/safe-test-database";
 
 const currentProfileMock = vi.hoisted(() => vi.fn());
 
@@ -60,36 +61,10 @@ const testDatabaseUrl = process.env.TEST_DATABASE_URL;
  * and switches off the ledger's append-only trigger. A test-like name alone
  * does not make a remote endpoint safe.
  */
-const ALLOWED_TEST_HOSTS = new Set([
-  "localhost",
-  "127.0.0.1",
-  "::1",
-  "[::1]",
-  "host.docker.internal",
-]);
-
-/**
- * Judged on what pg will actually connect to. Query parameters can override
- * the host and database (`?host=…`), and a URL without a host makes pg fall
- * back to PGHOST, so either is refused rather than interpreted.
- */
-function isSafeTestDatabase(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    if (!["postgres:", "postgresql:"].includes(parsed.protocol)) return false;
-    if (parsed.search !== "" || parsed.hash !== "") return false;
-    if (parsed.hostname === "") return false;
-    const databaseName = decodeURIComponent(parsed.pathname.slice(1));
-    return (
-      ALLOWED_TEST_HOSTS.has(parsed.hostname.toLowerCase()) &&
-      /(^|[_-])(test|ci)([_-]|$)/i.test(databaseName)
-    );
-  } catch {
-    return false;
-  }
-}
-
-if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
+if (
+  testDatabaseUrl &&
+  !isSafeTestDatabase(testDatabaseUrl, { localOnly: true, plainUrl: true })
+) {
   throw new Error(
     "TEST_DATABASE_URL must be a plain postgres:// URL to a local database whose name contains 'test' or 'ci', with no query parameters.",
   );

@@ -24,6 +24,7 @@ import {
   volunteerRoles,
   volunteerShifts,
 } from "@/db/schema";
+import { isSafeTestDatabase } from "@/test-utils/safe-test-database";
 
 /**
  * The public volunteer application action against a real database, with the
@@ -45,15 +46,6 @@ vi.mock("next/headers", () => ({
 vi.mock("@/app/vendors/resend", () => ({ sendEmail }));
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
-
-function isSafeTestDatabase(url: string): boolean {
-  try {
-    const databaseName = decodeURIComponent(new URL(url).pathname.slice(1));
-    return /(^|[_-])(test|ci)([_-]|$)/i.test(databaseName);
-  } catch {
-    return false;
-  }
-}
 
 if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
   throw new Error(

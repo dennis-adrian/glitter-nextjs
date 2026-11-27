@@ -16,6 +16,7 @@ import {
 import type { PostAudience, PostStatus } from "@/app/lib/posts/definitions";
 import * as schema from "@/db/schema";
 import { postShareLinks, posts, users } from "@/db/schema";
+import { isSafeTestDatabase } from "@/test-utils/safe-test-database";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -43,15 +44,6 @@ vi.mock("@/db", () => ({
 }));
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
-
-function isSafeTestDatabase(url: string): boolean {
-  try {
-    const databaseName = decodeURIComponent(new URL(url).pathname.slice(1));
-    return /(^|[_-])(test|ci)([_-]|$)/i.test(databaseName);
-  } catch {
-    return false;
-  }
-}
 
 if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
   throw new Error(

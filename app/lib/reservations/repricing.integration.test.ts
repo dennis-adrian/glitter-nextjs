@@ -36,6 +36,7 @@ import {
   userRequests,
   users,
 } from "@/db/schema";
+import { isSafeTestDatabase } from "@/test-utils/safe-test-database";
 
 /**
  * The shared repricing model end to end: every command that changes what a
@@ -67,15 +68,6 @@ vi.mock("@/app/api/users/actions", async (importOriginal) => ({
 }));
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
-
-function isSafeTestDatabase(url: string): boolean {
-  try {
-    const databaseName = decodeURIComponent(new URL(url).pathname.slice(1));
-    return /(^|[_-])(test|ci)([_-]|$)/i.test(databaseName);
-  } catch {
-    return false;
-  }
-}
 
 if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
   throw new Error(

@@ -28,6 +28,7 @@ import {
   users,
   visitors,
 } from "@/db/schema";
+import { isSafeTestDatabase } from "@/test-utils/safe-test-database";
 
 const requireAdminOrFestivalAdmin = vi.hoisted(() => vi.fn());
 const sendBatchEmails = vi.hoisted(() => vi.fn());
@@ -43,15 +44,6 @@ vi.mock("@/app/lib/users/helpers", () => ({ requireAdminOrFestivalAdmin }));
 vi.mock("@/app/vendors/resend", () => ({ sendBatchEmails }));
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
-
-function isSafeTestDatabase(url: string): boolean {
-  try {
-    const databaseName = decodeURIComponent(new URL(url).pathname.slice(1));
-    return /(^|[_-])(test|ci)([_-]|$)/i.test(databaseName);
-  } catch {
-    return false;
-  }
-}
 
 if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
   throw new Error(

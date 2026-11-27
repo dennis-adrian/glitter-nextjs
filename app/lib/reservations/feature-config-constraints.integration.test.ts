@@ -7,32 +7,15 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { RESERVATION_REQUEST_OPERATIONS } from "@/app/lib/reservations/request-registry";
+import { isSafeTestDatabase } from "@/test-utils/safe-test-database";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
 /** Only disposable, locally hosted databases may be truncated by these suites. */
-const ALLOWED_TEST_HOSTS = new Set([
-  "localhost",
-  "127.0.0.1",
-  "::1",
-  "[::1]",
-  "host.docker.internal",
-]);
-
-function isSafeTestDatabase(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    const databaseName = decodeURIComponent(parsed.pathname.slice(1));
-    return (
-      ALLOWED_TEST_HOSTS.has(parsed.hostname.toLowerCase()) &&
-      /(^|[_-])(test|ci)([_-]|$)/i.test(databaseName)
-    );
-  } catch {
-    return false;
-  }
-}
-
-if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
+if (
+  testDatabaseUrl &&
+  !isSafeTestDatabase(testDatabaseUrl, { localOnly: true })
+) {
   throw new Error(
     "TEST_DATABASE_URL must target a local database whose name contains 'test' or 'ci'.",
   );

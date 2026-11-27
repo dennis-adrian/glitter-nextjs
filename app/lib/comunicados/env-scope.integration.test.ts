@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { VercelEnvironment } from "@/app/lib/comunicados/contracts";
 import * as schema from "@/db/schema";
 import { notifications } from "@/db/schema";
+import { isSafeTestDatabase } from "@/test-utils/safe-test-database";
 
 /**
  * Which campaigns a lane-wide run may take (docs/IMPLEMENTATION-comunicados.md
@@ -20,16 +21,6 @@ import { notifications } from "@/db/schema";
 vi.mock("server-only", () => ({}));
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
-
-function isSafeTestDatabase(url: string): boolean {
-  try {
-    return /(^|[_-])(test|ci)([_-]|$)/i.test(
-      decodeURIComponent(new URL(url).pathname.slice(1)),
-    );
-  } catch {
-    return false;
-  }
-}
 
 if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
   throw new Error(

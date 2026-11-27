@@ -32,18 +32,9 @@ vi.mock("@/app/lib/impersonation/viewer", () => ({
 }));
 
 import { allowImpersonationWrites, installWriteGuard } from "@/db/write-guard";
+import { isSafeTestDatabase } from "@/test-utils/safe-test-database";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
-
-function isSafeTestDatabase(url: string): boolean {
-  try {
-    return /(^|[_-])(test|ci)([_-]|$)/i.test(
-      decodeURIComponent(new URL(url).pathname.slice(1)),
-    );
-  } catch {
-    return false;
-  }
-}
 
 if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
   throw new Error(

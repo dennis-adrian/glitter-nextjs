@@ -39,6 +39,7 @@ import {
   users,
 } from "@/db/schema";
 import type { FullTableUpgradeExpectation } from "@/app/lib/reservations/full-table-upgrade";
+import { isSafeTestDatabase } from "@/test-utils/safe-test-database";
 
 const currentProfileMock = vi.hoisted(() => vi.fn());
 const cleanupMock = vi.hoisted(() => vi.fn());
@@ -64,15 +65,6 @@ vi.mock("@/app/lib/users/queries", async (importOriginal) => ({
 }));
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
-
-function isSafeTestDatabase(url: string): boolean {
-  try {
-    const databaseName = decodeURIComponent(new URL(url).pathname.slice(1));
-    return /(^|[_-])(test|ci)([_-]|$)/i.test(databaseName);
-  } catch {
-    return false;
-  }
-}
 
 if (testDatabaseUrl && !isSafeTestDatabase(testDatabaseUrl)) {
   throw new Error(
