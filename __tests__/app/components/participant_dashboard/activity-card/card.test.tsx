@@ -26,6 +26,7 @@ const ACTIVITY_TYPES = [
   ["festival_sticker", "Sticker del Festival", "Sticker del Festival"],
   ["coupon_book", "Cuponera de Descuentos", "Descuentos"],
   ["sticker_hunt", "Cacería de Stickers", "Cacería de Stickers"],
+  ["stamp_card", "Tarjeta de Sellos Navideña", "Tarjeta de Sellos"],
 ] as const satisfies ReadonlyArray<
   readonly [FestivalActivity["type"], string, string]
 >;

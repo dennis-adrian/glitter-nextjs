@@ -19,6 +19,11 @@ import {
   FestivalSectorWithStands,
   FestivalSectorWithStandsWithReservationsWithParticipants,
 } from "@/app/lib/festival_sectors/definitions";
+import {
+  credentialParticipantLines,
+  DEFAULT_CREDENTIAL_RULES,
+  type CredentialRules,
+} from "@/app/lib/credentials/definitions";
 import { MapIcon } from "lucide-react";
 import { useState } from "react";
 
@@ -40,12 +45,15 @@ export default function StandSpecificationsSectorCard({
   sector,
   category,
   fullSector,
+  credentialRules = DEFAULT_CREDENTIAL_RULES,
 }: {
   sector: FestivalSectorWithStands & {
     allowedCategories: UserCategory[];
   };
   category: UserCategory;
   fullSector?: FestivalSectorWithStandsWithReservationsWithParticipants;
+  /** The festival's rules as participants may read them (see participant-rules.ts). */
+  credentialRules?: CredentialRules;
 }) {
   const [mapOpen, setMapOpen] = useState(false);
 
@@ -126,23 +134,27 @@ export default function StandSpecificationsSectorCard({
     servicesIncluded.push("Ambiente semi-abierto, techado");
   }
 
-  // Adding services based on the category
+  // Adding services based on the category. The credential lines come from
+  // the festival's rules, worded by the same module as the admin page, so the
+  // two cannot drift; with the default rules they are the strings this card
+  // always showed.
+  const credentialGroup =
+    effectiveCategory === "illustration" || effectiveCategory === "gastronomy"
+      ? effectiveCategory
+      : "entrepreneurship";
   if (effectiveCategory === "illustration") {
     servicesIncluded.push(
       "1 pin de regalo por participante (acompañantes no incluidos)",
     );
-    servicesIncluded.push("1 credencial por participante");
-    servicesIncluded.push(
-      "1 credencial para acompañante en caso de no compartir espacio con otro ilustrador",
-    );
-  } else if (effectiveCategory === "gastronomy") {
-    servicesIncluded.push("1 pin de regalo");
-    servicesIncluded.push("2 credenciales con el nombre del expositor");
   } else {
     servicesIncluded.push("1 pin de regalo");
-    servicesIncluded.push("1 credencial para expositor");
-    servicesIncluded.push("1 credencial para acompañante");
   }
+  servicesIncluded.push(
+    ...credentialParticipantLines(
+      credentialGroup,
+      credentialRules[credentialGroup],
+    ),
+  );
   // All categories have these services
   servicesIncluded.push("2 sillas");
   servicesIncluded.push(

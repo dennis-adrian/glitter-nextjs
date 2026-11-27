@@ -1,6 +1,7 @@
 import "server-only";
 
 import { notFound, redirect } from "next/navigation";
+import { cache } from "react";
 import { z } from "zod";
 
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
@@ -18,12 +19,15 @@ export function parsePageId(raw: string | undefined) {
 
 /**
  * Every page of the admin by task: an admin or festival admin, a festival
- * that exists, and its call with the counts the screens show.
+ * that exists, and its call with the counts the screens show. Once per
+ * request: Revisar's layout and its pages both ask.
  */
-export async function loadVolunteerTaskPage(rawFestivalId: string) {
+export const loadVolunteerTaskPage = cache(async function loadVolunteerTaskPage(
+  rawFestivalId: string,
+) {
   if (!(await requireAdminOrFestivalAdmin())) redirect("/");
   const festivalId = parsePageId(rawFestivalId);
   const call = await fetchVolunteerTaskCall(festivalId);
   if (!call) notFound();
   return { festivalId, call };
-}
+});

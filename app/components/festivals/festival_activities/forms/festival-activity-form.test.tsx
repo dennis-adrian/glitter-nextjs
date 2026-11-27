@@ -161,6 +161,29 @@ describe("festival activity form", () => {
       }),
     ]);
   });
+  it("preselects image material for a stamp card and saves its type", async () => {
+    render(
+      <FestivalActivityForm
+        festivalId={490}
+        activity={{ ...activity, type: "stamp_card", proofType: null }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(
+        (screen.getByLabelText("Tipo de material") as HTMLSelectElement).value,
+      ).toBe("image"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    await waitFor(() => expect(mocks.update).toHaveBeenCalledOnce());
+    expect(mocks.update.mock.calls[0][2]).toMatchObject({
+      type: "stamp_card",
+      proofType: "image",
+      proofUploadLimitDate: end,
+    });
+  });
+
   it("shows the material deadline error before calling the server", async () => {
     render(<FestivalActivityForm festivalId={490} />);
     completeBasicFields();

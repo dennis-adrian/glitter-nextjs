@@ -1,6 +1,12 @@
 "use client";
 
-import { type ReactNode, useEffect, useRef } from "react";
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useId,
+  useRef,
+} from "react";
 
 import { Loader2Icon, SearchIcon, XIcon } from "lucide-react";
 
@@ -29,6 +35,14 @@ type MobileSearchSharedProps<T extends string | number = string | number> = {
   messages?: MobileSearchMessages;
   renderOption?: (option: SearchOption) => ReactNode;
   onSelect: (value: T) => void;
+  /**
+   * Opt-in multi-select: the values currently picked. Rows become options
+   * with `aria-selected`, in a multi-selectable listbox; the caller draws the
+   * check mark through `renderOption`. Left out, nothing changes. Search
+   * results only: `suggestedOptions` stay the partner search's single-pick
+   * list, without `renderOption`.
+   */
+  selectedValues?: ReadonlyArray<string | number>;
 };
 
 type MobileSearchScreenProps<T extends string | number = string | number> =
@@ -41,6 +55,14 @@ type MobileSearchScreenProps<T extends string | number = string | number> =
     title: string;
     onOpenChange: (open: boolean) => void;
     onSearchValueChange: (value: string) => void;
+    /** Opt-in: keep the search text after a pick (for picking several). */
+    keepSearchOnSelect?: boolean;
+    /**
+     * Opt-in: the header button's label ("Listo"). With it the button only
+     * closes the screen; without it, it reads "Cancelar" and also clears the
+     * search, as before.
+     */
+    dismissLabel?: string;
   };
 
 export default function MobileSearchScreen<T extends string | number>({
@@ -58,6 +80,9 @@ export default function MobileSearchScreen<T extends string | number>({
   onOpenChange,
   onSearchValueChange,
   onSelect,
+  selectedValues,
+  keepSearchOnSelect = false,
+  dismissLabel,
 }: MobileSearchScreenProps<T>) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -71,12 +96,12 @@ export default function MobileSearchScreen<T extends string | number>({
 
   const handleCancel = () => {
     onOpenChange(false);
-    onSearchValueChange("");
+    if (!dismissLabel) onSearchValueChange("");
   };
 
   const handleSelect = (value: T) => {
     onSelect(value);
-    onSearchValueChange("");
+    if (!keepSearchOnSelect) onSearchValueChange("");
   };
 
   return (
@@ -128,7 +153,7 @@ export default function MobileSearchScreen<T extends string | number>({
               size="sm"
               onClick={handleCancel}
             >
-              Cancelar
+              {dismissLabel ?? "Cancelar"}
             </Button>
           </div>
 
@@ -147,6 +172,7 @@ export default function MobileSearchScreen<T extends string | number>({
                 options={options}
                 renderOption={renderOption}
                 onSelect={handleSelect}
+                selectedValues={selectedValues}
               />
             )}
           </div>
@@ -183,7 +209,10 @@ function MobileSearchScreenContent<T extends string | number>({
   options,
   onSelect,
   renderOption,
+  selectedValues,
 }: MobileSearchSharedProps<T>) {
+  const multi = selectedValues !== undefined;
+  const headingId = useId();
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 p-2 text-sm text-muted-foreground">
@@ -204,14 +233,26 @@ function MobileSearchScreenContent<T extends string | number>({
   return (
     <div>
       <div className="flex items-center justify-between gap-2 mb-2">
-        <h3 className="text-sm font-medium">Resultados de la búsqueda</h3>
+        <h3 id={headingId} className="text-sm font-medium">
+          Resultados de la búsqueda
+        </h3>
         {headerActions}
       </div>
-      <ul role="listbox" className="flex flex-col gap-2 pb-6">
+      <ul
+        role="listbox"
+        aria-multiselectable={multi || undefined}
+        aria-labelledby={multi ? headingId : undefined}
+        onKeyDown={multi ? moveOptionFocus : undefined}
+        className="flex flex-col gap-2 pb-6"
+      >
         {options.map((option) => (
-          <li key={option.value}>
+          <li key={option.value} role={multi ? "none" : undefined}>
             <button
               type="button"
+              role={multi ? "option" : undefined}
+              aria-selected={
+                multi ? selectedValues.includes(option.value) : undefined
+              }
               disabled={option.disabled}
               onClick={() => onSelect(option.value as T)}
               className={cn(
@@ -233,6 +274,32 @@ function MobileSearchScreenContent<T extends string | number>({
       </ul>
     </div>
   );
+}
+
+/**
+ * Arrow Up/Down move focus between the enabled options of a multi-select
+ * listbox; each option is a button, so Space and Enter still toggle it.
+ */
+function moveOptionFocus(event: KeyboardEvent<HTMLUListElement>) {
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+  const options = Array.from(
+    event.currentTarget.querySelectorAll<HTMLButtonElement>(
+      'button[role="option"]:not(:disabled)',
+    ),
+  );
+  if (options.length === 0) return;
+  event.preventDefault();
+  const current = options.indexOf(document.activeElement as HTMLButtonElement);
+  const next =
+    current === -1
+      ? event.key === "ArrowDown"
+        ? 0
+        : options.length - 1
+      : Math.min(
+          options.length - 1,
+          Math.max(0, current + (event.key === "ArrowDown" ? 1 : -1)),
+        );
+  options[next]!.focus();
 }
 
 function MobileSearchScreenSuggestedOptions<T extends string | number>({

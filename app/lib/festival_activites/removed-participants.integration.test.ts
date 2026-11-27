@@ -138,14 +138,18 @@ async function createUser(label: string, role: "user" | "admin" = "user") {
   return user;
 }
 
-async function createActivity(festivalId: number, name: string) {
+async function createActivity(
+  festivalId: number,
+  name: string,
+  type: FestivalActivity["type"] = "sticker_print",
+) {
   const now = Date.now();
   const [activity] = await integrationDb!
     .insert(festivalActivities)
     .values({
       festivalId,
       name,
-      type: "sticker_print",
+      type,
       registrationStartDate: new Date(now - DAY),
       registrationEndDate: new Date(now + DAY),
       waitlistWindowMinutes: 60,
@@ -154,7 +158,10 @@ async function createActivity(festivalId: number, name: string) {
   return activity.id;
 }
 
-async function createVariant(activityId: number, participationLimit: number | null) {
+async function createVariant(
+  activityId: number,
+  participationLimit: number | null,
+) {
   const [variant] = await integrationDb!
     .insert(festivalActivityDetails)
     .values({ activityId, participationLimit })
@@ -210,15 +217,12 @@ describeDatabase("a removal bars the whole activity", () => {
       enrollFromWaitlistInvitation,
       enrollInBestStandActivity,
     } = await import("@/app/lib/festival_activites/actions"));
-    ({ notifyWaitlistEntry } = await import(
-      "@/app/lib/festival_activites/admin-actions"
-    ));
-    ({ promoteFromWaitlist } = await import(
-      "@/app/lib/festival_activites/waitlist-promotion"
-    ));
-    ({ wasRemovedFromActivity } = await import(
-      "@/app/lib/festival_activites/queries"
-    ));
+    ({ notifyWaitlistEntry } =
+      await import("@/app/lib/festival_activites/admin-actions"));
+    ({ promoteFromWaitlist } =
+      await import("@/app/lib/festival_activites/waitlist-promotion"));
+    ({ wasRemovedFromActivity } =
+      await import("@/app/lib/festival_activites/queries"));
 
     const result = await pool!.query<{ table: string | null }>(
       "select to_regclass('public.festival_activity_waitlist')::text as table",
@@ -287,7 +291,9 @@ describeDatabase("a removal bars the whole activity", () => {
     // Activities, variants, participants and waitlist entries cascade.
     const leftoverFestivals = festivalIds.splice(0);
     if (leftoverFestivals.length > 0) {
-      await db.delete(festivals).where(inArray(festivals.id, leftoverFestivals));
+      await db
+        .delete(festivals)
+        .where(inArray(festivals.id, leftoverFestivals));
     }
     const leftoverUsers = userIds.splice(0);
     if (leftoverUsers.length > 0) {
@@ -341,7 +347,9 @@ describeDatabase("a removal bars the whole activity", () => {
     );
 
     expect(result).toMatchObject({ success: true });
-    expect(await participantRows(unlimitedVariant, newcomer.id)).toHaveLength(1);
+    expect(await participantRows(unlimitedVariant, newcomer.id)).toHaveLength(
+      1,
+    );
   });
 
   it("refuses a waitlist invitation to another variant", async () => {
@@ -446,5 +454,32 @@ describeDatabase("a removal bars the whole activity", () => {
       .where(eq(festivalActivityWaitlist.id, entry.id));
     expect(unchanged.notifiedAt).toBeNull();
     expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("enrolls an eligible participant in an open stamp card activity", async () => {
+    const { festivalId } = fixture;
+    const activityId = await createActivity(
+      festivalId,
+      "Stamp Rally Navideño",
+      "stamp_card",
+    );
+    const [variant] = await integrationDb!
+      .insert(festivalActivityDetails)
+      .values({ activityId, participationLimit: 32, category: "illustration" })
+      .returning({ id: festivalActivityDetails.id });
+    const artist = await createUser("stamp-card");
+    currentProfile.mockResolvedValue(artist);
+
+    const result = await enrollInActivity(
+      artist as BaseProfile,
+      festivalId,
+      { id: variant.id } as ActivityDetailsWithParticipants,
+      { id: activityId } as FestivalActivity,
+    );
+
+    expect(result.success).toBe(true);
+    const rows = await participantRows(variant.id, artist.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].removedAt).toBeNull();
   });
 });

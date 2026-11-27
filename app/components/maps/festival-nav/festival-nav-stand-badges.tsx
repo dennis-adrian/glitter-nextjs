@@ -17,12 +17,16 @@ type FestivalNavStandBadgesProps = {
 };
 
 const BADGE_RADIUS = 1.3;
-const BADGE_SPACING = 1.1;
+const BADGE_SPACING = 2;
 const BADGE_INSET = BADGE_RADIUS;
+const BADGE_CENTER_Y = 0.8;
+/** Icon box inside the badge; the drawing itself is padded within it. */
+const ICON_SIZE = 1.6;
 
 /**
- * Activity markers painted on top of the stands. Badges stack right to left so
- * a stand carrying several activities keeps them all visible.
+ * Activity markers painted on top of the stands. Badges stack right to left,
+ * each covering only the edge of the one before it so its icon stays
+ * readable, until a longer row would run past the stand's left edge.
  */
 export default function FestivalNavStandBadges({
   stands,
@@ -37,6 +41,16 @@ export default function FestivalNavStandBadges({
         );
         if (badges.length === 0) return null;
 
+        // Tighten the stack only when the default spacing would push the last
+        // badge past the stand's left edge: from three badges on they overlap
+        // more, and with four or five only the front icon stays clear.
+        const spacing =
+          badges.length > 1
+            ? Math.min(
+                BADGE_SPACING,
+                (STAND_SIZE - 2 * BADGE_RADIUS) / (badges.length - 1),
+              )
+            : BADGE_SPACING;
         const dimmed = dimmedStandIds?.has(stand.id) ?? false;
         const { left, top } = getStandPosition(stand);
 
@@ -54,31 +68,29 @@ export default function FestivalNavStandBadges({
             }}
           >
             {badges.map((activity, index) => {
-              const marker = getActivityMarker(activity);
-              const cx = STAND_SIZE - BADGE_INSET - index * BADGE_SPACING;
+              const { Icon, badgeFill } = getActivityMarker(activity);
+              const cx = STAND_SIZE - BADGE_INSET - index * spacing;
 
               return (
-                <g key={activity}>
+                <g key={activity} data-activity={activity}>
                   <circle
                     cx={cx}
-                    cy={0.8}
+                    cy={BADGE_CENTER_Y}
                     r={BADGE_RADIUS}
-                    fill={marker.badgeFill}
+                    fill={badgeFill}
                     stroke="#fff"
                     strokeWidth={0.3}
                   />
-                  <text
-                    x={cx}
-                    y={0.8}
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    fontSize={1.4}
-                    fontWeight={700}
-                    fill="#fff"
-                    style={{ userSelect: "none" }}
-                  >
-                    {marker.symbol}
-                  </text>
+                  {/* An icon rather than a text glyph: a character is
+                      centred by its font's metrics, which differ per device,
+                      while the icon is centred by its own geometry. */}
+                  <Icon
+                    x={cx - ICON_SIZE / 2}
+                    y={BADGE_CENTER_Y - ICON_SIZE / 2}
+                    size={ICON_SIZE}
+                    color="#fff"
+                    strokeWidth={2.75}
+                  />
                 </g>
               );
             })}
