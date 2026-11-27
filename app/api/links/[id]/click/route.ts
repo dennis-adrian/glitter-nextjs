@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { recordSiteLinkClick } from "@/app/lib/links/queries";
+import { toLinksSource } from "@/app/lib/links/statistics";
 import {
   callerFingerprint,
   consumeActionRateLimit,
@@ -13,6 +14,9 @@ const CLICKS_PER_MINUTE = 5;
  * Counts a tap on one of the `/links` page's links. The page calls it with
  * `navigator.sendBeacon` as the visitor leaves, so it answers nothing: a
  * failure here must never be something the visitor could notice.
+ *
+ * `?source=` is where the visit came from, as the page read it from the
+ * referrer; anything outside the fixed set counts as `other`.
  *
  * Public by design. The per-visitor limit keeps a held-down key or a simple
  * loop from inflating a link's count.
@@ -33,7 +37,12 @@ export async function POST(
       limit: CLICKS_PER_MINUTE,
       windowMs: 60_000,
     });
-    if (allowed) await recordSiteLinkClick(id);
+    if (allowed) {
+      await recordSiteLinkClick(
+        id,
+        toLinksSource(request.nextUrl.searchParams.get("source")),
+      );
+    }
   } catch (error) {
     console.error("site link click", error);
   }

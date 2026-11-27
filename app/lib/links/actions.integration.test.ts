@@ -2,7 +2,7 @@
 
 import { asc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import {
   afterAll,
   afterEach,
@@ -14,9 +14,17 @@ import {
   vi,
 } from "vitest";
 
-import { disposableDatabaseProblem } from "@/app/lib/links/disposable-test-database";
+import {
+  LINKS_SUITE_LOCK,
+  LINKS_SUITE_LOCK_TIMEOUT,
+  disposableDatabaseProblem,
+} from "@/app/lib/links/disposable-test-database";
 import * as schema from "@/db/schema";
-import { siteLinks, siteLinksSettings } from "@/db/schema";
+import {
+  siteLinks,
+  siteLinksDailyClicks,
+  siteLinksSettings,
+} from "@/db/schema";
 
 /**
  * The `/dashboard/links` actions against a real database: who may call them,
@@ -25,7 +33,10 @@ import { siteLinks, siteLinksSettings } from "@/db/schema";
  *
  * `site_links` has no owner column to scope a test by, so the suite takes the
  * two tables over: it empties them before each test and puts back what was
- * there (the rows migration 0313 seeds) when it ends.
+ * there (the rows migration 0313 seeds) when it ends. Emptying `site_links`
+ * empties the `link_id` of every daily tap row (ON DELETE SET NULL), and the
+ * taps here add rows of their own, so `site_links_daily_clicks` is put back
+ * as it was too, each row with its link.
  */
 
 const currentProfileMock = vi.hoisted(() => vi.fn());
@@ -113,12 +124,15 @@ let queries: Queries;
 
 let savedLinks: (typeof siteLinks.$inferSelect)[] = [];
 let savedSettings: (typeof siteLinksSettings.$inferSelect)[] = [];
+let savedDailyClicks: (typeof siteLinksDailyClicks.$inferSelect)[] = [];
 /**
  * Whether both tables were read before anything was emptied. `afterAll` runs
  * even when `beforeAll` fails, and without this it would empty the tables
  * and put back a copy that was never taken.
  */
 let backedUp = false;
+/** Holds the links suites' lock (see `LINKS_SUITE_LOCK`) while this runs. */
+let lockClient: PoolClient | null = null;
 
 function signInAs(role: string | null) {
   currentProfileMock.mockResolvedValue(role ? { id: 1, role } : null);
@@ -161,8 +175,13 @@ describeDatabase("site links dashboard actions", () => {
       );
     }
 
+    lockClient = await pool!.connect();
+    await lockClient.query(`set lock_timeout = '${LINKS_SUITE_LOCK_TIMEOUT}'`);
+    await lockClient.query("select pg_advisory_lock($1)", [LINKS_SUITE_LOCK]);
+
     savedLinks = await integrationDb!.select().from(siteLinks);
     savedSettings = await integrationDb!.select().from(siteLinksSettings);
+    savedDailyClicks = await integrationDb!.select().from(siteLinksDailyClicks);
     backedUp = true;
 
     actions = await import("@/app/lib/links/actions");
@@ -198,8 +217,27 @@ describeDatabase("site links dashboard actions", () => {
              greatest((select coalesce(max(id), 0) from site_links),
                       (select last_value from site_links_id_seq)))`,
         );
+        // After the links, so each saved row finds its link again; the
+        // suite's own tap rows go.
+        await integrationDb.delete(siteLinksDailyClicks);
+        if (savedDailyClicks.length > 0) {
+          await integrationDb
+            .insert(siteLinksDailyClicks)
+            .values(savedDailyClicks);
+        }
+        await pool!.query(
+          `select setval(pg_get_serial_sequence('site_links_daily_clicks', 'id'),
+             greatest((select coalesce(max(id), 0) from site_links_daily_clicks),
+                      (select last_value from site_links_daily_clicks_id_seq)))`,
+        );
       }
     } finally {
+      if (lockClient) {
+        await lockClient
+          .query("select pg_advisory_unlock($1)", [LINKS_SUITE_LOCK])
+          .catch(() => {});
+        lockClient.release();
+      }
       // Closed whatever happened above, or the run hangs on open connections.
       await pool?.end();
       // The app's own pool exists only once the actions were imported.
@@ -338,7 +376,7 @@ describeDatabase("site links dashboard actions", () => {
     it("updates a link and leaves its place and clicks alone", async () => {
       await addLink("Primero");
       const link = await addLink("Segundo");
-      await queries.recordSiteLinkClick(link.id);
+      await queries.recordSiteLinkClick(link.id, "direct");
 
       const result = await actions.updateSiteLink(link.id, {
         label: "Sitio web",
@@ -381,8 +419,8 @@ describeDatabase("site links dashboard actions", () => {
       expect(await actions.setSiteLinkVisible(hidden.id, false)).toEqual({
         success: true,
       });
-      await queries.recordSiteLinkClick(hidden.id);
-      await queries.recordSiteLinkClick(shown.id);
+      await queries.recordSiteLinkClick(hidden.id, "direct");
+      await queries.recordSiteLinkClick(shown.id, "direct");
 
       const visible = await visibleLinks();
       expect(visible.map((row) => row.id)).toEqual([shown.id]);
@@ -394,6 +432,27 @@ describeDatabase("site links dashboard actions", () => {
 
       await actions.setSiteLinkVisible(hidden.id, true);
       expect((await visibleLinks()).length).toBe(2);
+    });
+
+    it("keeps a deleted link's daily taps, with no link, for the statistics", async () => {
+      const link = await addLink("Preinscripción");
+      await queries.recordSiteLinkClick(link.id, "instagram");
+      const [tap] = await integrationDb!
+        .select({ id: siteLinksDailyClicks.id })
+        .from(siteLinksDailyClicks)
+        .where(eq(siteLinksDailyClicks.linkId, link.id));
+
+      // What the dialog promises: the link goes, its taps of each day stay.
+      expect(await actions.deleteSiteLink(link.id)).toEqual({ success: true });
+      const [kept] = await integrationDb!
+        .select()
+        .from(siteLinksDailyClicks)
+        .where(eq(siteLinksDailyClicks.id, tap.id));
+      expect(kept).toMatchObject({
+        linkId: null,
+        source: "instagram",
+        clicks: 1,
+      });
     });
 
     it("deletes a link, and reports one that is already gone", async () => {
@@ -822,8 +881,8 @@ describeDatabase("site links dashboard actions", () => {
       await actions.createSiteLink({ ...base, visibleUntil: fromNow(60) });
       const [upcoming, running] = await rowsOf("link");
 
-      await queries.recordSiteLinkClick(upcoming.id);
-      await queries.recordSiteLinkClick(running.id);
+      await queries.recordSiteLinkClick(upcoming.id, "direct");
+      await queries.recordSiteLinkClick(running.id, "direct");
       expect((await rowsOf("link")).map((row) => row.clickCount)).toEqual([
         0, 1,
       ]);
