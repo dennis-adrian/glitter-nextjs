@@ -61,6 +61,8 @@ export const liveActCategoryEnum = pgEnum("live_act_category", [
   "music",
   "dance",
   "talk",
+  "workshop",
+  "other",
 ]);
 export const liveActStatusEnum = pgEnum("live_act_status", [
   "pending",
@@ -5433,6 +5435,16 @@ export const liveActs = pgTable("live_acts", {
   contactName: text("contact_name").notNull(),
   contactEmail: text("contact_email").notNull(),
   contactPhone: text("contact_phone").notNull(),
+  /** What the activity is when the category is `other`. */
+  otherType: text("other_type"),
+  /** Workshops only: how many people can take part at once. */
+  workshopCapacity: integer("workshop_capacity"),
+  /** Talks, workshops and other activities: what they need on site. */
+  spaceNeeds: text("space_needs"),
+  /** Workshops only: the course or program the workshop introduces. */
+  relatedOffer: text("related_offer"),
+  /** Workshops only: when the applicant accepted it has no cost to participants. */
+  noCostAcknowledgedAt: timestamp("no_cost_acknowledged_at"),
   status: liveActStatusEnum("status").default("pending").notNull(),
   adminNotes: text("admin_notes"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
