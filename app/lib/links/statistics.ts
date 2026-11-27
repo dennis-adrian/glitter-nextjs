@@ -72,7 +72,9 @@ export function classifyReferrer(
     return "other";
   }
   if (url.protocol === "android-app:") {
-    return SOURCE_APPS[url.hostname.toLowerCase()] ?? "other";
+    // Own keys only: `android-app://constructor/` must not find Object's.
+    const app = url.hostname.toLowerCase();
+    return Object.hasOwn(SOURCE_APPS, app) ? SOURCE_APPS[app] : "other";
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") return "other";
   const host = url.hostname.toLowerCase();

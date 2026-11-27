@@ -58,6 +58,8 @@ BEGIN
 		SELECT 1 FROM pg_constraint
 		WHERE conrelid = 'public.site_links_daily_views'::regclass
 			AND contype = 'p'
+			-- A deferrable key cannot arbitrate ON CONFLICT.
+			AND NOT condeferrable
 			AND conkey = ARRAY(
 				SELECT attnum FROM pg_attribute
 				WHERE attrelid = 'public.site_links_daily_views'::regclass
@@ -72,6 +74,14 @@ BEGIN
 		WHERE indrelid = 'public.site_links_daily_clicks'::regclass
 			AND indexrelid = 'public.site_links_daily_clicks_link_day_source'::regclass
 			AND indisunique
+			-- Built (not a failed concurrent build) and checked at once, not
+			-- deferred: only such an index arbitrates ON CONFLICT.
+			AND indisvalid
+			AND indimmediate
+			-- Nulls distinct, so two deleted links' rows of one day and source
+			-- can both keep an empty `link_id`. Read through jsonb: the column
+			-- exists only from Postgres 15, and before it nulls are distinct.
+			AND NOT COALESCE((to_jsonb(pg_index) ->> 'indnullsnotdistinct')::boolean, false)
 			-- Whole, on plain columns, and on exactly these three: only such an
 			-- index serves ON CONFLICT ("link_id", "day", "source").
 			AND indpred IS NULL
@@ -91,6 +101,16 @@ BEGIN
 			AND contype = 'f'
 			AND confrelid = 'public.site_links'::regclass
 			AND confdeltype = 'n'
+			-- From `link_id` to `site_links.id`, and nothing else.
+			AND conkey = ARRAY[(
+				SELECT attnum FROM pg_attribute
+				WHERE attrelid = 'public.site_links_daily_clicks'::regclass
+					AND attname = 'link_id'
+			)]::int2[]
+			AND confkey = ARRAY[(
+				SELECT attnum FROM pg_attribute
+				WHERE attrelid = 'public.site_links'::regclass AND attname = 'id'
+			)]::int2[]
 	) THEN
 		RAISE EXCEPTION 'site_links_daily_clicks.link_id does not reference site_links with ON DELETE SET NULL';
 	END IF;

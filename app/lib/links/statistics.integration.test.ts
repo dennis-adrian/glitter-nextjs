@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { and, eq, inArray, isNull, like } from "drizzle-orm";
+import { and, eq, inArray, isNull, like, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { NextRequest } from "next/server";
 import { Pool, type PoolClient } from "pg";
@@ -17,11 +17,13 @@ import {
 
 import {
   LINKS_SUITE_LOCK,
+  LINKS_SUITE_LOCK_TIMEOUT,
   disposableDatabaseProblem,
 } from "@/app/lib/links/disposable-test-database";
 import { linksDay, type LinksSource } from "@/app/lib/links/statistics";
 import * as schema from "@/db/schema";
 import {
+  actionRateLimits,
   siteLinks,
   siteLinksDailyClicks,
   siteLinksDailyViews,
@@ -71,10 +73,12 @@ type Queries = typeof import("@/app/lib/links/queries");
 type StatisticsQueries = typeof import("@/app/lib/links/statistics-queries");
 type ViewRoute = typeof import("@/app/api/links/view/route");
 type ClickRoute = typeof import("@/app/api/links/[id]/click/route");
+type RateLimit = typeof import("@/app/lib/rate-limit");
 let queries: Queries;
 let statisticsQueries: StatisticsQueries;
 let viewRoute: ViewRoute;
 let clickRoute: ClickRoute;
+let rateLimit: RateLimit;
 let lockClient: PoolClient | null = null;
 
 const LABEL_PREFIX = "stats-it ";
@@ -93,13 +97,17 @@ const RESERVED_DAYS = [ROUTE_DAY, FUTURE_DAY, "2099-06-16"];
 /** Taken before any clock is pinned: tells this run's callers apart. */
 const RUN_ID = Date.now();
 let ipCounter = 0;
+/** Every caller this run made up, so their rate-limit buckets can go. */
+const callerIps: string[] = [];
 /**
  * A caller of its own, so one test's rate limit is not another's, nor a
  * previous run's in the same pinned minute.
  */
 function freshIp() {
   ipCounter += 1;
-  return `198.51.100.${ipCounter}-${RUN_ID}`;
+  const ip = `198.51.100.${ipCounter}-${RUN_ID}`;
+  callerIps.push(ip);
+  return ip;
 }
 
 /** Daily tap rows of links this suite deleted: their `link_id` is gone. */
@@ -200,6 +208,29 @@ async function clickCount(id: number) {
   return row.clickCount;
 }
 
+/**
+ * The rate-limit buckets of this run's callers, keyed as the endpoints key
+ * them: by the caller's fingerprint, and for a tap by the link too.
+ */
+async function removeOwnRateLimits() {
+  if (!rateLimit || callerIps.length === 0) return;
+  const fingerprints = callerIps.map((ip) =>
+    rateLimit.callerFingerprint(new Headers({ "x-real-ip": ip })),
+  );
+  await integrationDb!.delete(actionRateLimits).where(
+    or(
+      inArray(
+        actionRateLimits.key,
+        fingerprints.map((fp) => `site-links-view:${fp}`),
+      ),
+      ...fingerprints.map((fp) =>
+        like(actionRateLimits.key, `site-link-click:%:${fp}`),
+      ),
+    ),
+  );
+  callerIps.length = 0;
+}
+
 async function removeOwnRows() {
   const own = await integrationDb!
     .select({ id: siteLinks.id })
@@ -250,12 +281,14 @@ describeDatabase("site links statistics", () => {
       );
     }
     lockClient = await pool!.connect();
+    await lockClient.query(`set lock_timeout = '${LINKS_SUITE_LOCK_TIMEOUT}'`);
     await lockClient.query("select pg_advisory_lock($1)", [LINKS_SUITE_LOCK]);
 
     queries = await import("@/app/lib/links/queries");
     statisticsQueries = await import("@/app/lib/links/statistics-queries");
     viewRoute = await import("@/app/api/links/view/route");
     clickRoute = await import("@/app/api/links/[id]/click/route");
+    rateLimit = await import("@/app/lib/rate-limit");
     await removeOwnRows();
   }, 60_000);
 
@@ -266,7 +299,10 @@ describeDatabase("site links statistics", () => {
 
   afterAll(async () => {
     try {
-      if (integrationDb && queries) await removeOwnRows();
+      if (integrationDb && queries) {
+        await removeOwnRows();
+        await removeOwnRateLimits();
+      }
     } finally {
       if (lockClient) {
         await lockClient
@@ -432,6 +468,14 @@ describeDatabase("site links statistics", () => {
       "gives %s the period's numbers",
       async (role) => {
         currentProfileMock.mockResolvedValue({ id: 3, role });
+        // What earlier tests left on these days: the case counts its own on
+        // top.
+        const before = (await statisticsQueries.fetchLinksStatistics(
+          7,
+          FUTURE_NOON,
+        ))!;
+        const deletedBefore =
+          before.links.find((r) => r.id === null)?.taps ?? 0;
         const link = await addLink(`read ${role}`);
         await queries.recordLinksPageView("tiktok", FUTURE_NOON);
         await queries.recordSiteLinkClick(link.id, "tiktok", FUTURE_NOON);
@@ -448,14 +492,19 @@ describeDatabase("site links statistics", () => {
         expect(stats).not.toBeNull();
         expect(stats!.range.to).toBe(FUTURE_DAY);
         expect(stats!.daily.at(-1)!.day).toBe(FUTURE_DAY);
-        expect(stats!.totals.views).toBeGreaterThan(0);
-        expect(stats!.totals.ctr).not.toBeNull();
+        expect(stats!.totals.views).toBe(before.totals.views + 1);
+        expect(stats!.totals.taps).toBe(before.totals.taps + 2);
+        expect(stats!.totals.ctr).toBe(
+          stats!.totals.taps / stats!.totals.views,
+        );
         const row = stats!.links.find((r) => r.id === link.id);
         expect(row).toMatchObject({ taps: 1, lifetime: 1, hidden: false });
         // The link deleted above is listed with the other deleted ones.
         const deleted = stats!.links.find((r) => r.id === null);
-        expect(deleted).toMatchObject({ lifetime: null });
-        expect(deleted!.taps).toBeGreaterThanOrEqual(1);
+        expect(deleted).toMatchObject({
+          lifetime: null,
+          taps: deletedBefore + 1,
+        });
       },
     );
   });

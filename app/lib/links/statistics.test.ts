@@ -38,6 +38,10 @@ describe("classifyReferrer", () => {
     ["not a url", "other"],
     ["ftp://instagram.com/", "other"],
     ["android-app://com.example.app/", "other"],
+    // Not a key of the apps' table, whatever an object inherits.
+    ["android-app://constructor/", "other"],
+    ["android-app://__proto__/", "other"],
+    ["android-app://tostring/", "other"],
   ])("reads %j as %s", (referrer, source) => {
     expect(classifyReferrer(referrer)).toBe(source);
   });
@@ -131,6 +135,23 @@ describe("rates", () => {
   });
 });
 
+/** Every number anywhere in `value`, with where it was found. */
+function numbersIn(value: unknown, path = "stats"): [string, number][] {
+  if (typeof value === "number") return [[path, value]];
+  if (value == null || typeof value !== "object" || value instanceof Date) {
+    return [];
+  }
+  return Object.entries(value).flatMap(([key, item]) =>
+    numbersIn(item, `${path}.${key}`),
+  );
+}
+
+/** No NaN or Infinity anywhere: JSON would hide one as null. */
+function expectAllFinite(value: unknown) {
+  const bad = numbersIn(value).filter(([, n]) => !Number.isFinite(n));
+  expect(bad).toEqual([]);
+}
+
 function statsLink(overrides: Partial<StatsLink>): StatsLink {
   return {
     id: 1,
@@ -162,12 +183,19 @@ describe("buildLinksStatistics", () => {
     expect(stats.change).toEqual({ views: null, taps: null, ctr: null });
     expect(stats.daily).toHaveLength(7);
     expect(stats.daily.every((d) => d.views === 0 && d.taps === 0)).toBe(true);
-    expect(stats.sources.every((s) => s.ctr === null)).toBe(true);
+    expect(stats.sources).toEqual(
+      ["instagram", "tiktok", "facebook", "direct", "other"].map((source) => ({
+        source,
+        views: 0,
+        taps: 0,
+        ctr: null,
+      })),
+    );
     // The hidden link had no taps, so it is not listed; nothing has a share.
     expect(stats.links).toEqual([
       expect.objectContaining({ id: 1, taps: 0, share: null, lifetime: 0 }),
     ]);
-    expect(JSON.stringify(stats)).not.toContain("NaN");
+    expectAllFinite(stats);
   });
 
   it("sums the period, the sources, the days and each link", () => {
@@ -238,6 +266,7 @@ describe("buildLinksStatistics", () => {
     expect(stats.links[1].hidden).toBe(true);
     expect(stats.links[2]).toMatchObject({ id: null, lifetime: null });
     expect(stats.links[4].kind).toBe("social");
+    expectAllFinite(stats);
   });
 
   it("does not compare with a period from before the statistics began", () => {

@@ -16,6 +16,7 @@ import {
 
 import {
   LINKS_SUITE_LOCK,
+  LINKS_SUITE_LOCK_TIMEOUT,
   disposableDatabaseProblem,
 } from "@/app/lib/links/disposable-test-database";
 import * as schema from "@/db/schema";
@@ -175,6 +176,7 @@ describeDatabase("site links dashboard actions", () => {
     }
 
     lockClient = await pool!.connect();
+    await lockClient.query(`set lock_timeout = '${LINKS_SUITE_LOCK_TIMEOUT}'`);
     await lockClient.query("select pg_advisory_lock($1)", [LINKS_SUITE_LOCK]);
 
     savedLinks = await integrationDb!.select().from(siteLinks);
