@@ -50,6 +50,19 @@ describe("saveCredentialRulesSchema", () => {
     expect(firstMessage(at(1.5))).toBe("La cantidad tiene que ser un número entero.");
   });
 
+  it("refuses a cleared field instead of saving it as no credentials", () => {
+    const at = (quantity: unknown) =>
+      saveCredentialRulesSchema.safeParse({
+        festivalId: 1,
+        rules: { ...rules, volunteer: { quantity } },
+      });
+    for (const blank of ["", "   ", null, undefined, true, "abc", "3 credenciales"]) {
+      expect(firstMessage(at(blank))).toBe("La cantidad tiene que ser un número.");
+    }
+    expect(at("0").success && at("0").data.rules.volunteer.quantity).toBe(0);
+    expect(at(" 4 ").success && at(" 4 ").data.rules.volunteer.quantity).toBe(4);
+  });
+
   it("refuses an unknown naming mode and a bad festival id", () => {
     expect(
       firstMessage(
@@ -73,6 +86,18 @@ describe("externalCredentialQuantitySchema", () => {
     expect(at(null).success).toBe(true);
     expect(at(50).success).toBe(true);
     expect(firstMessage(at(51))).toBe("La cantidad puede ser como máximo 50.");
+  });
+
+  it("keeps null as the reset and refuses blank or nonnumeric input", () => {
+    const at = (quantity: unknown) =>
+      externalCredentialQuantitySchema.safeParse({ festivalId: 1, externalParticipantId: 2, quantity });
+    const reset = at(null);
+    expect(reset.success && reset.data.quantity).toBeNull();
+    const zero = at("0");
+    expect(zero.success && zero.data.quantity).toBe(0);
+    for (const bad of ["", " ", "abc", true]) {
+      expect(firstMessage(at(bad))).toBe("La cantidad tiene que ser un número.");
+    }
   });
 });
 
@@ -127,6 +152,27 @@ describe("one-off credentials", () => {
         }),
       ),
     ).toBe("La cantidad tiene que ser al menos 1.");
+    expect(
+      firstMessage(
+        addExtraCredentialSchema.safeParse({
+          festivalId: 1,
+          extra: { kind: "unnamed", label: "Prensa", quantity: "" },
+        }),
+      ),
+    ).toBe("La cantidad tiene que ser un número.");
+    expect(
+      firstMessage(
+        updateExtraCredentialSchema.safeParse({
+          festivalId: 1,
+          extraCredentialId: 3,
+          label: "Prensa",
+          quantity: " ",
+        }),
+      ),
+    ).toBe("La cantidad tiene que ser un número.");
+    expect(
+      updateExtraCredentialSchema.parse({ festivalId: 1, extraCredentialId: 3, label: "Prensa" }),
+    ).toEqual({ festivalId: 1, extraCredentialId: 3, label: "Prensa" });
     expect(
       firstMessage(
         addExtraCredentialSchema.safeParse({

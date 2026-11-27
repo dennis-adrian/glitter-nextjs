@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { toast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { CredentialsProvider } from "@/app/components/festivals/credentials/credentials-context";
 import CredentialsRulesForm from "@/app/components/festivals/credentials/credentials-rules-form";
 import { renderWithCredentials } from "@/app/components/festivals/credentials/test-utils";
 import { addReservation, emptyData } from "@/app/lib/credentials/__fixtures__/data";
+import type { CredentialsData } from "@/app/lib/credentials/calculate";
+import { DEFAULT_CREDENTIAL_FILTERS } from "@/app/lib/credentials/definitions";
 
 const saveCredentialRules = vi.hoisted(() => vi.fn());
 const resetCredentialRules = vi.hoisted(() => vi.fn());
@@ -14,7 +18,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn() }),
   usePathname: () => "/dashboard/festivals/1/credentials",
 }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
 afterEach(() => {
   cleanup();
@@ -28,6 +32,26 @@ function festival() {
   addReservation(data, { people: [{ name: "Pendiente" }], status: "pending" });
   data.volunteers.push({ applicationId: 1, fullName: "Vol", roleName: null });
   return data;
+}
+
+/** The form under a provider whose data a test can swap, as a refresh does. */
+function page(data: CredentialsData) {
+  return (
+    <CredentialsProvider
+      festivalId={data.festival.id}
+      tab="reglas"
+      data={data}
+      initialFilters={DEFAULT_CREDENTIAL_FILTERS}
+      isAdmin
+    >
+      <CredentialsRulesForm />
+    </CredentialsProvider>
+  );
+}
+
+/** The same festival after another admin saved these rule rows. */
+function refreshed(data: CredentialsData, ruleRows: CredentialsData["ruleRows"]) {
+  return { ...data, ruleRows };
 }
 
 describe("CredentialsRulesForm", () => {
@@ -79,5 +103,96 @@ describe("CredentialsRulesForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Volver a los valores por defecto" }));
     await waitFor(() => expect(resetCredentialRules).toHaveBeenCalledWith({ festivalId: 1 }));
     await waitFor(() => expect((illustration as HTMLInputElement).value).toBe("2"));
+  });
+
+  it("follows refreshed rules in untouched fields and keeps edited ones", async () => {
+    const data = festival();
+    const { rerender } = render(page(data));
+    const volunteer = screen.getByLabelText("Voluntario aceptado") as HTMLInputElement;
+    const staff = screen.getByLabelText("Persona del equipo Glitter") as HTMLInputElement;
+    fireEvent.change(volunteer, { target: { value: "3" } });
+    rerender(
+      page(
+        refreshed(data, [
+          { group: "volunteer", quantity: 2, namingMode: "all_named" },
+          { group: "staff", quantity: 4, namingMode: "all_named" },
+        ]),
+      ),
+    );
+    await waitFor(() => expect(staff.value).toBe("4"));
+    expect(volunteer.value).toBe("3");
+    expect(volunteer.getAttribute("aria-invalid")).toBe("false");
+  });
+
+  it("asks for review before saving a draft over newer saved rules", async () => {
+    saveCredentialRules.mockResolvedValue({ success: true, message: "Reglas guardadas." });
+    const data = festival();
+    const { rerender } = render(page(data));
+    const volunteer = screen.getByLabelText("Voluntario aceptado") as HTMLInputElement;
+    fireEvent.change(volunteer, { target: { value: "3" } });
+    rerender(
+      page(refreshed(data, [{ group: "volunteer", quantity: 2, namingMode: "all_named" }])),
+    );
+    await waitFor(() => expect(toast.warning).not.toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "Guardar reglas" }));
+    await waitFor(() =>
+      expect(toast.warning).toHaveBeenCalledWith(
+        expect.stringContaining("cambiaron las reglas guardadas"),
+        expect.objectContaining({
+          action: expect.objectContaining({ label: "Usar las guardadas" }),
+        }),
+      ),
+    );
+    expect(saveCredentialRules).not.toHaveBeenCalled();
+    expect(volunteer.value).toBe("3");
+    expect(volunteer.getAttribute("aria-invalid")).toBe("true");
+
+    // The toast's action drops the draft for the newer saved value.
+    const [, options] = vi.mocked(toast.warning).mock.calls[0]!;
+    act(() => (options as { action: { onClick: () => void } }).action.onClick());
+    await waitFor(() => expect(volunteer.value).toBe("2"));
+    expect(volunteer.getAttribute("aria-invalid")).toBe("false");
+  });
+
+  it("saves a reviewed draft on the second try", async () => {
+    saveCredentialRules.mockResolvedValue({ success: true, message: "Reglas guardadas." });
+    const data = festival();
+    const { rerender } = render(page(data));
+    const volunteer = screen.getByLabelText("Voluntario aceptado");
+    fireEvent.change(volunteer, { target: { value: "3" } });
+    rerender(
+      page(refreshed(data, [{ group: "volunteer", quantity: 2, namingMode: "all_named" }])),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Guardar reglas" }));
+    await waitFor(() => expect(toast.warning).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Guardar reglas" }));
+    await waitFor(() => expect(saveCredentialRules).toHaveBeenCalledTimes(1));
+    expect(saveCredentialRules.mock.calls[0]![0]).toMatchObject({
+      rules: { volunteer: { quantity: 3 } },
+    });
+  });
+
+  it("locks every field while saving or resetting", async () => {
+    let finishSave!: (result: { success: boolean; message: string }) => void;
+    saveCredentialRules.mockReturnValueOnce(new Promise((resolve) => (finishSave = resolve)));
+    let finishReset!: (result: { success: boolean; message: string }) => void;
+    resetCredentialRules.mockReturnValueOnce(new Promise((resolve) => (finishReset = resolve)));
+    renderWithCredentials(<CredentialsRulesForm />, { data: festival(), tab: "reglas" });
+    const volunteer = screen.getByLabelText("Voluntario aceptado");
+    const [namingMode] = screen.getAllByRole("combobox");
+    const locked = () => volunteer.matches(":disabled") && namingMode!.matches(":disabled");
+    expect(locked()).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Guardar reglas" }));
+    await waitFor(() => expect(saveCredentialRules).toHaveBeenCalledTimes(1));
+    expect(locked()).toBe(true);
+    await act(async () => finishSave({ success: true, message: "ok" }));
+    await waitFor(() => expect(locked()).toBe(false));
+
+    fireEvent.click(screen.getByRole("button", { name: "Volver a los valores por defecto" }));
+    await waitFor(() => expect(resetCredentialRules).toHaveBeenCalledTimes(1));
+    expect(locked()).toBe(true);
+    await act(async () => finishReset({ success: true, message: "ok" }));
+    await waitFor(() => expect(locked()).toBe(false));
   });
 });

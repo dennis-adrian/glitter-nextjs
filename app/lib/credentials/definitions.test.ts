@@ -56,8 +56,11 @@ describe("credentialParticipantLines", () => {
 describe("credentialRuleCopy", () => {
   it("describes each default group in words", () => {
     expect(credentialRuleCopy("illustration", DEFAULT_CREDENTIAL_RULES.illustration)).toBe(
-      "2 por espacio: 1 con nombre por participante y el resto sin nombre",
+      "2 por espacio: 1 con nombre por participante, hasta completar las de la reserva, y el resto sin nombre",
     );
+    expect(
+      credentialRuleCopy("illustration", { quantity: 1, namingMode: "one_per_participant" }),
+    ).toBe("1 por espacio, con nombre por participante hasta completar las de la reserva");
     expect(credentialRuleCopy("gastronomy", DEFAULT_CREDENTIAL_RULES.gastronomy)).toBe(
       "2 por espacio, todas con el nombre del expositor",
     );

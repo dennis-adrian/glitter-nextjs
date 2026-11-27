@@ -166,6 +166,32 @@ describe("ExternalQuantityField", () => {
     );
   });
 
+  it("keeps a newer total equal to the old one that lands while its own save is in flight", async () => {
+    let finish!: (result: CredentialsResult) => void;
+    setExternalCredentialQuantity.mockReturnValueOnce(
+      new Promise<CredentialsResult>((resolve) => (finish = resolve)),
+    );
+    const { rerender } = render(field(3));
+    fireEvent.change(input(), { target: { value: "6" } });
+    fireEvent.blur(input());
+    await waitFor(() => expect(setExternalCredentialQuantity).toHaveBeenCalledTimes(1));
+    // Another admin saved 4 and then 3 after this save: the server holds 3.
+    rerender(field(4));
+    rerender(field(3));
+    finish({ success: true, message: "ok" });
+    await waitFor(() => expect(input().disabled).toBe(false));
+    rerender(field(3));
+    expect(input().value).toBe("6");
+    // 6 is not the saved total, so committing it again asks for review first.
+    fireEvent.blur(input());
+    expect(setExternalCredentialQuantity).toHaveBeenCalledTimes(1);
+    expect(toast.warning).toHaveBeenCalledWith(
+      expect.stringContaining("cambió a 3"),
+      expect.objectContaining({ action: expect.objectContaining({ label: "Usar 3" }) }),
+    );
+    expect(input().getAttribute("aria-invalid")).toBe("true");
+  });
+
   it("goes back to the current saved total when a save is refused", async () => {
     let finish!: (result: CredentialsResult) => void;
     setExternalCredentialQuantity.mockReturnValue(

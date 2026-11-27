@@ -146,6 +146,20 @@ describe("rules", () => {
     ]);
   });
 
+  it("caps named credentials at the reservation's total, not the per-stand quantity", () => {
+    // The rule copy says so (credentialRuleCopy): q = 1 on two stands names two.
+    const data = emptyData();
+    addReservation(data, { people: [{ name: "Ana" }, { name: "Beto" }], stands: 2 });
+    const { holders } = buildHolders(
+      data,
+      resolveRules([{ group: "illustration", quantity: 1, namingMode: null }]),
+    );
+    expect(holders.map((holder) => [holder.name, holder.named, holder.unnamed])).toEqual([
+      ["Ana", 1, 0],
+      ["Beto", 1, 0],
+    ]);
+  });
+
   it("leaves a participant without credential when the quantity is below the people", () => {
     const data = emptyData();
     addReservation(data, {
@@ -445,8 +459,13 @@ describe("buildView", () => {
 
 let batchClock = Date.UTC(2026, 10, 14, 15);
 
-/** Records a batch the way createCredentialPrintBatch does. */
-function print(data: CredentialsData, keys?: string[]) {
+/**
+ * Records a batch the way createCredentialPrintBatch does. Without `at` the
+ * batch is dated a day after the previous one, so order-sensitive tests keep a
+ * sequence; a test that asserts the date passes `at` so it does not depend on
+ * which tests ran before it.
+ */
+function print(data: CredentialsData, keys?: string[], at?: Date) {
   const holders = buildView(data, DEFAULT_CREDENTIAL_RULES, ALL).holders.filter(
     (holder) => isPrintable(holder) && (keys ? keys.includes(holder.key) : holder.print!.needsPrint),
   );
@@ -463,7 +482,7 @@ function print(data: CredentialsData, keys?: string[]) {
     })),
   );
   batchClock += 86_400_000;
-  data.batches.push(batch(items, new Date(batchClock)));
+  data.batches.push(batch(items, at ?? new Date(batchClock)));
   return items;
 }
 
@@ -482,7 +501,7 @@ describe("print state", () => {
     const data = emptyData();
     addReservation(data, { people: [{ name: "Camila" }] });
     expect(holderOf(data, "Camila")!.print).toMatchObject({ state: "new", needsPrint: true });
-    print(data);
+    print(data, undefined, new Date(Date.UTC(2026, 10, 15, 15)));
     const printed = holderOf(data, "Camila")!.print!;
     expect(printed).toMatchObject({ state: "printed", needsPrint: false });
     expect(printStateLabel(printed)).toBe("Impresa el 15 nov");

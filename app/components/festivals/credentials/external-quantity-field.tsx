@@ -26,6 +26,12 @@ type Draft = {
   saved: number | null;
   /** The override last rendered, so a refresh that brings a new one is noticed. */
   seen: number | null;
+  /**
+   * Bumped on every new override observed. A save compares it, not `seen`:
+   * 3 -> 4 -> 3 during the save leaves `seen` as it was, yet a later render
+   * than the save brought that 3.
+   */
+  generation: number;
   /** A refresh changed the saved total under an unsaved draft. */
   conflict: boolean;
   /** That draft was refused once and is still on screen, unsaved. */
@@ -55,6 +61,7 @@ export default function ExternalQuantityField({
     value: format(override),
     saved: override,
     seen: override,
+    generation: 0,
     conflict: false,
     reviewing: false,
   });
@@ -70,6 +77,7 @@ export default function ExternalQuantityField({
       value: clean ? format(override) : draft.value,
       saved: override,
       seen: override,
+      generation: draft.generation + 1,
       conflict: !clean && typed !== override,
       reviewing: clean ? false : draft.reviewing,
     });
@@ -122,7 +130,7 @@ export default function ExternalQuantityField({
       );
       return;
     }
-    const seenAtCommit = draft.seen;
+    const generationAtCommit = draft.generation;
     startTransition(async () => {
       try {
         const result = await setExternalCredentialQuantity({
@@ -137,10 +145,11 @@ export default function ExternalQuantityField({
         }
         toast.success(result.message);
         // Taken as saved before the refresh lands, so it reads as clean then.
-        // Unless a newer total already arrived while saving: that one came
-        // from a later server render, so it stays the saved one.
+        // Unless a newer total already arrived while saving (even one equal
+        // to the old): that one came from a later server render, so it stays
+        // the saved one.
         setDraft((current) =>
-          current.seen === seenAtCommit
+          current.generation === generationAtCommit
             ? { ...current, saved: next, conflict: false, reviewing: false }
             : { ...current, conflict: parse(current.value) !== current.saved, reviewing: false },
         );

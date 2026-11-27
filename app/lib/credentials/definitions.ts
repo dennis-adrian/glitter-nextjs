@@ -125,8 +125,10 @@ function plural(count: number, one: string, many: string) {
 
 /**
  * A group's rule as the one sentence admins read in the breakdown and on the
- * Reglas tab: "2 por espacio: 1 con nombre por participante y el resto sin
- * nombre".
+ * Reglas tab: "2 por espacio: 1 con nombre por participante, hasta completar
+ * las de la reserva, y el resto sin nombre". The cap is the reservation's
+ * total (quantity × stands, namedSplit): with more people than credentials,
+ * only the first ones get a named one.
  */
 export function credentialRuleCopy(
   group: CredentialGroup,
@@ -151,7 +153,11 @@ export function credentialRuleCopy(
   if (q === 0) return "Sin credenciales";
   switch (rule.namingMode) {
     case "one_per_participant":
-      return `${q} por espacio: 1 con nombre por participante y el resto sin nombre`;
+      // The cap is the reservation's total, not q: a two-stand reservation
+      // with q = 1 still names two people.
+      return q === 1
+        ? "1 por espacio, con nombre por participante hasta completar las de la reserva"
+        : `${q} por espacio: 1 con nombre por participante, hasta completar las de la reserva, y el resto sin nombre`;
     case "all_named":
       return q === 1
         ? "1 por espacio, con el nombre del expositor"

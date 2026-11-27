@@ -3,8 +3,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { InfoIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useForm, useWatch, type FieldPath } from "react-hook-form";
 import { toast } from "sonner";
 
 import { useCredentials } from "@/app/components/festivals/credentials/credentials-context";
@@ -58,6 +58,7 @@ import {
   type CredentialRulesFormValues,
 } from "@/app/lib/credentials/schema";
 import { toastActionError } from "@/app/lib/errors/action-error";
+import { cn } from "@/app/lib/utils";
 
 /** The preview counts confirmed reservations and every group, as M4 says. */
 const PREVIEW_FILTERS: CredentialFilters = {
@@ -82,6 +83,9 @@ function formToRules(
   fallback: CredentialRules,
 ): CredentialRules {
   const read = (raw: unknown, previous: number) => {
+    // A cleared field is refused on save (schema.ts), so the preview keeps
+    // the last value rather than showing it as 0.
+    if (typeof raw === "string" && raw.trim() === "") return previous;
     const value = Number(raw);
     return Number.isInteger(value) && value >= 0 && value <= CREDENTIAL_RULE_QUANTITY_MAX
       ? value
@@ -128,19 +132,46 @@ function namingHint(group: CategoryCredentialGroup, quantity: number, mode: Cred
 
 const number = (value: number) => value.toLocaleString("es-BO");
 
+type RuleField = FieldPath<CredentialRulesFormInput>;
+
+const RULE_FIELDS: RuleField[] = [
+  ...CATEGORY_CREDENTIAL_GROUPS.flatMap(
+    (group) => [`${group}.quantity`, `${group}.namingMode`] as const,
+  ),
+  "external.quantity",
+  "volunteer.quantity",
+  "staff.quantity",
+];
+
+/** A field's value in form input, whatever its source. */
+function readField(values: unknown, path: RuleField) {
+  const [group, key] = path.split(".") as [string, string];
+  return (values as Record<string, Record<string, unknown> | undefined> | undefined)?.[group]?.[
+    key
+  ];
+}
+
+/** Inputs hold what is typed ("4"), saved rules hold numbers (4). */
+const sameValue = (a: unknown, b: unknown) => String(a ?? "") === String(b ?? "");
+
+const UNSAVED_CLASS = "border-amber-500 dark:border-amber-400";
+
 function QuantityField({
   name,
   label,
   description,
+  unsaved = false,
 }: {
   name: `${keyof CredentialRulesFormInput}.quantity`;
   label: string;
   description: string;
+  /** A draft kept over newer saved rules, still waiting for review. */
+  unsaved?: boolean;
 }) {
   return (
     <FormField
       name={name}
-      render={({ field }) => (
+      render={({ field, fieldState }) => (
         <FormItem className="flex min-w-0 flex-col gap-2 space-y-0">
           <FormLabel>{label}</FormLabel>
           <FormControl>
@@ -149,8 +180,9 @@ function QuantityField({
               inputMode="numeric"
               min={0}
               max={CREDENTIAL_RULE_QUANTITY_MAX}
-              className="w-24"
+              className={cn("w-24", unsaved && UNSAVED_CLASS)}
               {...field}
+              aria-invalid={fieldState.invalid || unsaved}
               value={field.value ?? ""}
             />
           </FormControl>
@@ -175,13 +207,54 @@ export default function CredentialsRulesForm() {
     resolver: zodResolver(credentialRulesFormSchema),
     defaultValues: rulesToForm(rules),
   });
+  // Drafts kept over a refresh that changed them underneath (`conflicts`),
+  // and those already refused once by Guardar and marked (`reviewing`).
+  const [conflicts, setConflicts] = useState<RuleField[]>([]);
+  const [reviewing, setReviewing] = useState<RuleField[]>([]);
+
+  // `defaultValues` is read once, so a refresh with newer rules (another
+  // admin saved or reset them) is followed by hand: untouched fields take
+  // the new values; edited ones are kept, but saving them as they are would
+  // silently undo the newer rules, so they are flagged for review.
+  const rulesKey = JSON.stringify(rules);
+  const seenRulesKey = useRef(rulesKey);
+  useEffect(() => {
+    if (seenRulesKey.current === rulesKey) return;
+    seenRulesKey.current = rulesKey;
+    const next = rulesToForm(rules);
+    const previous = form.formState.defaultValues;
+    const current = form.getValues();
+    const kept = RULE_FIELDS.filter((path) => {
+      const value = readField(current, path);
+      return (
+        !sameValue(value, readField(previous, path)) && !sameValue(value, readField(next, path))
+      );
+    });
+    form.reset(next);
+    for (const path of kept) {
+      form.setValue(path, readField(current, path) as never, { shouldDirty: true });
+    }
+    setConflicts(kept);
+    setReviewing((list) => list.filter((path) => kept.includes(path)));
+  }, [rulesKey, rules, form]);
+
   const watched = useWatch({ control: form.control }) as CredentialRulesFormInput;
+  // Marked until saved or dropped, so it never reads as saved once the
+  // warning closes.
+  const unsaved = (path: RuleField) =>
+    reviewing.includes(path) &&
+    !sameValue(readField(watched, path), readField(form.formState.defaultValues, path));
   const previewRules = formToRules(watched, rules);
   const preview = buildView(data, previewRules, PREVIEW_FILTERS);
   const groupTotal = (group: CategoryCredentialGroup) =>
     preview.summary.rows.find((row) => row.group === group)?.total ?? 0;
 
-  const onSubmit = form.handleSubmit(async (values) => {
+  function keepSavedRules(paths: RuleField[]) {
+    for (const path of paths) form.resetField(path);
+    setReviewing([]);
+  }
+
+  const save = form.handleSubmit(async (values) => {
     try {
       const result = await saveCredentialRules({ festivalId, rules: values });
       if (!result.success) {
@@ -189,12 +262,37 @@ export default function CredentialsRulesForm() {
         return;
       }
       toast.success(result.message);
+      setConflicts([]);
+      setReviewing([]);
       form.reset(values);
       router.refresh();
     } catch (error) {
       toastActionError(error, CREDENTIALS_COPY.genericError);
     }
   });
+
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    const changed = conflicts.filter(
+      (path) =>
+        !sameValue(form.getValues(path), readField(form.formState.defaultValues, path)),
+    );
+    if (changed.length > 0) {
+      // Refused once, so the admin sees the newer rules before replacing them.
+      event.preventDefault();
+      setConflicts([]);
+      setReviewing(changed);
+      toast.warning(
+        "Mientras editabas, cambiaron las reglas guardadas. Revisá los campos marcados y guardá de nuevo si querés reemplazarlas.",
+        {
+          duration: 15_000,
+          action: { label: "Usar las guardadas", onClick: () => keepSavedRules(changed) },
+        },
+      );
+      return;
+    }
+    setConflicts([]);
+    return save(event);
+  }
 
   async function onReset() {
     setResetting(true);
@@ -205,6 +303,8 @@ export default function CredentialsRulesForm() {
         return;
       }
       toast.success(result.message);
+      setConflicts([]);
+      setReviewing([]);
       form.reset(rulesToForm(DEFAULT_CREDENTIAL_RULES));
       router.refresh();
     } catch (error) {
@@ -219,7 +319,12 @@ export default function CredentialsRulesForm() {
   return (
     <Form {...form}>
       <form onSubmit={onSubmit} noValidate className="flex flex-wrap items-start gap-6">
-        <div className="flex min-w-0 flex-[999_1_35rem] flex-col gap-6">
+        {/* Locked while saving or resetting: each ends by resetting the form
+            to what it saved, which would drop an edit made meanwhile. */}
+        <fieldset
+          disabled={busy}
+          className="flex min-w-0 flex-[999_1_35rem] flex-col gap-6"
+        >
           <Card className="min-w-0">
             <CardHeader>
               <CardTitle className="text-lg">Por categoría</CardTitle>
@@ -251,15 +356,24 @@ export default function CredentialsRulesForm() {
                         name={`${group}.quantity`}
                         label="Credenciales por espacio"
                         description={`Una reserva con 2 espacios recibe ${number(quantity * 2)}.`}
+                        unsaved={unsaved(`${group}.quantity`)}
                       />
                       <FormField
                         name={`${group}.namingMode`}
-                        render={({ field }) => (
+                        render={({ field, fieldState }) => (
                           <FormItem className="flex min-w-0 flex-col gap-2 space-y-0">
                             <FormLabel>Cuáles llevan nombre</FormLabel>
                             <Select value={field.value} onValueChange={field.onChange}>
                               <FormControl>
-                                <SelectTrigger className="min-w-0">
+                                <SelectTrigger
+                                  className={cn(
+                                    "min-w-0",
+                                    unsaved(`${group}.namingMode`) && UNSAVED_CLASS,
+                                  )}
+                                  aria-invalid={
+                                    fieldState.invalid || unsaved(`${group}.namingMode`)
+                                  }
+                                >
                                   <SelectValue />
                                 </SelectTrigger>
                               </FormControl>
@@ -294,16 +408,19 @@ export default function CredentialsRulesForm() {
                 name="external.quantity"
                 label="Participante externo, por espacio"
                 description="Con el nombre de la organización. Se ajusta una por una en Equipo y externos."
+                unsaved={unsaved("external.quantity")}
               />
               <QuantityField
                 name="volunteer.quantity"
                 label="Voluntario aceptado"
                 description="Con nombre y rol asignado."
+                unsaved={unsaved("volunteer.quantity")}
               />
               <QuantityField
                 name="staff.quantity"
                 label="Persona del equipo Glitter"
                 description="Con nombre y rol."
+                unsaved={unsaved("staff.quantity")}
               />
             </CardContent>
             <CardFooter className="flex flex-wrap justify-end gap-2">
@@ -321,7 +438,7 @@ export default function CredentialsRulesForm() {
               </Button>
             </CardFooter>
           </Card>
-        </div>
+        </fieldset>
 
         <div className="flex min-w-0 flex-[1_1_18rem] flex-col gap-6">
           <Card>
@@ -359,7 +476,7 @@ export default function CredentialsRulesForm() {
           </Alert>
           <p className="text-xs text-muted-foreground">
             Valores por defecto: 2 credenciales por espacio en todas las categorías. En
-            ilustración y emprendimiento, una con nombre por participante y el resto sin nombre;
+            ilustración y emprendimiento, una con nombre por participante hasta completar las de la reserva y el resto sin nombre;
             en gastronomía, todas con el nombre del expositor. Siempre se cuenta por espacio: una
             reserva con 2 espacios recibe el doble.
           </p>

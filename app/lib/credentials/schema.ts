@@ -24,12 +24,21 @@ const id = z.coerce
   .positive()
   .max(POSTGRES_INT_MAX);
 
-const quantity = (max: number, label = "La cantidad") =>
-  z.coerce
-    .number({ error: `${label} tiene que ser un número.` })
-    .int(`${label} tiene que ser un número entero.`)
-    .min(0, `${label} no puede ser negativa.`)
-    .max(max, `${label} puede ser como máximo ${max}.`);
+/**
+ * Only a typed number becomes one: `z.coerce` would read a blank field (what a
+ * cleared number input sends), whitespace, `null` or `true` as 0 or 1, so an
+ * emptied rule would save as "no credentials". Null still reaches `.nullable()`.
+ */
+const quantity = (max: number, { label = "La cantidad", min = 0 } = {}) =>
+  z.preprocess(
+    (value) => (typeof value === "string" && value.trim() !== "" ? Number(value) : value),
+    z
+      .number({ error: `${label} tiene que ser un número.` })
+      .int(`${label} tiene que ser un número entero.`)
+      .min(0, `${label} no puede ser negativa.`)
+      .min(min, `${label} tiene que ser al menos ${min}.`)
+      .max(max, `${label} puede ser como máximo ${max}.`),
+  );
 
 const trimmed = (label: string, max: number) =>
   z
@@ -124,7 +133,7 @@ export const extraCredentialFieldsSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("unnamed"),
     label: trimmed("para qué son", EXTRA_LABEL_MAX),
-    quantity: quantity(EXTRA_QUANTITY_MAX).min(1, "La cantidad tiene que ser al menos 1."),
+    quantity: quantity(EXTRA_QUANTITY_MAX, { min: 1 }),
   }),
 ]);
 export type ExtraCredentialFieldsInput = z.input<typeof extraCredentialFieldsSchema>;
@@ -143,7 +152,7 @@ export const updateExtraCredentialSchema = z.object({
   festivalId: id,
   extraCredentialId: id,
   label: trimmed("para qué es", EXTRA_LABEL_MAX),
-  quantity: quantity(EXTRA_QUANTITY_MAX).min(1, "La cantidad tiene que ser al menos 1.").optional(),
+  quantity: quantity(EXTRA_QUANTITY_MAX, { min: 1 }).optional(),
 });
 export type UpdateExtraCredentialInput = z.input<typeof updateExtraCredentialSchema>;
 
