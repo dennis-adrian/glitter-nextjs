@@ -882,6 +882,7 @@ export async function restoreActivityParticipant(
           .select({
             detailsId: festivalActivityParticipants.detailsId,
             removedAt: festivalActivityParticipants.removedAt,
+            updatedAt: festivalActivityParticipants.updatedAt,
           })
           .from(festivalActivityParticipants)
           .where(eq(festivalActivityParticipants.id, participationId))
@@ -920,7 +921,11 @@ export async function restoreActivityParticipant(
           .set({
             removedAt: null,
             removalReason: null,
-            updatedAt: new Date(),
+            // Strictly later than the last write, as moves stamp it, so a
+            // restore can never leave the revision an old undo expects.
+            updatedAt: new Date(
+              Math.max(Date.now(), locked.updatedAt.getTime() + 1),
+            ),
           })
           .where(eq(festivalActivityParticipants.id, participationId));
 

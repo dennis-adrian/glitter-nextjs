@@ -2235,4 +2235,31 @@ describeDatabase("moving a participant between variants", () => {
     expect((await waitlistRow(skipped.id))?.notifiedAt).toBeNull();
     expect((await waitlistRow(next.id))?.notifiedForDetailId).toBe(source);
   });
+
+  it("refuses an undo after a removal and restore within the move's millisecond", async () => {
+    const { source, target, participant } = fixture;
+    const row = await enroll(source, participant.id);
+    const move = await moveActivityParticipant(row.id, target);
+    await integrationDb!
+      .update(festivalActivityParticipants)
+      .set({ removedAt: new Date(), removalReason: "x" })
+      .where(eq(festivalActivityParticipants.id, row.id));
+    // The restore runs on a clock reading the move's revision exactly.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.parse(move.revision!));
+    try {
+      expect(await restoreActivityParticipant(row.id)).toMatchObject({
+        success: true,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const undo = await moveActivityParticipant(row.id, source, {
+      expectedSourceDetailId: target,
+      undo: undoOf(move),
+    });
+
+    expect(undo).toEqual({ success: false, message: STALE_MESSAGE });
+  });
 });
