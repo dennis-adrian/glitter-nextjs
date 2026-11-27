@@ -272,10 +272,21 @@ describe("MoveParticipantVariantMenu", () => {
       render(reshown.description as ReactElement);
       screen.getByText(message);
 
+      const shownBeforeSecond = vi.mocked(toast.success).mock.calls.length;
       fireEvent.click(retryButton());
       await vi.waitFor(() => expect(mocks.retry).toHaveBeenCalledTimes(2));
+      // The second failure restores the toast too: not stuck on "Enviando".
+      await vi.waitFor(() => {
+        expect(vi.mocked(toast.success).mock.calls.length).toBeGreaterThan(
+          shownBeforeSecond + 1,
+        );
+        expect(lastSuccessToast(MOVED).description).not.toBe(
+          "Enviando invitación…",
+        );
+      });
 
-      reshown.action?.onClick();
+      // Undo from the toast as it stands now, not the one shown earlier.
+      lastSuccessToast(MOVED).action?.onClick();
       await vi.waitFor(() => expect(mocks.move).toHaveBeenCalledTimes(2));
       expect(mocks.move).toHaveBeenLastCalledWith(77, 1, {
         expectedSourceDetailId: 2,

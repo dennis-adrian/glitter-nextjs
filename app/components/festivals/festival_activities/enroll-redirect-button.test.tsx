@@ -221,6 +221,67 @@ describe("picking the variant to enroll in", () => {
     );
 
     expect(screen.getByText("Estás en la lista de espera")).toBeTruthy();
+    expect(screen.getByText("#3")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Inscribirme" })).toBeNull();
+  });
+
+  /** Variant 84 for gastronomy first, then 85 for the profile's category. */
+  function withGastronomyFirst(fullForViewer: [boolean, boolean]) {
+    const activity = twoVariants(fullForViewer);
+    activity.details = [
+      { ...activity.details[0], category: "gastronomy" },
+      activity.details[1],
+    ];
+    activity.waitlistEntries = [];
+    return activity;
+  }
+
+  it("sends a variant of the profile's category, not an open one of another", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+    const { enrollInActivity } =
+      await import("@/app/lib/festival_activites/actions");
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    vi.mocked(enrollInActivity).mockResolvedValue({
+      success: false,
+      message: "x",
+    });
+    render(
+      <EnrollRedirectButton
+        currentProfile={profile}
+        forProfile={profile}
+        festivalId={7}
+        activity={withGastronomyFirst([false, false])}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Inscribirme" }));
+
+    await waitFor(() => expect(enrollInActivity).toHaveBeenCalled());
+    expect(vi.mocked(enrollInActivity).mock.calls[0][2].id).toBe(85);
+  });
+
+  it("offers the waitlist when the profile's variant is full, whatever other categories have", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+    render(
+      <EnrollRedirectButton
+        currentProfile={profile}
+        forProfile={profile}
+        festivalId={7}
+        activity={withGastronomyFirst([false, true])}
+      />,
+    );
+
+    expect(screen.getByText("Anotate en la lista de espera")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Inscribirme" })).toBeNull();
   });
 });
