@@ -18,6 +18,7 @@ export function emptyData(): CredentialsData {
     volunteers: [],
     volunteerCounts: { accepted: 0, withoutRole: 0, waiting: 0 },
     staff: [],
+    archivedStaff: [],
     extras: [],
     ruleRows: [],
     externalOverrides: [],

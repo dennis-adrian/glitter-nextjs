@@ -70,3 +70,18 @@ export function disposableDatabaseProblem(
   }
   return null;
 }
+
+/**
+ * The advisory lock the links integration suites hold while they run: one
+ * empties `site_links` before every test, the other adds links of its own,
+ * and the two must never run at once.
+ */
+export const LINKS_SUITE_LOCK = 731_400_313;
+
+/**
+ * How long a links suite waits for that lock: under its `beforeAll` timeout,
+ * so a wait that runs out fails the statement on the server instead of
+ * leaving it queued on the client, to finish after the suite gave up and set
+ * the suite's work going after its teardown.
+ */
+export const LINKS_SUITE_LOCK_TIMEOUT = "45s";

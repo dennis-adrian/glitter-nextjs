@@ -10,6 +10,7 @@ import { addExternal, batch, emptyData } from "@/app/lib/credentials/__fixtures_
 const setFestivalStaffMember = vi.hoisted(() => vi.fn());
 const setExternalCredentialQuantity = vi.hoisted(() => vi.fn());
 const removeExtraCredential = vi.hoisted(() => vi.fn());
+const restoreStaffMember = vi.hoisted(() => vi.fn());
 const refresh = vi.hoisted(() => vi.fn());
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("@/app/lib/credentials/actions", () => ({
@@ -19,7 +20,7 @@ vi.mock("@/app/lib/credentials/actions", () => ({
   createStaffMember: vi.fn(),
   updateStaffMember: vi.fn(),
   archiveStaffMember: vi.fn(),
-  restoreStaffMember: vi.fn(),
+  restoreStaffMember,
   addExtraCredential: vi.fn(),
   updateExtraCredential: vi.fn(),
 }));
@@ -97,6 +98,33 @@ describe("CredentialsTeamView", () => {
     });
     renderWithCredentials(<CredentialsTeamView />, { data, tab: "equipo" });
     expect(screen.getByText(/Marcá quiénes trabajan en esta: 1 de 1\./)).toBeTruthy();
+  });
+
+  it("lists archived members not selected here apart, with only a restore button", async () => {
+    restoreStaffMember.mockResolvedValue({
+      success: true,
+      message: "La persona volvió a la lista del equipo.",
+    });
+    const data = festival();
+    data.archivedStaff.push({ id: 9, fullName: "Rocío Vargas", roleLabel: "Logística" });
+    renderWithCredentials(<CredentialsTeamView />, { data, tab: "equipo" });
+    // Not in the roster nor its count.
+    expect(screen.getByText(/Marcá quiénes trabajan en esta: 2 de 3/)).toBeTruthy();
+    expect(screen.getByText("Archivadas (1)")).toBeTruthy();
+    expect(screen.queryByRole("checkbox", { name: /Rocío Vargas/ })).toBeNull();
+    const archived = screen.getByRole("list", { name: "Archivadas" });
+    expect(within(archived).queryByRole("checkbox")).toBeNull();
+    fireEvent.click(within(archived).getByRole("button", { name: "Restaurar a Rocío Vargas" }));
+    await waitFor(() =>
+      expect(restoreStaffMember).toHaveBeenCalledWith({ festivalId: 1, staffMemberId: 9 }),
+    );
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    expect(toast.success).toHaveBeenCalledWith("La persona volvió a la lista del equipo.");
+  });
+
+  it("hides the archived list when there is nobody in it", () => {
+    renderWithCredentials(<CredentialsTeamView />, { data: festival(), tab: "equipo" });
+    expect(screen.queryByText(/Archivadas \(/)).toBeNull();
   });
 
   it("says volunteers without a role still count", () => {

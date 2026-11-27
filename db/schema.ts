@@ -676,6 +676,64 @@ export const siteLinksSettings = pgTable("site_links_settings", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+/*
+ * Daily numbers of `/links`, one row per Bolivian day (`LINKS_TIME_ZONE`) and
+ * source, never one per visit: what is kept is a count, with no address, no
+ * browser and nothing else of the visitor's. `source` is one of
+ * `LINKS_SOURCES` (app/lib/links/statistics.ts), read from the referrer.
+ */
+
+/** Times `/links` was shown, per day and source. */
+export const siteLinksDailyViews = pgTable(
+  "site_links_daily_views",
+  {
+    day: date("day", { mode: "string" }).notNull(),
+    source: text("source").notNull(),
+    views: integer("views").notNull().default(0),
+  },
+  (t) => [
+    primaryKey({ columns: [t.day, t.source] }),
+    check(
+      "site_links_daily_views_source_check",
+      sql`${t.source} in ('instagram', 'tiktok', 'facebook', 'direct', 'other')`,
+    ),
+    check("site_links_daily_views_views_check", sql`${t.views} >= 0`),
+  ],
+);
+
+/**
+ * Taps on a link or social icon, per day and source. When a link is deleted
+ * its rows stay, with `link_id` emptied: the period's totals and sources do
+ * not change after the fact, and the dashboard shows them together as
+ * deleted links. Only the link's lifetime count (`click_count`) goes with it.
+ */
+export const siteLinksDailyClicks = pgTable(
+  "site_links_daily_clicks",
+  {
+    id: serial("id").primaryKey(),
+    linkId: integer("link_id").references(() => siteLinks.id, {
+      onDelete: "set null",
+    }),
+    day: date("day", { mode: "string" }).notNull(),
+    source: text("source").notNull(),
+    clicks: integer("clicks").notNull().default(0),
+  },
+  (t) => [
+    // A deleted link's rows (null `link_id`) may repeat a day and source.
+    uniqueIndex("site_links_daily_clicks_link_day_source").on(
+      t.linkId,
+      t.day,
+      t.source,
+    ),
+    index("site_links_daily_clicks_day_idx").on(t.day),
+    check(
+      "site_links_daily_clicks_source_check",
+      sql`${t.source} in ('instagram', 'tiktok', 'facebook', 'direct', 'other')`,
+    ),
+    check("site_links_daily_clicks_clicks_check", sql`${t.clicks} >= 0`),
+  ],
+);
+
 /** Mutable working copy for the public home page. */
 export const landingPageDrafts = pgTable("landing_page_drafts", {
   pageKey: text("page_key").primaryKey(),

@@ -77,6 +77,12 @@ export type ActivityVariantVote = typeof festivalActivityVotes.$inferSelect;
 export type ActivityDetailsWithParticipants = FestivalActivityDetail & {
   participants: ParticipantWithUserAndProofs[];
   votes: ActivityVariantVote[];
+  /**
+   * Set on an activity scoped to a viewer, whose waitlist no longer shows the
+   * invitations and waiters that hold seats: whether the variant has no seat
+   * open to that viewer. See `isActivityDetailFullFor`.
+   */
+  fullForViewer?: boolean;
 };
 
 export type FestivalActivity = typeof festivalActivities.$inferSelect;

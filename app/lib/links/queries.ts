@@ -9,7 +9,12 @@ import {
   sharedCache,
 } from "@/app/lib/cache/shared";
 import { db } from "@/db";
-import { siteLinks, siteLinksSettings } from "@/db/schema";
+import {
+  siteLinks,
+  siteLinksDailyClicks,
+  siteLinksDailyViews,
+  siteLinksSettings,
+} from "@/db/schema";
 
 import {
   DEFAULT_LINKS_HEADER,
@@ -21,6 +26,7 @@ import {
   type ScheduledPublicSiteLink,
   type SocialPosition,
 } from "./definitions";
+import { linksDay, type LinksSource } from "./statistics";
 
 /*
  * What the public page reads and writes. Server-only, not server actions:
@@ -181,12 +187,41 @@ export async function fetchLinksSettings(): Promise<{
 }
 
 /**
- * Counts one tap on a link the page is showing. Hidden links, and links
- * outside their schedule, do not count.
+ * Counts one tap on a link the page is showing: its lifetime total, and the
+ * day's count for `source`. Hidden links, and links outside their schedule,
+ * do not count. One statement, so the two counts cannot part ways and two
+ * taps at once both land.
  */
-export async function recordSiteLinkClick(id: number): Promise<void> {
+export async function recordSiteLinkClick(
+  id: number,
+  source: LinksSource,
+  now: Date = new Date(),
+): Promise<void> {
+  const day = linksDay(now);
+  await db.execute(sql`
+    with "hit" as (
+      update ${siteLinks}
+      set "click_count" = ${siteLinks.clickCount} + 1
+      where ${and(eq(siteLinks.id, id), isShownAt(now))}
+      returning ${siteLinks.id}
+    )
+    insert into ${siteLinksDailyClicks} ("link_id", "day", "source", "clicks")
+    select "hit"."id", ${day}, ${source}, 1 from "hit"
+    on conflict ("link_id", "day", "source")
+    do update set "clicks" = ${siteLinksDailyClicks.clicks} + 1
+  `);
+}
+
+/** Counts one showing of `/links`, on the day's row for `source`. */
+export async function recordLinksPageView(
+  source: LinksSource,
+  now: Date = new Date(),
+): Promise<void> {
   await db
-    .update(siteLinks)
-    .set({ clickCount: sql`${siteLinks.clickCount} + 1` })
-    .where(and(eq(siteLinks.id, id), isShownAt(new Date())));
+    .insert(siteLinksDailyViews)
+    .values({ day: linksDay(now), source, views: 1 })
+    .onConflictDoUpdate({
+      target: [siteLinksDailyViews.day, siteLinksDailyViews.source],
+      set: { views: sql`${siteLinksDailyViews.views} + 1` },
+    });
 }

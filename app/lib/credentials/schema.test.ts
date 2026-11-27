@@ -9,6 +9,7 @@ import {
   festivalStaffMemberSchema,
   printBatchRefSchema,
   removeExtraCredentialSchema,
+  resetCredentialRulesSchema,
   saveCredentialRulesSchema,
   updateExtraCredentialSchema,
   updateStaffMemberSchema,
@@ -31,6 +32,7 @@ describe("saveCredentialRulesSchema", () => {
     const parsed = saveCredentialRulesSchema.parse({
       festivalId: "4",
       rules: { ...rules, staff: { quantity: "3" } },
+      baseRules: rules,
     });
     expect(parsed.festivalId).toBe(4);
     expect(parsed.rules.staff.quantity).toBe(3);
@@ -42,6 +44,7 @@ describe("saveCredentialRulesSchema", () => {
       saveCredentialRulesSchema.safeParse({
         festivalId: 1,
         rules: { ...rules, volunteer: { quantity } },
+        baseRules: rules,
       });
     expect(at(0).success).toBe(true);
     expect(at(20).success).toBe(true);
@@ -55,6 +58,7 @@ describe("saveCredentialRulesSchema", () => {
       saveCredentialRulesSchema.safeParse({
         festivalId: 1,
         rules: { ...rules, volunteer: { quantity } },
+        baseRules: rules,
       });
     for (const blank of ["", "   ", null, undefined, true, "abc", "3 credenciales"]) {
       expect(firstMessage(at(blank))).toBe("La cantidad tiene que ser un número.");
@@ -69,20 +73,59 @@ describe("saveCredentialRulesSchema", () => {
         saveCredentialRulesSchema.safeParse({
           festivalId: 1,
           rules: { ...rules, gastronomy: { quantity: 2, namingMode: "half" } },
+          baseRules: rules,
         }),
       ),
     ).toBe("Elegí cuáles llevan nombre.");
-    expect(saveCredentialRulesSchema.safeParse({ festivalId: 0, rules }).success).toBe(false);
     expect(
-      saveCredentialRulesSchema.safeParse({ festivalId: 2_147_483_648, rules }).success,
+      saveCredentialRulesSchema.safeParse({ festivalId: 0, rules, baseRules: rules }).success,
     ).toBe(false);
+    expect(
+      saveCredentialRulesSchema.safeParse({
+        festivalId: 2_147_483_648,
+        rules,
+        baseRules: rules,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("needs the rules the form was based on, for a save and a reset", () => {
+    const missing = "Actualizá la página y revisá las reglas antes de guardar.";
+    expect(firstMessage(saveCredentialRulesSchema.safeParse({ festivalId: 1, rules }))).toBe(
+      missing,
+    );
+    expect(firstMessage(resetCredentialRulesSchema.safeParse({ festivalId: 1 }))).toBe(missing);
+    const reset = resetCredentialRulesSchema.parse({
+      festivalId: 1,
+      baseRules: { ...rules, staff: { quantity: "3" } },
+    });
+    expect(reset.baseRules.staff.quantity).toBe(3);
   });
 });
 
 describe("externalCredentialQuantitySchema", () => {
+  it("needs the stand count a total was typed against, but not to clear", () => {
+    const at = (quantity: unknown, standCount?: unknown) =>
+      externalCredentialQuantitySchema.safeParse({
+        festivalId: 1,
+        externalParticipantId: 2,
+        quantity,
+        standCount,
+      });
+    expect(firstMessage(at(3))).toBe("Actualizá la página y revisá la cantidad.");
+    const typed = at(3, "2");
+    expect(typed.success && typed.data.standCount).toBe(2);
+    expect(at(null).success).toBe(true);
+  });
+
   it("takes 0 to 50, or null for the default", () => {
     const at = (quantity: unknown) =>
-      externalCredentialQuantitySchema.safeParse({ festivalId: 1, externalParticipantId: 2, quantity });
+      externalCredentialQuantitySchema.safeParse({
+        festivalId: 1,
+        externalParticipantId: 2,
+        quantity,
+        standCount: 1,
+      });
     expect(at(null).success).toBe(true);
     expect(at(50).success).toBe(true);
     expect(firstMessage(at(51))).toBe("La cantidad puede ser como máximo 50.");
@@ -90,7 +133,12 @@ describe("externalCredentialQuantitySchema", () => {
 
   it("keeps null as the reset and refuses blank or nonnumeric input", () => {
     const at = (quantity: unknown) =>
-      externalCredentialQuantitySchema.safeParse({ festivalId: 1, externalParticipantId: 2, quantity });
+      externalCredentialQuantitySchema.safeParse({
+        festivalId: 1,
+        externalParticipantId: 2,
+        quantity,
+        standCount: 1,
+      });
     const reset = at(null);
     expect(reset.success && reset.data.quantity).toBeNull();
     const zero = at("0");

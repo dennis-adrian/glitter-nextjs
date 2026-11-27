@@ -16,18 +16,44 @@ import {
   festivalActivityDetails,
   festivalActivityParticipantProofs,
   festivalActivityParticipants,
+  festivalActivityVotes,
   festivalActivityWaitlist,
   festivals,
+  reservationParticipants,
+  standReservations,
   users,
 } from "@/db/schema";
-import { and, asc, count, eq, gt, isNull, lte, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNull,
+  lte,
+  ne,
+  or,
+} from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/app/vendors/resend";
 import { assertSent } from "@/app/vendors/resend-result";
 import ActivityProofReviewEmail from "@/app/emails/activity-proof-review";
 import ActivityWaitlistInvitationEmail from "@/app/emails/activity-waitlist-invitation";
-import { promoteFromWaitlist } from "@/app/lib/festival_activites/waitlist-promotion";
-import { wasRemovedFromActivity } from "@/app/lib/festival_activites/queries";
+import {
+  isPromotionFailure,
+  offerFreeSeats,
+  promoteFromWaitlist,
+} from "@/app/lib/festival_activites/waitlist-promotion";
+import {
+  countVariantSeats,
+  isActiveInActivity,
+  lockProfileInActivity,
+  lockVariant,
+  notInActivity,
+  wasRemovedFromActivity,
+} from "@/app/lib/festival_activites/queries";
 import { validateCouponBookHeaderImageInput } from "@/app/lib/festival_activites/coupon-book-header-image";
 import {
   getMaterialConfig,
@@ -255,7 +281,10 @@ export async function updateFestivalActivity(
   const detailsWithValidatedHeaderImage = normalizedHeaderImages.details;
 
   try {
-    await db.transaction(async (tx) => {
+    // Variants that gained seats (a raised or lifted limit, or a new
+    // variant): the waitlist is owed them, and nothing else would offer them.
+    const widenedDetailIds = await db.transaction(async (tx) => {
+      const widened: number[] = [];
       await tx
         .update(festivalActivities)
         .set({
@@ -285,11 +314,17 @@ export async function updateFestivalActivity(
 
       // Diff details: update existing, insert new, delete absent (if no participants)
       const existing = await tx
-        .select({ id: festivalActivityDetails.id })
+        .select({
+          id: festivalActivityDetails.id,
+          participationLimit: festivalActivityDetails.participationLimit,
+        })
         .from(festivalActivityDetails)
         .where(eq(festivalActivityDetails.activityId, activityId));
 
       const existingIds = new Set(existing.map((d) => d.id));
+      const oldLimits = new Map(
+        existing.map((d) => [d.id, d.participationLimit]),
+      );
       const incomingIds = new Set(
         detailsWithValidatedHeaderImage
           .filter((d) => d.id != null)
@@ -335,6 +370,12 @@ export async function updateFestivalActivity(
                 : null,
           })
           .where(eq(festivalActivityDetails.id, detail.id as number));
+
+        const oldLimit = oldLimits.get(detail.id as number) || null;
+        const newLimit = detail.participationLimit || null;
+        if (oldLimit !== null && (newLimit === null || newLimit > oldLimit)) {
+          widened.push(detail.id as number);
+        }
       }
 
       // Insert new details
@@ -342,21 +383,35 @@ export async function updateFestivalActivity(
         (d) => d.id == null,
       );
       if (newDetails.length > 0) {
-        await tx.insert(festivalActivityDetails).values(
-          newDetails.map((detail) => ({
-            activityId,
-            description: detail.description,
-            participationLimit: detail.participationLimit,
-            category: detail.category ?? null,
-            imageUrl: detail.imageUrl ?? null,
-            couponBookHeaderImageUrl:
-              data.type === "coupon_book"
-                ? (detail.couponBookHeaderImageUrl ?? null)
-                : null,
-          })),
-        );
+        const inserted = await tx
+          .insert(festivalActivityDetails)
+          .values(
+            newDetails.map((detail) => ({
+              activityId,
+              description: detail.description,
+              participationLimit: detail.participationLimit,
+              category: detail.category ?? null,
+              imageUrl: detail.imageUrl ?? null,
+              couponBookHeaderImageUrl:
+                data.type === "coupon_book"
+                  ? (detail.couponBookHeaderImageUrl ?? null)
+                  : null,
+            })),
+          )
+          .returning({ id: festivalActivityDetails.id });
+        widened.push(...inserted.map((d) => d.id));
       }
+      return widened;
     });
+
+    // After the commit: each offer locks one variant on its own.
+    if (data.waitlistWindowMinutes) {
+      for (const detailId of widenedDetailIds) {
+        // Bounded by the request's time; a later enrolment attempt offers
+        // any seat still owed.
+        await offerFreeSeats(activityId, detailId, { maxOffers: 50 });
+      }
+    }
 
     revalidatePath(`/dashboard/festivals/${festivalId}/festival_activities`);
 
@@ -821,86 +876,85 @@ export async function restoreActivityParticipant(
   }
 
   try {
-    const participation = await db.query.festivalActivityParticipants.findFirst(
-      {
-        where: eq(festivalActivityParticipants.id, participationId),
-        with: { activityDetail: true },
+    const result = await db.transaction(
+      async (tx): Promise<{ success: boolean; message: string } | null> => {
+        // The participant row first, then its variant: the order moves use,
+        // so the two cannot deadlock. The row also tells which variant to
+        // lock, which a concurrent move may have just changed.
+        const [locked] = await tx
+          .select({
+            detailsId: festivalActivityParticipants.detailsId,
+            removedAt: festivalActivityParticipants.removedAt,
+            updatedAt: festivalActivityParticipants.updatedAt,
+          })
+          .from(festivalActivityParticipants)
+          .where(eq(festivalActivityParticipants.id, participationId))
+          .for("update");
+
+        if (!locked) {
+          return { success: false, message: "Participante no encontrado" };
+        }
+
+        if (!locked.removedAt) {
+          return {
+            success: false,
+            message: "El participante no está removido",
+          };
+        }
+
+        // Counting under the variant lock keeps a concurrent move, enrolment
+        // or restore from taking the same last seat.
+        const variant = await lockVariant(tx, locked.detailsId);
+        if (variant?.participationLimit) {
+          const { activeCount, reservedCount } = await countVariantSeats(
+            tx,
+            locked.detailsId,
+          );
+          if (activeCount + reservedCount >= variant.participationLimit) {
+            return {
+              success: false,
+              message:
+                "No hay cupos disponibles para restaurar al participante",
+            };
+          }
+        }
+
+        await tx
+          .update(festivalActivityParticipants)
+          .set({
+            removedAt: null,
+            removalReason: null,
+            // Strictly later than the last write, as moves stamp it, so a
+            // restore can never leave the revision an old undo expects.
+            updatedAt: new Date(
+              Math.max(Date.now(), locked.updatedAt.getTime() + 1),
+            ),
+          })
+          .where(eq(festivalActivityParticipants.id, participationId));
+
+        await tx
+          .update(festivalActivityParticipantProofs)
+          .set({
+            proofStatus: "rejected_resubmit",
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(
+                festivalActivityParticipantProofs.participationId,
+                participationId,
+              ),
+              eq(
+                festivalActivityParticipantProofs.proofStatus,
+                "rejected_removed",
+              ),
+            ),
+          );
+        return null;
       },
     );
 
-    if (!participation) {
-      return { success: false, message: "Participante no encontrado" };
-    }
-
-    if (!participation.removedAt) {
-      return { success: false, message: "El participante no está removido" };
-    }
-
-    if (participation.activityDetail.participationLimit) {
-      const now = new Date();
-
-      const [{ activeCount }] = await db
-        .select({ activeCount: count() })
-        .from(festivalActivityParticipants)
-        .where(
-          and(
-            eq(festivalActivityParticipants.detailsId, participation.detailsId),
-            isNull(festivalActivityParticipants.removedAt),
-          ),
-        );
-
-      const [{ reservedCount }] = await db
-        .select({ reservedCount: count() })
-        .from(festivalActivityWaitlist)
-        .where(
-          and(
-            eq(
-              festivalActivityWaitlist.notifiedForDetailId,
-              participation.detailsId,
-            ),
-            gt(festivalActivityWaitlist.expiresAt, now),
-          ),
-        );
-
-      const combinedCount = activeCount + reservedCount;
-
-      if (combinedCount >= participation.activityDetail.participationLimit) {
-        return {
-          success: false,
-          message: "No hay cupos disponibles para restaurar al participante",
-        };
-      }
-    }
-
-    await db.transaction(async (tx) => {
-      await tx
-        .update(festivalActivityParticipants)
-        .set({
-          removedAt: null,
-          removalReason: null,
-          updatedAt: new Date(),
-        })
-        .where(eq(festivalActivityParticipants.id, participationId));
-
-      await tx
-        .update(festivalActivityParticipantProofs)
-        .set({
-          proofStatus: "rejected_resubmit",
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(
-              festivalActivityParticipantProofs.participationId,
-              participationId,
-            ),
-            eq(
-              festivalActivityParticipantProofs.proofStatus,
-              "rejected_removed",
-            ),
-          ),
-        );
-    });
+    if (result) return result;
 
     revalidatePath("/dashboard");
     return { success: true, message: "Participante restaurado correctamente" };
@@ -911,6 +965,421 @@ export async function restoreActivityParticipant(
         : "Error al restaurar al participante";
     console.error("Error restoring activity participant:", error);
     return { success: false, message };
+  }
+}
+
+export type MoveParticipantOptions = {
+  /** The variant the admin saw the participant in. */
+  expectedSourceDetailId?: number;
+  /** Set to undo a move, with the `revision` that move returned. */
+  undo?: { revision: string };
+};
+
+export type MoveParticipantResult = {
+  success: boolean;
+  message: string;
+  /** Set when the freed source slot went to someone on the waitlist. */
+  invitedName?: string;
+  /** The waitlist invitation for the freed slot could not be sent. */
+  invitationFailed?: boolean;
+  /** Identifies this move, for its undo (the row's new updatedAt, ISO). */
+  revision?: string;
+};
+
+const STALE_MOVE_MESSAGE =
+  "El participante ya fue movido a otra variante. Actualizá la página.";
+
+/**
+ * Moves an active participant to another variant of the same activity. The
+ * participation row keeps its id, so proofs and review state travel with it.
+ * Votes do not: they belong to the variant they were cast in, so a
+ * participant who already received votes cannot be moved. The target must
+ * have room (active participants plus outstanding waitlist reservations) and
+ * accept the participant's category. When the move leaves the source variant
+ * below its limit, the freed slot goes to the waitlist, as with a removal;
+ * `invitedName` then names who was invited, and `invitationFailed` says the
+ * invitation was due but could not be sent.
+ *
+ * `expectedSourceDetailId` is the variant the admin saw the participant in;
+ * when the participant has moved meanwhile (another admin, another tab), the
+ * move is refused instead of silently overriding the other one.
+ *
+ * `undo` puts a participant back where a move took them from, and only while
+ * nothing has changed the row since that move (`revision`). Into a variant
+ * with room it always may. Into a full one, which it may leave over capacity
+ * as the admin had it, only while no waitlist invitation holds a seat there
+ * and nobody entered it since the move (enrolled, accepted an invitation, or
+ * was restored or moved there). It invites nobody to the slot it frees.
+ */
+export async function moveActivityParticipant(
+  participationId: number,
+  targetDetailId: number,
+  options: MoveParticipantOptions = {},
+): Promise<MoveParticipantResult> {
+  const profile = await getAdminProfile();
+  if (!profile) {
+    return {
+      success: false,
+      message: "No tienes permisos para realizar esta acción",
+    };
+  }
+
+  const { undo } = options;
+  // A server action takes any payload: an undo must carry the revision the
+  // move returned, or it cannot be checked.
+  const undoRevision =
+    undo && typeof undo.revision === "string" ? Date.parse(undo.revision) : NaN;
+  if (undo && Number.isNaN(undoRevision)) {
+    return { success: false, message: STALE_MOVE_MESSAGE };
+  }
+
+  type MoveResult =
+    | { success: false; message: string }
+    | {
+        success: true;
+        message: string;
+        activityId: number;
+        sourceDetailId: number;
+        revision: string;
+      };
+
+  try {
+    const result = await db.transaction(async (tx): Promise<MoveResult> => {
+      // Lock the row on its own, without joins: a concurrent move that waits
+      // on this lock then re-reads the row as the winner left it, instead of
+      // losing it to a join on the old details_id.
+      const [locked] = await tx
+        .select({
+          id: festivalActivityParticipants.id,
+          userId: festivalActivityParticipants.userId,
+          detailsId: festivalActivityParticipants.detailsId,
+          removedAt: festivalActivityParticipants.removedAt,
+          updatedAt: festivalActivityParticipants.updatedAt,
+        })
+        .from(festivalActivityParticipants)
+        .where(eq(festivalActivityParticipants.id, participationId))
+        .for("update");
+
+      if (!locked) {
+        return { success: false, message: "Participante no encontrado" };
+      }
+      if (
+        options.expectedSourceDetailId !== undefined &&
+        locked.detailsId !== options.expectedSourceDetailId &&
+        locked.detailsId !== targetDetailId
+      ) {
+        return { success: false, message: STALE_MOVE_MESSAGE };
+      }
+      // Every write to the row stamps updatedAt, so a different one means
+      // another move (or a removal and restore) came after the one being
+      // undone, even when it left the participant in the same variant.
+      if (undo && locked.updatedAt.getTime() !== undoRevision) {
+        return { success: false, message: STALE_MOVE_MESSAGE };
+      }
+
+      const [source] = await tx
+        .select({
+          activityId: festivalActivityDetails.activityId,
+          activityType: festivalActivities.type,
+          festivalId: festivalActivities.festivalId,
+        })
+        .from(festivalActivityDetails)
+        .innerJoin(
+          festivalActivities,
+          eq(festivalActivities.id, festivalActivityDetails.activityId),
+        )
+        .where(eq(festivalActivityDetails.id, locked.detailsId));
+      const [owner] = await tx
+        .select({ category: users.category })
+        .from(users)
+        .where(eq(users.id, locked.userId));
+      if (!source || !owner) {
+        return { success: false, message: "Participante no encontrado" };
+      }
+      const participation = {
+        ...locked,
+        activityId: source.activityId,
+        userCategory: owner.category,
+      };
+      if (participation.removedAt) {
+        return {
+          success: false,
+          message: "Restaurá al participante antes de moverlo de variante",
+        };
+      }
+      if (participation.detailsId === targetDetailId) {
+        return {
+          success: false,
+          message: "El participante ya está en esa variante",
+        };
+      }
+
+      // Votes name the variant they were cast in, and results only count a
+      // vote for someone still in that variant: moved, the participant would
+      // lose them, and their voters could vote for them again in the target.
+      // Stand votes name the stand the participant holds in this festival.
+      const heldStands = tx
+        .select({ standId: standReservations.standId })
+        .from(standReservations)
+        .innerJoin(
+          reservationParticipants,
+          eq(reservationParticipants.reservationId, standReservations.id),
+        )
+        .where(
+          and(
+            eq(reservationParticipants.userId, participation.userId),
+            eq(standReservations.festivalId, source.festivalId),
+            eq(standReservations.status, "accepted"),
+          ),
+        );
+      const [vote] = await tx
+        .select({ id: festivalActivityVotes.id })
+        .from(festivalActivityVotes)
+        .where(
+          or(
+            eq(festivalActivityVotes.participantId, participationId),
+            and(
+              eq(
+                festivalActivityVotes.activityVariantId,
+                participation.detailsId,
+              ),
+              inArray(festivalActivityVotes.standId, heldStands),
+            ),
+          ),
+        )
+        .limit(1);
+      if (vote) {
+        return {
+          success: false,
+          message:
+            "El participante ya recibió votos; no se puede mover de variante",
+        };
+      }
+
+      // Locking the target serializes every writer that takes a seat there,
+      // so two of them cannot both take its last slot.
+      const target = await lockVariant(tx, targetDetailId);
+      if (!target || target.activityId !== participation.activityId) {
+        return {
+          success: false,
+          message: "La variante de destino no pertenece a esta actividad",
+        };
+      }
+
+      if (target.category && participation.userCategory !== target.category) {
+        return {
+          success: false,
+          message:
+            "La categoría del participante no coincide con la de la variante de destino",
+        };
+      }
+
+      const [existing] = await tx
+        .select({ id: festivalActivityParticipants.id })
+        .from(festivalActivityParticipants)
+        .where(
+          and(
+            eq(festivalActivityParticipants.detailsId, targetDetailId),
+            eq(festivalActivityParticipants.userId, participation.userId),
+          ),
+        );
+      if (existing) {
+        return {
+          success: false,
+          message: "El participante ya tiene un registro en esa variante",
+        };
+      }
+
+      // Best stand takes one entry per stand in a variant, as
+      // enrollInBestStandActivity enforces; a stand partner may already hold
+      // the target's entry for the stand.
+      if (source.activityType === "best_stand") {
+        const [standTaken] = await tx
+          .select({ id: festivalActivityParticipants.id })
+          .from(festivalActivityParticipants)
+          .innerJoin(
+            reservationParticipants,
+            eq(
+              reservationParticipants.userId,
+              festivalActivityParticipants.userId,
+            ),
+          )
+          .innerJoin(
+            standReservations,
+            eq(standReservations.id, reservationParticipants.reservationId),
+          )
+          .where(
+            and(
+              eq(festivalActivityParticipants.detailsId, targetDetailId),
+              eq(standReservations.festivalId, source.festivalId),
+              eq(standReservations.status, "accepted"),
+              inArray(standReservations.standId, heldStands),
+              ne(festivalActivityParticipants.userId, participation.userId),
+            ),
+          )
+          .limit(1);
+        if (standTaken) {
+          return {
+            success: false,
+            message:
+              "Otro participante ya registró este stand en la variante de destino",
+          };
+        }
+      }
+
+      if (target.participationLimit) {
+        const { activeCount, reservedCount } = await countVariantSeats(
+          tx,
+          targetDetailId,
+        );
+        const full = activeCount + reservedCount >= target.participationLimit;
+        // An undo may return to an over-capacity variant the admin had left
+        // that way, but never take a seat an invitation now holds or someone
+        // took since the move. Every write to a participation stamps
+        // updatedAt, so an active row stamped since the move entered since.
+        // The stamps come from each app instance's own clock, so this assumes
+        // those clocks agree to within milliseconds: an entrant that needs
+        // the freed seat counts under the variant lock only after the move's
+        // commit, so it stamps later in real time.
+        const enteredSinceMove = async () => {
+          const [entered] = await tx
+            .select({ id: festivalActivityParticipants.id })
+            .from(festivalActivityParticipants)
+            .where(
+              and(
+                eq(festivalActivityParticipants.detailsId, targetDetailId),
+                isNull(festivalActivityParticipants.removedAt),
+                gte(
+                  festivalActivityParticipants.updatedAt,
+                  new Date(undoRevision),
+                ),
+              ),
+            )
+            .limit(1);
+          return entered !== undefined;
+        };
+        const refused =
+          full && (!undo || reservedCount > 0 || (await enteredSinceMove()));
+        if (refused) {
+          return {
+            success: false,
+            message: "La variante de destino no tiene cupos disponibles",
+          };
+        }
+      }
+
+      // Strictly later than the last write, so no two writes to the row
+      // within one millisecond can share a revision.
+      const movedAt = new Date(
+        Math.max(Date.now(), locked.updatedAt.getTime() + 1),
+      );
+      await tx
+        .update(festivalActivityParticipants)
+        .set({ detailsId: targetDetailId, updatedAt: movedAt })
+        .where(eq(festivalActivityParticipants.id, participationId));
+
+      return {
+        success: true,
+        message: "Participante movido de variante",
+        activityId: participation.activityId,
+        sourceDetailId: participation.detailsId,
+        revision: movedAt.toISOString(),
+      };
+    });
+
+    if (!result.success) return result;
+
+    let invitedName: string | undefined;
+    let invitationFailed: true | undefined;
+    if (!undo) {
+      try {
+        const promotion = await promoteFromWaitlist(
+          result.activityId,
+          result.sourceDetailId,
+        );
+        if (isPromotionFailure(promotion)) invitationFailed = true;
+        else if (promotion) invitedName = promotion.displayName ?? "un perfil";
+      } catch (waitlistError) {
+        console.error("Error promoting from waitlist:", waitlistError);
+        invitationFailed = true;
+      }
+    }
+
+    revalidatePath("/dashboard");
+    return {
+      success: true,
+      message: result.message,
+      revision: result.revision,
+      ...(invitedName !== undefined && { invitedName }),
+      ...(invitationFailed && { invitationFailed }),
+    };
+  } catch (error) {
+    console.error("Error moving activity participant:", error);
+    return {
+      success: false,
+      message: "No se pudo mover al participante. Intentá nuevamente.",
+    };
+  }
+}
+
+/**
+ * Invites the next waiting profile to a free slot in one variant, for when
+ * the automatic invitation after a move could not be sent. It only invites:
+ * it never repeats the move.
+ */
+export async function retryWaitlistInvitation(
+  activityId: number,
+  detailId: number,
+): Promise<{ success: boolean; message: string; invitedName?: string }> {
+  const profile = await getAdminProfile();
+  if (!profile) {
+    return {
+      success: false,
+      message: "No tienes permisos para realizar esta acción",
+    };
+  }
+
+  try {
+    const [detail] = await db
+      .select({ id: festivalActivityDetails.id })
+      .from(festivalActivityDetails)
+      .where(
+        and(
+          eq(festivalActivityDetails.id, detailId),
+          eq(festivalActivityDetails.activityId, activityId),
+        ),
+      );
+    if (!detail) {
+      return { success: false, message: "La variante de actividad no existe" };
+    }
+
+    const promotion = await promoteFromWaitlist(activityId, detailId);
+    if (isPromotionFailure(promotion)) {
+      return {
+        success: false,
+        message: "No se pudo enviar la invitación. Intentá nuevamente.",
+      };
+    }
+    revalidatePath("/dashboard");
+    if (!promotion) {
+      return {
+        success: false,
+        message:
+          "No hay a quién invitar: la variante no tiene cupos libres o nadie en la lista de espera puede tomarlo",
+      };
+    }
+    const invitedName = promotion.displayName ?? "un perfil";
+    return {
+      success: true,
+      message: `Se invitó a ${invitedName} de la lista de espera`,
+      invitedName,
+    };
+  } catch (error) {
+    console.error("Error retrying waitlist invitation:", error);
+    return {
+      success: false,
+      message: "No se pudo enviar la invitación. Intentá nuevamente.",
+    };
   }
 }
 
@@ -997,92 +1466,98 @@ export async function promoteWaitlistToVariant(
 
     let promoted = 0;
     let skipped = 0;
+    // Seats freed by invitations this run consumed. They are offered on only
+    // once it is done: offered at once, they would invite the next waiter,
+    // likely the very one it is about to enrol here.
+    const freedInvitationDetailIds: number[] = [];
 
-    for (const entry of waitlistEntries) {
-      if (remaining !== null && promoted >= remaining) break;
+    try {
+      for (const entry of waitlistEntries) {
+        if (remaining !== null && promoted >= remaining) break;
 
-      // Skip if variant has category restriction and user doesn't match
-      if (detail.category && entry.userCategory !== detail.category) {
-        skipped++;
-        continue;
-      }
-
-      const promotedInTx = await db.transaction(async (tx) => {
-        // Re-check capacity inside transaction
-        if (detail.participationLimit) {
-          const txNow = new Date();
-          const [{ currentActive }] = await tx
-            .select({ currentActive: count() })
-            .from(festivalActivityParticipants)
-            .where(
-              and(
-                eq(festivalActivityParticipants.detailsId, targetDetailId),
-                isNull(festivalActivityParticipants.removedAt),
-              ),
-            );
-          const [{ currentReserved }] = await tx
-            .select({ currentReserved: count() })
-            .from(festivalActivityWaitlist)
-            .where(
-              and(
-                eq(
-                  festivalActivityWaitlist.notifiedForDetailId,
-                  targetDetailId,
-                ),
-                gt(festivalActivityWaitlist.expiresAt, txNow),
-              ),
-            );
-          if (currentActive + currentReserved >= detail.participationLimit) {
-            return false; // Skip this entry, variant is now full
+        const promotedInTx = await db.transaction(async (tx) => {
+          // Re-check capacity under the variant lock, so a concurrent move,
+          // enrolment or restore cannot take the same seat.
+          // The limit and category are the ones read under the lock, in case
+          // staff just changed them.
+          const variant = await lockVariant(tx, targetDetailId);
+          if (!variant) return "full" as const;
+          if (variant.category && entry.userCategory !== variant.category) {
+            return "wrongCategory" as const;
           }
-        }
+          if (variant.participationLimit) {
+            const {
+              activeCount: currentActive,
+              reservedCount: currentReserved,
+            } = await countVariantSeats(tx, targetDetailId);
+            if (currentActive + currentReserved >= variant.participationLimit) {
+              return "full" as const;
+            }
+          }
 
-        // Check for existing (possibly soft-deleted) participant row
-        const [existing] = await tx
-          .select({
-            id: festivalActivityParticipants.id,
-            removedAt: festivalActivityParticipants.removedAt,
-          })
-          .from(festivalActivityParticipants)
-          .where(
-            and(
-              eq(festivalActivityParticipants.detailsId, targetDetailId),
-              eq(festivalActivityParticipants.userId, entry.userId),
-            ),
-          );
+          // One participation per activity: serialized with the profile's
+          // other seat writers (see lockProfileInActivity).
+          await lockProfileInActivity(tx, activityId, entry.userId);
 
-        if (existing && !existing.removedAt) {
-          // Already actively enrolled — skip
-          return false;
-        }
+          // Claim the entry before writing anything, since returning false
+          // commits. The list was read before any lock, and since then the
+          // profile may have left the waitlist or enrolled in a variant (this
+          // one, while we waited for its lock). A profile with any row in the
+          // activity, removed or left behind by an older enrolment, is skipped
+          // too.
+          const [claimed] = await tx
+            .delete(festivalActivityWaitlist)
+            .where(
+              and(
+                eq(festivalActivityWaitlist.id, entry.id),
+                eq(festivalActivityWaitlist.userId, entry.userId),
+                notInActivity(activityId),
+              ),
+            )
+            .returning({
+              notifiedForDetailId: festivalActivityWaitlist.notifiedForDetailId,
+            });
+          if (!claimed) return false;
 
-        if (existing && existing.removedAt) {
-          await tx
-            .update(festivalActivityParticipants)
-            .set({
-              removedAt: null,
-              removalReason: null,
-              updatedAt: new Date(),
-            })
-            .where(eq(festivalActivityParticipants.id, existing.id));
-        } else {
           await tx.insert(festivalActivityParticipants).values({
             userId: entry.userId,
             detailsId: targetDetailId,
+            updatedAt: new Date(),
           });
+
+          // An invitation it held for another variant stops holding that seat.
+          // An expired one counts too: the cron offers a seat on only from the
+          // row this deleted.
+          const otherVariant =
+            claimed.notifiedForDetailId != null &&
+            claimed.notifiedForDetailId !== targetDetailId;
+          return {
+            freedInvitationDetailId: otherVariant
+              ? claimed.notifiedForDetailId
+              : null,
+          };
+        });
+
+        // Full under the lock: no later entry can take a seat either.
+        if (promotedInTx === "full") break;
+        if (promotedInTx === "wrongCategory") {
+          skipped++;
+          continue;
         }
-
-        await tx
-          .delete(festivalActivityWaitlist)
-          .where(eq(festivalActivityWaitlist.id, entry.id));
-
-        return true;
-      });
-
-      if (promotedInTx) {
-        promoted++;
+        if (promotedInTx) {
+          promoted++;
+          if (promotedInTx.freedInvitationDetailId != null) {
+            freedInvitationDetailIds.push(promotedInTx.freedInvitationDetailId);
+          }
+        }
+        // TODO: send enrollment confirmation email to entry.userEmail
       }
-      // TODO: send enrollment confirmation email to entry.userEmail
+    } finally {
+      // Also when an entry failed, since the ones before it are committed.
+      // Each call invites at most one waiter, so one per freed seat.
+      for (const freedDetailId of freedInvitationDetailIds) {
+        await promoteFromWaitlist(activityId, freedDetailId);
+      }
     }
 
     revalidatePath("/dashboard");
@@ -1120,7 +1595,7 @@ export async function notifyWaitlistEntry(
           activity: {
             with: {
               festival: true,
-              details: true,
+              details: { orderBy: (details) => [asc(details.id)] },
             },
           },
         },
@@ -1140,6 +1615,15 @@ export async function notifyWaitlistEntry(
           ok: false as const,
           message:
             "El participante fue removido de esta actividad. Restauralo desde la lista de participantes.",
+        };
+      }
+
+      // An entry left behind by an earlier enrolment: inviting it would seat
+      // the profile in a second variant.
+      if (await isActiveInActivity(tx, entry.activityId, entry.userId)) {
+        return {
+          ok: false as const,
+          message: "El participante ya está inscrito en esta actividad",
         };
       }
 
@@ -1165,66 +1649,26 @@ export async function notifyWaitlistEntry(
         };
       }
 
-      // 3. Find best matching variant (category-aware, capacity-aware)
-      let matchedDetail: (typeof activity.details)[number] | null = null;
-      for (const detail of activity.details) {
-        const categoryMatches =
-          !detail.category || detail.category === entry.user.category;
-        if (!categoryMatches) continue;
+      // 3. The matching variants, in order: each claim counts its seats
+      // under the variant's lock, so an unlocked count here could only skip a
+      // variant that has room by then.
+      const candidates = activity.details.filter(
+        (detail) => !detail.category || detail.category === entry.user.category,
+      );
 
-        if (!detail.participationLimit) {
-          matchedDetail = detail;
-          break;
-        }
-
-        const [{ activeParticipants }] = await tx
-          .select({ activeParticipants: count() })
-          .from(festivalActivityParticipants)
-          .where(
-            and(
-              eq(festivalActivityParticipants.detailsId, detail.id),
-              isNull(festivalActivityParticipants.removedAt),
-            ),
-          );
-
-        const [{ activeReservations }] = await tx
-          .select({ activeReservations: count() })
-          .from(festivalActivityWaitlist)
-          .where(
-            and(
-              eq(festivalActivityWaitlist.notifiedForDetailId, detail.id),
-              gt(festivalActivityWaitlist.expiresAt, now),
-            ),
-          );
-
-        if (
-          activeParticipants + activeReservations <
-          detail.participationLimit
-        ) {
-          matchedDetail = detail;
-          break;
-        }
-      }
-
-      if (!matchedDetail) {
+      if (candidates.length === 0) {
         return {
           ok: false as const,
           message: "No hay cupos disponibles para la categoría de este usuario",
         };
       }
 
-      // 4. Prepare invitation window (persist only after email succeeds)
-      const expiresAt = new Date(
-        Date.now() + activity.waitlistWindowMinutes * 60 * 1000,
-      );
-
       return {
         ok: true as const,
         entry,
         activity,
-        expiresAt,
-        now,
-        matchedDetail,
+        windowMinutes: activity.waitlistWindowMinutes,
+        candidates,
       };
     });
 
@@ -1232,62 +1676,96 @@ export async function notifyWaitlistEntry(
       return { success: false, message: txResult.message };
     }
 
-    const { entry, activity, expiresAt, now, matchedDetail } = txResult;
+    const { entry, activity, windowMinutes, candidates } = txResult;
 
-    // 5. Send invitation email
+    // 5. Claim the seat and send the invitation in one transaction, as
+    // promoteFromWaitlist does: the seat is counted again under the variant
+    // lock, held through the send so nobody takes it meanwhile, and a failed
+    // send rolls the claim back. The limit is the one read under the lock.
+    // A variant that filled since the pick passes the claim on to the next
+    // one, each in its own transaction: a transaction never locks two.
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
     const activityUrl = `${baseUrl}/profiles/${entry.userId}/festivals/${festivalId}/activity/${activity.id}`;
 
-    try {
-      const result = await sendEmail({
-        from: "Actividades del Festival <no-reply@productoraglitter.com>",
-        to: [entry.user.email],
-        subject: `Tenés un cupo disponible en ${activity.name}`,
-        react: ActivityWaitlistInvitationEmail({
-          userDisplayName: entry.user.displayName,
-          userFirstName: entry.user.firstName,
-          userLastName: entry.user.lastName,
-          activityName: activity.name,
-          festivalName: activity.festival.name,
-          festivalType: activity.festival.festivalType,
-          expiresAt,
-          activityUrl,
-        }),
+    for (const detail of candidates) {
+      const claim = await db.transaction(async (tx) => {
+        const variant = await lockVariant(tx, detail.id);
+        // Staff may have deleted the variant or changed its category since
+        // the pick.
+        if (
+          !variant ||
+          (variant.category && variant.category !== entry.user.category)
+        ) {
+          return "full" as const;
+        }
+        if (variant.participationLimit) {
+          const { activeCount, reservedCount } = await countVariantSeats(
+            tx,
+            detail.id,
+            { exceptEntryId: waitlistEntryId },
+          );
+          if (activeCount + reservedCount >= variant.participationLimit) {
+            return "full" as const;
+          }
+        }
+        // The window runs from the claim, not from before the lock wait.
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + windowMinutes * 60 * 1000);
+        const [claimed] = await tx
+          .update(festivalActivityWaitlist)
+          .set({
+            notifiedAt: now,
+            expiresAt,
+            notifiedForDetailId: detail.id,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(festivalActivityWaitlist.id, waitlistEntryId),
+              or(
+                isNull(festivalActivityWaitlist.expiresAt),
+                lte(festivalActivityWaitlist.expiresAt, now),
+              ),
+            ),
+          )
+          .returning({ id: festivalActivityWaitlist.id });
+        if (!claimed) return "stale" as const;
+
+        const result = await sendEmail({
+          from: "Actividades del Festival <no-reply@productoraglitter.com>",
+          to: [entry.user.email],
+          subject: `Tenés un cupo disponible en ${activity.name}`,
+          react: ActivityWaitlistInvitationEmail({
+            userDisplayName: entry.user.displayName,
+            userFirstName: entry.user.firstName,
+            userLastName: entry.user.lastName,
+            activityName: activity.name,
+            festivalName: activity.festival.name,
+            festivalType: activity.festival.festivalType,
+            expiresAt,
+            activityUrl,
+          }),
+        });
+        assertSent(result);
+        return "sent" as const;
       });
-      assertSent(result);
-    } catch (emailError) {
-      console.error("Error sending waitlist invitation email:", emailError);
-      return { success: false, message: "Error al enviar la notificación" };
+
+      if (claim === "full") continue;
+      if (claim === "stale") {
+        return {
+          success: false,
+          message: "No se pudo guardar la notificación; intentá nuevamente",
+        };
+      }
+
+      revalidatePath(`/dashboard/festivals/${festivalId}/festival_activities`);
+      return { success: true, message: "Notificación enviada correctamente" };
     }
 
-    const updateResult = await db
-      .update(festivalActivityWaitlist)
-      .set({
-        notifiedAt: now,
-        expiresAt,
-        notifiedForDetailId: matchedDetail.id,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(festivalActivityWaitlist.id, waitlistEntryId),
-          or(
-            isNull(festivalActivityWaitlist.expiresAt),
-            lte(festivalActivityWaitlist.expiresAt, now),
-          ),
-        ),
-      )
-      .returning({ id: festivalActivityWaitlist.id });
-
-    if (updateResult.length === 0) {
-      return {
-        success: false,
-        message: "No se pudo guardar la notificación; intentá nuevamente",
-      };
-    }
-
-    revalidatePath(`/dashboard/festivals/${festivalId}/festival_activities`);
-    return { success: true, message: "Notificación enviada correctamente" };
+    return {
+      success: false,
+      message: "No hay cupos disponibles para la categoría de este usuario",
+    };
   } catch (error) {
     console.error("Error notifying waitlist entry:", error);
     return { success: false, message: "Error al enviar la notificación" };
