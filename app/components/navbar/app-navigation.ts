@@ -19,6 +19,7 @@ import {
   MenuIcon,
   MicIcon,
   PackageIcon,
+  PaletteIcon,
   QrCodeIcon,
   ReceiptTextIcon,
   ScanLineIcon,
@@ -477,9 +478,9 @@ const ADMIN: NavSection = {
     },
     {
       key: "admin-live-acts",
-      label: "Presentaciones en vivo",
+      label: "Actividades culturales",
       href: "/dashboard/live-acts",
-      icon: MicIcon,
+      icon: PaletteIcon,
     },
     bannersAdminLink,
     landingAdminLink,
@@ -760,7 +761,7 @@ function buildStaffNavigation(
     key: "menu-settings",
     label: "Configuración",
     description:
-      "Categorías, términos, etiquetas, códigos, QR, presentaciones, funcionalidades, correos, blog, carrusel y contenido de inicio",
+      "Categorías, términos, etiquetas, códigos, QR, actividades culturales, funcionalidades, correos, blog, carrusel y contenido de inicio",
     href: "/menu/configuracion",
     icon: ToggleLeftIcon,
   };

@@ -290,8 +290,8 @@ export const DEFAULT_LANDING_PAGE_CONTENT: LandingPageContentV1 = {
     ],
     communityLinks: [
       {
-        label: "Participá en nuestro escenario",
-        href: "/presentaciones-en-vivo",
+        label: "Participá con tu actividad cultural",
+        href: "/actividades-culturales",
       },
     ],
     contactEmail: "info@productoraglitter.com",

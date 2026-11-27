@@ -15,10 +15,6 @@ const nextConfig: NextConfig = {
         source: "/ingest/:path*",
         destination: "https://us.i.posthog.com/:path*",
       },
-      {
-        source: "/presentaciones-en-vivo",
-        destination: "/live-acts",
-      },
       ...LEGACY_SHARE_IMAGE_ROUTES.map(({ source, destination }) => ({
         source,
         destination,
@@ -55,6 +51,18 @@ const nextConfig: NextConfig = {
       {
         source: "/dashboard/subcategories",
         destination: "/dashboard/categories",
+        permanent: true,
+      },
+      // Live acts became cultural activities. The landing footer (CMS
+      // content) still links the old public address.
+      {
+        source: "/presentaciones-en-vivo",
+        destination: "/actividades-culturales",
+        permanent: true,
+      },
+      {
+        source: "/live-acts",
+        destination: "/actividades-culturales",
         permanent: true,
       },
     ];

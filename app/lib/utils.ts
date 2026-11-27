@@ -333,6 +333,6 @@ export function isStoreFlowPage(pathname?: string | null) {
     pathname.startsWith("/supplies") ||
     pathname.startsWith("/checkout") ||
     pathname.startsWith("/orders/") ||
-    pathname.startsWith("/live-acts")
+    pathname.startsWith("/actividades-culturales")
   );
 }

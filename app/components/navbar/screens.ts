@@ -94,10 +94,10 @@ export const SCREENS: Record<string, ScreenDef> = {
   // Inicio
   "/portal/blog": { title: "Mis artículos", parent: "tab:home" },
   "/portal/blog/[id]/edit": { title: "Artículo", parent: "/portal/blog" },
-  "/live-acts": { title: "Presentaciones en vivo", parent: "tab:home" },
-  // The public address of /live-acts (a rewrite in next.config.ts).
-  "/presentaciones-en-vivo": {
-    title: "Presentaciones en vivo",
+  // /presentaciones-en-vivo and /live-acts redirect here (next.config.ts).
+  // Its form, /actividades-culturales/postular, is a bare page.
+  "/actividades-culturales": {
+    title: "Actividades culturales",
     parent: "tab:home",
   },
   // Tab pages for participants; staff reach them as any other page.
@@ -548,7 +548,7 @@ export const SCREENS: Record<string, ScreenDef> = {
     parent: "/dashboard/qr_codes",
   },
   "/dashboard/live-acts": {
-    title: "Presentaciones en vivo",
+    title: "Actividades culturales",
     ...SETTINGS_PARENT,
   },
   "/dashboard/feature_flags": { title: "Funcionalidades", ...SETTINGS_PARENT },
