@@ -18,7 +18,11 @@ import {
   moveActivityParticipant,
   retryWaitlistInvitation,
 } from "@/app/lib/festival_activites/admin-actions";
-import { toastActionError } from "@/app/lib/errors/action-error";
+import {
+  isStaleDeploymentError,
+  toastActionError,
+  toastStaleDeployment,
+} from "@/app/lib/errors/action-error";
 import type { FestivalActivityDetail } from "@/app/lib/festivals/definitions";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import { cn } from "@/app/lib/utils";
@@ -174,22 +178,25 @@ export default function MoveParticipantVariantMenu({
 
   /**
    * Only re-sends the invitation for the seat the move freed; the participant
-   * stays where the move put them.
+   * stays where the move put them. Null when the tab runs a stale build: the
+   * reload notice is up instead, since no retry or undo can work until then.
    */
-  const retryInvitation = async (sourceDetailId: number) => {
+  const retryInvitation = async (
+    sourceDetailId: number,
+  ): Promise<{ success: boolean; message: string } | null> => {
     try {
       const result = await retryWaitlistInvitation(activityId, sourceDetailId);
       router.refresh();
-      if (result.success) {
-        toast.success(result.message);
-      } else {
-        toast.error(result.message);
-      }
+      return result;
     } catch (error) {
-      toastActionError(
-        error,
-        "No se pudo enviar la invitación. Intentá nuevamente.",
-      );
+      if (isStaleDeploymentError(error)) {
+        toastStaleDeployment();
+        return null;
+      }
+      return {
+        success: false,
+        message: "No se pudo enviar la invitación. Intentá nuevamente.",
+      };
     }
   };
 
@@ -239,38 +246,66 @@ export default function MoveParticipantVariantMenu({
         const undoOf = { from: targetDetailId, revision: result.revision };
         const sourceDetailId = currentDetailId;
         const toastId = `move-${participationId}-${result.revision}`;
-        let retried = false;
-        // The retry sits in the description, not as a second toast button:
-        // two buttons beside the text squeeze it to nothing on a phone.
-        toast.success(moved, {
-          id: toastId,
-          description: result.invitationFailed ? (
-            <span className="flex flex-col items-start gap-1">
-              <span className="break-words">
-                No se pudo enviar la invitación a la lista de espera.
-              </span>
-              <button
-                type="button"
-                // As tall as Deshacer on a phone, so it is as easy to tap.
-                className="inline-flex min-h-10 items-center text-left font-medium underline underline-offset-2 break-words md:min-h-0"
-                onClick={() => {
-                  if (retried) return;
-                  retried = true;
-                  // An invitation would hold the freed seat, so Deshacer
-                  // goes with this toast.
-                  toast.dismiss(toastId);
-                  void retryInvitation(sourceDetailId);
-                }}
-              >
-                Reintentar invitación
-              </button>
-            </span>
-          ) : undefined,
-          action: {
-            label: "Deshacer",
-            onClick: () => void move(currentDetailId, undoOf),
-          },
-        });
+        let retrying = false;
+        const retry = async () => {
+          if (retrying) return;
+          retrying = true;
+          // The same toast reports the attempt, pinned and with neither the
+          // retry nor Deshacer: a sent invitation holds the freed seat, and
+          // an undo meanwhile would leave a failed retry re-showing a move
+          // that no longer stands.
+          toast.success(moved, {
+            id: toastId,
+            duration: Infinity,
+            dismissible: false,
+            description: "Enviando invitación…",
+            action: undefined,
+          });
+          const retried = await retryInvitation(sourceDetailId);
+          retrying = false;
+          if (!retried) {
+            toast.dismiss(toastId);
+          } else if (retried.success) {
+            toast.dismiss(toastId);
+            toast.success(retried.message);
+          } else {
+            // Nothing was invited, so the undo still stands.
+            showMoved(retried.message);
+          }
+        };
+        // With `invitationError`, the retry sits in the description, not as a
+        // second toast button: two buttons beside the text squeeze it to
+        // nothing on a phone. A failed retry re-shows the toast by id, with
+        // the default timer and close back.
+        const showMoved = (invitationError?: string) =>
+          toast.success(moved, {
+            id: toastId,
+            duration: undefined,
+            dismissible: true,
+            description:
+              invitationError !== undefined ? (
+                <span className="flex flex-col items-start gap-1">
+                  <span className="break-words">{invitationError}</span>
+                  <button
+                    type="button"
+                    // As tall as Deshacer on a phone, so it is as easy to tap.
+                    className="inline-flex min-h-10 items-center text-left font-medium underline underline-offset-2 break-words md:min-h-0"
+                    onClick={() => void retry()}
+                  >
+                    Reintentar invitación
+                  </button>
+                </span>
+              ) : undefined,
+            action: {
+              label: "Deshacer",
+              onClick: () => void move(currentDetailId, undoOf),
+            },
+          });
+        showMoved(
+          result.invitationFailed
+            ? "No se pudo enviar la invitación a la lista de espera."
+            : undefined,
+        );
       } else if (result.invitationFailed) {
         toast.success(moved, {
           description:
