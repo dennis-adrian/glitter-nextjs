@@ -361,6 +361,14 @@ describe("getStandFilterMatchingStandIds", () => {
     expect(standFilterMatches({ status: "available", activities: [] })).toEqual(
       [99],
     );
+    // Each filter alone matches stands; together they must match none, since
+    // only an occupied stand can carry a badge.
+    expect(
+      standFilterMatches({
+        status: "available",
+        activities: ["stamp_passport"],
+      }),
+    ).toEqual([]);
   });
 });
 

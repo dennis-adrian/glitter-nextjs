@@ -29,6 +29,7 @@ import {
   useInitialFestivalMapUrlState,
   useSyncFestivalMapUrl,
 } from "@/app/hooks/use-festival-map-url-state";
+import { clampFestivalMapQuery } from "@/app/lib/maps/festival-map-url";
 import {
   EMPTY_STAND_FILTERS,
   getSelectableStandActivities,
@@ -226,7 +227,7 @@ export default function FestivalVisitorExplorer({
 
   function handleSearchSelect(entry: ParticipantSearchEntry) {
     locateRequestId.current += 1;
-    setQuery(entry.displayName);
+    setQuery(clampFestivalMapQuery(entry.displayName));
     // Follow the hit only from a single-sector tab. Someone looking at every
     // sector chose that view, and it is the one that shows where the stand
     // sits relative to the rest of the venue.
@@ -239,7 +240,9 @@ export default function FestivalVisitorExplorer({
   }
 
   function handleQueryChange(nextQuery: string) {
-    setQuery(nextQuery);
+    // Cut where the shared link cuts, so the field, the results and the link
+    // all carry the same text. A link already arrives cut by the parser.
+    setQuery(clampFestivalMapQuery(nextQuery));
     setParticipantLocateRequest(null);
   }
 
