@@ -42,6 +42,7 @@ import {
   countVariantSeats,
   eligibleWaitlistEntries,
   isActiveInActivity,
+  lockProfileInActivity,
   lockVariant,
   wasRemovedFromActivity,
 } from "@/app/lib/festival_activites/queries";
@@ -462,6 +463,18 @@ export async function enrollInActivity(
       // read under it, never the one read above: staff may have just set
       // or changed it. None means unlimited.
       const variant = await lockVariant(tx, detailsId);
+      // Staff may have deleted the variant or changed its category since it
+      // was read above.
+      if (
+        !variant ||
+        (variant.category !== null &&
+          variant.category !== activeProfile.category)
+      ) {
+        return {
+          success: false,
+          message: "No tenés permisos para inscribirte en esta actividad",
+        };
+      }
       const limit =
         variant?.participationLimit && variant.participationLimit > 0
           ? variant.participationLimit
@@ -490,7 +503,9 @@ export async function enrollInActivity(
         return { success: false, message: removedParticipantMessage };
       }
       // One participation per activity, as the activity page assumes: a
-      // request for another variant must not add a second one.
+      // request for another variant must not add a second one. The profile
+      // lock keeps a concurrent one for another variant from passing too.
+      await lockProfileInActivity(tx, dbActivity.id, activeProfile.id);
       if (await isActiveInActivity(tx, dbActivity.id, activeProfile.id)) {
         return {
           success: false,
@@ -556,11 +571,9 @@ export async function enrollInActivity(
             .innerJoin(users, eq(users.id, festivalActivityWaitlist.userId))
             .where(
               and(
-                eligibleWaitlistEntries(
-                  dbActivity.id,
-                  variant?.category ?? null,
-                  { exceptUserId: activeProfile.id },
-                ),
+                eligibleWaitlistEntries(dbActivity.id, variant.category, {
+                  exceptUserId: activeProfile.id,
+                }),
                 ownEntry
                   ? lt(festivalActivityWaitlist.position, ownEntry.position)
                   : undefined,
@@ -1494,6 +1507,7 @@ export async function enrollFromWaitlistInvitation(
       }
       // Active in another variant: the invitation came from an entry an
       // earlier enrolment left behind.
+      await lockProfileInActivity(tx, entry.activityId, userId);
       if (await isActiveInActivity(tx, entry.activityId, userId)) {
         throw new Error("Ya estás inscrito en esta actividad");
       }

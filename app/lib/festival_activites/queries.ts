@@ -298,6 +298,20 @@ export async function wasRemovedFromActivity(
 }
 
 /**
+ * Serializes, until `tx` ends, every writer that seats this profile in some
+ * variant of the activity, so two of them for different variants cannot both
+ * pass the one-participation check. Taken after the variant lock: a seat
+ * writer never holds this and then waits for a variant.
+ */
+export async function lockProfileInActivity(
+  tx: Tx,
+  activityId: number,
+  userId: number,
+) {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(${activityId}, ${userId})`);
+}
+
+/**
  * Whether the profile is active in any variant of the activity. A waitlist
  * entry can outlive an enrolment (one from before enrolment consumed it), and
  * inviting or seating it would put the profile in a second variant.

@@ -49,6 +49,7 @@ import {
 import {
   countVariantSeats,
   isActiveInActivity,
+  lockProfileInActivity,
   lockVariant,
   notInActivity,
   wasRemovedFromActivity,
@@ -406,7 +407,9 @@ export async function updateFestivalActivity(
     // After the commit: each offer locks one variant on its own.
     if (data.waitlistWindowMinutes) {
       for (const detailId of widenedDetailIds) {
-        await offerFreeSeats(activityId, detailId);
+        // Bounded by the request's time; a later enrolment attempt offers
+        // any seat still owed.
+        await offerFreeSeats(activityId, detailId, { maxOffers: 50 });
       }
     }
 
@@ -1492,6 +1495,10 @@ export async function promoteWaitlistToVariant(
             }
           }
 
+          // One participation per activity: serialized with the profile's
+          // other seat writers (see lockProfileInActivity).
+          await lockProfileInActivity(tx, activityId, entry.userId);
+
           // Claim the entry before writing anything, since returning false
           // commits. The list was read before any lock, and since then the
           // profile may have left the waitlist or enrolled in a variant (this
@@ -1642,46 +1649,12 @@ export async function notifyWaitlistEntry(
         };
       }
 
-      // 3. Find the matching variants with room (category-aware,
-      // capacity-aware), in order; the claim counts each again under its lock
-      const candidates: (typeof activity.details)[number][] = [];
-      for (const detail of activity.details) {
-        const categoryMatches =
-          !detail.category || detail.category === entry.user.category;
-        if (!categoryMatches) continue;
-
-        if (!detail.participationLimit) {
-          candidates.push(detail);
-          continue;
-        }
-
-        const [{ activeParticipants }] = await tx
-          .select({ activeParticipants: count() })
-          .from(festivalActivityParticipants)
-          .where(
-            and(
-              eq(festivalActivityParticipants.detailsId, detail.id),
-              isNull(festivalActivityParticipants.removedAt),
-            ),
-          );
-
-        const [{ activeReservations }] = await tx
-          .select({ activeReservations: count() })
-          .from(festivalActivityWaitlist)
-          .where(
-            and(
-              eq(festivalActivityWaitlist.notifiedForDetailId, detail.id),
-              gt(festivalActivityWaitlist.expiresAt, now),
-            ),
-          );
-
-        if (
-          activeParticipants + activeReservations <
-          detail.participationLimit
-        ) {
-          candidates.push(detail);
-        }
-      }
+      // 3. The matching variants, in order: each claim counts its seats
+      // under the variant's lock, so an unlocked count here could only skip a
+      // variant that has room by then.
+      const candidates = activity.details.filter(
+        (detail) => !detail.category || detail.category === entry.user.category,
+      );
 
       if (candidates.length === 0) {
         return {

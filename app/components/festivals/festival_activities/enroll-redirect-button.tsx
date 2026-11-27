@@ -137,6 +137,9 @@ export default function EnrollRedirectButton({
           }
         } else {
           toast.error(result.message);
+          // A refusal usually means this page's counts are stale (a seat
+          // was taken or reserved meanwhile), so show the current options.
+          router.refresh();
         }
       } catch (error) {
         toastActionError(error, "Error inesperado al procesar la inscripción");

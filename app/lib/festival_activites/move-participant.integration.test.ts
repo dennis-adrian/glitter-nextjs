@@ -2262,4 +2262,84 @@ describeDatabase("moving a participant between variants", () => {
 
     expect(undo).toEqual({ success: false, message: STALE_MESSAGE });
   });
+
+  it("refuses an enrolment into a variant whose category changed while it waited", async () => {
+    const { target } = fixture;
+    const newcomer = await createUser("newcomer");
+
+    const [result] = await behindLock(
+      variantLock(target),
+      1,
+      () => [enrollAs(newcomer, target)],
+      (client) =>
+        client.query(
+          "update festival_activity_details set category = 'gastronomy' where id = $1",
+          [target],
+        ),
+    );
+
+    expect(result).toEqual({
+      success: false,
+      message: "No tenés permisos para inscribirte en esta actividad",
+    });
+    expect(await activeIn(target)).toBe(0);
+  });
+
+  it("seats a profile once when it enrols in two variants at the same time", async () => {
+    const { festivalId, activityId, source, target } = fixture;
+    const profile = await createUser("twice");
+    currentProfile.mockResolvedValue(profile);
+    const enrolIn = (detailId: number) =>
+      enrollInActivity(
+        profile as BaseProfile,
+        festivalId,
+        { id: detailId } as ActivityDetailsWithParticipants,
+        { id: activityId } as FestivalActivity,
+      );
+
+    // Each locks its own variant, so only the profile lock lines them up.
+    const results = await behindLock(
+      {
+        text: "select pg_advisory_xact_lock($1, $2)",
+        values: [activityId, profile.id],
+      },
+      2,
+      () => [enrolIn(source), enrolIn(target)],
+    );
+
+    expect(results.filter((r) => r.success)).toHaveLength(1);
+    expect((await activeIn(source)) + (await activeIn(target))).toBe(1);
+  });
+
+  it("offers every seat an edit opens, past a participant request's few", async () => {
+    const { festivalId, activityId, source, target, participant } = fixture;
+    await enroll(source, participant.id);
+    const waiting = [];
+    for (let position = 1; position <= 7; position++) {
+      waiting.push(
+        await addToWaitlist((await createUser(`w${position}`)).id, position),
+      );
+    }
+    const now = Date.now();
+
+    await updateFestivalActivity(activityId, festivalId, {
+      name: "Cuponera",
+      type: "coupon_book",
+      accessLevel: "public",
+      registrationStartDate: new Date(now - DAY),
+      registrationEndDate: new Date(now + DAY),
+      allowsVoting: false,
+      waitlistWindowMinutes: 60,
+      details: [
+        { id: source, participationLimit: 7 },
+        { id: target, participationLimit: 2 },
+      ],
+    });
+
+    // Six new seats: the first six are invited, the seventh still waits.
+    for (const entry of waiting.slice(0, 6)) {
+      expect((await waitlistRow(entry.id))?.notifiedForDetailId).toBe(source);
+    }
+    expect((await waitlistRow(waiting[6].id))?.notifiedAt).toBeNull();
+  });
 });

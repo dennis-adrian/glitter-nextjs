@@ -200,6 +200,8 @@ describe("picking the variant to enroll in", () => {
 
     await waitFor(() => expect(enrollInActivity).toHaveBeenCalled());
     expect(vi.mocked(enrollInActivity).mock.calls[0][2].id).toBe(85);
+    // The refusal refreshes the page, whose counts were stale.
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
   });
 
   it("shows a waiting profile its place when every seat is held for others", () => {

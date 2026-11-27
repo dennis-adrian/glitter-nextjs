@@ -57,8 +57,14 @@ const MAX_SEAT_OFFERS = 5;
  * counts again under the variant lock, so it stops once no seat is left. No
  * job retries a failure, so it is logged for staff to invite by hand.
  */
-export async function offerFreeSeats(activityId: number, detailId: number) {
-  for (let offer = 0; offer < MAX_SEAT_OFFERS; offer++) {
+export async function offerFreeSeats(
+  activityId: number,
+  detailId: number,
+  // Staff editing the activity wait for every seat they opened to be
+  // offered; a participant's request stops at a few.
+  { maxOffers = MAX_SEAT_OFFERS }: { maxOffers?: number } = {},
+) {
+  for (let offer = 0; offer < maxOffers; offer++) {
     const promotion = await promoteFromWaitlist(activityId, detailId);
     if (isPromotionFailure(promotion)) {
       console.error("Could not offer a seat to the waitlist", {
