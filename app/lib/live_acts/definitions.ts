@@ -382,3 +382,11 @@ export function culturalActivityCategoryLabel(
   const title = CULTURAL_ACTIVITY_CATEGORY_CONFIG[category].title;
   return category === "other" && otherType ? `${title}: ${otherType}` : title;
 }
+
+/** "+59171234567" → "+591 712 34567"; any other number as stored. */
+export function formatContactPhone(phone: string): string {
+  const bolivian = /^\+591(\d{8})$/.exec(phone.replace(/[\s-]/g, ""));
+  if (!bolivian) return phone;
+  const digits = bolivian[1]!;
+  return `+591 ${digits.slice(0, 3)} ${digits.slice(3)}`;
+}

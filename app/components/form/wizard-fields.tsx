@@ -43,19 +43,22 @@ export function TextField({
   label,
   hint,
   required,
+  hideLabel,
   ...inputProps
 }: {
   name: string;
   label: string;
   hint?: ReactNode;
   required?: boolean;
+  /** For screen readers only, when a legend already names the group. */
+  hideLabel?: boolean;
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "name">) {
   return (
     <FormField
       name={name}
       render={({ field }) => (
         <FormItem className="grid min-w-0 gap-2">
-          <FormLabel>
+          <FormLabel className={hideLabel ? "sr-only" : undefined}>
             {label}
             {required ? <RequiredMark /> : null}
           </FormLabel>
@@ -65,7 +68,7 @@ export function TextField({
               {...field}
               value={field.value ?? ""}
               aria-required={required || undefined}
-              className={controlClassName}
+              className={cn(controlClassName, inputProps.className)}
             />
           </FormControl>
           {hint ? <FormDescription>{hint}</FormDescription> : null}
@@ -204,10 +207,12 @@ export function PhoneField({
   name,
   label,
   required,
+  hint,
 }: {
   name: string;
   label: string;
   required?: boolean;
+  hint?: ReactNode;
 }) {
   return (
     <FormField
@@ -223,7 +228,9 @@ export function PhoneField({
             onChange={field.onChange}
             onBlur={field.onBlur}
             required={required}
+            hasHint={Boolean(hint)}
           />
+          {hint ? <FormDescription>{hint}</FormDescription> : null}
           <FormMessage />
         </FormItem>
       )}
@@ -236,13 +243,20 @@ function PhoneControl({
   onChange,
   onBlur,
   required,
+  hasHint,
 }: {
   value: string;
   onChange: (value: string) => void;
   onBlur: () => void;
   required?: boolean;
+  hasHint?: boolean;
 }) {
-  const { error, formItemId, formMessageId } = useFormField();
+  const { error, formItemId, formMessageId, formDescriptionId } =
+    useFormField();
+  const describedBy =
+    [hasHint ? formDescriptionId : null, error ? formMessageId : null]
+      .filter(Boolean)
+      .join(" ") || undefined;
   return (
     <div className="min-w-0 [&_.react-international-phone-country-selector-button]:h-11 [&_.react-international-phone-input]:h-11 [&_.react-international-phone-input]:min-w-0 [&_.react-international-phone-input]:flex-1 [&_.react-international-phone-input]:text-base [&_.react-international-phone-input-container]:flex [&_.react-international-phone-input]:bg-card! [&_.react-international-phone-country-selector-button]:bg-card!">
       <InternationalPhoneInput
@@ -258,7 +272,7 @@ function PhoneControl({
           autoComplete: "tel",
           "aria-invalid": Boolean(error),
           "aria-required": required || undefined,
-          "aria-describedby": error ? formMessageId : undefined,
+          "aria-describedby": describedBy,
         }}
       />
     </div>

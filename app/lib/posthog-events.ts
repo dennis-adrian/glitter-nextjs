@@ -35,6 +35,8 @@ export const POSTHOG_EVENTS = {
   // Live acts
   LIVE_ACT_CATEGORY_SELECTED: "live_act_category_selected",
   LIVE_ACT_SUBMITTED: "live_act_submitted",
+  /** `{ step_number, step_name }` only: never names, contacts or free text. */
+  LIVE_ACT_FORM_STEP_VIEWED: "live_act_form_step_viewed",
   /**
    * Programs — screen views.
    *
