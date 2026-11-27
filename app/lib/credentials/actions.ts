@@ -29,22 +29,23 @@ import {
   createPrintBatchSchema,
   createStaffMemberSchema,
   externalCredentialQuantitySchema,
-  festivalOnlySchema,
   festivalStaffMemberSchema,
   printBatchRefSchema,
   removeExtraCredentialSchema,
+  resetCredentialRulesSchema,
   saveCredentialRulesSchema,
   staffMemberRefSchema,
   updateExtraCredentialSchema,
   updateStaffMemberSchema,
   type AddExtraCredentialInput,
   type CreatePrintBatchInput,
+  type CredentialRulesFormValues,
   type CreateStaffMemberInput,
   type ExternalCredentialQuantityInput,
-  type FestivalOnlyInput,
   type FestivalStaffMemberInput,
   type PrintBatchRefInput,
   type RemoveExtraCredentialInput,
+  type ResetCredentialRulesInput,
   type SaveCredentialRulesInput,
   type StaffMemberRefInput,
   type UpdateExtraCredentialInput,
@@ -133,9 +134,48 @@ async function assertFestival(tx: Tx, festivalId: number) {
 /* Rules                                                               */
 /* ------------------------------------------------------------------ */
 
+const RULES_CHANGED =
+  "Otra persona cambió las reglas mientras editabas. Actualizá la página y revisá antes de guardar.";
+
+/** A submitted rule set (form values) as rules, defaults filling the gaps. */
+function formRule(rules: CredentialRulesFormValues, group: CredentialGroup): CredentialRule {
+  const value = rules[group];
+  return {
+    quantity: value.quantity,
+    namingMode: "namingMode" in value ? value.namingMode : "all_named",
+  };
+}
+
+/**
+ * Under the rules lock: refuses when the festival's rules are no longer the
+ * ones the form was based on, so a form that missed another admin's save
+ * cannot silently undo it (the screen only notices on a refresh).
+ */
+async function assertRulesUnchanged(tx: Tx, festivalId: number, base: CredentialRulesFormValues) {
+  const rows = await tx
+    .select({
+      group: festivalCredentialRules.group,
+      quantity: festivalCredentialRules.quantity,
+      namingMode: festivalCredentialRules.namingMode,
+    })
+    .from(festivalCredentialRules)
+    .where(eq(festivalCredentialRules.festivalId, festivalId));
+  const current = resolveRules(rows);
+  for (const group of CREDENTIAL_GROUPS) {
+    const expected = formRule(base, group);
+    if (
+      current[group].quantity !== expected.quantity ||
+      (isCategoryGroup(group) && current[group].namingMode !== expected.namingMode)
+    ) {
+      throw new Refusal(RULES_CHANGED);
+    }
+  }
+}
+
 /**
  * Upserts the festival's rule rows. A group whose quantity and naming mode
  * both equal the default loses its row, so "no row" keeps meaning "default".
+ * Refused when the saved rules are no longer the form's `baseRules`.
  */
 export async function saveCredentialRules(
   input: SaveCredentialRulesInput,
@@ -144,19 +184,16 @@ export async function saveCredentialRules(
   if (auth.blocked) return auth.blocked;
   const parsed = saveCredentialRulesSchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
-  const { festivalId, rules } = parsed.data;
+  const { festivalId, rules, baseRules } = parsed.data;
 
   try {
     await db.transaction(async (tx) => {
       await lockFestivalRules(tx, festivalId);
       await assertFestival(tx, festivalId);
+      await assertRulesUnchanged(tx, festivalId, baseRules);
       const defaults: CredentialGroup[] = [];
       for (const group of CREDENTIAL_GROUPS) {
-        const value = rules[group];
-        const rule: CredentialRule = {
-          quantity: value.quantity,
-          namingMode: "namingMode" in value ? value.namingMode : "all_named",
-        };
+        const rule = formRule(rules, group);
         if (isDefaultRule(group, rule)) {
           defaults.push(group);
           continue;
@@ -200,20 +237,25 @@ export async function saveCredentialRules(
   return { success: true, message: "Reglas guardadas." };
 }
 
-/** Back to the code defaults: the festival's rule rows go. */
+/**
+ * Back to the code defaults: the festival's rule rows go. Same base check as
+ * a save: a reset discards whatever is saved, so it may only discard rules
+ * the admin had on screen.
+ */
 export async function resetCredentialRules(
-  input: FestivalOnlyInput,
+  input: ResetCredentialRulesInput,
 ): Promise<CredentialsResult> {
   const auth = await authorize();
   if (auth.blocked) return auth.blocked;
-  const parsed = festivalOnlySchema.safeParse(input);
+  const parsed = resetCredentialRulesSchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
-  const { festivalId } = parsed.data;
+  const { festivalId, baseRules } = parsed.data;
 
   try {
     await db.transaction(async (tx) => {
       await lockFestivalRules(tx, festivalId);
       await assertFestival(tx, festivalId);
+      await assertRulesUnchanged(tx, festivalId, baseRules);
       await tx
         .delete(festivalCredentialRules)
         .where(eq(festivalCredentialRules.festivalId, festivalId));
@@ -233,19 +275,32 @@ export async function resetCredentialRules(
 const EXTERNAL_NOT_COUNTED =
   "Ese participante externo no tiene una reserva que se cuente en este festival. Actualizá la página.";
 
+/** A refusal the field keeps its draft on: the total is still to be reviewed. */
+class StandsChanged extends Refusal {}
+
+/**
+ * `setExternalCredentialQuantity`'s answer. `standsChanged` marks a total
+ * refused because the stand count it was typed against is no longer current.
+ */
+export type ExternalCredentialQuantityResult =
+  | CredentialsResult
+  | { success: false; message: string; standsChanged: true };
+
 /**
  * Sets, or with `quantity: null` clears, one external participant's total
  * for the festival. Remembers how many stands it had, so the Equipo tab can
- * flag a later change. Refuses one with no counted reservation here.
+ * flag a later change: the count the screen showed (`standCount`), which
+ * must still be the current one, so a total is never stored against a stand
+ * count nobody saw. Refuses one with no counted reservation here.
  */
 export async function setExternalCredentialQuantity(
   input: ExternalCredentialQuantityInput,
-): Promise<CredentialsResult> {
+): Promise<ExternalCredentialQuantityResult> {
   const auth = await authorize();
   if (auth.blocked) return auth.blocked;
   const parsed = externalCredentialQuantitySchema.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
-  const { festivalId, externalParticipantId, quantity } = parsed.data;
+  const { festivalId, externalParticipantId, quantity, standCount } = parsed.data;
 
   try {
     await db.transaction(async (tx) => {
@@ -262,6 +317,11 @@ export async function setExternalCredentialQuantity(
       if (quantity === null) {
         await tx.delete(festivalExternalCredentialOverrides).where(scope);
         return;
+      }
+      if (standCount !== holder.standCount) {
+        throw new StandsChanged(
+          `Cambió la cantidad de espacios de ${holder.name} mientras editabas. Actualizá la página y revisá la cantidad.`,
+        );
       }
       await tx
         .insert(festivalExternalCredentialOverrides)
@@ -286,6 +346,9 @@ export async function setExternalCredentialQuantity(
         });
     });
   } catch (error) {
+    if (error instanceof StandsChanged) {
+      return { success: false, message: error.message, standsChanged: true };
+    }
     return failure(error, "Error saving an external credential quantity", festivalId);
   }
 

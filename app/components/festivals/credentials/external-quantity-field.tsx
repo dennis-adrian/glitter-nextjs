@@ -48,6 +48,7 @@ export default function ExternalQuantityField({
   name,
   override,
   defaultQuantity,
+  standCount,
 }: {
   festivalId: number;
   externalParticipantId: number;
@@ -55,6 +56,11 @@ export default function ExternalQuantityField({
   /** The saved total, or null while the default applies. */
   override: number | null;
   defaultQuantity: number;
+  /**
+   * The stands shown for the participant. Sent with a total, so the server
+   * refuses it if the stands changed since this screen was rendered.
+   */
+  standCount: number;
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState<Draft>({
@@ -137,9 +143,19 @@ export default function ExternalQuantityField({
           festivalId,
           externalParticipantId,
           quantity: next,
+          ...(next === null ? {} : { standCount }),
         });
         if (!result.success) {
           toast.error(result.message);
+          if ("standsChanged" in result) {
+            // The total is still wanted, against a count to check: kept and
+            // marked until it is saved again or dropped.
+            setDraft((current) => ({ ...current, reviewing: true }));
+            // Brings the new count while the draft stays: a reload, as the
+            // message suggests, would drop it.
+            router.refresh();
+            return;
+          }
           resetToSaved();
           return;
         }

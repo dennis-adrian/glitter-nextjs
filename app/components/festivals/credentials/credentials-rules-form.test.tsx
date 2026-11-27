@@ -101,7 +101,14 @@ describe("CredentialsRulesForm", () => {
     const [illustration] = screen.getAllByLabelText("Credenciales por espacio");
     expect((illustration as HTMLInputElement).value).toBe("5");
     fireEvent.click(screen.getByRole("button", { name: "Volver a los valores por defecto" }));
-    await waitFor(() => expect(resetCredentialRules).toHaveBeenCalledWith({ festivalId: 1 }));
+    await waitFor(() =>
+      expect(resetCredentialRules).toHaveBeenCalledWith({
+        festivalId: 1,
+        baseRules: expect.objectContaining({
+          illustration: { quantity: 5, namingMode: "none" },
+        }),
+      }),
+    );
     await waitFor(() => expect((illustration as HTMLInputElement).value).toBe("2"));
   });
 
@@ -169,6 +176,66 @@ describe("CredentialsRulesForm", () => {
     await waitFor(() => expect(saveCredentialRules).toHaveBeenCalledTimes(1));
     expect(saveCredentialRules.mock.calls[0]![0]).toMatchObject({
       rules: { volunteer: { quantity: 3 } },
+    });
+  });
+
+  it("sends the rules it was based on, and its own save as the next base", async () => {
+    saveCredentialRules.mockResolvedValue({ success: true, message: "Reglas guardadas." });
+    const data = festival();
+    data.ruleRows.push({ group: "staff", quantity: 3, namingMode: null });
+    const { rerender } = render(page(data));
+    const volunteer = screen.getByLabelText("Voluntario aceptado");
+    fireEvent.change(volunteer, { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar reglas" }));
+    await waitFor(() => expect(saveCredentialRules).toHaveBeenCalledTimes(1));
+    expect(saveCredentialRules.mock.calls[0]![0]).toMatchObject({
+      rules: { volunteer: { quantity: 2 }, staff: { quantity: 3 } },
+      baseRules: { volunteer: { quantity: 1 }, staff: { quantity: 3 } },
+    });
+    await waitFor(() => expect(volunteer.matches(":disabled")).toBe(false));
+
+    // Again before the refresh lands, then after it: both based on that save.
+    fireEvent.change(volunteer, { target: { value: "4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar reglas" }));
+    await waitFor(() => expect(saveCredentialRules).toHaveBeenCalledTimes(2));
+    expect(saveCredentialRules.mock.calls[1]![0]).toMatchObject({
+      rules: { volunteer: { quantity: 4 } },
+      baseRules: { volunteer: { quantity: 2 }, staff: { quantity: 3 } },
+    });
+    await waitFor(() => expect(volunteer.matches(":disabled")).toBe(false));
+    rerender(
+      page(
+        refreshed(data, [
+          { group: "staff", quantity: 3, namingMode: null },
+          { group: "volunteer", quantity: 4, namingMode: null },
+        ]),
+      ),
+    );
+    fireEvent.change(volunteer, { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar reglas" }));
+    await waitFor(() => expect(saveCredentialRules).toHaveBeenCalledTimes(3));
+    expect(saveCredentialRules.mock.calls[2]![0]).toMatchObject({
+      rules: { volunteer: { quantity: 5 } },
+      baseRules: { volunteer: { quantity: 4 }, staff: { quantity: 3 } },
+    });
+    expect(toast.warning).not.toHaveBeenCalled();
+  });
+
+  it("sends the newer rules as its base once a refresh brought them", async () => {
+    saveCredentialRules.mockResolvedValue({ success: true, message: "Reglas guardadas." });
+    const data = festival();
+    const { rerender } = render(page(data));
+    const staff = screen.getByLabelText("Persona del equipo Glitter");
+    fireEvent.change(staff, { target: { value: "2" } });
+    rerender(page(refreshed(data, [{ group: "volunteer", quantity: 3, namingMode: null }])));
+    // The kept draft is flagged once, then saved over the refreshed rules.
+    fireEvent.click(screen.getByRole("button", { name: "Guardar reglas" }));
+    await waitFor(() => expect(toast.warning).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Guardar reglas" }));
+    await waitFor(() => expect(saveCredentialRules).toHaveBeenCalledTimes(1));
+    expect(saveCredentialRules.mock.calls[0]![0]).toMatchObject({
+      rules: { volunteer: { quantity: 3 }, staff: { quantity: 2 } },
+      baseRules: { volunteer: { quantity: 3 }, staff: { quantity: 1 } },
     });
   });
 
