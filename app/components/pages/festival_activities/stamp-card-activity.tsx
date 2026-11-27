@@ -32,10 +32,15 @@ export default function StampCardActivityPage({
     ? formatDate(activity.proofUploadLimitDate)
     : null;
 
-  const participationLimit = activity.details.reduce(
-    (sum, d) => sum + (d.participationLimit ?? 0),
-    0,
-  );
+  // Enrollment enforces only the caps that are set, so a variant without one
+  // never fills and the activity stays open. There is a total only when every
+  // variant has a cap; null is uncapped.
+  const isCapped =
+    activity.details.length > 0 &&
+    activity.details.every((d) => (d.participationLimit ?? 0) > 0);
+  const participationLimit = isCapped
+    ? activity.details.reduce((sum, d) => sum + (d.participationLimit ?? 0), 0)
+    : null;
 
   const dateTimeFormat = {
     month: "long",
@@ -97,13 +102,13 @@ export default function StampCardActivityPage({
                 reclamar el premio de la actividad.
               </p>
               <p className="text-sm md:text-base">
-                {participationLimit > 0 ? (
+                {participationLimit !== null ? (
                   <>
                     Habilitaremos <strong>{participationLimit} cupos</strong>,
                     uno por cada espacio de la tarjeta.
                   </>
                 ) : (
-                  "Habilitaremos cupos limitados, uno por cada espacio de la tarjeta."
+                  "No hay un límite de cupos para participar."
                 )}{" "}
                 Cada participante deberá subir el diseño de su sello al sitio
                 web para su revisión. El diseño debe ser apto para todo público,
@@ -182,13 +187,13 @@ export default function StampCardActivityPage({
           <li>
             Inscribirse a la actividad con el botón de inscripción que se
             encuentra al final de la página dentro del periodo de inscripción.{" "}
-            {participationLimit > 0 ? (
+            {participationLimit !== null ? (
               <>
                 El cupo es de{" "}
                 <strong>{participationLimit} participantes</strong>.
               </>
             ) : (
-              "El cupo es limitado."
+              "No hay límite de inscripciones."
             )}
           </li>
           <li>
