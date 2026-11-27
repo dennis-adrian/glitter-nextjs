@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import type {
   CredentialBatchRow,
@@ -227,12 +227,8 @@ export async function fetchCredentialsData(
               eq(festivalStaffMembers.festivalId, festivalId),
             ),
           )
-          .where(
-            or(
-              eq(staffMembers.isActive, true),
-              sql`${festivalStaffMembers.staffMemberId} IS NOT NULL`,
-            ),
-          )
+          // Every member: archived ones not selected here go to
+          // `archivedStaff`, so they can be restored.
           .orderBy(asc(staffMembers.fullName), asc(staffMembers.id)),
       () =>
         database
@@ -365,10 +361,15 @@ export async function fetchCredentialsData(
         (statusCounts.get("pending")?.total ?? 0) +
         (statusCounts.get("waitlist")?.total ?? 0),
     },
-    staff: staffRows.map(({ selectedAt, ...row }) => ({
-      ...row,
-      selected: selectedAt != null,
-    })),
+    staff: staffRows
+      .filter((row) => row.isActive || row.selectedAt != null)
+      .map(({ selectedAt, ...row }) => ({
+        ...row,
+        selected: selectedAt != null,
+      })),
+    archivedStaff: staffRows
+      .filter((row) => !row.isActive && row.selectedAt == null)
+      .map(({ id, fullName, roleLabel }) => ({ id, fullName, roleLabel })),
     extras: extraRows,
     ruleRows,
     externalOverrides: overrideRows,

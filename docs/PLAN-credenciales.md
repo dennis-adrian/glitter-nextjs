@@ -101,7 +101,7 @@ Worked results with the defaults:
 
 - Holder = one external participant in the festival, reached through `reservation_external_participants`. Their reservations are created `accepted`, so the status toggles do not affect them in practice. The status filter selects the whole holder: it is counted when any of its reservations passes, with the entitlement of all of them, so its count and print state never depend on the toggles.
 - Default entitlement = `rule(external).quantity × active stands`, summed only over that participant's reservations classified `external` in 4.1 step 3. All named with `displayName`.
-- An override row (section 5) replaces that total for the festival while the participant still has at least one counted reservation. The row remembers how many stands the participant had when it was saved; if that number changes later, the Equipo tab shows "Cambió la cantidad de espacios" next to the field so the admin re-checks it.
+- An override row (section 5) replaces that total for the festival while the participant still has at least one counted reservation. The row remembers how many stands the participant had when it was saved; if that number changes later, the Equipo tab shows "Cambió la cantidad de espacios" next to the field so the admin re-checks it. The number stored is the one the screen showed when the total was typed: the field sends it with the total, and a save is refused (the draft stays on screen, marked) when the participant's current count differs, so an override is never recorded against a stand count the admin did not see. Clearing an override needs no count.
 
 ### 4.3 Volunteers
 
@@ -235,9 +235,9 @@ Every action follows the shape of `app/lib/volunteers/admin-actions.ts`:
 
 | Action | What it does |
 | --- | --- |
-| `saveCredentialRules` | Upserts the rule rows of a festival. A row is deleted only when both its quantity and its naming mode equal the default. Takes `pg_advisory_xact_lock(hashtext('festival_credential_rules'), festivalId)`, so two saves cannot interleave into a rule set nobody submitted. |
-| `resetCredentialRules` | Deletes the festival's rule rows, under the same lock. |
-| `setExternalCredentialQuantity` | Upserts or deletes one override and stores `stands_at_override`. Refuses an external participant that has no counted reservation in the festival. |
+| `saveCredentialRules` | Upserts the rule rows of a festival. A row is deleted only when both its quantity and its naming mode equal the default. Takes `pg_advisory_xact_lock(hashtext('festival_credential_rules'), festivalId)`, so two saves cannot interleave into a rule set nobody submitted. The form also sends `baseRules`, the rules it last took as saved (the same ones its refresh-conflict check compares against); under the lock the festival's resolved rules must still equal them, otherwise the save is refused ("Otra persona cambió las reglas mientras editabas…"), so a form that has not refreshed yet cannot silently restore stale values over another admin's save. After its own save the form takes the saved values as its base, so consecutive saves from one form are not refused. |
+| `resetCredentialRules` | Deletes the festival's rule rows, under the same lock and with the same `baseRules` check: a reset discards whatever is saved, so it may only discard rules the admin had on screen. |
+| `setExternalCredentialQuantity` | Upserts or deletes one override and stores `stands_at_override`: the `standCount` the field showed, sent with every total. Refuses a total when that count is not the participant's current one (the answer carries `standsChanged`, and the field keeps the draft marked for review); clearing (`quantity: null`) needs no count. Refuses an external participant that has no counted reservation in the festival. |
 | `createStaffMember`, `updateStaffMember`, `archiveStaffMember`, `restoreStaffMember` | Roster maintenance. Archive sets `is_active = false`; rows are never deleted. |
 | `setFestivalStaffMember` | Ticks or unticks one roster member for the festival. Refuses ticking an archived member; unticking is always allowed. |
 | `addExtraCredential`, `updateExtraCredential`, `removeExtraCredential` | One-off entries. Update keeps the id, so raising "Prensa" from 6 to 8 shows "Faltan 2" instead of 8 new. The name of a named entry cannot be edited. Remove takes the print-batch lock, then the entry's row lock, and checks the history itself: an entry already sent to print goes only with `confirmPrinted`; otherwise nothing changes and the answer carries `needsConfirmation`, so the screen warns even when its own history predates the latest batch. |
@@ -293,7 +293,7 @@ Link-based tabs like `app/components/comunicados/admin/comunicados-tabs.tsx`: an
 
 ### 7.4 Equipo y externos (M3)
 
-- "Equipo Glitter": roster table with a checkbox per person for this edition (immediate save, optimistic, like `volunteer-setup-active-toggle.tsx`), "Agregar persona" and "Editar" in a `DrawerDialog`. Archived members appear only if they are selected for this festival, with an "Archivada" badge, and can be unticked.
+- "Equipo Glitter": roster table with a checkbox per person for this edition (immediate save, optimistic, like `volunteer-setup-active-toggle.tsx`), "Agregar persona" and "Editar" in a `DrawerDialog`. Archived members appear in the roster only if they are selected for this festival, with an "Archivada" badge, and can be unticked. The others sit in a collapsed "Archivadas (N)" list under the roster (hidden when empty) with a "Restaurar" button each and no checkbox, so they are never offered for selection (`archivedStaff`, separate from `staff`).
 - "Solo para esta edición": the one-off entries, with add, edit and remove. Removing an entry that is already in a batch warns first.
 - "Participantes externos": one row per external participant with a number field for the total. Saving on blur; clearing the field returns to the default.
 - "Voluntarios": read-only counts (accepted, without a role, waiting) and a link to the volunteers section.

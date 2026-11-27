@@ -2294,6 +2294,12 @@ describeDatabase("volunteer admin", () => {
         ).updatedAt.toISOString(),
       });
       expect((await storedApplication(applicationId)).status).toBe("accepted");
+      // The Revisar layout keeps its pending list across applications; only
+      // this revalidation drops the decided one from it.
+      expect(revalidatePath).toHaveBeenCalledWith(
+        "/(site)/dashboard/festivals/[id]/volunteers",
+        "layout",
+      );
       const notes = await taskQueries.fetchVolunteerNotes(
         call.festivalId,
         applicationId,

@@ -36,6 +36,18 @@ type Draft = {
   conflict: boolean;
   /** That draft was refused once and is still on screen, unsaved. */
   reviewing: boolean;
+  /**
+   * The stand count the draft was typed against, sent with its total. It
+   * follows the shown count only while the field is clean, so a refresh
+   * that changes the stands under a draft is refused by the server instead
+   * of passing unreviewed.
+   */
+  stands: number;
+  /**
+   * The server refused the draft because the stands changed: the admin was
+   * warned, so the next count shown becomes the one the draft goes against.
+   */
+  rebase: boolean;
 };
 
 /**
@@ -48,6 +60,7 @@ export default function ExternalQuantityField({
   name,
   override,
   defaultQuantity,
+  standCount,
 }: {
   festivalId: number;
   externalParticipantId: number;
@@ -55,6 +68,11 @@ export default function ExternalQuantityField({
   /** The saved total, or null while the default applies. */
   override: number | null;
   defaultQuantity: number;
+  /**
+   * The stands shown for the participant. Sent with a total, so the server
+   * refuses it if the stands changed since this screen was rendered.
+   */
+  standCount: number;
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState<Draft>({
@@ -64,24 +82,39 @@ export default function ExternalQuantityField({
     generation: 0,
     conflict: false,
     reviewing: false,
+    stands: standCount,
+    rebase: false,
   });
   const [isPending, startTransition] = useTransition();
 
   // Any refresh can bring a new total (this field's own save, or another
   // admin's). An untouched field follows it; a draft is kept, but saving it
   // as is would silently undo the newer total, so it is flagged for review.
-  if (override !== draft.seen) {
-    const typed = parse(draft.value);
-    const clean = typed === draft.saved;
-    setDraft({
-      value: clean ? format(override) : draft.value,
+  let observed = draft;
+  if (override !== observed.seen) {
+    const typed = parse(observed.value);
+    const clean = typed === observed.saved;
+    observed = {
+      ...observed,
+      value: clean ? format(override) : observed.value,
       saved: override,
       seen: override,
-      generation: draft.generation + 1,
+      generation: observed.generation + 1,
       conflict: !clean && typed !== override,
-      reviewing: clean ? false : draft.reviewing,
-    });
+      reviewing: clean ? false : observed.reviewing,
+    };
   }
+  // The stands a draft goes against move only while the field is clean, or
+  // once the server refused it over a stand change the admin was warned of.
+  const clean = parse(observed.value) === observed.saved;
+  if (
+    clean
+      ? observed.stands !== standCount || observed.rebase
+      : observed.rebase && observed.stands !== standCount
+  ) {
+    observed = { ...observed, stands: standCount, rebase: false };
+  }
+  if (observed !== draft) setDraft(observed);
   // Marked until it is saved or dropped, so it never reads as the saved total
   // once the warning closes.
   const unsaved = draft.reviewing && parse(draft.value) !== draft.saved;
@@ -131,15 +164,29 @@ export default function ExternalQuantityField({
       return;
     }
     const generationAtCommit = draft.generation;
+    // Sent as typed against, never the count a later refresh brought.
+    const stands = draft.stands;
+    if (draft.rebase) setDraft((current) => ({ ...current, rebase: false }));
     startTransition(async () => {
       try {
         const result = await setExternalCredentialQuantity({
           festivalId,
           externalParticipantId,
           quantity: next,
+          ...(next === null ? {} : { standCount: stands }),
         });
         if (!result.success) {
           toast.error(result.message);
+          if ("standsChanged" in result) {
+            // The total is still wanted: kept and marked until it is saved
+            // again or dropped, and its stands move to the next count shown,
+            // which the admin now knows to check.
+            setDraft((current) => ({ ...current, reviewing: true, rebase: true }));
+            // Brings the new count while the draft stays: a reload, as the
+            // message suggests, would drop it.
+            router.refresh();
+            return;
+          }
           resetToSaved();
           return;
         }

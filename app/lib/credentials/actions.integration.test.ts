@@ -98,6 +98,9 @@ const created = {
   staff: [] as number[],
 };
 
+const RULES_CHANGED =
+  "Otra persona cambió las reglas mientras editabas. Actualizá la página y revisá antes de guardar.";
+
 const DEFAULT_FORM = {
   illustration: { quantity: 2, namingMode: "one_per_participant" as const },
   entrepreneurship: { quantity: 2, namingMode: "one_per_participant" as const },
@@ -235,25 +238,27 @@ describeDatabase("credentials actions", () => {
     it("refuses callers who are not staff", async () => {
       const festivalId = await createFestival();
       currentProfile.value = null;
-      expect(await actions.resetCredentialRules({ festivalId })).toEqual({
+      expect(await actions.resetCredentialRules({ festivalId, baseRules: DEFAULT_FORM })).toEqual({
         success: false,
         message: "No tenés permiso para hacer esto.",
       });
       expect(
-        await actions.saveCredentialRules({ festivalId, rules: DEFAULT_FORM }),
+        await actions.saveCredentialRules({ festivalId, rules: DEFAULT_FORM, baseRules: DEFAULT_FORM }),
       ).toEqual({ success: false, message: "No tenés permiso para hacer esto." });
     });
 
     it("surfaces the impersonation read-only refusal", async () => {
       const festivalId = await createFestival();
       failNextTransaction.value = true;
-      const result = await actions.resetCredentialRules({ festivalId });
+      const result = await actions.resetCredentialRules({ festivalId, baseRules: DEFAULT_FORM });
       expect(result.success).toBe(false);
       expect(result.message).toBe(new ImpersonationReadOnlyError().message);
     });
 
     it("refuses a festival that does not exist", async () => {
-      expect(await actions.resetCredentialRules({ festivalId: 2_000_000_000 })).toEqual({
+      expect(
+        await actions.resetCredentialRules({ festivalId: 2_000_000_000, baseRules: DEFAULT_FORM }),
+      ).toEqual({
         success: false,
         message: "No encontramos ese festival. Actualizá la página.",
       });
@@ -263,15 +268,13 @@ describeDatabase("credentials actions", () => {
   describe("rules", () => {
     it("upserts only what differs from the default and resets to none", async () => {
       const festivalId = await createFestival();
+      const saved = {
+        ...DEFAULT_FORM,
+        gastronomy: { quantity: 3, namingMode: "all_named" as const },
+        volunteer: { quantity: 2 },
+      };
       expect(
-        await actions.saveCredentialRules({
-          festivalId,
-          rules: {
-            ...DEFAULT_FORM,
-            gastronomy: { quantity: 3, namingMode: "all_named" },
-            volunteer: { quantity: 2 },
-          },
-        }),
+        await actions.saveCredentialRules({ festivalId, rules: saved, baseRules: DEFAULT_FORM }),
       ).toEqual({ success: true, message: "Reglas guardadas." });
       expect(
         (await ruleRows(festivalId)).sort((a, b) => a.group.localeCompare(b.group)),
@@ -281,14 +284,15 @@ describeDatabase("credentials actions", () => {
       ]);
 
       // Back to the default for gastronomy: its row goes; a naming change alone stays.
-      await actions.saveCredentialRules({
-        festivalId,
-        rules: {
-          ...DEFAULT_FORM,
-          illustration: { quantity: 2, namingMode: "all_named" },
-          volunteer: { quantity: 2 },
-        },
-      });
+      const resaved = {
+        ...DEFAULT_FORM,
+        illustration: { quantity: 2, namingMode: "all_named" as const },
+        volunteer: { quantity: 2 },
+      };
+      expect(
+        (await actions.saveCredentialRules({ festivalId, rules: resaved, baseRules: saved }))
+          .success,
+      ).toBe(true);
       expect(
         (await ruleRows(festivalId)).sort((a, b) => a.group.localeCompare(b.group)),
       ).toEqual([
@@ -296,8 +300,82 @@ describeDatabase("credentials actions", () => {
         { group: "volunteer", quantity: 2, namingMode: null },
       ]);
 
-      expect((await actions.resetCredentialRules({ festivalId })).success).toBe(true);
+      expect(
+        (await actions.resetCredentialRules({ festivalId, baseRules: resaved })).success,
+      ).toBe(true);
       expect(await ruleRows(festivalId)).toEqual([]);
+    });
+
+    it("refuses a save or a reset based on rules that changed since", async () => {
+      const festivalId = await createFestival();
+      // Admin A saves; admin B's form still holds the defaults it loaded.
+      const fromA = { ...DEFAULT_FORM, volunteer: { quantity: 3 } };
+      expect(
+        (await actions.saveCredentialRules({ festivalId, rules: fromA, baseRules: DEFAULT_FORM }))
+          .success,
+      ).toBe(true);
+      const stale = {
+        success: false,
+        message: RULES_CHANGED,
+      };
+      expect(
+        await actions.saveCredentialRules({
+          festivalId,
+          rules: { ...DEFAULT_FORM, staff: { quantity: 2 } },
+          baseRules: DEFAULT_FORM,
+        }),
+      ).toEqual(stale);
+      // A naming mode alone counts as a change.
+      expect(
+        await actions.saveCredentialRules({
+          festivalId,
+          rules: fromA,
+          baseRules: { ...fromA, illustration: { quantity: 2, namingMode: "none" } },
+        }),
+      ).toEqual(stale);
+      expect(await actions.resetCredentialRules({ festivalId, baseRules: DEFAULT_FORM })).toEqual(
+        stale,
+      );
+      expect(await ruleRows(festivalId)).toEqual([
+        { group: "volunteer", quantity: 3, namingMode: null },
+      ]);
+
+      // Based on A's rules, B's save lands.
+      expect(
+        (await actions.saveCredentialRules({
+          festivalId,
+          rules: { ...fromA, staff: { quantity: 2 } },
+          baseRules: fromA,
+        })).success,
+      ).toBe(true);
+      expect(
+        (await ruleRows(festivalId)).sort((a, b) => a.group.localeCompare(b.group)),
+      ).toEqual([
+        { group: "staff", quantity: 2, namingMode: null },
+        { group: "volunteer", quantity: 3, namingMode: null },
+      ]);
+    });
+
+    it("saves twice in a row from one form, each based on the last save", async () => {
+      const festivalId = await createFestival();
+      // What the form sends: after its own save, the saved values are its base.
+      let base: typeof DEFAULT_FORM = DEFAULT_FORM;
+      for (const rules of [
+        { ...DEFAULT_FORM, volunteer: { quantity: 2 } },
+        { ...DEFAULT_FORM, volunteer: { quantity: 2 }, staff: { quantity: 4 } },
+      ]) {
+        expect(await actions.saveCredentialRules({ festivalId, rules, baseRules: base })).toEqual({
+          success: true,
+          message: "Reglas guardadas.",
+        });
+        base = rules;
+      }
+      expect(
+        (await ruleRows(festivalId)).sort((a, b) => a.group.localeCompare(b.group)),
+      ).toEqual([
+        { group: "staff", quantity: 4, namingMode: null },
+        { group: "volunteer", quantity: 2, namingMode: null },
+      ]);
     });
 
     it("keeps one admin's whole rule set when two save at once", async () => {
@@ -305,24 +383,40 @@ describeDatabase("credentials actions", () => {
       const first = { ...DEFAULT_FORM, gastronomy: { quantity: 3, namingMode: "all_named" as const } };
       const second = { ...DEFAULT_FORM, volunteer: { quantity: 2 }, staff: { quantity: 3 } };
       for (let round = 0; round < 5; round += 1) {
-        // All three must land: a failed write would leave the survivors'
-        // state, which the outcomes below accept, and hide the failure.
+        const before = (await ruleRows(festivalId)).length;
+        if (before > 0) {
+          await integrationDb!
+            .delete(festivalCredentialRules)
+            .where(eq(festivalCredentialRules.festivalId, festivalId));
+        }
+        // All three start from the defaults: the first to take the lock
+        // lands and the others see changed rules (a reset that goes first
+        // changes nothing, so the next one lands too). Every other outcome
+        // is a failure the states below would hide.
         const results = await Promise.all([
-          actions.saveCredentialRules({ festivalId, rules: first }),
-          actions.saveCredentialRules({ festivalId, rules: second }),
-          actions.resetCredentialRules({ festivalId }),
+          actions.saveCredentialRules({ festivalId, rules: first, baseRules: DEFAULT_FORM }),
+          actions.saveCredentialRules({ festivalId, rules: second, baseRules: DEFAULT_FORM }),
+          actions.resetCredentialRules({ festivalId, baseRules: DEFAULT_FORM }),
         ]);
-        expect(results.map((result) => result.success)).toEqual([true, true, true]);
+        for (const result of results) {
+          expect([
+            { success: true, message: "Reglas guardadas." },
+            { success: true, message: "Volvimos a los valores por defecto." },
+            { success: false, message: RULES_CHANGED },
+          ]).toContainEqual(result);
+        }
+        const saves = results.slice(0, 2).filter((result) => result.success);
+        expect(saves).toHaveLength(1);
         // Whole rows, so a mix of both saves' values in one group also fails.
         const rows = (await ruleRows(festivalId)).sort((a, b) => a.group.localeCompare(b.group));
-        expect([
-          [],
-          [{ group: "gastronomy", quantity: 3, namingMode: "all_named" }],
-          [
-            { group: "staff", quantity: 3, namingMode: null },
-            { group: "volunteer", quantity: 2, namingMode: null },
-          ],
-        ]).toContainEqual(rows);
+        expect(rows).toEqual(
+          results[0]!.success
+            ? [{ group: "gastronomy", quantity: 3, namingMode: "all_named" }]
+            : [
+                { group: "staff", quantity: 3, namingMode: null },
+                { group: "volunteer", quantity: 2, namingMode: null },
+              ],
+        );
       }
     });
 
@@ -335,16 +429,23 @@ describeDatabase("credentials actions", () => {
         (await actions.saveCredentialRules({
           festivalId: mine,
           rules: { ...DEFAULT_FORM, volunteer: { quantity: 2 } },
+          baseRules: DEFAULT_FORM,
         })).success,
       ).toBe(true);
       expect(
         (await actions.saveCredentialRules({
           festivalId: other,
           rules: { ...DEFAULT_FORM, staff: { quantity: 3 } },
+          baseRules: DEFAULT_FORM,
         })).success,
       ).toBe(true);
       expect(await ruleRows(mine)).toEqual([{ group: "volunteer", quantity: 2, namingMode: null }]);
-      expect((await actions.resetCredentialRules({ festivalId: mine })).success).toBe(true);
+      expect(
+        (await actions.resetCredentialRules({
+          festivalId: mine,
+          baseRules: { ...DEFAULT_FORM, volunteer: { quantity: 2 } },
+        })).success,
+      ).toBe(true);
       expect(await ruleRows(mine)).toEqual([]);
       expect(await ruleRows(other)).toEqual([{ group: "staff", quantity: 3, namingMode: null }]);
     });
@@ -367,7 +468,12 @@ describeDatabase("credentials actions", () => {
       const festivalId = await createFestival();
       const externalParticipantId = await externalOn(festivalId, 2);
       expect(
-        await actions.setExternalCredentialQuantity({ festivalId, externalParticipantId, quantity: 3 }),
+        await actions.setExternalCredentialQuantity({
+          festivalId,
+          externalParticipantId,
+          quantity: 3,
+          standCount: 2,
+        }),
       ).toEqual({ success: true, message: "Cantidad guardada: 3." });
       const overrides = () =>
         integrationDb!
@@ -379,10 +485,73 @@ describeDatabase("credentials actions", () => {
           .where(eq(schema.festivalExternalCredentialOverrides.festivalId, festivalId));
       expect(await overrides()).toEqual([{ quantity: 3, standsAtOverride: 2 }]);
 
-      await actions.setExternalCredentialQuantity({ festivalId, externalParticipantId, quantity: 5 });
+      await actions.setExternalCredentialQuantity({
+        festivalId,
+        externalParticipantId,
+        quantity: 5,
+        standCount: 2,
+      });
       expect(await overrides()).toEqual([{ quantity: 5, standsAtOverride: 2 }]);
 
       await actions.setExternalCredentialQuantity({ festivalId, externalParticipantId, quantity: null });
+      expect(await overrides()).toEqual([]);
+    });
+
+    it("refuses a total typed against a stand count that changed, and still clears", async () => {
+      const festivalId = await createFestival();
+      const externalParticipantId = await externalOn(festivalId, 2);
+      const overrides = () =>
+        integrationDb!
+          .select({
+            quantity: schema.festivalExternalCredentialOverrides.quantity,
+            standsAtOverride: schema.festivalExternalCredentialOverrides.standsAtOverride,
+          })
+          .from(schema.festivalExternalCredentialOverrides)
+          .where(eq(schema.festivalExternalCredentialOverrides.festivalId, festivalId));
+      expect(
+        (await actions.setExternalCredentialQuantity({
+          festivalId,
+          externalParticipantId,
+          quantity: 3,
+          standCount: 2,
+        })).success,
+      ).toBe(true);
+
+      // The screen still shows 1 stand: the total is refused and nothing changes.
+      const [external] = await integrationDb!
+        .select({ displayName: schema.externalParticipants.displayName })
+        .from(schema.externalParticipants)
+        .where(eq(schema.externalParticipants.id, externalParticipantId));
+      expect(
+        await actions.setExternalCredentialQuantity({
+          festivalId,
+          externalParticipantId,
+          quantity: 6,
+          standCount: 1,
+        }),
+      ).toEqual({
+        success: false,
+        message: `Cambió la cantidad de espacios de ${external!.displayName} mientras editabas. Actualizá la página y revisá la cantidad.`,
+        standsChanged: true,
+      });
+      expect(await overrides()).toEqual([{ quantity: 3, standsAtOverride: 2 }]);
+
+      // A total without the count it was typed against is refused too.
+      expect(
+        (await actions.setExternalCredentialQuantity({ festivalId, externalParticipantId, quantity: 6 }))
+          .success,
+      ).toBe(false);
+      expect(await overrides()).toEqual([{ quantity: 3, standsAtOverride: 2 }]);
+
+      // Clearing needs no count, and ignores a stale one.
+      expect(
+        await actions.setExternalCredentialQuantity({
+          festivalId,
+          externalParticipantId,
+          quantity: null,
+          standCount: 1,
+        }),
+      ).toEqual({ success: true, message: "Volvió a la cantidad por espacio." });
       expect(await overrides()).toEqual([]);
     });
 
@@ -391,7 +560,12 @@ describeDatabase("credentials actions", () => {
       const other = await createFestival();
       const externalParticipantId = await externalOn(other, 1);
       expect(
-        await actions.setExternalCredentialQuantity({ festivalId, externalParticipantId, quantity: 3 }),
+        await actions.setExternalCredentialQuantity({
+          festivalId,
+          externalParticipantId,
+          quantity: 3,
+          standCount: 1,
+        }),
       ).toEqual({
         success: false,
         message:
@@ -616,6 +790,7 @@ describeDatabase("credentials actions", () => {
       await actions.saveCredentialRules({
         festivalId,
         rules: { ...DEFAULT_FORM, illustration: { quantity: 1, namingMode: "one_per_participant" } },
+        baseRules: DEFAULT_FORM,
       });
       const refusal = {
         success: false,
@@ -775,8 +950,11 @@ describeDatabase("credentials actions", () => {
       expect(before.holders[0]).toMatchObject({ name: fullName, named: 1, unnamed: 0, reprint: false });
       // Another admin raises the team's rule while the dialog is open.
       expect(
-        (await actions.saveCredentialRules({ festivalId, rules: { ...DEFAULT_FORM, staff: { quantity: 2 } } }))
-          .success,
+        (await actions.saveCredentialRules({
+          festivalId,
+          rules: { ...DEFAULT_FORM, staff: { quantity: 2 } },
+          baseRules: DEFAULT_FORM,
+        })).success,
       ).toBe(true);
       expect(await actions.createCredentialPrintBatch({ festivalId, ...before })).toEqual({
         success: false,
