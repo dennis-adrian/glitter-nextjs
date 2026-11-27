@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
+import { startTransition, useMemo, useState, type ComponentProps } from "react";
 import {
   PathnameContext,
   SearchParamsContext,
@@ -24,17 +25,45 @@ import { credentialsSample } from "./credentials-sample";
 
 // Storybook's app-router mock lacks the layout context Next 16.4's
 // `useRouter` reads (see stories/home/home-history-card.stories.tsx).
-const storyRouter = {
+const routerSpies = {
   back: fn(),
   forward: fn(),
   refresh: fn(),
   push: fn(),
   replace: fn(),
   prefetch: fn(),
-} as unknown as React.ContextType<typeof AppRouterContext>;
+};
+const storyRouter = routerSpies as unknown as React.ContextType<typeof AppRouterContext>;
 
 const viewer = { role: "admin", status: "verified" } as const;
 const PATH = "/dashboard/festivals/11/credentials";
+
+/**
+ * The page around the screen: the filters come from the URL, so a toggle's
+ * `router.replace` hands them back as a landed navigation would. With a
+ * no-op `replace` the screen would drop every toggle, as it should when
+ * nothing navigated.
+ */
+function RoutedCredentialsScreen(props: ComponentProps<typeof CredentialsScreen>) {
+  const [filters, setFilters] = useState(props.initialFilters);
+  const router = useMemo(
+    () =>
+      ({
+        ...routerSpies,
+        replace: (href: string, options?: { scroll?: boolean }) => {
+          routerSpies.replace(href, options);
+          const search = new URL(href, "http://localhost").searchParams;
+          startTransition(() => setFilters(parseCredentialFilters(Object.fromEntries(search))));
+        },
+      }) as unknown as React.ContextType<typeof AppRouterContext>,
+    [],
+  );
+  return (
+    <AppRouterContext.Provider value={router}>
+      <CredentialsScreen {...props} initialFilters={filters} />
+    </AppRouterContext.Provider>
+  );
+}
 
 function Navbar() {
   usePublishScreenContext({
@@ -48,6 +77,10 @@ function Navbar() {
 const meta = {
   title: "Credentials/Page",
   component: CredentialsScreen,
+  // Keyed by the args' filters, so a story or a Controls edit starts over.
+  render: (args) => (
+    <RoutedCredentialsScreen key={JSON.stringify(args.initialFilters)} {...args} />
+  ),
   parameters: { layout: "fullscreen", nextjs: { appDirectory: false } },
   decorators: [
     (Story) => (
@@ -83,6 +116,20 @@ export const Resumen: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("Total a producir")).toBeVisible();
     await expect(canvas.getByText("Última impresión")).toBeVisible();
+  },
+};
+
+/** A toggle writes the URL and stays on once the page hands it back. */
+export const ResumenAlternarPendientes: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const pending = canvas.getByRole("checkbox", { name: "Pendientes" });
+    await userEvent.click(pending);
+    await waitFor(() => expect(pending).toHaveAttribute("data-state", "checked"));
+    await expect(routerSpies.replace).toHaveBeenLastCalledWith(
+      `${PATH}?estados=pendientes`,
+      { scroll: false },
+    );
   },
 };
 

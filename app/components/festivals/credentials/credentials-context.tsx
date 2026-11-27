@@ -3,10 +3,11 @@
 import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
+  startTransition,
   useCallback,
   useContext,
   useMemo,
-  useState,
+  useOptimistic,
   type ReactNode,
 } from "react";
 
@@ -46,19 +47,18 @@ export function useCredentials(): CredentialsContextValue {
   return value;
 }
 
-/** One string per set of filters, as the URL encodes them. */
-function filtersKey(filters: CredentialFilters) {
-  return new URLSearchParams(credentialFilterParams(filters)).toString();
-}
-
 /**
- * The page's live state. The status and group toggles are client state,
- * mirrored to the URL (`?estados=`, `?grupos=`) so a filtered view can be
- * shared and the export link carries the same filters; the calculator runs
- * here, so they answer instantly.
+ * The page's live state. The status and group toggles live in the URL
+ * (`?estados=`, `?grupos=`), so a filtered view can be shared and the export
+ * link carries the same filters: `initialFilters` is what the page parsed
+ * from the URL on show, and it leads.
  *
- * Back, forward or a link to this page with other filters keeps the provider
- * mounted, so the filters the page parses from that URL are read back in.
+ * A toggle answers at once as an optimistic update over it, in the same
+ * transition as the `router.replace` that writes the URL. When that
+ * navigation lands, the page hands back the new filters. When Back, forward
+ * or a link discards it first, the transition ends on that URL instead and
+ * the optimistic toggle is dropped, so the screen and the address bar cannot
+ * disagree.
  */
 export function CredentialsProvider({
   festivalId,
@@ -77,14 +77,7 @@ export function CredentialsProvider({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [filters, setFilterState] = useState(initialFilters);
-  const urlKey = filtersKey(initialFilters);
-  const [seenUrlKey, setSeenUrlKey] = useState(urlKey);
-  // Adjusted during render, so the new URL never paints with the old filters.
-  if (urlKey !== seenUrlKey) {
-    setSeenUrlKey(urlKey);
-    if (urlKey !== filtersKey(filters)) setFilterState(initialFilters);
-  }
+  const [filters, setOptimisticFilters] = useOptimistic(initialFilters);
   const rules = useMemo(() => resolveRules(data.ruleRows), [data.ruleRows]);
   const view = useMemo(() => buildView(data, rules, filters), [data, rules, filters]);
 
@@ -100,10 +93,15 @@ export function CredentialsProvider({
 
   const setFilters = useCallback(
     (next: CredentialFilters) => {
-      setFilterState(next);
-      router.replace(hrefFor(tab, next), { scroll: false });
+      // One transition: Next's navigation joins it and keeps it pending until
+      // the page renders the new URL, so the optimistic filters last exactly
+      // as long as that navigation.
+      startTransition(() => {
+        setOptimisticFilters(next);
+        router.replace(hrefFor(tab, next), { scroll: false });
+      });
     },
-    [hrefFor, router, tab],
+    [hrefFor, router, setOptimisticFilters, tab],
   );
 
   const value = useMemo(
