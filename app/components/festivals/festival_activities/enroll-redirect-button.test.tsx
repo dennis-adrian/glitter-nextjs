@@ -10,9 +10,13 @@ import type { BaseProfile } from "@/app/api/users/definitions";
 import type { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 import EnrollRedirectButton from "./enroll-redirect-button";
 
-const mocks = vi.hoisted(() => ({ acceptInvite: vi.fn(), push: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  acceptInvite: vi.fn(),
+  push: vi.fn(),
+  refresh: vi.fn(),
+}));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mocks.push, refresh: vi.fn() }),
+  useRouter: () => ({ push: mocks.push, refresh: mocks.refresh }),
 }));
 vi.mock("@/app/lib/festival_activites/actions", () => ({
   enrollFromWaitlistInvitation: mocks.acceptInvite,
@@ -283,5 +287,30 @@ describe("picking the variant to enroll in", () => {
 
     expect(screen.getByText("Anotate en la lista de espera")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Inscribirme" })).toBeNull();
+  });
+  it("refreshes when the waitlist refuses because a seat opened since rendering", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+    const { joinActivityWaitlist } =
+      await import("@/app/lib/festival_activites/actions");
+    vi.mocked(joinActivityWaitlist).mockResolvedValue({
+      success: false,
+      message: "Todavía hay cupos disponibles en esta actividad",
+    });
+    render(
+      <EnrollRedirectButton
+        currentProfile={profile}
+        forProfile={profile}
+        festivalId={7}
+        activity={withGastronomyFirst([false, true])}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Unirme a la lista de espera" }),
+    );
+
+    await waitFor(() => expect(joinActivityWaitlist).toHaveBeenCalled());
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
   });
 });

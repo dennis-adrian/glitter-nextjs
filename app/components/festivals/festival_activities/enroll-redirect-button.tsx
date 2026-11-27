@@ -150,10 +150,12 @@ export default function EnrollRedirectButton({
         const result = await joinActivityWaitlist(forProfile, activity.id);
         if (result.success) {
           toast.success(result.message);
-          router.refresh();
         } else {
           toast.error(result.message);
         }
+        // On a refusal too: "Todavía hay cupos" means a seat this page counted
+        // as held has opened (an invitation lapsed), so it should offer it.
+        router.refresh();
       } catch (error) {
         toastActionError(
           error,
