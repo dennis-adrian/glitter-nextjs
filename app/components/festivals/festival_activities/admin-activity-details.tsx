@@ -7,27 +7,57 @@ import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/
 import { getMaterialConfig } from "@/app/lib/festival_activites/helpers";
 import ActivityParticipantsTable from "./activity-participants-table";
 import ActivityWaitlistTable from "./activity-waitlist-table";
+import type { MoveTargetVariant } from "./move-participant-variant-menu";
 
 type ActivityDetailsProps = {
   activity: FestivalActivityWithDetailsAndParticipants;
 };
 
 export default function ActivityDetails({ activity }: ActivityDetailsProps) {
+  // Removed participants stay listed (with their badge) but hold no slot, so
+  // the counts leave them out, as the Mover menu and the server do.
+  const activeCountOf = (detail: (typeof activity.details)[number]) =>
+    detail.participants.filter((p) => p.removedAt == null).length;
+  // The waitlist table starts from this instant so hydration matches.
+  const now = new Date();
+  // Only invitations still open on the server's clock: a device clock running
+  // behind would otherwise count lapsed ones again. The Mover menu drops the
+  // rest as they lapse, by the time it opens.
+  const reservationExpiriesOf = (detailId: number) =>
+    activity.waitlistEntries.flatMap((entry) =>
+      entry.notifiedForDetailId === detailId &&
+      entry.expiresAt != null &&
+      new Date(entry.expiresAt) > now
+        ? [new Date(entry.expiresAt).getTime()]
+        : [],
+    );
   const totalParticipants = activity.details.reduce(
-    (sum, d) => sum + d.participants.length,
+    (sum, d) => sum + activeCountOf(d),
     0,
   );
   const showVariantHeaders = activity.details.length > 1;
   const { label: materialLabel } = getMaterialConfig(activity.type);
+  const variantLabel = (index: number, description: string | null) =>
+    `Variante ${index + 1}${description ? ` — ${description}` : ""}`;
+  const moveTargets: MoveTargetVariant[] = activity.details.map(
+    (detail, index) => ({
+      id: detail.id,
+      label: variantLabel(index, detail.description),
+      activeCount: activeCountOf(detail),
+      reservationExpiries: reservationExpiriesOf(detail.id),
+      participationLimit: detail.participationLimit,
+      category: detail.category,
+    }),
+  );
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-muted-foreground">
           {totalParticipants} participante
           {totalParticipants !== 1 ? "s" : ""}
         </h2>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
             <Link
               href={`/dashboard/festivals/${activity.festivalId}/festival_activities/${activity.id}/edit`}
@@ -62,23 +92,27 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
             ...p,
             detail,
           }));
+          const activeCount = activeCountOf(detail);
           const limitLabel = detail.participationLimit
-            ? `${participants.length}/${detail.participationLimit}`
-            : `${participants.length}`;
+            ? `${activeCount}/${detail.participationLimit}`
+            : `${activeCount}`;
 
           return (
             <div key={detail.id} className="flex flex-col gap-2">
               {showVariantHeaders && (
-                <h3 className="text-sm font-medium text-muted-foreground">
-                  Variante {index + 1}
-                  {detail.description ? ` — ${detail.description}` : ""} ·{" "}
-                  {limitLabel} participante
-                  {participants.length !== 1 ? "s" : ""}
+                <h3 className="text-sm font-medium text-muted-foreground break-words">
+                  {variantLabel(index, detail.description)} · {limitLabel}{" "}
+                  participante
+                  {activeCount !== 1 ? "s" : ""}
                 </h3>
               )}
               <ActivityParticipantsTable
+                activityId={activity.id}
+                detailId={detail.id}
+                label={variantLabel(index, detail.description)}
                 participants={participants}
                 materialLabel={materialLabel}
+                variants={moveTargets}
               />
             </div>
           );
@@ -94,6 +128,7 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
             <ActivityWaitlistTable
               entries={activity.waitlistEntries}
               festivalId={activity.festivalId}
+              renderedAt={now}
             />
           </div>
         )}

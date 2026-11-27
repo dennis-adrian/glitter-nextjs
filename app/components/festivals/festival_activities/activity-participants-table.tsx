@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { formatDisplayDate } from "@/app/lib/formatters";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/app/components/ui/badge";
@@ -12,6 +13,10 @@ import {
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import ProofImageModal from "./proof-image-modal";
 import TextProofModal from "./text-proof-modal";
+import MoveParticipantVariantMenu, {
+  takeUnclaimedFocusAfterMove,
+  type MoveTargetVariant,
+} from "./move-participant-variant-menu";
 
 type ParticipantWithDetail = ParticipantWithUserAndProofs & {
   detail: ActivityDetailsWithParticipants;
@@ -127,8 +132,32 @@ function proofStatusKey(proof: ParticipantProof | undefined) {
   return proof?.proofStatus ?? "sin_prueba";
 }
 
+function ParticipantMoveMenu({
+  activityId,
+  participant,
+  variants,
+}: {
+  activityId: number;
+  participant: ParticipantWithDetail;
+  variants: MoveTargetVariant[];
+}) {
+  if (participant.removedAt != null || variants.length < 2) return null;
+  return (
+    <MoveParticipantVariantMenu
+      activityId={activityId}
+      participationId={participant.id}
+      participantName={participant.user.displayName ?? "Participante"}
+      participantCategory={participant.user.category ?? null}
+      currentDetailId={participant.detail.id}
+      variants={variants}
+    />
+  );
+}
+
 function buildColumns(
   materialLabel: string,
+  activityId: number,
+  variants: MoveTargetVariant[],
 ): ColumnDef<ParticipantWithDetail>[] {
   const columnTitleLabel = capitalize(materialLabel);
 
@@ -157,7 +186,7 @@ function buildColumns(
                 alt={user.displayName ?? "Avatar"}
               />
             </Avatar>
-            <span className="font-medium text-sm truncate max-w-[160px]">
+            <span className="font-medium text-sm min-w-36 max-w-64 break-words wrap-anywhere">
               {user.displayName ?? "—"}
             </span>
           </div>
@@ -182,12 +211,15 @@ function buildColumns(
       id: "enrolledAt",
       header: "Inscrito el",
       accessorFn: (row) => row.createdAt,
-      cell: ({ row }) =>
-        formatDisplayDate(new Date(row.original.createdAt), {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        }),
+      cell: ({ row }) => (
+        <span className="whitespace-nowrap">
+          {formatDisplayDate(new Date(row.original.createdAt), {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })}
+        </span>
+      ),
       sortingFn: "datetime",
     },
     {
@@ -225,13 +257,23 @@ function buildColumns(
       header: "",
       cell: ({ row }) => {
         const proof = getPrimaryProof(row.original.proofs);
-        if (!proof) return null;
         return (
-          <ParticipantProofViewer
-            proof={proof}
-            participantName={row.original.user.displayName ?? "Participante"}
-            materialLabel={materialLabel}
-          />
+          <div className="flex flex-wrap items-center justify-end gap-1">
+            {proof && (
+              <ParticipantProofViewer
+                proof={proof}
+                participantName={
+                  row.original.user.displayName ?? "Participante"
+                }
+                materialLabel={materialLabel}
+              />
+            )}
+            <ParticipantMoveMenu
+              activityId={activityId}
+              participant={row.original}
+              variants={variants}
+            />
+          </div>
         );
       },
     },
@@ -239,25 +281,87 @@ function buildColumns(
 }
 
 type ActivityParticipantsTableProps = {
+  activityId: number;
+  /** The variant these participants are in. */
+  detailId: number;
+  /** Names the table for screen readers when it takes focus after a move. */
+  label: string;
   participants: ParticipantWithDetail[];
   materialLabel: string;
+  /** Every variant of the activity; with two or more, rows can be moved. */
+  variants?: MoveTargetVariant[];
 };
 
 export default function ActivityParticipantsTable({
+  activityId,
+  detailId,
+  label,
   participants,
   materialLabel,
+  variants = [],
 }: ActivityParticipantsTableProps) {
-  const columns = buildColumns(materialLabel);
+  const columns = buildColumns(materialLabel, activityId, variants);
   const columnTitleLabel = capitalize(materialLabel);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  if (participants.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground py-2">
-        No hay participantes inscriptos aún.
-      </p>
-    );
-  }
+  useEffect(() => {
+    // A participant moved in here whose row is hidden by this table's
+    // filter, search or page: no row took focus, so the table does, rather
+    // than leaving keyboard users at the page start.
+    if (
+      !takeUnclaimedFocusAfterMove(
+        detailId,
+        participants.map((p) => p.id),
+      )
+    ) {
+      return;
+    }
+    if (!document.activeElement || document.activeElement === document.body) {
+      containerRef.current?.focus();
+    }
+  }, [detailId, participants]);
 
+  return (
+    <div
+      ref={containerRef}
+      role="group"
+      aria-label={label}
+      tabIndex={-1}
+      className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      {participants.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-2">
+          No hay participantes inscriptos aún.
+        </p>
+      ) : (
+        <ParticipantsList
+          activityId={activityId}
+          participants={participants}
+          materialLabel={materialLabel}
+          variants={variants}
+          columns={columns}
+          columnTitleLabel={columnTitleLabel}
+        />
+      )}
+    </div>
+  );
+}
+
+function ParticipantsList({
+  activityId,
+  participants,
+  materialLabel,
+  variants,
+  columns,
+  columnTitleLabel,
+}: {
+  activityId: number;
+  participants: ParticipantWithDetail[];
+  materialLabel: string;
+  variants: MoveTargetVariant[];
+  columns: ColumnDef<ParticipantWithDetail>[];
+  columnTitleLabel: string;
+}) {
   return (
     <>
       {/* Desktop: DataTable */}
@@ -308,10 +412,12 @@ export default function ActivityParticipantsTable({
           return (
             <div
               key={participant.id}
-              className="flex items-center justify-between rounded-md border p-3 gap-3"
+              className="flex flex-col gap-2 rounded-md border p-3"
             >
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="text-xs text-muted-foreground shrink-0">
+              {/* Name gets the full width; status and actions wrap below it,
+                  so a phone never squeezes the name to nothing. */}
+              <div className="flex items-start gap-3">
+                <span className="text-xs text-muted-foreground shrink-0 pt-2">
                   {index + 1}
                 </span>
                 <Avatar className="w-8 h-8 shrink-0">
@@ -323,8 +429,8 @@ export default function ActivityParticipantsTable({
                     alt={participant.user.displayName ?? "Avatar"}
                   />
                 </Avatar>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium break-words wrap-anywhere">
                     {participant.user.displayName ?? "—"}
                   </p>
                   {category && (
@@ -334,30 +440,33 @@ export default function ActivityParticipantsTable({
                   )}
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-1 shrink-0">
-                <div className="flex items-center gap-2">
-                  <Badge
-                    variant="outline"
-                    className={`text-xs shrink-0 ${statusConfig.className}`}
-                  >
-                    {statusLabel}
-                  </Badge>
-                  {proof && (
-                    <ParticipantProofViewer
-                      proof={proof}
-                      participantName={
-                        participant.user.displayName ?? "Participante"
-                      }
-                      materialLabel={materialLabel}
-                    />
-                  )}
-                </div>
-                {participant.removedAt != null && participant.removalReason && (
-                  <p className="text-xs text-muted-foreground italic text-right max-w-[160px]">
-                    {participant.removalReason}
-                  </p>
+              <div className="flex flex-wrap items-center gap-2 pl-[3.25rem]">
+                <Badge
+                  variant="outline"
+                  className={`text-xs ${statusConfig.className}`}
+                >
+                  {statusLabel}
+                </Badge>
+                {proof && (
+                  <ParticipantProofViewer
+                    proof={proof}
+                    participantName={
+                      participant.user.displayName ?? "Participante"
+                    }
+                    materialLabel={materialLabel}
+                  />
                 )}
+                <ParticipantMoveMenu
+                  activityId={activityId}
+                  participant={participant}
+                  variants={variants}
+                />
               </div>
+              {participant.removedAt != null && participant.removalReason && (
+                <p className="text-xs text-muted-foreground italic break-words pl-[3.25rem]">
+                  {participant.removalReason}
+                </p>
+              )}
             </div>
           );
         })}

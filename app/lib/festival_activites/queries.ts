@@ -7,9 +7,20 @@ import "server-only";
  * to authorize first.
  */
 
-import { and, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  sql,
+} from "drizzle-orm";
 
 import type { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
+import { isActivityDetailFullFor } from "@/app/lib/festival_sectors/helpers";
 import {
   getCurrentUserProfile,
   requireAdminOrFestivalAdmin,
@@ -19,6 +30,7 @@ import {
   festivalActivities,
   festivalActivityDetails,
   festivalActivityParticipants,
+  festivalActivityWaitlist,
   festivals,
   festivalSectors,
   reservationParticipants,
@@ -85,6 +97,8 @@ function scopeActivityToViewer(
     ...activity,
     details: activity.details.map((detail) => ({
       ...detail,
+      // Computed from the whole waitlist, before it is narrowed below.
+      fullForViewer: isActivityDetailFullFor(activity, detail, viewerId),
       votes: detail.votes.filter((vote) => vote.voterId === viewerId),
       participants: detail.participants.map((participant) =>
         participant.userId === viewerId
@@ -141,6 +155,117 @@ export async function fetchFestivalActivityForStaff(activityId: number) {
 }
 
 type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Locks a variant's row until `tx` ends and returns it, or undefined when it
+ * does not exist. Every writer that takes a seat in a variant (enrolment,
+ * waitlist invitation or acceptance, restore, move) locks it before counting,
+ * so two of them cannot both count the same last seat.
+ *
+ * Lock order, to stay free of deadlocks: the participant row a writer moves
+ * or restores first, then the variant, then waitlist rows. A transaction
+ * never locks two variants.
+ *
+ * NO KEY UPDATE, not UPDATE: it still excludes the other seat writers and
+ * staff edits of the variant, but not the KEY SHARE a foreign-key check
+ * takes. Promotions hold it through an email send, and FOR UPDATE would make
+ * every vote, participant or invitation pointing at the variant wait for it.
+ */
+export async function lockVariant(tx: Tx, detailId: number) {
+  const [variant] = await tx
+    .select({
+      id: festivalActivityDetails.id,
+      activityId: festivalActivityDetails.activityId,
+      participationLimit: festivalActivityDetails.participationLimit,
+      category: festivalActivityDetails.category,
+    })
+    .from(festivalActivityDetails)
+    .where(eq(festivalActivityDetails.id, detailId))
+    .for("no key update");
+  return variant;
+}
+
+/**
+ * Seats taken in a variant: active participants, and unexpired waitlist
+ * invitations holding a seat there. `exceptUserId` leaves out that profile's
+ * own invitation, `exceptEntryId` one waitlist entry.
+ */
+export async function countVariantSeats(
+  executor: DbOrTx,
+  detailId: number,
+  options: { exceptUserId?: number; exceptEntryId?: number } = {},
+): Promise<{ activeCount: number; reservedCount: number }> {
+  const [{ activeCount }] = await executor
+    .select({ activeCount: count() })
+    .from(festivalActivityParticipants)
+    .where(
+      and(
+        eq(festivalActivityParticipants.detailsId, detailId),
+        isNull(festivalActivityParticipants.removedAt),
+      ),
+    );
+  const [{ reservedCount }] = await executor
+    .select({ reservedCount: count() })
+    .from(festivalActivityWaitlist)
+    .where(
+      and(
+        eq(festivalActivityWaitlist.notifiedForDetailId, detailId),
+        gt(festivalActivityWaitlist.expiresAt, new Date()),
+        options.exceptUserId !== undefined
+          ? ne(festivalActivityWaitlist.userId, options.exceptUserId)
+          : undefined,
+        options.exceptEntryId !== undefined
+          ? ne(festivalActivityWaitlist.id, options.exceptEntryId)
+          : undefined,
+      ),
+    );
+  return { activeCount, reservedCount };
+}
+
+/**
+ * Condition on a `festivalActivityWaitlist` query: the entry's profile has no
+ * participation, active or removed, in any variant of the activity. A removal
+ * bars the whole activity, and an enrolled profile's entry (one left behind by
+ * an older enrolment) could never be accepted.
+ */
+export function notInActivity(activityId: number) {
+  return sql`NOT EXISTS (
+    SELECT 1
+    FROM ${festivalActivityParticipants}
+    INNER JOIN ${festivalActivityDetails}
+      ON ${festivalActivityDetails.id} = ${festivalActivityParticipants.detailsId}
+    WHERE ${festivalActivityDetails.activityId} = ${activityId}
+      AND ${festivalActivityParticipants.userId} = ${festivalActivityWaitlist.userId}
+  )`;
+}
+
+/**
+ * Waitlist entries due an invitation to a seat in a variant of `category`
+ * (null: any category): not yet invited, and with no participation in any
+ * variant of the activity (see `notInActivity`). `exceptUserId` leaves out
+ * that profile's own entry. The query must join `users` on the entry's
+ * userId. Waitlist promotion claims from these, and self-enrolment yields to
+ * them, so both use this one predicate.
+ */
+export function eligibleWaitlistEntries(
+  activityId: number,
+  category: (typeof users.$inferSelect)["category"] | null,
+  options: { exceptUserId?: number } = {},
+) {
+  return and(
+    eq(festivalActivityWaitlist.activityId, activityId),
+    isNull(festivalActivityWaitlist.notifiedAt),
+    // Only a verified profile can accept an invitation, so one that lost
+    // that status since joining neither is invited nor holds anyone back.
+    eq(users.status, "verified"),
+    category ? eq(users.category, category) : undefined,
+    options.exceptUserId !== undefined
+      ? ne(festivalActivityWaitlist.userId, options.exceptUserId)
+      : undefined,
+    notInActivity(activityId),
+  )!;
+}
 
 /**
  * Whether staff removed the profile from any variant of the activity. A
@@ -170,6 +295,49 @@ export async function wasRemovedFromActivity(
     .limit(1);
 
   return removed !== undefined;
+}
+
+/**
+ * Serializes, until `tx` ends, every writer that seats this profile in some
+ * variant of the activity, so two of them for different variants cannot both
+ * pass the one-participation check. Taken after the variant lock: a seat
+ * writer never holds this and then waits for a variant.
+ */
+export async function lockProfileInActivity(
+  tx: Tx,
+  activityId: number,
+  userId: number,
+) {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(${activityId}, ${userId})`);
+}
+
+/**
+ * Whether the profile is active in any variant of the activity. A waitlist
+ * entry can outlive an enrolment (one from before enrolment consumed it), and
+ * inviting or seating it would put the profile in a second variant.
+ */
+export async function isActiveInActivity(
+  executor: DbOrTx,
+  activityId: number,
+  userId: number,
+): Promise<boolean> {
+  const [active] = await executor
+    .select({ id: festivalActivityParticipants.id })
+    .from(festivalActivityParticipants)
+    .innerJoin(
+      festivalActivityDetails,
+      eq(festivalActivityDetails.id, festivalActivityParticipants.detailsId),
+    )
+    .where(
+      and(
+        eq(festivalActivityDetails.activityId, activityId),
+        eq(festivalActivityParticipants.userId, userId),
+        isNull(festivalActivityParticipants.removedAt),
+      ),
+    )
+    .limit(1);
+
+  return active !== undefined;
 }
 
 /** The profile id that owns an activity participation, or null when there is none. */

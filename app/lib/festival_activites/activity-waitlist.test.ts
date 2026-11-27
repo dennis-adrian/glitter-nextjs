@@ -23,7 +23,10 @@ vi.mock("@/app/lib/uploadthing/storage", () => ({
   attemptStorageCleanupJob: vi.fn(),
   enqueueStorageCleanupJob: vi.fn(),
 }));
-vi.mock("@/app/lib/festival_activites/queries", () => ({}));
+vi.mock("@/app/lib/festival_activites/queries", () => ({
+  // Takes the variant's row lock; it reads no queued result.
+  lockVariant: vi.fn(async () => ({})),
+}));
 vi.mock("@/app/lib/users/helpers", () => ({
   getCurrentUserProfile: profileMock,
   requireProfileOwnerOrAdmin: vi.fn(),
