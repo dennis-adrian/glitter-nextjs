@@ -242,6 +242,11 @@ describeDatabase("coupon-book drafts saved before a variant move", () => {
         "@/app/api/festival_activities/[activityId]/couponbook/export/route"
       ),
     };
+    // The app's db client reads POSTGRES_URL once, when @/env is first
+    // imported, which only happens through the dynamic imports above. Fail
+    // loudly if a static import ever initialises it against another database.
+    const { getPostgresUrl } = await import("@/env");
+    expect(getPostgresUrl()).toBe(testDatabaseUrl);
   }, 60_000);
 
   beforeEach(async () => {

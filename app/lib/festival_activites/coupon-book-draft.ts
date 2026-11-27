@@ -194,6 +194,11 @@ export function getGloballyOrderedIncludedParticipantIds(
  * own variant, up to its coupon count; what does not fit spills, in print
  * order, into the books that still have room. Within a book coupons keep the
  * global print order, so spilled coupons precede the book's own.
+ *
+ * When a variant has more coupons than its book holds, the ones already in
+ * that book keep their place and the others spill. So a reflow triggered
+ * elsewhere (another book's count, the inclusion mode) does not evict a
+ * coupon that was relocated into this book.
  */
 export function partitionParticipantsAcrossBooks(
   draft: CouponBookDraft,
@@ -206,7 +211,16 @@ export function partitionParticipantsAcrossBooks(
 
   draft.books.forEach((book, index) => {
     const limit = clampVariantCouponCount(book.variantCouponCount);
-    const own = globalIds.filter((id) => ranks.get(id) === index);
+    const placedHere = new Set(
+      getDraftBookPages(draft, book.id).flatMap((page) => page.slotCouponIds),
+    );
+    const own = globalIds
+      .filter((id) => ranks.get(id) === index)
+      .sort(
+        (a, b) =>
+          Number(!placedHere.has(a)) - Number(!placedHere.has(b)) ||
+          (order.get(a) ?? 0) - (order.get(b) ?? 0),
+      );
     assignments[book.id] = own.slice(0, limit);
     overflow.push(...own.slice(limit));
   });

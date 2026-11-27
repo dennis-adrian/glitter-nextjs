@@ -10,7 +10,6 @@ import {
   CouponBookDraft,
   getDraftBookPages,
   isCouponBookDraft,
-  reconcileDraftWithSource,
   updateVariantCouponCount,
 } from "@/app/lib/festival_activites/coupon-book-draft";
 import {
@@ -19,7 +18,6 @@ import {
   dropUnprintedRemovedCoupons,
   hasCouponBookAuditIssues,
   isCouponBookAuditBlocking,
-  listWithdrawnCoupons,
   refreshDraftFromSource,
   relocateMovedCoupons,
 } from "@/app/lib/festival_activites/coupon-book-reconciliation";
@@ -510,11 +508,10 @@ describe("coupon-book reconciliation", () => {
     expect(dropUnprintedRemovedCoupons(draft, audit)).toBe(draft);
   });
 
-  it("lists coupons whose participant is active but lost their proof", () => {
+  it("blocks export of a printed coupon whose participant lost their proof", () => {
     const draft = build(variants([alpha, beta], [gamma]));
-    const nowVariants = variants([alpha], [gamma]);
     const now = [
-      ...assignmentsFrom(nowVariants),
+      ...assignmentsFrom(variants([alpha], [gamma])),
       {
         participationId: 2,
         detailId: 10,
@@ -523,23 +520,202 @@ describe("coupon-book reconciliation", () => {
         couponProofStatus: null,
       },
     ];
-    const audit = auditCouponBookDraft(draft, now);
-    const contentChanges = reconcileDraftWithSource(draft, build(nowVariants));
 
-    expect(hasCouponBookAuditIssues(audit)).toBe(false);
-    expect(contentChanges.removedParticipationIds).toEqual([2]);
-    expect(listWithdrawnCoupons(draft, contentChanges, audit)).toEqual([
-      { couponId: "participant-2", participationId: 2, participantName: "Beta" },
+    const audit = auditCouponBookDraft(draft, now);
+
+    expect(audit.withdrawn).toEqual([
+      expect.objectContaining({ participationId: 2, printed: true }),
     ]);
+    expect(audit.removed).toEqual([]);
+    expect(isCouponBookAuditBlocking(audit)).toBe(true);
+    expect(describeCouponBookAudit(audit)).toContain(
+      "Ya no tienen una promoción vigente: Beta",
+    );
   });
 
-  it("does not list removed participants as withdrawn coupons", () => {
+  it("treats a proof back in review as withdrawn when only approved coupons print", () => {
+    const draft = buildInitialCouponBookDraft({
+      festivalId: 1,
+      activityId: 2,
+      variants: variants([alpha, beta], [gamma]),
+      participantInclusionMode: "approved_only",
+    });
+    const pendingAgain = variants([alpha, entry(2, "Beta", "pending_review")], [gamma]);
+
+    const audit = auditCouponBookDraft(draft, assignmentsFrom(pendingAgain));
+
+    expect(audit.withdrawn.map((item) => item.participantName)).toEqual([
+      "Beta",
+    ]);
+    expect(isCouponBookAuditBlocking(audit)).toBe(true);
+    // Refreshing updates the proof status, which hides the coupon.
+    const refreshed = refreshDraftFromSource(
+      draft,
+      buildInitialCouponBookDraft({
+        festivalId: 1,
+        activityId: 2,
+        variants: pendingAgain,
+        participantInclusionMode: "approved_only",
+      }),
+      pendingAgain,
+      assignmentsFrom(pendingAgain),
+    );
+    expect(
+      isCouponBookAuditBlocking(
+        auditCouponBookDraft(refreshed, assignmentsFrom(pendingAgain)),
+      ),
+    ).toBe(false);
+  });
+
+  it("does not list removed participants as withdrawn", () => {
     const draft = build(variants([alpha, beta], [gamma]));
-    const nowVariants = variants([alpha], [gamma]);
-    const audit = auditCouponBookDraft(draft, assignmentsFrom(nowVariants));
-    const contentChanges = reconcileDraftWithSource(draft, build(nowVariants));
+    const audit = auditCouponBookDraft(
+      draft,
+      assignmentsFrom(variants([alpha], [gamma])),
+    );
 
     expect(audit.removed.map((item) => item.participationId)).toEqual([2]);
-    expect(listWithdrawnCoupons(draft, contentChanges, audit)).toEqual([]);
+    expect(audit.withdrawn).toEqual([]);
+  });
+
+  it("names the live label of the variant a participant moved to", () => {
+    const draft = build(variants([alpha, beta], [gamma]));
+    const renamed = variants([alpha], [beta, gamma]);
+    renamed[1] = { ...renamed[1], detailLabel: "Variante B renombrada" };
+
+    const audit = auditCouponBookDraft(draft, assignmentsFrom(renamed));
+
+    expect(audit.moved[0]).toMatchObject({
+      draftVariantLabel: "Variante A",
+      currentVariantLabel: "Variante B renombrada",
+    });
+  });
+
+  it("flags an included coupon that has no slot in any book until room is made", () => {
+    const delta = entry(4, "Delta");
+    const source = variants([alpha, beta, delta], [], [3, 1]);
+    const draft = updateVariantCouponCount(build(source), "book-10", 1);
+
+    const audit = auditCouponBookDraft(draft, assignmentsFrom(source));
+
+    expect(audit.unplaced.map((item) => item.participantName)).toEqual([
+      "Delta",
+    ]);
+    expect(isCouponBookAuditBlocking(audit)).toBe(true);
+    expect(describeCouponBookAudit(audit)).toContain(
+      "No tienen lugar en ningún libro: Delta (Variante A)",
+    );
+
+    const roomy = updateVariantCouponCount(draft, "book-10", 2);
+    expect(
+      hasCouponBookAuditIssues(auditCouponBookDraft(roomy, assignmentsFrom(source))),
+    ).toBe(false);
+  });
+
+  it("keeps hidden pending coupons without a slot out of the warnings", () => {
+    const pending = entry(2, "Beta", "pending_review");
+    const source = variants([alpha, pending], [gamma]);
+    const draft = buildInitialCouponBookDraft({
+      festivalId: 1,
+      activityId: 2,
+      variants: source,
+      participantInclusionMode: "approved_only",
+    });
+
+    expect(
+      hasCouponBookAuditIssues(auditCouponBookDraft(draft, assignmentsFrom(source))),
+    ).toBe(false);
+  });
+
+  it("places a printed mover that the refresh left without a slot", () => {
+    const mover = entry(5, "Mover");
+    const draft = build(variants([alpha, mover], [beta, gamma], [2, 2]));
+    // Mover leaves A for B, and Delta joins A: the merge's reflow fills A
+    // with Alpha and Delta and has no room left for Mover anywhere.
+    const nowVariants = variants(
+      [alpha, entry(4, "Delta")],
+      [beta, gamma, mover],
+      [2, 2],
+    );
+
+    const refreshed = refreshDraftFromSource(
+      draft,
+      build(nowVariants),
+      nowVariants,
+      assignmentsFrom(nowVariants),
+    );
+
+    expect(bookCoupons(refreshed, "book-11")).toContain("participant-5");
+    expect(bookCoupons(refreshed, "book-10")).toEqual([
+      "participant-1",
+      "participant-4",
+    ]);
+    expect(isCouponBookDraft(refreshed)).toBe(true);
+    expect(
+      hasCouponBookAuditIssues(
+        auditCouponBookDraft(refreshed, assignmentsFrom(nowVariants)),
+      ),
+    ).toBe(false);
+  });
+
+  it("places a mover whose new variant only gets a book from the refresh", () => {
+    const draft = build(variants([alpha, beta], [gamma]));
+    const nowVariants: CouponBookVariant[] = [
+      ...variants([alpha], [gamma]),
+      {
+        detailId: 12,
+        detailLabel: "Variante C",
+        headerImageUrl: null,
+        participationLimit: 2,
+        entries: [beta],
+      },
+    ];
+
+    const refreshed = refreshDraftFromSource(
+      draft,
+      build(nowVariants),
+      nowVariants,
+      assignmentsFrom(nowVariants),
+    );
+
+    expect(bookCoupons(refreshed, "book-12")).toContain("participant-2");
+    expect(bookCoupons(refreshed, "book-10")).not.toContain("participant-2");
+    expect(refreshed.entries["participant-2"].sourceDetailId).toBe(12);
+    expect(
+      hasCouponBookAuditIssues(
+        auditCouponBookDraft(refreshed, assignmentsFrom(nowVariants)),
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps a relocated coupon in its destination when another book's count changes", () => {
+    const mover = entry(5, "Mover");
+    const b3 = entry(3, "B3");
+    const b2 = entry(2, "B2");
+    const source = variants([alpha, mover], [b2, b3], [3, 2]);
+    // Book B holds one coupon, so B3 spills into book A.
+    let draft = updateVariantCouponCount(build(source), "book-11", 1);
+    expect(bookCoupons(draft, "book-10")).toContain("participant-3");
+
+    const nowVariants = variants([alpha], [b2, b3, mover], [3, 1]);
+    draft = relocateMovedCoupons(draft, assignmentsFrom(nowVariants)).draft;
+    expect(bookCoupons(draft, "book-11")).toEqual([
+      "participant-2",
+      "participant-5",
+    ]);
+
+    const grown = updateVariantCouponCount(draft, "book-10", 4);
+
+    expect(bookCoupons(grown, "book-11")).toEqual([
+      "participant-2",
+      "participant-5",
+    ]);
+    expect(bookCoupons(grown, "book-10")).toContain("participant-3");
+    expect(bookCoupons(grown, "book-10")).not.toContain("participant-5");
+    expect(
+      hasCouponBookAuditIssues(
+        auditCouponBookDraft(grown, assignmentsFrom(nowVariants)),
+      ),
+    ).toBe(false);
   });
 });

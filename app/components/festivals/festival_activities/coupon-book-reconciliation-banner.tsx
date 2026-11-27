@@ -17,8 +17,6 @@ type CouponBookReconciliationBannerProps = {
   contentChanges: CouponBookReconciliation;
   /** Moved participants whose new variant has no book in the draft. */
   unresolvedMoves: CouponBookMovedParticipant[];
-  /** Coupons of active participants who no longer have a usable proof. */
-  withdrawnCoupons: Array<{ couponId: string; participantName: string }>;
   onRelocate: () => void;
   onMergeFromSource: () => void;
 };
@@ -44,25 +42,18 @@ export default function CouponBookReconciliationBanner({
   audit,
   contentChanges,
   unresolvedMoves,
-  withdrawnCoupons,
   onRelocate,
   onMergeFromSource,
 }: CouponBookReconciliationBannerProps) {
   const changedCount = contentChanges.changedParticipationIds.length;
-  if (
-    !hasCouponBookAuditIssues(audit) &&
-    changedCount === 0 &&
-    withdrawnCoupons.length === 0
-  ) {
-    return null;
-  }
+  if (!hasCouponBookAuditIssues(audit) && changedCount === 0) return null;
 
   const blocking = isCouponBookAuditBlocking(audit);
   const needsMerge =
     audit.unverified.length > 0 ||
     audit.removed.length > 0 ||
     audit.added.length > 0 ||
-    withdrawnCoupons.length > 0 ||
+    audit.withdrawn.length > 0 ||
     changedCount > 0 ||
     unresolvedMoves.length > 0;
 
@@ -95,7 +86,7 @@ export default function CouponBookReconciliationBanner({
             items={audit.moved.map(
               (item) =>
                 `${item.participantName}: ${item.draftVariantLabel} → ${item.currentVariantLabel}${
-                  item.printed ? "" : " (cupón oculto)"
+                  item.included ? "" : " (cupón oculto)"
                 }`,
             )}
           />
@@ -136,15 +127,35 @@ export default function CouponBookReconciliationBanner({
         </div>
       ) : null}
 
-      {withdrawnCoupons.length > 0 ? (
+      {audit.withdrawn.length > 0 ? (
         <div className="space-y-1">
           <p className="font-medium break-words">
-            Ya no tienen una promoción aprobada ni en revisión, pero su cupón
-            sigue en el borrador:
+            Su promoción ya no está vigente, pero su cupón sigue en el
+            borrador:
           </p>
           <NameList
-            items={withdrawnCoupons.map((item) => item.participantName)}
+            items={audit.withdrawn.map(
+              (item) =>
+                `${item.participantName}${item.printed ? "" : " (cupón oculto)"}`,
+            )}
           />
+        </div>
+      ) : null}
+
+      {audit.unplaced.length > 0 ? (
+        <div className="space-y-1">
+          <p className="font-medium break-words">
+            No tienen lugar en ningún libro, así que su cupón no se imprimiría:
+          </p>
+          <NameList
+            items={audit.unplaced.map(
+              (item) => `${item.participantName} (${item.variantLabel})`,
+            )}
+          />
+          <p className="break-words">
+            Aumentá los cupones de su variante en el editor para hacerles
+            lugar.
+          </p>
         </div>
       ) : null}
 
