@@ -55,7 +55,8 @@ const MAX_SEAT_OFFERS = 5;
  * Invites waiters to a variant's free seats, one per seat: a raised limit can
  * free several at once, and nothing else would offer the rest. Each promotion
  * counts again under the variant lock, so it stops once no seat is left. No
- * job retries a failure, so it is logged for staff to invite by hand.
+ * job retries a failure, so it is logged for staff to invite by hand, and
+ * reported to a caller that can tell them.
  */
 export async function offerFreeSeats(
   activityId: number,
@@ -63,7 +64,7 @@ export async function offerFreeSeats(
   // Staff editing the activity wait for every seat they opened to be
   // offered; a participant's request stops at a few.
   { maxOffers = MAX_SEAT_OFFERS }: { maxOffers?: number } = {},
-) {
+): Promise<{ failed: boolean }> {
   for (let offer = 0; offer < maxOffers; offer++) {
     const promotion = await promoteFromWaitlist(activityId, detailId);
     if (isPromotionFailure(promotion)) {
@@ -71,10 +72,11 @@ export async function offerFreeSeats(
         activityId,
         detailId,
       });
-      return;
+      return { failed: true };
     }
-    if (!promotion) return;
+    if (!promotion) break;
   }
+  return { failed: false };
 }
 
 /**

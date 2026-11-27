@@ -1237,6 +1237,18 @@ export async function joinActivityWaitlist(
     const maxInsertAttempts = 3;
     for (let attempt = 1; attempt <= maxInsertAttempts; attempt++) {
       const result = await db.transaction(async (tx) => {
+        // The enrolment check above read without a lock. Under the profile
+        // lock `enrollInActivity` takes, an enrolment that committed since
+        // is seen here, and one still waiting deletes this entry on commit.
+        await lockProfileInActivity(tx, activityId, activeProfile.id);
+        if (await isActiveInActivity(tx, activityId, activeProfile.id)) {
+          return {
+            success: false as const,
+            message: "Ya estás inscrito en esta actividad",
+            retry: false as const,
+          };
+        }
+
         // Verify not already on waitlist
         const [existing] = await tx
           .select({ id: festivalActivityWaitlist.id })

@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
 import {
@@ -2081,6 +2081,7 @@ describeDatabase("moving a participant between variants", () => {
     const waiting = await createUser("waiting");
     const entry = await addToWaitlist(waiting.id, 1);
     const client = await pool!.connect();
+    let movePromise: Promise<unknown> | undefined;
     try {
       await client.query("begin");
       await client.query("select 1 from users where id = $1 for key share", [
@@ -2088,15 +2089,20 @@ describeDatabase("moving a participant between variants", () => {
       ]);
       // Bounded, so a move that blocks on the held row fails the test and
       // still reaches the rollback below instead of hanging the suite.
+      const pendingMove = moveActivityParticipant(row.id, target);
+      movePromise = pendingMove;
+      let timer: ReturnType<typeof setTimeout> | undefined;
       const move = await Promise.race([
-        moveActivityParticipant(row.id, target),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("move blocked")), 5_000),
-        ),
-      ]);
+        pendingMove,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error("move blocked")), 5_000);
+        }),
+      ]).finally(() => clearTimeout(timer));
       expect(move.invitedName).toBe("waiting");
     } finally {
       await client.query("rollback");
+      // A move the timeout outran must not keep writing past the cleanup.
+      await movePromise?.catch(() => {});
       client.release();
     }
     expect((await waitlistRow(entry.id))?.notifiedForDetailId).toBe(source);
@@ -2216,6 +2222,85 @@ describeDatabase("moving a participant between variants", () => {
     expect((await waitlistRow(first.id))?.notifiedForDetailId).toBe(source);
     expect((await waitlistRow(second.id))?.notifiedAt).toBeNull();
     expect(sendEmail).toHaveBeenCalledOnce();
+  });
+
+  it("saves an edit whose waitlist invitation failed and says so", async () => {
+    const { festivalId, activityId, source, target, participant } = fixture;
+    await enroll(source, participant.id);
+    const first = await addToWaitlist((await createUser("first")).id, 1);
+    sendEmail.mockResolvedValueOnce(emailRejected);
+    const now = Date.now();
+
+    const result = await updateFestivalActivity(activityId, festivalId, {
+      name: "Cuponera",
+      type: "coupon_book",
+      accessLevel: "public",
+      registrationStartDate: new Date(now - DAY),
+      registrationEndDate: new Date(now + DAY),
+      allowsVoting: false,
+      waitlistWindowMinutes: 60,
+      details: [
+        { id: source, participationLimit: 2 },
+        { id: target, participationLimit: 2 },
+      ],
+    });
+
+    expect(result).toEqual({
+      success: true,
+      message:
+        "Actividad actualizada, pero no se pudieron enviar todas las invitaciones de la lista de espera. Intentá notificar desde la lista de espera.",
+    });
+    const [saved] = await integrationDb!
+      .select({
+        participationLimit: festivalActivityDetails.participationLimit,
+      })
+      .from(festivalActivityDetails)
+      .where(eq(festivalActivityDetails.id, source));
+    expect(saved.participationLimit).toBe(2);
+    expect((await waitlistRow(first.id))?.notifiedAt).toBeNull();
+  });
+
+  it("leaves no waitlist entry when a profile enrols while joining it", async () => {
+    const { activityId, source, target } = fixture;
+    const seated = await enroll(source, (await createUser("seated-1")).id);
+    await enroll(target, (await createUser("seated-2")).id);
+    await enroll(target, (await createUser("seated-3")).id);
+    const racer = await createUser("racer");
+
+    // Every seat is taken when the join checks, so it reaches its insert;
+    // the enrolment waits under the source lock for the profile lock. A seat
+    // frees before either goes on.
+    await behindLock(
+      {
+        text: "select pg_advisory_xact_lock($1, $2)",
+        values: [activityId, racer.id],
+      },
+      2,
+      () => [enrollAs(racer, source), joinWaitlistAs(racer)],
+      (client) =>
+        client.query(
+          "update festival_activity_participants set removed_at = now(), removal_reason = 'x' where id = $1",
+          [seated.id],
+        ),
+    );
+
+    expect(await activeIn(source)).toBe(1);
+    const [enrolled] = await integrationDb!
+      .select({ id: festivalActivityParticipants.id })
+      .from(festivalActivityParticipants)
+      .where(
+        and(
+          eq(festivalActivityParticipants.detailsId, source),
+          eq(festivalActivityParticipants.userId, racer.id),
+          isNull(festivalActivityParticipants.removedAt),
+        ),
+      );
+    expect(enrolled).toBeDefined();
+    const entries = await integrationDb!
+      .select({ id: festivalActivityWaitlist.id })
+      .from(festivalActivityWaitlist)
+      .where(eq(festivalActivityWaitlist.userId, racer.id));
+    expect(entries).toEqual([]);
   });
 
   it("passes over a waiter who is no longer verified", async () => {

@@ -405,16 +405,28 @@ export async function updateFestivalActivity(
     });
 
     // After the commit: each offer locks one variant on its own.
+    let offerFailed = false;
     if (data.waitlistWindowMinutes) {
       for (const detailId of widenedDetailIds) {
         // Bounded by the request's time; a later enrolment attempt offers
         // any seat still owed.
-        await offerFreeSeats(activityId, detailId, { maxOffers: 50 });
+        const { failed } = await offerFreeSeats(activityId, detailId, {
+          maxOffers: 50,
+        });
+        offerFailed ||= failed;
       }
     }
 
     revalidatePath(`/dashboard/festivals/${festivalId}/festival_activities`);
 
+    // The edit is saved either way; staff still have to invite by hand.
+    if (offerFailed) {
+      return {
+        success: true,
+        message:
+          "Actividad actualizada, pero no se pudieron enviar todas las invitaciones de la lista de espera. Intentá notificar desde la lista de espera.",
+      };
+    }
     return { success: true, message: "Actividad actualizada correctamente" };
   } catch (error) {
     const message =
