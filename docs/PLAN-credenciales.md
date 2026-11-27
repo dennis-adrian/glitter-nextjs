@@ -192,7 +192,7 @@ New folder `app/lib/credentials/`, modelled on the admin side of volunteers (`ap
 5. The roster with a selected flag, one-off entries, rule rows, external overrides.
 6. Batches and their items.
 
-From the page, run at most three statements at a time. From inside a transaction, await them one after another. `buildHolders` must tolerate a participant row whose reservation is missing, because the reads are separate statements.
+The page and the CSV export read through `fetchCredentialsSnapshot`: one read-only `REPEATABLE READ` transaction, statements one after another, so a reservation that stops counting mid-read cannot keep its row while losing its participants, and an undo cannot leave a batch header without its items. The actions call `fetchCredentialsData(tx, …)` on their own `READ COMMITTED` transaction, one statement after another, after their advisory lock; under `REPEATABLE READ` the lock statement would take the snapshot before its wait and miss a batch committed meanwhile. There the reads are still separate snapshots, so `buildHolders` must tolerate a participant row whose reservation is missing.
 
 All three statuses are always loaded (a few hundred rows at most). The status and group toggles are applied by the pure calculator, so they respond instantly in the browser without another request.
 

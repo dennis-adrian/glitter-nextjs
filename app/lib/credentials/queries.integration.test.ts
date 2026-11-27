@@ -305,4 +305,18 @@ describeDatabase("credentials queries", () => {
       expect.objectContaining({ key: `external:${external!.id}`, named: 4 }),
     ]);
   });
+
+  it("reads the same data on one read-only snapshot for the page", async () => {
+    const festivalId = await createFestival();
+    await createReservation(festivalId, {
+      standCount: 2,
+      userIds: [await createUser("Instantánea")],
+    });
+
+    const snapshot = await queries.fetchCredentialsSnapshot(integrationDb!, festivalId);
+    expect(snapshot).toEqual(await queries.fetchCredentialsData(integrationDb!, festivalId));
+    expect(snapshot!.reservations).toHaveLength(1);
+    expect(snapshot!.participants).toHaveLength(1);
+    expect(await queries.fetchCredentialsSnapshot(integrationDb!, 2_000_000_000)).toBeNull();
+  });
 });

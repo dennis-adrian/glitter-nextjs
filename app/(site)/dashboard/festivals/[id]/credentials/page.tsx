@@ -7,7 +7,7 @@ import {
   parseCredentialTab,
 } from "@/app/lib/credentials/definitions";
 import { loadCredentialsPage } from "@/app/lib/credentials/load-page";
-import { fetchCredentialsData } from "@/app/lib/credentials/queries";
+import { fetchCredentialsSnapshot } from "@/app/lib/credentials/queries";
 import { db } from "@/db";
 
 export const metadata: Metadata = { title: "Credenciales" };
@@ -24,7 +24,7 @@ type PageProps = {
 export default async function CredentialsPage({ params, searchParams }: PageProps) {
   const [{ id }, search] = await Promise.all([params, searchParams]);
   const { profile, festivalId } = await loadCredentialsPage(id);
-  const data = await fetchCredentialsData(db, festivalId);
+  const data = await fetchCredentialsSnapshot(db, festivalId);
   if (!data) notFound();
 
   return (

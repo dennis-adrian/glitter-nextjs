@@ -38,7 +38,8 @@ import {
  * The credentials page's reads, always scoped by festival. The database handle
  * is the first argument with no default, so the batch action can pass its
  * transaction: calling the module-level `db` inside one would take a second
- * pooled connection (docs/PLAN-database-reliability-hardening.md §2).
+ * pooled connection (docs/PLAN-database-reliability-hardening.md §2). The page
+ * and the CSV export read through `fetchCredentialsSnapshot`.
  */
 
 export type CredentialsDatabase =
@@ -366,4 +367,26 @@ export async function fetchCredentialsData(
       items: itemsByBatch.get(row.id) ?? [],
     })),
   };
+}
+
+/**
+ * The page's and the CSV export's read: every statement on one read-only
+ * REPEATABLE READ snapshot, one after another on a single connection. Separate
+ * statements could otherwise straddle a write: a reservation that stops
+ * counting would keep its row but lose its participants ("no tiene
+ * participantes"), and an undone batch could keep its header but lose its items.
+ *
+ * Not for the actions. There the first statement is the advisory lock, and
+ * under REPEATABLE READ its snapshot would be taken before the wait, missing a
+ * batch committed meanwhile. They read on their own READ COMMITTED transaction
+ * after the lock, which also keeps the batch history whole.
+ */
+export function fetchCredentialsSnapshot(
+  database: typeof db,
+  festivalId: number,
+): Promise<CredentialsData | null> {
+  return database.transaction(
+    (tx) => fetchCredentialsData(tx, festivalId, { concurrency: 1 }),
+    { isolationLevel: "repeatable read", accessMode: "read only" },
+  );
 }

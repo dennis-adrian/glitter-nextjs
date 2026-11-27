@@ -19,12 +19,12 @@ import {
 } from "@/app/lib/credentials/export";
 
 const requireAdminOrFestivalAdmin = vi.hoisted(() => vi.fn());
-const fetchCredentialsData = vi.hoisted(() => vi.fn());
+const fetchCredentialsSnapshot = vi.hoisted(() => vi.fn());
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/db", () => ({ db: {} }));
 vi.mock("@/app/lib/users/helpers", () => ({ requireAdminOrFestivalAdmin }));
-vi.mock("@/app/lib/credentials/queries", () => ({ fetchCredentialsData }));
+vi.mock("@/app/lib/credentials/queries", () => ({ fetchCredentialsSnapshot }));
 
 function festival() {
   const data = emptyData();
@@ -99,7 +99,7 @@ describe("GET /dashboard/festivals/[id]/credentials/export", () => {
 
   beforeEach(async () => {
     requireAdminOrFestivalAdmin.mockResolvedValue({ id: 1, role: "festival_admin" });
-    fetchCredentialsData.mockResolvedValue(festival());
+    fetchCredentialsSnapshot.mockResolvedValue(festival());
     ({ GET } = await import("@/app/(site)/dashboard/festivals/[id]/credentials/export/route"));
   });
   afterEach(() => vi.clearAllMocks());
@@ -109,12 +109,12 @@ describe("GET /dashboard/festivals/[id]/credentials/export", () => {
     const response = await call("1");
     expect(response.status).toBe(401);
     expect(await response.text()).toBe("No autorizado");
-    expect(fetchCredentialsData).not.toHaveBeenCalled();
+    expect(fetchCredentialsSnapshot).not.toHaveBeenCalled();
   });
 
   it("is not found for a bad id or a missing festival", async () => {
     expect((await call("abc")).status).toBe(404);
-    fetchCredentialsData.mockResolvedValue(null);
+    fetchCredentialsSnapshot.mockResolvedValue(null);
     expect((await call("99")).status).toBe(404);
   });
 

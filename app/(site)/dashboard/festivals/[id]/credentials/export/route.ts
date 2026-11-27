@@ -9,7 +9,7 @@ import {
   credentialsExportFilename,
   serializeCredentialsCsv,
 } from "@/app/lib/credentials/export";
-import { fetchCredentialsData } from "@/app/lib/credentials/queries";
+import { fetchCredentialsSnapshot } from "@/app/lib/credentials/queries";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 
@@ -33,7 +33,7 @@ export async function GET(
   const parsed = ParamsSchema.safeParse(await params);
   if (!parsed.success) return new Response("No encontrado", { status: 404 });
 
-  const data = await fetchCredentialsData(db, parsed.data.id);
+  const data = await fetchCredentialsSnapshot(db, parsed.data.id);
   if (!data) return new Response("No encontrado", { status: 404 });
 
   const search = new URL(request.url).searchParams;
