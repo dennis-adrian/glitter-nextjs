@@ -6,6 +6,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitForElementToBeRemoved,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -213,11 +214,25 @@ describe("ClientMap", () => {
         isFullTableHalf: false,
       });
 
-    function tapAndTake(label: string) {
-      renderMap(null, [free(21, "A1"), free(22, "A2")]);
+    /**
+     * Taps the stand, asks for it and waits until the attempt has settled.
+     *
+     * The attempt runs in a transition, and the map ignores stand taps while
+     * that transition is pending, behind its busy overlay. The overlay comes
+     * down a render after the stand is marked taken and after `pollNow`.
+     * Render work is split into 5 ms slices, and on a busy machine those two
+     * renders land in different slices. A test that waits only for the mark
+     * or for the poll can then tap a stand that the map drops.
+     */
+    async function tapAndTake(label: string) {
+      const { container } = renderMap(null, [free(21, "A1"), free(22, "A2")]);
       fireEvent.click(screen.getByRole("button", { name: `stand-${label}` }));
       fireEvent.click(
         screen.getByRole("button", { name: /Seleccionar Stand/ }),
+      );
+      // Throws if the overlay is not up, so this never passes without waiting.
+      await waitForElementToBeRemoved(() =>
+        container.querySelector('[aria-busy="true"]'),
       );
     }
 
@@ -227,10 +242,10 @@ describe("ClientMap", () => {
         code: "STAND_UNAVAILABLE",
         message: "Este espacio ya no está disponible",
       });
-      tapAndTake("A1");
+      await tapAndTake("A1");
 
       expect(
-        await screen.findByText(/Otro participante está considerando/),
+        screen.getByText(/Otro participante está considerando/),
       ).toBeTruthy();
       expect(
         screen.getByRole("button", { name: /Stand No Disponible/ }),
@@ -239,7 +254,11 @@ describe("ClientMap", () => {
 
       // A2 is untouched until the poll says otherwise.
       fireEvent.click(screen.getByRole("button", { name: "stand-A2" }));
+      expect(screen.getByRole("heading", { name: /^Stand A2/ })).toBeTruthy();
       expect(screen.queryByText(/Otro participante/)).toBeNull();
+      expect(
+        screen.getByRole("button", { name: /Seleccionar Stand/ }),
+      ).toHaveProperty("disabled", false);
       act(() => {
         pollCallback.current?.({
           stands: [{ standId: 22, effectiveStatus: "held", updatedAt: null }],
@@ -258,9 +277,9 @@ describe("ClientMap", () => {
         code: "CONFLICT_RETRY",
         message: "Reintentá",
       });
-      tapAndTake("A1");
+      await tapAndTake("A1");
 
-      await vi.waitFor(() => expect(pollNow).toHaveBeenCalledTimes(1));
+      expect(pollNow).toHaveBeenCalledTimes(1);
       expect(screen.queryByText(/Otro participante/)).toBeNull();
       expect(
         screen.getByRole("button", { name: /Seleccionar Stand/ }),
