@@ -368,10 +368,21 @@ describeDatabase("a removal bars the whole activity", () => {
   });
 
   it("skips a removed profile when promoting the waitlist", async () => {
-    const { activityId, variantA, removed } = fixture;
+    const { activityId, variantA, removed, other } = fixture;
     const next = await createUser("next");
     const removedEntry = await addToWaitlist(activityId, removed.id, 1);
     const nextEntry = await addToWaitlist(activityId, next.id, 2);
+    // Free A's only slot, as a removal would; promotion invites nobody into
+    // a full variant.
+    await integrationDb!
+      .update(festivalActivityParticipants)
+      .set({ removedAt: new Date() })
+      .where(
+        and(
+          eq(festivalActivityParticipants.detailsId, variantA),
+          eq(festivalActivityParticipants.userId, other.id),
+        ),
+      );
 
     await promoteFromWaitlist(activityId, variantA);
 
@@ -388,6 +399,23 @@ describeDatabase("a removal bars the whole activity", () => {
     expect(byId.get(nextEntry.id)?.notifiedAt).not.toBeNull();
     expect(sendEmail).toHaveBeenCalledTimes(1);
     expect(sendEmail.mock.calls[0][0]).toMatchObject({ to: [next.email] });
+  });
+
+  it("invites nobody into a variant that is still full", async () => {
+    const { activityId, variantA } = fixture;
+    const next = await createUser("next");
+    const entry = await addToWaitlist(activityId, next.id, 1);
+
+    // A's only slot is held by `other`: nothing was freed.
+    const invited = await promoteFromWaitlist(activityId, variantA);
+
+    expect(invited).toBeNull();
+    const [untouched] = await integrationDb!
+      .select()
+      .from(festivalActivityWaitlist)
+      .where(eq(festivalActivityWaitlist.id, entry.id));
+    expect(untouched.notifiedAt).toBeNull();
+    expect(sendEmail).not.toHaveBeenCalled();
   });
 
   it("refuses a best stand entry after a removal", async () => {
