@@ -569,6 +569,26 @@ describe("print state", () => {
     expect(holderOf(data, "Socia nueva")!.print).toMatchObject({ nameChanged: false, needsPrint: false });
   });
 
+  it("says Cambió el rol when a team member's or volunteer's role changes, and reprints it", () => {
+    const data = emptyData();
+    data.staff.push({ id: 1, fullName: "Ana", roleLabel: "Logística", isActive: true, selected: true });
+    data.volunteers.push({ applicationId: 4, fullName: "Beto", roleName: null });
+    print(data);
+    data.staff[0]!.roleLabel = "Prensa";
+    data.volunteers[0]!.roleName = "Puerta";
+    for (const name of ["Ana", "Beto"]) {
+      const holder = holderOf(data, name)!;
+      expect(holder.print).toMatchObject({ state: "partial", missing: 1, nameChanged: true, needsPrint: true });
+      expect(printStateLabel(holder.print!)).toBe("Cambió el rol");
+    }
+    expect(print(data, ["staff:1", "volunteer:4"])).toEqual([
+      expect.objectContaining({ unitKey: "volunteer:4", detail: "Puerta", namedCount: 1, isReprint: true }),
+      expect.objectContaining({ unitKey: "staff:1", detail: "Prensa", namedCount: 1, isReprint: true }),
+    ]);
+    expect(holderOf(data, "Ana")!.print).toMatchObject({ state: "printed", nameChanged: false });
+    expect(holderOf(data, "Beto")!.print).toMatchObject({ state: "printed", nameChanged: false });
+  });
+
   it("reprints a renamed holder whose entitlement grew in full, then clears", () => {
     const data = emptyData();
     const { reservationId } = addReservation(data, { people: [{ name: "Gas" }], category: "gastronomy" });

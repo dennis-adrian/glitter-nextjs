@@ -629,6 +629,11 @@ export async function createCredentialPrintBatch(
   try {
     await db.transaction(async (tx) => {
       await lockFestivalBatches(tx, festivalId);
+      // The reads below are separate statements (read committed): hold the
+      // rules still meanwhile, so the counts are never judged under rules
+      // that changed halfway. Rule writes take only this lock, so the order
+      // (batches, then rules) cannot deadlock.
+      await lockFestivalRules(tx, festivalId);
       const data = await fetchCredentialsData(tx, festivalId, { concurrency: 1 });
       if (!data) throw new Refusal(CREDENTIALS_COPY.festivalNotFound);
       if ((latestBatch(data.batches)?.id ?? null) !== lastBatchId) {
