@@ -113,6 +113,7 @@ let notifyWaitlistEntry: AdminActions["notifyWaitlistEntry"];
 let enrollInActivity: Actions["enrollInActivity"];
 let enrollFromWaitlistInvitation: Actions["enrollFromWaitlistInvitation"];
 let addFestivalActivityVote: Actions["addFestivalActivityVote"];
+let joinActivityWaitlist: Actions["joinActivityWaitlist"];
 let processExpiredWaitlistNotifications: typeof import("@/app/lib/festival_activites/scheduled-actions").processExpiredWaitlistNotifications;
 
 type UserRow = typeof users.$inferSelect;
@@ -308,6 +309,12 @@ function enrollAs(profile: UserRow, detailId: number) {
   );
 }
 
+/** `profile` joins the activity's waitlist, as the activity page does. */
+function joinWaitlistAs(profile: UserRow) {
+  currentProfile.mockResolvedValue(profile);
+  return joinActivityWaitlist(profile as BaseProfile, fixture.activityId);
+}
+
 const RESERVED_MESSAGE =
   "Este cupo está reservado para participantes en la lista de espera";
 const NO_INVITATION_MESSAGE = "No tenés una invitación activa para inscribirte";
@@ -339,6 +346,7 @@ describeDatabase("moving a participant between variants", () => {
       enrollInActivity,
       enrollFromWaitlistInvitation,
       addFestivalActivityVote,
+      joinActivityWaitlist,
     } = await import("@/app/lib/festival_activites/actions"));
     ({ processExpiredWaitlistNotifications } =
       await import("@/app/lib/festival_activites/scheduled-actions"));
@@ -1960,5 +1968,126 @@ describeDatabase("moving a participant between variants", () => {
     expect(await moveActivityParticipant(partners[1].id, third)).toMatchObject({
       success: true,
     });
+  });
+
+  it("lets a profile refused a seat an invitation holds join the waitlist", async () => {
+    const { source, target, participant } = fixture;
+    // A move frees source and invites the first waiter to it; target is full.
+    const row = await enroll(source, participant.id);
+    await addToWaitlist((await createUser("waiting")).id, 1);
+    await enroll(target, (await createUser("seated")).id);
+    expect((await moveActivityParticipant(row.id, target)).invitedName).toBe(
+      "waiting",
+    );
+    const outsider = await createUser("outsider");
+
+    expect(await enrollAs(outsider, source)).toEqual({
+      success: false,
+      message: RESERVED_MESSAGE,
+    });
+    expect(await enrollAs(outsider, target)).toEqual({
+      success: false,
+      message: "Ya no hay cupo disponible",
+    });
+    expect(await joinWaitlistAs(outsider)).toMatchObject({
+      success: true,
+      position: 2,
+    });
+  });
+
+  it("lets a profile refused a raised limit's seat a waiter is owed join the waitlist", async () => {
+    const { source, target } = fixture;
+    await enroll(source, (await createUser("seated-1")).id);
+    await enroll(target, (await createUser("seated-2")).id);
+    await enroll(target, (await createUser("seated-3")).id);
+    const waiting = await createUser("waiting");
+    await addToWaitlist(waiting.id, 1);
+    // Staff raise source's limit, which invites nobody.
+    await integrationDb!
+      .update(festivalActivityDetails)
+      .set({ participationLimit: 2 })
+      .where(eq(festivalActivityDetails.id, source));
+
+    expect(await joinWaitlistAs(await createUser("outsider"))).toMatchObject({
+      success: true,
+      position: 2,
+    });
+  });
+
+  it("still refuses the waitlist while a seat is open to the profile", async () => {
+    expect(await joinWaitlistAs(await createUser("outsider"))).toEqual({
+      success: false,
+      message: "Todavía hay cupos disponibles en esta actividad",
+    });
+  });
+
+  it("counts against a limit set while an enrolment into an unlimited variant waited for it", async () => {
+    const { activityId } = fixture;
+    const variant = await createVariant(activityId, null);
+    await enroll(variant, (await createUser("seated")).id);
+    const newcomer = await createUser("newcomer");
+
+    const [result] = await behindLock(
+      variantLock(variant),
+      1,
+      () => [enrollAs(newcomer, variant)],
+      (client) =>
+        client.query(
+          "update festival_activity_details set participation_limit = 1 where id = $1",
+          [variant],
+        ),
+    );
+
+    expect(result).toEqual({
+      success: false,
+      message: "Ya no hay cupo disponible",
+    });
+    expect(await activeIn(variant)).toBe(1);
+  });
+
+  it("leaves the invitee's profile row unlocked while its promotion sends the email", async () => {
+    const { source, target, participant } = fixture;
+    const row = await enroll(source, participant.id);
+    const waiting = await createUser("waiting");
+    await addToWaitlist(waiting.id, 1);
+    let lockError: unknown = "not attempted";
+    sendEmail.mockImplementationOnce(async () => {
+      // Any write referencing the invitee takes this lock on their row.
+      try {
+        await pool!.query(
+          "select 1 from users where id = $1 for key share nowait",
+          [waiting.id],
+        );
+        lockError = null;
+      } catch (error) {
+        lockError = error;
+      }
+      return { data: { id: "email-1" }, error: null, headers: null };
+    });
+
+    const move = await moveActivityParticipant(row.id, target);
+
+    expect(move.invitedName).toBe("waiting");
+    expect(lockError).toBeNull();
+  });
+
+  it("invites a waiter whose profile row someone else holds", async () => {
+    const { source, target, participant } = fixture;
+    const row = await enroll(source, participant.id);
+    const waiting = await createUser("waiting");
+    const entry = await addToWaitlist(waiting.id, 1);
+    const client = await pool!.connect();
+    try {
+      await client.query("begin");
+      await client.query("select 1 from users where id = $1 for key share", [
+        waiting.id,
+      ]);
+      const move = await moveActivityParticipant(row.id, target);
+      expect(move.invitedName).toBe("waiting");
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+    expect((await waitlistRow(entry.id))?.notifiedForDetailId).toBe(source);
   });
 });

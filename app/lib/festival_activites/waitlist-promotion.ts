@@ -119,7 +119,10 @@ export async function promoteFromWaitlist(
       );
 
       // SET names bare columns: Postgres refuses a table-qualified one there,
-      // which is how a column interpolated into `sql` renders.
+      // which is how a column interpolated into `sql` renders. The lock is on
+      // the waitlist row only: the join would also lock the invitee's `users`
+      // row through the email send, and SKIP LOCKED would pass over a waiter
+      // whose `users` row someone else holds.
       const claimResult = await tx.execute(
         sql`
 					WITH next_entry AS (
@@ -130,7 +133,7 @@ export async function promoteFromWaitlist(
 						WHERE ${eligibleWaitlistEntries(activityId, variant.category)}
 						ORDER BY ${festivalActivityWaitlist.position} ASC
 						LIMIT 1
-						FOR UPDATE SKIP LOCKED
+						FOR UPDATE OF ${festivalActivityWaitlist} SKIP LOCKED
 					)
 					UPDATE ${festivalActivityWaitlist}
 					SET

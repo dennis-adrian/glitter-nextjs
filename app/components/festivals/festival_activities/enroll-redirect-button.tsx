@@ -19,7 +19,7 @@ import { Form } from "@/app/components/ui/form";
 import SubmitButton from "@/app/components/simple-submit-button";
 import {
   getUserWaitlistEntry,
-  isActivityDetailFull,
+  isActivityDetailFullFor,
   isProfileEnrolledInActivity,
 } from "@/app/lib/festival_sectors/helpers";
 import Image from "next/image";
@@ -93,9 +93,12 @@ export default function EnrollRedirectButton({
     );
   }
 
+  // A seat held by an invitation or owed to a waiter ahead is not open to the
+  // profile, so the first variant with one actually open is the one to send.
+  const isFull = (detail: (typeof activity.details)[number]) =>
+    isActivityDetailFullFor(activity, detail, forProfile.id);
   const activityDetail =
-    activity.details.find((d) => !isActivityDetailFull(d)) ??
-    activity.details[0];
+    activity.details.find((d) => !isFull(d)) ?? activity.details[0];
 
   const action = form.handleSubmit(async (data) => {
     startTransition(async () => {
@@ -196,8 +199,7 @@ export default function EnrollRedirectButton({
   };
 
   const allVariantsFull =
-    activity.type !== "sticker_print" &&
-    activity.details.every((d) => isActivityDetailFull(d));
+    activity.type !== "sticker_print" && activity.details.every(isFull);
   const waitlistEntry = getUserWaitlistEntry(forProfile.id, activity);
   const hasActiveInvite =
     waitlistEntry?.notifiedAt &&

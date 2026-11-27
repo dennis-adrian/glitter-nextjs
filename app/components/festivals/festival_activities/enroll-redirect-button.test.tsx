@@ -90,6 +90,7 @@ function buildActivity(
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
   vi.clearAllMocks();
 });
 
@@ -142,5 +143,84 @@ describe("waitlist invitation with an available spot", () => {
       screen.queryByRole("button", { name: "Inscribirme ahora" }),
     ).toBeNull();
     expect(screen.queryByText("¡Tenés un cupo disponible!")).toBeNull();
+  });
+});
+
+describe("picking the variant to enroll in", () => {
+  function twoVariants(fullForViewer: [boolean, boolean]) {
+    const activity = buildActivity(false);
+    const [variant] = activity.details;
+    // Both variants look empty; only the server knows their seats are held.
+    activity.details = [
+      { ...variant, id: 84, fullForViewer: fullForViewer[0] },
+      {
+        ...variant,
+        id: 85,
+        participationLimit: 2,
+        fullForViewer: fullForViewer[1],
+      },
+    ];
+    return activity;
+  }
+
+  it("sends the first variant with a seat open to the profile, not one an invitation holds", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+    const { enrollInActivity } =
+      await import("@/app/lib/festival_activites/actions");
+    // The consent checkbox measures itself, which jsdom cannot.
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    vi.mocked(enrollInActivity).mockResolvedValue({
+      success: false,
+      message: "x",
+    });
+    const activity = { ...twoVariants([true, false]), waitlistEntries: [] };
+    render(
+      <EnrollRedirectButton
+        currentProfile={profile}
+        forProfile={profile}
+        festivalId={7}
+        activity={activity}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Inscribirme" }));
+
+    await waitFor(() => expect(enrollInActivity).toHaveBeenCalled());
+    expect(vi.mocked(enrollInActivity).mock.calls[0][2].id).toBe(85);
+  });
+
+  it("shows a waiting profile its place when every seat is held for others", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+    const activity = twoVariants([true, true]);
+    activity.waitlistEntries = [
+      {
+        ...activity.waitlistEntries[0],
+        position: 3,
+        notifiedAt: null,
+        expiresAt: null,
+        notifiedForDetailId: null,
+      },
+    ];
+    render(
+      <EnrollRedirectButton
+        currentProfile={profile}
+        forProfile={profile}
+        festivalId={7}
+        activity={activity}
+      />,
+    );
+
+    expect(screen.getByText("Estás en la lista de espera")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Inscribirme" })).toBeNull();
   });
 });

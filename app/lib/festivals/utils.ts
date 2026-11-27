@@ -1,7 +1,10 @@
 // This methods should be used in both ui and sever
 
 import { UserCategory } from "@/app/api/users/definitions";
-import { getFestivalSectorAllowedCategories } from "../festival_sectors/helpers";
+import {
+  getFestivalSectorAllowedCategories,
+  isActivityDetailFullFor,
+} from "../festival_sectors/helpers";
 import { formatDate } from "@/app/lib/formatters";
 import {
   Festival,
@@ -52,6 +55,8 @@ export function scopeActivityToViewer(
     ...activity,
     details: activity.details.map((detail) => ({
       ...detail,
+      // Computed from the whole waitlist, before it is narrowed below.
+      fullForViewer: isActivityDetailFullFor(activity, detail, viewerId),
       votes: detail.votes.filter((vote) => vote.voterId === viewerId),
       participants: detail.participants.map((participant) =>
         participant.userId === viewerId
@@ -109,7 +114,9 @@ export function getFestivalsOptions(festivals: FestivalBase[]) {
 
 /** A festival's days in calendar order; the relation comes back unordered. */
 export function sortFestivalDates<T extends { startDate: Date }>(dates: T[]) {
-  return [...dates].sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+  return [...dates].sort(
+    (a, b) => a.startDate.getTime() - b.startDate.getTime(),
+  );
 }
 
 /**

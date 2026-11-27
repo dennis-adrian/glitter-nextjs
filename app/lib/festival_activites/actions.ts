@@ -471,220 +471,162 @@ export async function enrollInActivity(
       return { success: false, message: removedParticipantMessage };
     }
 
-    const { participationLimit } = dbDetails;
+    let offerSeatToWaitlist = false;
+    const result = await db.transaction(async (tx) => {
+      // Counting under the variant lock keeps a concurrent enrolment, move
+      // or restore from taking the same last seat. The limit is the one
+      // read under it, never the one read above: staff may have just set
+      // or changed it. None means unlimited.
+      const variant = await lockVariant(tx, detailsId);
+      const limit =
+        variant?.participationLimit && variant.participationLimit > 0
+          ? variant.participationLimit
+          : Infinity;
 
-    if (participationLimit && participationLimit > 0) {
-      let offerSeatToWaitlist = false;
-      const result = await db.transaction(async (tx) => {
-        // Counting under the variant lock keeps a concurrent enrolment, move
-        // or restore from taking the same last seat. The limit is the one
-        // read under it, in case staff just changed it; none means unlimited.
-        const variant = await lockVariant(tx, detailsId);
-        const limit = variant?.participationLimit || Infinity;
-
-        const [existingInTx] = await tx
-          .select({
-            id: festivalActivityParticipants.id,
-            removedAt: festivalActivityParticipants.removedAt,
-          })
-          .from(festivalActivityParticipants)
-          .where(
-            and(
-              eq(festivalActivityParticipants.detailsId, detailsId),
-              eq(festivalActivityParticipants.userId, activeProfile.id),
-            ),
-          );
-
-        if (existingInTx) {
-          if (!existingInTx.removedAt) {
-            return {
-              success: false,
-              message: "Ya estás inscrito en esta actividad",
-            };
-          }
-          return { success: false, message: removedParticipantMessage };
-        }
-
-        const { activeCount, reservedCount } = await countVariantSeats(
-          tx,
-          detailsId,
-          { exceptUserId: activeProfile.id },
+      const [existingInTx] = await tx
+        .select({
+          id: festivalActivityParticipants.id,
+          removedAt: festivalActivityParticipants.removedAt,
+        })
+        .from(festivalActivityParticipants)
+        .where(
+          and(
+            eq(festivalActivityParticipants.detailsId, detailsId),
+            eq(festivalActivityParticipants.userId, activeProfile.id),
+          ),
         );
 
-        if (activeCount >= limit) {
-          return { success: false, message: "Ya no hay cupo disponible" };
-        }
-
-        // Seats held by other profiles' unexpired invitations are theirs. The
-        // guards below cover a seat nobody was invited to yet.
-        if (activeCount + reservedCount >= limit) {
-          return { success: false, message: waitlistReservedMessage };
-        }
-
-        // For waitlist-enabled activities, a freed seat goes to the waitlist
-        // first: an invited profile takes it directly.
-        if (dbActivity.waitlistWindowMinutes && limit !== Infinity) {
-          // Locked until the commit, after the variant as documented at
-          // lockVariant, so a concurrent staff invitation waits and finds
-          // the entry gone instead of inviting this profile elsewhere.
-          const [invitation] = await tx
-            .select({ id: festivalActivityWaitlist.id })
-            .from(festivalActivityWaitlist)
-            .where(
-              and(
-                eq(festivalActivityWaitlist.activityId, dbActivity.id),
-                eq(festivalActivityWaitlist.userId, activeProfile.id),
-                isNotNull(festivalActivityWaitlist.notifiedAt),
-                eq(festivalActivityWaitlist.notifiedForDetailId, detailsId),
-                gt(festivalActivityWaitlist.expiresAt, new Date()),
-              ),
-            )
-            .limit(1)
-            .for("update");
-
-          if (!invitation) {
-            // A seat freed by a removal or a move, by a raised limit, or held
-            // by a failed or expired invitation goes to each eligible waiter
-            // a promotion would invite before this profile. With nobody
-            // eligible ahead it is open to anyone.
-            const [ownEntry] = await tx
-              .select({ position: festivalActivityWaitlist.position })
-              .from(festivalActivityWaitlist)
-              .where(
-                and(
-                  eq(festivalActivityWaitlist.activityId, dbActivity.id),
-                  eq(festivalActivityWaitlist.userId, activeProfile.id),
-                ),
-              );
-            const [{ aheadCount }] = await tx
-              .select({ aheadCount: count() })
-              .from(festivalActivityWaitlist)
-              .innerJoin(users, eq(users.id, festivalActivityWaitlist.userId))
-              .where(
-                and(
-                  eligibleWaitlistEntries(
-                    dbActivity.id,
-                    variant?.category ?? null,
-                    { exceptUserId: activeProfile.id },
-                  ),
-                  ownEntry
-                    ? lt(festivalActivityWaitlist.position, ownEntry.position)
-                    : undefined,
-                ),
-              );
-
-            if (activeCount + reservedCount + aheadCount >= limit) {
-              // Nothing else may offer that seat (a raised limit, a failed
-              // promotion), so invite the first waiter once this commits.
-              offerSeatToWaitlist = aheadCount > 0;
-              return { success: false, message: waitlistReservedMessage };
-            }
-          }
-        }
-
-        const [newParticipant] = await tx
-          .insert(festivalActivityParticipants)
-          .values({
-            userId: activeProfile.id,
-            detailsId,
-            updatedAt: new Date(),
-          })
-          .returning({ id: festivalActivityParticipants.id });
-
-        return {
-          success: true,
-          message: "Inscripción realizada correctamente",
-          participationId: newParticipant.id,
-          freedInvitationDetailId: await consumeOwnWaitlistEntry(
-            tx,
-            dbActivity.id,
-            activeProfile.id,
-            detailsId,
-          ),
-        };
-      });
-
-      if (!result.success) {
-        if (offerSeatToWaitlist) {
-          await offerSeatOn(dbActivity.id, detailsId);
-        }
-        return result;
-      }
-      const { freedInvitationDetailId, ...enrolled } = result;
-      if (freedInvitationDetailId != null) {
-        await offerSeatOn(dbActivity.id, freedInvitationDetailId);
-      }
-
-      await notifyAdminsOfEnrollment({
-        festivalId,
-        activityName: dbActivity.name,
-        userDisplayName: activeProfile.displayName,
-      });
-
-      revalidatePath(
-        `/profiles/${activeProfile.id}/festivals/${festivalId}/activity`,
-      );
-      return enrolled;
-    } else {
-      const result = await db.transaction(async (tx) => {
-        const [existingInTx] = await tx
-          .select({ id: festivalActivityParticipants.id })
-          .from(festivalActivityParticipants)
-          .where(
-            and(
-              eq(festivalActivityParticipants.detailsId, detailsId),
-              eq(festivalActivityParticipants.userId, activeProfile.id),
-            ),
-          );
-
-        if (existingInTx) {
+      if (existingInTx) {
+        if (!existingInTx.removedAt) {
           return {
             success: false,
             message: "Ya estás inscrito en esta actividad",
           };
         }
-
-        const [newParticipant] = await tx
-          .insert(festivalActivityParticipants)
-          .values({
-            userId: activeProfile.id,
-            detailsId,
-            updatedAt: new Date(),
-          })
-          .returning({ id: festivalActivityParticipants.id });
-
-        return {
-          success: true,
-          message: "Inscripción realizada correctamente",
-          participationId: newParticipant.id,
-          freedInvitationDetailId: await consumeOwnWaitlistEntry(
-            tx,
-            dbActivity.id,
-            activeProfile.id,
-            detailsId,
-          ),
-        };
-      });
-
-      if (!result.success) {
-        return result;
-      }
-      const { freedInvitationDetailId, ...enrolled } = result;
-      if (freedInvitationDetailId != null) {
-        await offerSeatOn(dbActivity.id, freedInvitationDetailId);
+        return { success: false, message: removedParticipantMessage };
       }
 
-      await notifyAdminsOfEnrollment({
-        festivalId,
-        activityName: dbActivity.name,
-        userDisplayName: activeProfile.displayName,
-      });
+      const { activeCount, reservedCount } =
+        limit === Infinity
+          ? { activeCount: 0, reservedCount: 0 }
+          : await countVariantSeats(tx, detailsId, {
+              exceptUserId: activeProfile.id,
+            });
 
-      revalidatePath(
-        `/profiles/${activeProfile.id}/festivals/${festivalId}/activity`,
-      );
-      return enrolled;
+      if (activeCount >= limit) {
+        return { success: false, message: "Ya no hay cupo disponible" };
+      }
+
+      // Seats held by other profiles' unexpired invitations are theirs. The
+      // guards below cover a seat nobody was invited to yet.
+      if (activeCount + reservedCount >= limit) {
+        return { success: false, message: waitlistReservedMessage };
+      }
+
+      // For waitlist-enabled activities, a freed seat goes to the waitlist
+      // first: an invited profile takes it directly.
+      if (dbActivity.waitlistWindowMinutes && limit !== Infinity) {
+        // Locked until the commit, after the variant as documented at
+        // lockVariant, so a concurrent staff invitation waits and finds
+        // the entry gone instead of inviting this profile elsewhere.
+        const [invitation] = await tx
+          .select({ id: festivalActivityWaitlist.id })
+          .from(festivalActivityWaitlist)
+          .where(
+            and(
+              eq(festivalActivityWaitlist.activityId, dbActivity.id),
+              eq(festivalActivityWaitlist.userId, activeProfile.id),
+              isNotNull(festivalActivityWaitlist.notifiedAt),
+              eq(festivalActivityWaitlist.notifiedForDetailId, detailsId),
+              gt(festivalActivityWaitlist.expiresAt, new Date()),
+            ),
+          )
+          .limit(1)
+          .for("update");
+
+        if (!invitation) {
+          // A seat freed by a removal or a move, by a raised limit, or held
+          // by a failed or expired invitation goes to each eligible waiter
+          // a promotion would invite before this profile. With nobody
+          // eligible ahead it is open to anyone.
+          const [ownEntry] = await tx
+            .select({ position: festivalActivityWaitlist.position })
+            .from(festivalActivityWaitlist)
+            .where(
+              and(
+                eq(festivalActivityWaitlist.activityId, dbActivity.id),
+                eq(festivalActivityWaitlist.userId, activeProfile.id),
+              ),
+            );
+          const [{ aheadCount }] = await tx
+            .select({ aheadCount: count() })
+            .from(festivalActivityWaitlist)
+            .innerJoin(users, eq(users.id, festivalActivityWaitlist.userId))
+            .where(
+              and(
+                eligibleWaitlistEntries(
+                  dbActivity.id,
+                  variant?.category ?? null,
+                  { exceptUserId: activeProfile.id },
+                ),
+                ownEntry
+                  ? lt(festivalActivityWaitlist.position, ownEntry.position)
+                  : undefined,
+              ),
+            );
+
+          if (activeCount + reservedCount + aheadCount >= limit) {
+            // Nothing else may offer that seat (a raised limit, a failed
+            // promotion), so invite the first waiter once this commits.
+            offerSeatToWaitlist = aheadCount > 0;
+            return { success: false, message: waitlistReservedMessage };
+          }
+        }
+      }
+
+      const [newParticipant] = await tx
+        .insert(festivalActivityParticipants)
+        .values({
+          userId: activeProfile.id,
+          detailsId,
+          updatedAt: new Date(),
+        })
+        .returning({ id: festivalActivityParticipants.id });
+
+      return {
+        success: true,
+        message: "Inscripción realizada correctamente",
+        participationId: newParticipant.id,
+        freedInvitationDetailId: await consumeOwnWaitlistEntry(
+          tx,
+          dbActivity.id,
+          activeProfile.id,
+          detailsId,
+        ),
+      };
+    });
+
+    if (!result.success) {
+      if (offerSeatToWaitlist) {
+        await offerSeatOn(dbActivity.id, detailsId);
+      }
+      return result;
     }
+    const { freedInvitationDetailId, ...enrolled } = result;
+    if (freedInvitationDetailId != null) {
+      await offerSeatOn(dbActivity.id, freedInvitationDetailId);
+    }
+
+    await notifyAdminsOfEnrollment({
+      festivalId,
+      activityName: dbActivity.name,
+      userDisplayName: activeProfile.displayName,
+    });
+
+    revalidatePath(
+      `/profiles/${activeProfile.id}/festivals/${festivalId}/activity`,
+    );
+    return enrolled;
   } catch (error: unknown) {
     console.error("Error enrolling in activity", error);
     if (hasPgErrorCode(error, "23505")) {
@@ -1151,6 +1093,56 @@ export async function deleteFestivalActivityParticipantProof(
   return { success: true, message: "Diseño eliminado correctamente" };
 }
 
+/**
+ * Whether `enrollInActivity` would give `userId` a seat in `detail` as things
+ * stand, by its count: active participants, other profiles' unexpired
+ * invitations and the eligible waiters a promotion would invite first. An
+ * unlimited variant always has one. Unlocked, so only a snapshot.
+ */
+async function hasSeatOpenTo(
+  activityId: number,
+  detail: Pick<
+    typeof festivalActivityDetails.$inferSelect,
+    "id" | "participationLimit" | "category"
+  >,
+  userId: number,
+) {
+  const limit = detail.participationLimit;
+  if (!limit || limit <= 0) return true;
+
+  const { activeCount, reservedCount } = await countVariantSeats(
+    db,
+    detail.id,
+    { exceptUserId: userId },
+  );
+  if (activeCount + reservedCount >= limit) return false;
+
+  const [ownEntry] = await db
+    .select({ position: festivalActivityWaitlist.position })
+    .from(festivalActivityWaitlist)
+    .where(
+      and(
+        eq(festivalActivityWaitlist.activityId, activityId),
+        eq(festivalActivityWaitlist.userId, userId),
+      ),
+    );
+  const [{ aheadCount }] = await db
+    .select({ aheadCount: count() })
+    .from(festivalActivityWaitlist)
+    .innerJoin(users, eq(users.id, festivalActivityWaitlist.userId))
+    .where(
+      and(
+        eligibleWaitlistEntries(activityId, detail.category, {
+          exceptUserId: userId,
+        }),
+        ownEntry
+          ? lt(festivalActivityWaitlist.position, ownEntry.position)
+          : undefined,
+      ),
+    );
+  return activeCount + reservedCount + aheadCount < limit;
+}
+
 export async function joinActivityWaitlist(
   forProfile: BaseProfile,
   activityId: number,
@@ -1218,22 +1210,19 @@ export async function joinActivityWaitlist(
       return { success: false, message: removedParticipantMessage };
     }
 
-    // Check all limited variants the profile can join are actually full
+    // Only a profile `enrollInActivity` would refuse in every variant it can
+    // join may queue. A seat held by an invitation or owed to a waiter ahead
+    // is not open to it, so it counts as taken, as it does there.
     const eligibleDetails = activity.details.filter(
       (detail) =>
         detail.category === null || detail.category === activeProfile.category,
     );
-    const allFull = eligibleDetails.every((detail) => {
-      const activeParticipants = detail.participants.filter(
-        (p) => p.removedAt === null,
-      );
-      return (
-        detail.participationLimit !== null &&
-        detail.participationLimit !== undefined &&
-        activeParticipants.length >= detail.participationLimit
-      );
-    });
-    if (!allFull) {
+    const openSeats = await Promise.all(
+      eligibleDetails.map((detail) =>
+        hasSeatOpenTo(activity.id, detail, activeProfile.id),
+      ),
+    );
+    if (openSeats.some(Boolean)) {
       return {
         success: false,
         message: "Todavía hay cupos disponibles en esta actividad",
