@@ -3,7 +3,7 @@
 import { randomUUID } from "crypto";
 import { eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import { Client, Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -64,9 +64,16 @@ vi.mock("@/db", () => ({
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
+/**
+ * Checks the database pg itself would select, not the URL's path: a socket URL
+ * keeps its directory in the path (`socket:/run/pg-test?db=prod`) or names the
+ * database elsewhere, and a URL without one falls back to PGDATABASE or the
+ * user. The constructor only parses; it does not connect.
+ */
 function isSafeTestDatabase(url: string): boolean {
   try {
-    return /(^|[_-])(test|ci)([_-]|$)/i.test(decodeURIComponent(new URL(url).pathname.slice(1)));
+    const database = new Client({ connectionString: url }).database;
+    return typeof database === "string" && /(^|[_-])(test|ci)([_-]|$)/i.test(database);
   } catch {
     return false;
   }
@@ -166,6 +173,16 @@ async function createReservation(
     standIds: standRows.map((stand) => stand.id),
     participationIds: participations.map((row) => row.id),
   };
+}
+
+type Settled<T> = { value: T } | { error: unknown };
+
+/** Never rejects, so an action can be awaited on every exit path. */
+function settle<T>(promise: Promise<T>): Promise<Settled<T>> {
+  return promise.then(
+    (value) => ({ value }),
+    (error: unknown) => ({ error }),
+  );
 }
 
 async function ruleRows(festivalId: number) {
@@ -296,8 +313,16 @@ describeDatabase("credentials actions", () => {
           actions.resetCredentialRules({ festivalId }),
         ]);
         expect(results.map((result) => result.success)).toEqual([true, true, true]);
-        const groups = (await ruleRows(festivalId)).map((row) => row.group).sort();
-        expect([[], ["gastronomy"], ["staff", "volunteer"]]).toContainEqual(groups);
+        // Whole rows, so a mix of both saves' values in one group also fails.
+        const rows = (await ruleRows(festivalId)).sort((a, b) => a.group.localeCompare(b.group));
+        expect([
+          [],
+          [{ group: "gastronomy", quantity: 3, namingMode: "all_named" }],
+          [
+            { group: "staff", quantity: 3, namingMode: null },
+            { group: "volunteer", quantity: 2, namingMode: null },
+          ],
+        ]).toContainEqual(rows);
       }
     });
 
@@ -881,6 +906,7 @@ describeDatabase("credentials actions", () => {
         const [extraId] = await extraIds(festivalId);
         // Another admin's batch, mid-transaction under the festival's batch lock.
         const client = await pool!.connect();
+        let removal: Promise<Settled<unknown>> | null = null;
         try {
           await client.query("BEGIN");
           await client.query(
@@ -890,7 +916,9 @@ describeDatabase("credentials actions", () => {
           const { pid } = (
             await client.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")
           ).rows[0]!;
-          const removal = actions.removeExtraCredential({ festivalId, extraCredentialId: extraId! });
+          // Settled, so a removal that fails while the test is failing for
+          // another reason is never an unhandled rejection.
+          removal = settle(actions.removeExtraCredential({ festivalId, extraCredentialId: extraId! }));
           // Without the batch lock, the removal would find no item yet and delete.
           await vi.waitFor(
             async () => {
@@ -915,10 +943,15 @@ describeDatabase("credentials actions", () => {
             [batch.id, festivalId, `extra:${extraId}`],
           );
           await client.query("COMMIT");
-          expect(await removal).toEqual(NEEDS_CONFIRMATION);
+          const removed = await removal;
+          if ("error" in removed) throw removed.error;
+          expect(removed.value).toEqual(NEEDS_CONFIRMATION);
         } catch (error) {
-          // Frees the lock if the test failed before committing.
-          await client.query("ROLLBACK");
+          // Frees the lock if the test failed before committing, then lets the
+          // removal finish before the test leaves; the first failure is the one
+          // reported.
+          await client.query("ROLLBACK").catch(() => undefined);
+          await removal;
           throw error;
         } finally {
           client.release();

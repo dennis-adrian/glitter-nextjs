@@ -3,7 +3,7 @@
 import { randomUUID } from "crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool, type PoolClient } from "pg";
+import { Client, Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { buildView, type CredentialsData } from "@/app/lib/credentials/calculate";
@@ -34,11 +34,16 @@ vi.mock("server-only", () => ({}));
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 
+/**
+ * Checks the database pg itself would select, not the URL's path: a socket URL
+ * keeps its directory in the path (`socket:/run/pg-test?db=prod`) or names the
+ * database elsewhere, and a URL without one falls back to PGDATABASE or the
+ * user. The constructor only parses; it does not connect.
+ */
 function isSafeTestDatabase(url: string): boolean {
   try {
-    return /(^|[_-])(test|ci)([_-]|$)/i.test(
-      decodeURIComponent(new URL(url).pathname.slice(1)),
-    );
+    const database = new Client({ connectionString: url }).database;
+    return typeof database === "string" && /(^|[_-])(test|ci)([_-]|$)/i.test(database);
   } catch {
     return false;
   }
