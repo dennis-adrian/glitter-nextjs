@@ -20,6 +20,7 @@ import {
 } from "drizzle-orm";
 
 import type { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
+import { isActivityDetailFullFor } from "@/app/lib/festival_sectors/helpers";
 import {
   getCurrentUserProfile,
   requireAdminOrFestivalAdmin,
@@ -96,6 +97,8 @@ function scopeActivityToViewer(
     ...activity,
     details: activity.details.map((detail) => ({
       ...detail,
+      // Computed from the whole waitlist, before it is narrowed below.
+      fullForViewer: isActivityDetailFullFor(activity, detail, viewerId),
       votes: detail.votes.filter((vote) => vote.voterId === viewerId),
       participants: detail.participants.map((participant) =>
         participant.userId === viewerId
