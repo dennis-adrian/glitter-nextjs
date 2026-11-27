@@ -256,6 +256,9 @@ export function eligibleWaitlistEntries(
   return and(
     eq(festivalActivityWaitlist.activityId, activityId),
     isNull(festivalActivityWaitlist.notifiedAt),
+    // Only a verified profile can accept an invitation, so one that lost
+    // that status since joining neither is invited nor holds anyone back.
+    eq(users.status, "verified"),
     category ? eq(users.category, category) : undefined,
     options.exceptUserId !== undefined
       ? ne(festivalActivityWaitlist.userId, options.exceptUserId)

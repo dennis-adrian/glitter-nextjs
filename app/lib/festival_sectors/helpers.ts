@@ -88,6 +88,7 @@ export function isActivityDetailFullFor(
     (entry) =>
       entry.userId !== profileId &&
       entry.notifiedAt === null &&
+      entry.user.status === "verified" &&
       (detail.category === null || entry.user.category === detail.category) &&
       !inActivity.has(entry.userId) &&
       (!ownEntry || entry.position < ownEntry.position),

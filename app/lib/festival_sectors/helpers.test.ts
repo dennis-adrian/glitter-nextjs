@@ -46,7 +46,7 @@ function entry(
     notifiedAt: null,
     expiresAt: null,
     notifiedForDetailId: null,
-    user: { id: userId, category },
+    user: { id: userId, category, status: "verified" },
     ...values,
   } as WaitlistEntryWithUser;
 }
@@ -122,6 +122,15 @@ describe("isActivityDetailFullFor", () => {
     // Without a waitlist, nobody is owed the seat.
     expect(
       isActivityDetailFullFor(activity([seat], waiting, null), seat, 9, now),
+    ).toBe(false);
+  });
+
+  it("does not leave a seat to a waiter who is no longer verified", () => {
+    const seat = variant(1, 1, [], "illustration");
+    const unverified = entry(2, 1);
+    unverified.user = { ...unverified.user, status: "pending" };
+    expect(
+      isActivityDetailFullFor(activity([seat], [unverified]), seat, 9, now),
     ).toBe(false);
   });
 

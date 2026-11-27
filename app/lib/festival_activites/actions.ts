@@ -45,10 +45,7 @@ import {
   lockVariant,
   wasRemovedFromActivity,
 } from "@/app/lib/festival_activites/queries";
-import {
-  isPromotionFailure,
-  promoteFromWaitlist,
-} from "@/app/lib/festival_activites/waitlist-promotion";
+import { offerFreeSeats } from "@/app/lib/festival_activites/waitlist-promotion";
 import {
   getCurrentUserProfile,
   requireProfileOwnerOrAdmin,
@@ -124,33 +121,6 @@ async function consumeOwnWaitlistEntry(
     entry?.notifiedForDetailId != null &&
     entry.notifiedForDetailId !== enrolledDetailId;
   return otherVariant ? entry.notifiedForDetailId : null;
-}
-
-/**
- * Most invitations one request sends: each one waits for an email, and a
- * later enrolment attempt offers whatever seats remain.
- */
-const MAX_SEAT_OFFERS = 5;
-
-/**
- * Invites waiters to a variant's free seats once an enrolment committed, one
- * per seat: a raised limit can free several at once, and nothing else would
- * offer the rest. Each promotion counts again under the variant lock, so it
- * stops once no seat is left. No job retries a failure, so it is logged for
- * staff to invite by hand.
- */
-async function offerSeatOn(activityId: number, detailId: number) {
-  for (let offer = 0; offer < MAX_SEAT_OFFERS; offer++) {
-    const promotion = await promoteFromWaitlist(activityId, detailId);
-    if (isPromotionFailure(promotion)) {
-      console.error("Could not offer a seat to the waitlist", {
-        activityId,
-        detailId,
-      });
-      return;
-    }
-    if (!promotion) return;
-  }
 }
 
 /** A vote the rules refuse; its message is shown to the voter as is. */
@@ -519,6 +489,14 @@ export async function enrollInActivity(
         }
         return { success: false, message: removedParticipantMessage };
       }
+      // One participation per activity, as the activity page assumes: a
+      // request for another variant must not add a second one.
+      if (await isActiveInActivity(tx, dbActivity.id, activeProfile.id)) {
+        return {
+          success: false,
+          message: "Ya estás inscrito en esta actividad",
+        };
+      }
 
       const { activeCount, reservedCount } =
         limit === Infinity
@@ -622,13 +600,13 @@ export async function enrollInActivity(
 
     if (!result.success) {
       if (offerSeatToWaitlist) {
-        await offerSeatOn(dbActivity.id, detailsId);
+        await offerFreeSeats(dbActivity.id, detailsId);
       }
       return result;
     }
     const { freedInvitationDetailId, ...enrolled } = result;
     if (freedInvitationDetailId != null) {
-      await offerSeatOn(dbActivity.id, freedInvitationDetailId);
+      await offerFreeSeats(dbActivity.id, freedInvitationDetailId);
     }
 
     await notifyAdminsOfEnrollment({

@@ -110,6 +110,7 @@ let restoreActivityParticipant: AdminActions["restoreActivityParticipant"];
 let promoteWaitlistToVariant: AdminActions["promoteWaitlistToVariant"];
 let retryWaitlistInvitation: AdminActions["retryWaitlistInvitation"];
 let notifyWaitlistEntry: AdminActions["notifyWaitlistEntry"];
+let updateFestivalActivity: AdminActions["updateFestivalActivity"];
 let enrollInActivity: Actions["enrollInActivity"];
 let enrollFromWaitlistInvitation: Actions["enrollFromWaitlistInvitation"];
 let addFestivalActivityVote: Actions["addFestivalActivityVote"];
@@ -341,6 +342,7 @@ describeDatabase("moving a participant between variants", () => {
       promoteWaitlistToVariant,
       retryWaitlistInvitation,
       notifyWaitlistEntry,
+      updateFestivalActivity,
     } = await import("@/app/lib/festival_activites/admin-actions"));
     ({
       enrollInActivity,
@@ -2084,7 +2086,14 @@ describeDatabase("moving a participant between variants", () => {
       await client.query("select 1 from users where id = $1 for key share", [
         waiting.id,
       ]);
-      const move = await moveActivityParticipant(row.id, target);
+      // Bounded, so a move that blocks on the held row fails the test and
+      // still reaches the rollback below instead of hanging the suite.
+      const move = await Promise.race([
+        moveActivityParticipant(row.id, target),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("move blocked")), 5_000),
+        ),
+      ]);
       expect(move.invitedName).toBe("waiting");
     } finally {
       await client.query("rollback");
@@ -2167,5 +2176,63 @@ describeDatabase("moving a participant between variants", () => {
     expect(move.invitedName).toBeUndefined();
     expect((await waitlistRow(waiting.id))?.notifiedAt).toBeNull();
     expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("refuses a second participation in the same activity", async () => {
+    const { source, target } = fixture;
+    const enrolled = await createUser("enrolled");
+    await enroll(source, enrolled.id);
+
+    expect(await enrollAs(enrolled, target)).toEqual({
+      success: false,
+      message: "Ya estás inscrito en esta actividad",
+    });
+    expect(await activeIn(target)).toBe(0);
+  });
+
+  it("invites the waitlist to the seats a raised limit opens", async () => {
+    const { festivalId, activityId, source, target, participant } = fixture;
+    await enroll(source, participant.id);
+    const first = await addToWaitlist((await createUser("first")).id, 1);
+    const second = await addToWaitlist((await createUser("second")).id, 2);
+    const now = Date.now();
+
+    // Source goes from 1 to 2 seats; target is unchanged.
+    const result = await updateFestivalActivity(activityId, festivalId, {
+      name: "Cuponera",
+      type: "coupon_book",
+      accessLevel: "public",
+      registrationStartDate: new Date(now - DAY),
+      registrationEndDate: new Date(now + DAY),
+      allowsVoting: false,
+      waitlistWindowMinutes: 60,
+      details: [
+        { id: source, participationLimit: 2 },
+        { id: target, participationLimit: 2 },
+      ],
+    });
+
+    expect(result.success).toBe(true);
+    expect((await waitlistRow(first.id))?.notifiedForDetailId).toBe(source);
+    expect((await waitlistRow(second.id))?.notifiedAt).toBeNull();
+    expect(sendEmail).toHaveBeenCalledOnce();
+  });
+
+  it("passes over a waiter who is no longer verified", async () => {
+    const { source, target, participant } = fixture;
+    const row = await enroll(source, participant.id);
+    const suspended = await createUser("suspended");
+    await integrationDb!
+      .update(users)
+      .set({ status: "pending" })
+      .where(eq(users.id, suspended.id));
+    const skipped = await addToWaitlist(suspended.id, 1);
+    const next = await addToWaitlist((await createUser("next")).id, 2);
+
+    const move = await moveActivityParticipant(row.id, target);
+
+    expect(move.invitedName).toBe("next");
+    expect((await waitlistRow(skipped.id))?.notifiedAt).toBeNull();
+    expect((await waitlistRow(next.id))?.notifiedForDetailId).toBe(source);
   });
 });

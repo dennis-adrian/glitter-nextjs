@@ -43,6 +43,7 @@ import ActivityProofReviewEmail from "@/app/emails/activity-proof-review";
 import ActivityWaitlistInvitationEmail from "@/app/emails/activity-waitlist-invitation";
 import {
   isPromotionFailure,
+  offerFreeSeats,
   promoteFromWaitlist,
 } from "@/app/lib/festival_activites/waitlist-promotion";
 import {
@@ -279,7 +280,10 @@ export async function updateFestivalActivity(
   const detailsWithValidatedHeaderImage = normalizedHeaderImages.details;
 
   try {
-    await db.transaction(async (tx) => {
+    // Variants that gained seats (a raised or lifted limit, or a new
+    // variant): the waitlist is owed them, and nothing else would offer them.
+    const widenedDetailIds = await db.transaction(async (tx) => {
+      const widened: number[] = [];
       await tx
         .update(festivalActivities)
         .set({
@@ -309,11 +313,17 @@ export async function updateFestivalActivity(
 
       // Diff details: update existing, insert new, delete absent (if no participants)
       const existing = await tx
-        .select({ id: festivalActivityDetails.id })
+        .select({
+          id: festivalActivityDetails.id,
+          participationLimit: festivalActivityDetails.participationLimit,
+        })
         .from(festivalActivityDetails)
         .where(eq(festivalActivityDetails.activityId, activityId));
 
       const existingIds = new Set(existing.map((d) => d.id));
+      const oldLimits = new Map(
+        existing.map((d) => [d.id, d.participationLimit]),
+      );
       const incomingIds = new Set(
         detailsWithValidatedHeaderImage
           .filter((d) => d.id != null)
@@ -359,6 +369,12 @@ export async function updateFestivalActivity(
                 : null,
           })
           .where(eq(festivalActivityDetails.id, detail.id as number));
+
+        const oldLimit = oldLimits.get(detail.id as number) || null;
+        const newLimit = detail.participationLimit || null;
+        if (oldLimit !== null && (newLimit === null || newLimit > oldLimit)) {
+          widened.push(detail.id as number);
+        }
       }
 
       // Insert new details
@@ -366,21 +382,33 @@ export async function updateFestivalActivity(
         (d) => d.id == null,
       );
       if (newDetails.length > 0) {
-        await tx.insert(festivalActivityDetails).values(
-          newDetails.map((detail) => ({
-            activityId,
-            description: detail.description,
-            participationLimit: detail.participationLimit,
-            category: detail.category ?? null,
-            imageUrl: detail.imageUrl ?? null,
-            couponBookHeaderImageUrl:
-              data.type === "coupon_book"
-                ? (detail.couponBookHeaderImageUrl ?? null)
-                : null,
-          })),
-        );
+        const inserted = await tx
+          .insert(festivalActivityDetails)
+          .values(
+            newDetails.map((detail) => ({
+              activityId,
+              description: detail.description,
+              participationLimit: detail.participationLimit,
+              category: detail.category ?? null,
+              imageUrl: detail.imageUrl ?? null,
+              couponBookHeaderImageUrl:
+                data.type === "coupon_book"
+                  ? (detail.couponBookHeaderImageUrl ?? null)
+                  : null,
+            })),
+          )
+          .returning({ id: festivalActivityDetails.id });
+        widened.push(...inserted.map((d) => d.id));
       }
+      return widened;
     });
+
+    // After the commit: each offer locks one variant on its own.
+    if (data.waitlistWindowMinutes) {
+      for (const detailId of widenedDetailIds) {
+        await offerFreeSeats(activityId, detailId);
+      }
+    }
 
     revalidatePath(`/dashboard/festivals/${festivalId}/festival_activities`);
 
@@ -1438,12 +1466,6 @@ export async function promoteWaitlistToVariant(
     try {
       for (const entry of waitlistEntries) {
         if (remaining !== null && promoted >= remaining) break;
-
-        // Skip if variant has category restriction and user doesn't match
-        if (detail.category && entry.userCategory !== detail.category) {
-          skipped++;
-          continue;
-        }
 
         const promotedInTx = await db.transaction(async (tx) => {
           // Re-check capacity under the variant lock, so a concurrent move,
