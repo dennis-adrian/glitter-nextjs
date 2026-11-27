@@ -9,6 +9,7 @@ import { Button } from "@/app/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -26,12 +27,17 @@ import {
   updateLiveActAdminNotes,
   updateLiveActStatus,
 } from "@/app/lib/live_acts/actions";
-import { LiveAct } from "@/app/lib/live_acts/definitions";
+import {
+  culturalActivityCategoryLabel,
+  LiveAct,
+} from "@/app/lib/live_acts/definitions";
+import { formatDisplayDate } from "@/app/lib/formatters";
 import { toastActionError } from "@/app/lib/errors/action-error";
 
 export function LiveActActionsCell({ liveAct }: { liveAct: LiveAct }) {
   const router = useRouter();
   const [notesOpen, setNotesOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [notes, setNotes] = useState(liveAct.adminNotes ?? "");
   const [savingNotes, setSavingNotes] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
@@ -88,6 +94,10 @@ export function LiveActActionsCell({ liveAct }: { liveAct: LiveAct }) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => setDetailsOpen(true)}>
+            Ver detalles
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             disabled={liveAct.status === "approved" || savingStatus}
@@ -153,6 +163,21 @@ export function LiveActActionsCell({ liveAct }: { liveAct: LiveAct }) {
         </DropdownMenuContent>
       </DropdownMenu>
 
+      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="break-words">{liveAct.actName}</DialogTitle>
+            <DialogDescription className="break-words">
+              {culturalActivityCategoryLabel(
+                liveAct.category,
+                liveAct.otherType,
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <LiveActDetails liveAct={liveAct} />
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={notesOpen} onOpenChange={setNotesOpen}>
         <DialogContent>
           <DialogHeader>
@@ -160,7 +185,7 @@ export function LiveActActionsCell({ liveAct }: { liveAct: LiveAct }) {
           </DialogHeader>
           <Textarea
             className="min-h-32 resize-none"
-            placeholder="Notas internas sobre este acto..."
+            placeholder="Notas internas sobre esta actividad..."
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
           />
@@ -179,5 +204,82 @@ export function LiveActActionsCell({ liveAct }: { liveAct: LiveAct }) {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function LiveActDetails({ liveAct }: { liveAct: LiveAct }) {
+  const rows: { label: string; value: React.ReactNode }[] = [
+    { label: "Descripción", value: liveAct.description },
+    {
+      label: "Enlace de referencia",
+      value: liveAct.resourceLink ? (
+        <ExternalLink href={liveAct.resourceLink} />
+      ) : null,
+    },
+    {
+      label: "Redes / sitio web",
+      value:
+        liveAct.socialLinks && liveAct.socialLinks.length > 0 ? (
+          <ul className="flex flex-col gap-1">
+            {liveAct.socialLinks.map((link) => (
+              <li key={link}>
+                <ExternalLink href={link} />
+              </li>
+            ))}
+          </ul>
+        ) : null,
+    },
+    {
+      label: "Cupo de participantes",
+      value: liveAct.workshopCapacity?.toString(),
+    },
+    { label: "Necesita", value: liveAct.spaceNeeds },
+    { label: "Curso o programa relacionado", value: liveAct.relatedOffer },
+    {
+      label: "Sin costo para participantes",
+      value: liveAct.noCostAcknowledgedAt
+        ? `Aceptado el ${formatDisplayDate(new Date(liveAct.noCostAcknowledgedAt))}`
+        : null,
+    },
+    {
+      label: "Contacto",
+      value: (
+        <span className="flex flex-col">
+          <span className="break-words">{liveAct.contactName}</span>
+          <span className="wrap-anywhere">{liveAct.contactEmail}</span>
+          <span>{liveAct.contactPhone}</span>
+        </span>
+      ),
+    },
+    { label: "Notas internas", value: liveAct.adminNotes },
+  ];
+  return (
+    <dl className="grid gap-3 text-sm">
+      {rows
+        .filter((row) => row.value)
+        .map((row) => (
+          <div key={row.label} className="grid min-w-0 gap-0.5">
+            <dt className="font-medium text-muted-foreground">{row.label}</dt>
+            <dd className="min-w-0 break-words whitespace-pre-line">
+              {row.value}
+            </dd>
+          </div>
+        ))}
+    </dl>
+  );
+}
+
+function ExternalLink({ href }: { href: string }) {
+  const isHttp = href.startsWith("http://") || href.startsWith("https://");
+  if (!isHttp) return <span className="wrap-anywhere">{href}</span>;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-blue-500 wrap-anywhere hover:underline dark:text-blue-400"
+    >
+      {href}
+    </a>
   );
 }

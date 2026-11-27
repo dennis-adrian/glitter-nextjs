@@ -4,6 +4,10 @@ import TotalsCard from "@/app/components/dashboard/totals/card";
 import { columns, columnTitles } from "@/app/components/live_acts/columns";
 import { DataTable } from "@/components/ui/data_table/data-table";
 import { fetchLiveActs } from "@/app/lib/live_acts/actions";
+import {
+  CULTURAL_ACTIVITY_CATEGORIES,
+  CULTURAL_ACTIVITY_CATEGORY_CONFIG,
+} from "@/app/lib/live_acts/definitions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 const statusOptions = [
@@ -13,11 +17,10 @@ const statusOptions = [
   { value: "rejected", label: "Rechazados" },
 ];
 
-const categoryOptions = [
-  { value: "music", label: "Música" },
-  { value: "dance", label: "Danza" },
-  { value: "talk", label: "Charla" },
-];
+const categoryOptions = CULTURAL_ACTIVITY_CATEGORIES.map((category) => ({
+  value: category,
+  label: CULTURAL_ACTIVITY_CATEGORY_CONFIG[category].title,
+}));
 
 export default async function Page() {
   const profile = await getCurrentUserProfile();
@@ -45,7 +48,7 @@ export default async function Page() {
         className="mb-2 text-2xl font-bold md:text-3xl"
         data-installed-title=""
       >
-        Actos en vivo
+        Actividades culturales
       </h1>
 
       <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
@@ -63,14 +66,14 @@ export default async function Page() {
         />
         <TotalsCard
           amount={approved.length}
-          title="aprobados"
-          description="Actos aprobados"
+          title="aprobadas"
+          description="Actividades aprobadas"
           Icon={CheckIcon}
         />
         <TotalsCard
           amount={rejected.length}
-          title="rechazados"
-          description="Actos rechazados"
+          title="rechazadas"
+          description="Actividades rechazadas"
           Icon={BanIcon}
         />
       </div>

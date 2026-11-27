@@ -7,17 +7,14 @@ import { EmailCell } from "@/app/components/dashboard/data_table/cells/email";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import { LiveActActionsCell } from "@/app/components/live_acts/cells/actions-cell";
 import { LiveActStatusBadge } from "@/app/components/live_acts/status-badge";
-import { LiveAct } from "@/app/lib/live_acts/definitions";
-
-const categoryLabels: Record<LiveAct["category"], string> = {
-  music: "Música",
-  dance: "Danza",
-  talk: "Charla",
-};
+import {
+  culturalActivityCategoryLabel,
+  LiveAct,
+} from "@/app/lib/live_acts/definitions";
 
 export const columnTitles = {
   id: "ID",
-  actName: "Nombre del acto",
+  actName: "Nombre de la actividad",
   category: "Categoría",
   contactName: "Contacto",
   contactEmail: "Email",
@@ -47,7 +44,14 @@ export const columns: ColumnDef<LiveAct>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.category} />
     ),
-    cell: ({ row }) => categoryLabels[row.original.category],
+    cell: ({ row }) => (
+      <span className="block max-w-48 break-words">
+        {culturalActivityCategoryLabel(
+          row.original.category,
+          row.original.otherType,
+        )}
+      </span>
+    ),
     filterFn: (row, columnId, filterValues: string[]) => {
       if (filterValues.length === 0) return true;
       return filterValues.includes(row.getValue(columnId));
@@ -106,13 +110,13 @@ export const columns: ColumnDef<LiveAct>[] = [
             href={link}
             target="_blank"
             rel="noopener noreferrer"
-            className="truncate text-blue-500 hover:underline max-w-40 block dark:text-blue-400"
+            className="block max-w-56 text-blue-500 wrap-anywhere hover:underline dark:text-blue-400"
           >
             {link}
           </a>
         );
       }
-      return <span className="truncate max-w-40 block">{link}</span>;
+      return <span className="block max-w-56 wrap-anywhere">{link}</span>;
     },
   },
   {
@@ -132,12 +136,12 @@ export const columns: ColumnDef<LiveAct>[] = [
                 href={link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="truncate text-blue-500 hover:underline max-w-40 dark:text-blue-400"
+                className="max-w-56 text-blue-500 wrap-anywhere hover:underline dark:text-blue-400"
               >
                 {link}
               </a>
             ) : (
-              <span key={i} className="truncate max-w-40">
+              <span key={i} className="max-w-56 wrap-anywhere">
                 {link}
               </span>
             ),
