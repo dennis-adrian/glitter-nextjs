@@ -1,9 +1,15 @@
-import type { CouponBookParticipantAssignment } from "@/app/lib/festival_activites/coupon-book-builder";
+import type {
+  CouponBookParticipantAssignment,
+  CouponBookVariant,
+} from "@/app/lib/festival_activites/coupon-book-builder";
 import {
   CouponBookDraft,
+  CouponBookReconciliation,
   DraftCouponPage,
   getDraftBookPages,
   isEntryIncluded,
+  mergeDraftWithSource,
+  participantCouponId,
 } from "@/app/lib/festival_activites/coupon-book-draft";
 
 /**
@@ -13,8 +19,11 @@ import {
  * and coupon content, so the content diff in `reconcileDraftWithSource` sees
  * nothing. Each entry records the variant it was captured from
  * (`sourceDetailId`); comparing that with the live variant finds the move.
- * Drafts saved before the field existed fall back to the book the coupon is
- * placed in.
+ *
+ * Drafts saved before the field existed only say which book a coupon sits in,
+ * and a coupon can sit in another variant's book because that variant's book
+ * was full (spillover). So a legacy coupon outside its current variant's book
+ * is reported as unverified, not as moved: refreshing from source settles it.
  */
 
 export type CouponBookMovedParticipant = {
@@ -25,9 +34,22 @@ export type CouponBookMovedParticipant = {
   draftVariantLabel: string;
   currentDetailId: number;
   currentVariantLabel: string;
-  /** True when the draft's variant was inferred from the coupon's book. */
-  inferred: boolean;
   /** Placed in a page slot and included by the inclusion mode. */
+  printed: boolean;
+};
+
+/**
+ * A coupon from a draft saved before variants were recorded that sits in a
+ * book other than its participant's current variant: either a move or
+ * spillover from a full book, which the draft cannot tell apart.
+ */
+export type CouponBookUnverifiedParticipant = {
+  couponId: string;
+  participationId: number;
+  participantName: string;
+  placedVariantLabel: string;
+  currentDetailId: number;
+  currentVariantLabel: string;
   printed: boolean;
 };
 
@@ -49,6 +71,7 @@ export type CouponBookAddedParticipant = {
 
 export type CouponBookDraftAudit = {
   moved: CouponBookMovedParticipant[];
+  unverified: CouponBookUnverifiedParticipant[];
   removed: CouponBookRemovedParticipant[];
   added: CouponBookAddedParticipant[];
 };
@@ -86,7 +109,12 @@ export function auditCouponBookDraft(
       ?.detailLabel ??
     `Variante ${detailId}`;
 
-  const audit: CouponBookDraftAudit = { moved: [], removed: [], added: [] };
+  const audit: CouponBookDraftAudit = {
+    moved: [],
+    unverified: [],
+    removed: [],
+    added: [],
+  };
   const draftParticipationIds = new Set<number>();
 
   for (const entry of Object.values(draft.entries)) {
@@ -108,16 +136,31 @@ export function auditCouponBookDraft(
       continue;
     }
 
-    let draftDetailId = entry.sourceDetailId ?? null;
-    let inferred = false;
-    if (draftDetailId === null && placedBookIds.length === 1) {
-      const book = draft.books.find((item) => item.id === placedBookIds[0]);
-      draftDetailId = book?.sourceDetailId ?? null;
-      inferred = true;
-    }
-    if (draftDetailId === null || draftDetailId === current.detailId) {
+    const draftDetailId = entry.sourceDetailId ?? null;
+    if (draftDetailId === null) {
+      // Legacy entry: the book it sits in is the only clue, and spillover
+      // makes it ambiguous. Flag it only when it is outside its current
+      // variant's book; never claim a move.
+      const placedBooks = draft.books.filter((book) =>
+        placedBookIds.includes(book.id),
+      );
+      if (
+        placedBooks.length > 0 &&
+        !placedBooks.some((book) => book.sourceDetailId === current.detailId)
+      ) {
+        audit.unverified.push({
+          couponId: entry.id,
+          participationId: entry.participationId,
+          participantName: entry.participantName,
+          placedVariantLabel: placedBooks.map((book) => book.label).join(", "),
+          currentDetailId: current.detailId,
+          currentVariantLabel: labelForDetail(current.detailId),
+          printed,
+        });
+      }
       continue;
     }
+    if (draftDetailId === current.detailId) continue;
 
     audit.moved.push({
       couponId: entry.id,
@@ -127,7 +170,6 @@ export function auditCouponBookDraft(
       draftVariantLabel: labelForDetail(draftDetailId),
       currentDetailId: current.detailId,
       currentVariantLabel: labelForDetail(current.detailId),
-      inferred,
       printed,
     });
   }
@@ -151,21 +193,81 @@ export function auditCouponBookDraft(
 
 export function hasCouponBookAuditIssues(audit: CouponBookDraftAudit): boolean {
   return (
-    audit.moved.length > 0 || audit.removed.length > 0 || audit.added.length > 0
+    audit.moved.length > 0 ||
+    audit.unverified.length > 0 ||
+    audit.removed.length > 0 ||
+    audit.added.length > 0
   );
 }
 
 /**
- * Whether exporting this draft would print a wrong book: a coupon for a
- * participant who changed variant, one who no longer participates, or a
- * missing coupon for someone who joined since the draft was saved.
+ * Whether exporting this draft would print a wrong book: a printed coupon for
+ * a participant who changed variant (or may have, in a legacy draft) or who no
+ * longer participates, or a missing coupon for someone who joined since.
+ * Coupons that would not print do not block.
  */
 export function isCouponBookAuditBlocking(audit: CouponBookDraftAudit): boolean {
   return (
     audit.moved.some((item) => item.printed) ||
-    audit.removed.length > 0 ||
+    audit.unverified.some((item) => item.printed) ||
+    audit.removed.some((item) => item.printed) ||
     audit.added.some((item) => item.printable)
   );
+}
+
+/**
+ * Drops the coupons of removed participants that would not print anyway, so
+ * the export's participation check does not refuse a draft whose printed
+ * output is correct. Their slots are emptied too.
+ */
+export function dropUnprintedRemovedCoupons(
+  draft: CouponBookDraft,
+  audit: CouponBookDraftAudit,
+): CouponBookDraft {
+  const dropped = new Set(
+    audit.removed.filter((item) => !item.printed).map((item) => item.couponId),
+  );
+  if (dropped.size === 0) return draft;
+  return {
+    ...draft,
+    entries: Object.fromEntries(
+      Object.entries(draft.entries).filter(([id]) => !dropped.has(id)),
+    ),
+    pages: Object.fromEntries(
+      Object.entries(draft.pages).map(([id, page]) => [
+        id,
+        {
+          ...page,
+          slotCouponIds: page.slotCouponIds.map((couponId) =>
+            couponId && dropped.has(couponId) ? null : couponId,
+          ),
+        },
+      ]),
+    ),
+  };
+}
+
+/**
+ * Coupons still in the draft whose participant is active but no longer has an
+ * approved or pending proof, so the source no longer builds a coupon for them.
+ * Removed participants are excluded: the audit already lists them.
+ */
+export function listWithdrawnCoupons(
+  draft: CouponBookDraft,
+  contentChanges: CouponBookReconciliation,
+  audit: CouponBookDraftAudit,
+): Array<{ couponId: string; participationId: number; participantName: string }> {
+  const removed = new Set(audit.removed.map((item) => item.participationId));
+  return contentChanges.removedParticipationIds
+    .filter((participationId) => !removed.has(participationId))
+    .flatMap((participationId) => {
+      const couponId = participantCouponId(participationId);
+      const entry = draft.entries[couponId];
+      if (!entry || entry.type !== "participant") return [];
+      return [
+        { couponId, participationId, participantName: entry.participantName },
+      ];
+    });
 }
 
 function listNames(names: string[]): string {
@@ -186,10 +288,22 @@ export function describeCouponBookAudit(audit: CouponBookDraftAudit): string {
       )}`,
     );
   }
-  if (audit.removed.length > 0) {
+  const unverified = audit.unverified.filter((item) => item.printed);
+  if (unverified.length > 0) {
+    parts.push(
+      `no se puede confirmar la variante (borrador anterior): ${listNames(
+        unverified.map(
+          (item) =>
+            `${item.participantName} (en ${item.placedVariantLabel}, ahora ${item.currentVariantLabel})`,
+        ),
+      )}`,
+    );
+  }
+  const removed = audit.removed.filter((item) => item.printed);
+  if (removed.length > 0) {
     parts.push(
       `ya no participan: ${listNames(
-        audit.removed.map((item) => item.participantName),
+        removed.map((item) => item.participantName),
       )}`,
     );
   }
@@ -321,4 +435,24 @@ export function relocateMovedCoupons(
     },
     unresolved,
   };
+}
+
+/**
+ * "Actualizar participantes desde fuente": merges new, removed and changed
+ * participants, then moves each relocated coupon into its new variant's book.
+ *
+ * The merge's reflow fills books by variant but lets a full book spill over,
+ * so it could leave a moved coupon in its old book. The merge therefore keeps
+ * a moved coupon's old variant, and the relocation afterwards places it in the
+ * new variant's book (growing that book if it is full) before recording the
+ * move. Ordinary spillover of coupons that did not move is left as is.
+ */
+export function refreshDraftFromSource(
+  draft: CouponBookDraft,
+  sourceDraft: CouponBookDraft,
+  variants: CouponBookVariant[],
+  assignments: CouponBookParticipantAssignment[],
+): CouponBookDraft {
+  const merged = mergeDraftWithSource(draft, sourceDraft, variants);
+  return relocateMovedCoupons(merged, assignments).draft;
 }

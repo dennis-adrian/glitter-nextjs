@@ -17,6 +17,7 @@ import { buildCouponBookParticipantAssignments } from "@/app/lib/festival_activi
 import {
   auditCouponBookDraft,
   describeCouponBookAudit,
+  dropUnprintedRemovedCoupons,
   isCouponBookAuditBlocking,
 } from "@/app/lib/festival_activites/coupon-book-reconciliation";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
@@ -160,6 +161,9 @@ export async function POST(
       { status: 409 },
     );
   }
+  // Coupons of removed participants that would not print change nothing on
+  // paper: drop them so the participation check below does not refuse.
+  const draftToPrint = dropUnprintedRemovedCoupons(body.draft, audit);
 
   const validParticipationIds = new Set<number>();
   for (const detail of activity.details) {
@@ -171,7 +175,7 @@ export async function POST(
   }
 
   const invalidParticipationId = findInvalidDraftParticipationId(
-    body.draft,
+    draftToPrint,
     validParticipationIds,
   );
   if (invalidParticipationId !== null) {
@@ -181,7 +185,7 @@ export async function POST(
     );
   }
 
-  const sanitizedDraft = sanitizeCouponBookDraft(body.draft);
+  const sanitizedDraft = sanitizeCouponBookDraft(draftToPrint);
 
   const suffix =
     body.exportScope.type === "all"

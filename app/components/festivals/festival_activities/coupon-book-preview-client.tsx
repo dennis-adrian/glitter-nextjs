@@ -23,6 +23,8 @@ import {
 } from "@/app/lib/festival_activites/coupon-book-builder";
 import {
   auditCouponBookDraft,
+  listWithdrawnCoupons,
+  refreshDraftFromSource,
   relocateMovedCoupons,
 } from "@/app/lib/festival_activites/coupon-book-reconciliation";
 import {
@@ -34,7 +36,6 @@ import {
   draftPageToCouponBookPage,
   getDraftBookPages,
   getEffectiveLayoutForCoupon,
-  mergeDraftWithSource,
   moveCouponBetweenPages,
   reconcileDraftWithSource,
   reflowDraftPages,
@@ -225,6 +226,10 @@ export default function CouponBookPreviewClient({
       ),
     [audit.moved, draft.books],
   );
+  const withdrawnCoupons = useMemo(
+    () => listWithdrawnCoupons(draft, contentChanges, audit),
+    [audit, contentChanges, draft],
+  );
   const emptySlots = selectedPage
     ? countEmptySlotsOnPage(draft, selectedPage)
     : 0;
@@ -403,8 +408,13 @@ export default function CouponBookPreviewClient({
   };
 
   const handleMergeFromSource = () => {
-    const merged = mergeDraftWithSource(draft, sourceDraft, variants);
-    applyDraft(merged);
+    const refreshed = refreshDraftFromSource(
+      draft,
+      sourceDraft,
+      variants,
+      participantAssignments,
+    );
+    applyDraft(refreshed);
     setExportError(null);
     setExportState("idle");
     setSelectedPageIndex(0);
@@ -610,6 +620,7 @@ export default function CouponBookPreviewClient({
               audit={audit}
               contentChanges={contentChanges}
               unresolvedMoves={unresolvedMoves}
+              withdrawnCoupons={withdrawnCoupons}
               onRelocate={handleRelocateMovedCoupons}
               onMergeFromSource={handleMergeFromSource}
             />

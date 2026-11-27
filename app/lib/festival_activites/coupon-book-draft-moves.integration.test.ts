@@ -133,7 +133,11 @@ async function createVariant(activityId: number, description: string) {
   return variant.id;
 }
 
-async function enrollWithCoupon(detailsId: number, name: string) {
+async function enrollWithCoupon(
+  detailsId: number,
+  name: string,
+  proofStatus: "approved" | "pending_review" = "approved",
+) {
   const user = await createUser(name);
   const [row] = await integrationDb!
     .insert(festivalActivityParticipants)
@@ -141,7 +145,7 @@ async function enrollWithCoupon(detailsId: number, name: string) {
     .returning();
   await integrationDb!.insert(festivalActivityParticipantProofs).values({
     participationId: row.id,
-    proofStatus: "approved",
+    proofStatus,
     promoDescription: `Promo de ${name}`,
   });
   return row.id;
@@ -180,7 +184,11 @@ async function saveDraftFromLiveData(transform = (d: CouponBookDraft) => d) {
     activityId: fixture.activityId,
     draft,
     userId: fixture.adminId,
-    validParticipationIds: new Set([fixture.ana, fixture.bruno, fixture.carla]),
+    validParticipationIds: new Set(
+      activity.details.flatMap((detail) =>
+        detail.participants.map((participant) => participant.id),
+      ),
+    ),
     expectedRevision: null,
   });
   expect(result.ok).toBe(true);
@@ -367,7 +375,7 @@ describeDatabase("coupon-book drafts saved before a variant move", () => {
     ]);
   });
 
-  it("flags a draft saved before variants were recorded, from the coupon's book", async () => {
+  it("flags a legacy draft whose coupon sits outside its current variant's book", async () => {
     await saveDraftFromLiveData((draft) => ({
       ...draft,
       entries: Object.fromEntries(
@@ -397,14 +405,44 @@ describeDatabase("coupon-book drafts saved before a variant move", () => {
         await liveActivity(),
       ),
     );
-    expect(audit.moved).toEqual([
+    // A legacy draft cannot tell a move from spillover, so the coupon is
+    // reported as unverified rather than moved, and export still refuses it.
+    expect(audit.moved).toEqual([]);
+    expect(audit.unverified).toEqual([
       expect.objectContaining({
         participationId: fixture.bruno,
         currentDetailId: fixture.variantB,
-        inferred: true,
+        printed: true,
       }),
     ]);
     expect((await postExport(saved.draft!)).status).toBe(409);
+  });
+
+  it("exports a draft whose only removed participant has a coupon that would not print", async () => {
+    const eva = await enrollWithCoupon(fixture.variantA, "Eva", "pending_review");
+    await saveDraftFromLiveData((draft) =>
+      modules.draftLib.setParticipantInclusionMode(draft, "approved_only"),
+    );
+    await integrationDb!
+      .update(festivalActivityParticipants)
+      .set({ removedAt: new Date(), removalReason: "Baja" })
+      .where(eq(festivalActivityParticipants.id, eva));
+
+    const saved = await modules.config.fetchSavedCouponBookConfig(
+      fixture.activityId,
+    );
+    expect(saved.draft!.entries[`participant-${eva}`]).toBeDefined();
+
+    const exported = await postExport(saved.draft!);
+
+    expect(exported.status).toBe(200);
+    const printed = generateDraftCouponBookPdf.mock.calls[0][0]
+      .draft as CouponBookDraft;
+    expect(printed.entries[`participant-${eva}`]).toBeUndefined();
+    expect(couponsInBook(printed, fixture.variantA)).toEqual([
+      `participant-${fixture.ana}`,
+      `participant-${fixture.bruno}`,
+    ]);
   });
 
   it("refuses a draft that still prints a removed participant", async () => {

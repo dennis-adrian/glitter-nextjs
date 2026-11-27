@@ -17,6 +17,8 @@ type CouponBookReconciliationBannerProps = {
   contentChanges: CouponBookReconciliation;
   /** Moved participants whose new variant has no book in the draft. */
   unresolvedMoves: CouponBookMovedParticipant[];
+  /** Coupons of active participants who no longer have a usable proof. */
+  withdrawnCoupons: Array<{ couponId: string; participantName: string }>;
   onRelocate: () => void;
   onMergeFromSource: () => void;
 };
@@ -24,8 +26,8 @@ type CouponBookReconciliationBannerProps = {
 function NameList({ items }: { items: string[] }) {
   return (
     <ul className="list-disc space-y-0.5 pl-4">
-      {items.map((item) => (
-        <li key={item} className="break-words">
+      {items.map((item, index) => (
+        <li key={`${index}-${item}`} className="break-words">
           {item}
         </li>
       ))}
@@ -42,16 +44,25 @@ export default function CouponBookReconciliationBanner({
   audit,
   contentChanges,
   unresolvedMoves,
+  withdrawnCoupons,
   onRelocate,
   onMergeFromSource,
 }: CouponBookReconciliationBannerProps) {
   const changedCount = contentChanges.changedParticipationIds.length;
-  if (!hasCouponBookAuditIssues(audit) && changedCount === 0) return null;
+  if (
+    !hasCouponBookAuditIssues(audit) &&
+    changedCount === 0 &&
+    withdrawnCoupons.length === 0
+  ) {
+    return null;
+  }
 
   const blocking = isCouponBookAuditBlocking(audit);
   const needsMerge =
+    audit.unverified.length > 0 ||
     audit.removed.length > 0 ||
     audit.added.length > 0 ||
+    withdrawnCoupons.length > 0 ||
     changedCount > 0 ||
     unresolvedMoves.length > 0;
 
@@ -88,19 +99,52 @@ export default function CouponBookReconciliationBanner({
                 }`,
             )}
           />
-          {audit.moved.some((item) => item.inferred) ? (
-            <p className="break-words text-amber-900/80 dark:text-amber-200/80">
-              En borradores anteriores la variante se dedujo del libro donde
-              está el cupón.
-            </p>
-          ) : null}
+        </div>
+      ) : null}
+
+      {audit.unverified.length > 0 ? (
+        <div className="space-y-1">
+          <p className="font-medium break-words">
+            Están en el libro de otra variante y este borrador es anterior al
+            registro de variantes, así que no se sabe si cambiaron de variante
+            o si su libro estaba lleno:
+          </p>
+          <NameList
+            items={audit.unverified.map(
+              (item) =>
+                `${item.participantName}: en ${item.placedVariantLabel}, ahora en ${item.currentVariantLabel}${
+                  item.printed ? "" : " (cupón oculto)"
+                }`,
+            )}
+          />
+          <p className="break-words">
+            Actualizá los participantes desde la fuente para ubicarlos en su
+            variante actual.
+          </p>
         </div>
       ) : null}
 
       {audit.removed.length > 0 ? (
         <div className="space-y-1">
           <p className="font-medium">Ya no participan:</p>
-          <NameList items={audit.removed.map((item) => item.participantName)} />
+          <NameList
+            items={audit.removed.map(
+              (item) =>
+                `${item.participantName}${item.printed ? "" : " (cupón oculto)"}`,
+            )}
+          />
+        </div>
+      ) : null}
+
+      {withdrawnCoupons.length > 0 ? (
+        <div className="space-y-1">
+          <p className="font-medium break-words">
+            Ya no tienen una promoción aprobada ni en revisión, pero su cupón
+            sigue en el borrador:
+          </p>
+          <NameList
+            items={withdrawnCoupons.map((item) => item.participantName)}
+          />
         </div>
       ) : null}
 

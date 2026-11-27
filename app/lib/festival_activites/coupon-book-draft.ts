@@ -963,23 +963,26 @@ export function mergeDraftWithSource(
     const existing = nextEntries[couponId];
     nextEntries[couponId] = {
       ...sourceEntry,
+      // Keep a recorded variant: a coupon that also changed variant must stay
+      // flagged as moved until relocateMovedCoupons places it.
+      sourceDetailId: existing?.sourceDetailId ?? sourceEntry.sourceDetailId,
       layoutOverride: existing?.layoutOverride ?? null,
     };
   }
 
-  // A participant moved to another variant keeps its id and content, so it is
-  // neither new nor changed: record its current variant so the reflow below
-  // places its coupon in that variant's book.
+  // Entries from drafts saved before variants were recorded take their
+  // current variant, so the reflow below places them like a fresh build.
+  // Entries that recorded a variant keep it: a moved coupon is relocated
+  // afterwards (refreshDraftFromSource), because the reflow may spill it back
+  // to its old book when the new one is full.
   for (const [couponId, entry] of Object.entries(nextEntries)) {
-    if (entry.type !== "participant") continue;
+    if (entry.type !== "participant" || entry.sourceDetailId != null) continue;
     const sourceEntry = sourceDraft.entries[couponId];
     if (sourceEntry?.sourceDetailId == null) continue;
-    if (entry.sourceDetailId !== sourceEntry.sourceDetailId) {
-      nextEntries[couponId] = {
-        ...entry,
-        sourceDetailId: sourceEntry.sourceDetailId,
-      };
-    }
+    nextEntries[couponId] = {
+      ...entry,
+      sourceDetailId: sourceEntry.sourceDetailId,
+    };
   }
 
   const { books, pages } = reconcileDraftStructureWithSource(
