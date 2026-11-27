@@ -23,6 +23,19 @@ export const FESTIVAL_MAP_URL_PARAMS = {
 /** Long enough for any name or stand label; a pasted essay is cut short. */
 const MAX_QUERY_LENGTH = 100;
 
+/**
+ * The search text a link can carry. The page filters on this same cut, so a
+ * shared link restores exactly the results its sender saw.
+ */
+export function clampFestivalMapQuery(query: string): string {
+  if (query.length <= MAX_QUERY_LENGTH) return query;
+  // An emoji is two UTF-16 units. Cut between them, URLSearchParams would
+  // write the lone half as U+FFFD and the link would restore other text.
+  const lastUnit = query.charCodeAt(MAX_QUERY_LENGTH - 1);
+  const splitsPair = lastUnit >= 0xd800 && lastUnit <= 0xdbff;
+  return query.slice(0, splitsPair ? MAX_QUERY_LENGTH - 1 : MAX_QUERY_LENGTH);
+}
+
 export type FestivalMapUrlState = {
   query: string;
   /** -1 is every sector, the default view. */
@@ -56,10 +69,7 @@ export function parseFestivalMapUrlState(
   }: FestivalMapUrlContext,
 ): FestivalMapUrlState {
   const query = includeQuery
-    ? (params.get(FESTIVAL_MAP_URL_PARAMS.query) ?? "").slice(
-        0,
-        MAX_QUERY_LENGTH,
-      )
+    ? clampFestivalMapQuery(params.get(FESTIVAL_MAP_URL_PARAMS.query) ?? "")
     : "";
 
   const sectorParam = params.get(FESTIVAL_MAP_URL_PARAMS.sector);
@@ -121,7 +131,8 @@ export function writeFestivalMapUrlState(
   const params = new URLSearchParams(search);
 
   if (includeQuery) {
-    const query = state.query.trim();
+    // Never longer than the parser reads back.
+    const query = clampFestivalMapQuery(state.query).trim();
     if (query) params.set(FESTIVAL_MAP_URL_PARAMS.query, query);
     else params.delete(FESTIVAL_MAP_URL_PARAMS.query);
   }

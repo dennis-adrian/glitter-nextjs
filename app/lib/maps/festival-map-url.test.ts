@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  clampFestivalMapQuery,
   hasFestivalMapUrlState,
   parseFestivalMapUrlState,
   writeFestivalMapUrlState,
@@ -71,6 +72,31 @@ describe("parseFestivalMapUrlState", () => {
   it("ignores the query where the page has no text filter", () => {
     expect(parse("?q=Pandora", { includeQuery: false }).query).toBe("");
   });
+
+  it("cuts a long query the same way the page does", () => {
+    const long = "a".repeat(150);
+    expect(parse(`?q=${long}`).query).toBe(clampFestivalMapQuery(long));
+    expect(parse(`?q=${long}`).query).toHaveLength(100);
+  });
+});
+
+describe("clampFestivalMapQuery", () => {
+  it("leaves a query within the limit alone", () => {
+    const exact = "a".repeat(100);
+    expect(clampFestivalMapQuery("Pandora")).toBe("Pandora");
+    expect(clampFestivalMapQuery(exact)).toBe(exact);
+  });
+
+  it("cuts a longer query to 100 characters", () => {
+    expect(clampFestivalMapQuery("a".repeat(101))).toBe("a".repeat(100));
+  });
+
+  it("does not split an emoji at the cut", () => {
+    expect(clampFestivalMapQuery(`${"a".repeat(99)}😀b`)).toBe("a".repeat(99));
+    expect(clampFestivalMapQuery(`${"a".repeat(98)}😀b`)).toBe(
+      `${"a".repeat(98)}😀`,
+    );
+  });
 });
 
 describe("writeFestivalMapUrlState", () => {
@@ -108,6 +134,21 @@ describe("writeFestivalMapUrlState", () => {
         activities: ["coupon_book", "stamp_passport"],
       },
     });
+  });
+
+  it("restores the same text the page filtered on for a long query", () => {
+    for (const query of ["a".repeat(150), `${"a".repeat(99)}😀b`]) {
+      const filtered = clampFestivalMapQuery(query);
+      const search = writeFestivalMapUrlState(
+        "",
+        { query, sectorIndex: -1, standFilters: EMPTY_STAND_FILTERS },
+        writeContext,
+      );
+      // Each side on its own, so dropping either clamp shows.
+      expect(new URLSearchParams(search).get("q")).toBe(filtered);
+      expect(parse(search).query).toBe(filtered);
+      expect(parse(`?q=${encodeURIComponent(query)}`).query).toBe(filtered);
+    }
   });
 
   it("keeps parameters the map does not own and clears its own", () => {

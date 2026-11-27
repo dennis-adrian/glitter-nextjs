@@ -8,6 +8,7 @@ vi.mock("server-only", () => ({}));
 import StandSpecificationsSectorCard from "@/app/components/festivals/stand-specifications-sector-card";
 
 import type { UserCategory } from "@/app/api/users/definitions";
+import { DEFAULT_CREDENTIAL_RULES } from "@/app/lib/credentials/definitions";
 
 type StandOverrides = {
   individualPrice: number;
@@ -146,5 +147,42 @@ describe("StandSpecificationsSectorCard", () => {
 
     expect(screen.getByText("1 credencial por participante")).toBeTruthy();
     expect(screen.queryByText("1 credencial para expositor")).toBeNull();
+  });
+
+  it("keeps today's exact service lines with the default rules", () => {
+    const items = (category: UserCategory) => {
+      const { container, unmount } = renderCard({ standCategory: category }, category);
+      const lines = [...container.querySelectorAll("li")].map((li) => li.textContent);
+      unmount();
+      return lines;
+    };
+    expect(items("illustration")).toEqual([
+      "Puntos de corriente según ubicación del stand**",
+      "Ambiente cerrado con aire acondicionado",
+      "1 pin de regalo por participante (acompañantes no incluidos)",
+      "1 credencial por participante",
+      "1 credencial para acompañante en caso de no compartir espacio con otro ilustrador",
+      "2 sillas",
+      "Mesa incluida",
+    ]);
+    expect(items("gastronomy")).toContain("2 credenciales con el nombre del expositor");
+    const entrepreneurship = items("entrepreneurship");
+    expect(entrepreneurship).toContain("1 credencial para expositor");
+    expect(entrepreneurship).toContain("1 credencial para acompañante");
+  });
+
+  it("words a festival's own rule", () => {
+    render(
+      <StandSpecificationsSectorCard
+        sector={sector({ standCategory: "gastronomy" })}
+        category="gastronomy"
+        credentialRules={{
+          ...DEFAULT_CREDENTIAL_RULES,
+          gastronomy: { quantity: 3, namingMode: "all_named" },
+        }}
+      />,
+    );
+    expect(screen.getByText("3 credenciales con el nombre del expositor")).toBeTruthy();
+    expect(screen.queryByText("2 credenciales con el nombre del expositor")).toBeNull();
   });
 });

@@ -4,13 +4,33 @@ import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import { summarizeReservationStands } from "@/app/lib/reservations/member-stands";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
+import {
+  DEFAULT_CREDENTIAL_RULES,
+  type CategoryCredentialGroup,
+  type CredentialRules,
+} from "@/app/lib/credentials/definitions";
+import { profileCategoryForStandMatch } from "@/app/lib/reservations/policy";
 
 type ProductDetailsProps = {
   festival: FestivalBase;
   invoice: InvoiceWithPaymentsAndStand;
+  /** The festival's credential rules as participants may read them. */
+  credentialRules?: CredentialRules;
 };
 
-export function ProductDetails({ festival, invoice }: ProductDetailsProps) {
+/** The rule group a stand's credentials follow, as the calculator rules it. */
+function credentialGroupForStand(standCategory: string): CategoryCredentialGroup {
+  const category = profileCategoryForStandMatch(standCategory);
+  return category === "gastronomy" || category === "entrepreneurship"
+    ? category
+    : "illustration";
+}
+
+export function ProductDetails({
+  festival,
+  invoice,
+  credentialRules = DEFAULT_CREDENTIAL_RULES,
+}: ProductDetailsProps) {
   const reservation = invoice.reservation;
   // Read the aggregate, not the parent's single stand_id: a full table is two
   // stands and used to show here as one.
@@ -32,6 +52,8 @@ export function ProductDetails({ festival, invoice }: ProductDetailsProps) {
   const category = getCategoryLabel(stand.standCategory as never);
   const standCount = summary.active.length || 1;
   const isGastronomy = stand.standCategory === "gastronomy";
+  const credentialsPerStand =
+    credentialRules[credentialGroupForStand(stand.standCategory)].quantity;
 
   return (
     <Card>
@@ -91,9 +113,17 @@ export function ProductDetails({ festival, invoice }: ProductDetailsProps) {
             )}
 
             {/* Chairs and credentials both come with each stand, so a full
-                table has two stands' worth of each. */}
+                table has two stands' worth of each. Credentials follow the
+                festival's rule for the stand's category. */}
             <li>• {2 * standCount} sillas</li>
-            <li>• {2 * standCount} credenciales</li>
+            {credentialsPerStand > 0 && (
+              <li>
+                • {credentialsPerStand * standCount}{" "}
+                {credentialsPerStand * standCount === 1
+                  ? "credencial"
+                  : "credenciales"}
+              </li>
+            )}
           </ul>
         </div>
       </CardContent>

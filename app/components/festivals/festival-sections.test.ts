@@ -27,4 +27,14 @@ describe("visibleFestivalSections", () => {
     expect(festivalSectionHref(9, volunteers!)).toBe("/dashboard/festivals/9/volunteers");
     expect(keys(visibleFestivalSections("published", { isAdmin: true }))).toContain("volunteers");
   });
+
+  it("offers Credenciales to admins and festival admins, after Voluntarios", () => {
+    const visible = keys(visibleFestivalSections("published"));
+    expect(visible.indexOf("credentials")).toBe(visible.indexOf("volunteers") + 1);
+    const credentials = visibleFestivalSections("published").find(
+      (section) => section.key === "credentials",
+    );
+    expect(credentials).toMatchObject({ group: "participants" });
+    expect(festivalSectionHref(9, credentials!)).toBe("/dashboard/festivals/9/credentials");
+  });
 });
