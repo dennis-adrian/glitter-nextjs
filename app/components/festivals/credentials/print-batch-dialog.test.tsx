@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { CredentialsProvider } from "@/app/components/festivals/credentials/credentials-context";
 import PrintBatchDialog from "@/app/components/festivals/credentials/print-batch-dialog";
 import { renderWithCredentials } from "@/app/components/festivals/credentials/test-utils";
 import { addReservation, batch, emptyData } from "@/app/lib/credentials/__fixtures__/data";
+import type { CredentialsData } from "@/app/lib/credentials/calculate";
+import { DEFAULT_CREDENTIAL_FILTERS } from "@/app/lib/credentials/definitions";
 
 const createCredentialPrintBatch = vi.hoisted(() => vi.fn());
 vi.mock("@/app/lib/credentials/actions", () => ({ createCredentialPrintBatch }));
@@ -21,6 +24,7 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   isDesktop.value = true;
 });
 
@@ -57,6 +61,39 @@ function festival() {
   );
   return { data, camila, lucia, andres };
 }
+
+/**
+ * The CSV download, kept off jsdom's navigation. jsdom has no object URLs, so
+ * a stubbed URL global carries them; afterEach unstubs it and restores the
+ * click spy.
+ */
+function stubDownload() {
+  const createObjectURL = vi.fn<(blob: Blob) => string>(() => "blob:lote");
+  vi.stubGlobal(
+    "URL",
+    class extends URL {
+      static createObjectURL = createObjectURL;
+      static revokeObjectURL = vi.fn();
+    },
+  );
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  return createObjectURL;
+}
+
+/** A copy of `data` with every `from` string replaced, as a refresh would bring. */
+function renamed<T>(value: T, from: string, to: string): T {
+  const walk = (node: unknown): unknown => {
+    if (node === from) return to;
+    if (Array.isArray(node)) return node.map(walk);
+    if (node && typeof node === "object" && !(node instanceof Date)) {
+      return Object.fromEntries(Object.entries(node).map(([key, child]) => [key, walk(child)]));
+    }
+    return node;
+  };
+  return walk(value) as T;
+}
+
+const OUTDATED = "Cambió la selección desde que exportaste el CSV. Exportalo de nuevo antes de marcar el lote.";
 
 function open() {
   fireEvent.click(screen.getByRole("button", { name: "Marcar como enviadas a imprenta" }));
@@ -137,15 +174,25 @@ describe("PrintBatchDialog", () => {
     // Exactly the pre-selected two, each with the counts it was shown.
     const byKey = Object.fromEntries(
       input.holders.map(
-        (holder: { key: string; name: string; named: number; unnamed: number }) => [
+        (holder: { key: string; group: string; name: string; named: number; unnamed: number }) => [
           holder.key,
-          { name: holder.name, named: holder.named, unnamed: holder.unnamed },
+          { group: holder.group, name: holder.name, named: holder.named, unnamed: holder.unnamed },
         ],
       ),
     );
     expect(byKey).toEqual({
-      [`participant:${lucia.participations[0]}`]: { name: "Lucía Fernández", named: 1, unnamed: 1 },
-      [`participant:${andres.participations[0]}`]: { name: "Andrés Vaca", named: 2, unnamed: 0 },
+      [`participant:${lucia.participations[0]}`]: {
+        group: "illustration",
+        name: "Lucía Fernández",
+        named: 1,
+        unnamed: 1,
+      },
+      [`participant:${andres.participations[0]}`]: {
+        group: "gastronomy",
+        name: "Andrés Vaca",
+        named: 2,
+        unnamed: 0,
+      },
     });
     const sent = input.holders.reduce(
       (sum: number, holder: { named: number; unnamed: number; reprint: boolean }) => {
@@ -211,5 +258,155 @@ describe("PrintBatchDialog", () => {
     expect(search.hasAttribute("disabled")).toBe(true);
     finish({ success: false, message: "El lote cambió." });
     await waitFor(() => expect(search.hasAttribute("disabled")).toBe(false));
+  });
+
+  describe("after exporting the CSV", () => {
+    it("blocks marking when the selection changed, until it is exported again", async () => {
+      stubDownload();
+      createCredentialPrintBatch.mockResolvedValue({ success: true, message: "Listo." });
+      const { data, andres } = festival();
+      renderWithCredentials(<PrintBatchDialog />, { data });
+      const dialog = open();
+      const submit = () => within(dialog).getByRole("button", { name: "Marcar como enviadas" });
+      fireEvent.click(within(dialog).getByRole("button", { name: /Exportar estas/ }));
+      expect(within(dialog).queryByText(OUTDATED)).toBeNull();
+
+      const search = within(dialog).getByLabelText("Quitar o sumar a alguien");
+      fireEvent.change(search, { target: { value: "lucia" } });
+      fireEvent.click(within(dialog).getByRole("checkbox", { name: "Incluir a Lucía Fernández en el lote" }));
+      expect(within(dialog).getByText(OUTDATED)).toBeTruthy();
+      expect(submit().hasAttribute("disabled")).toBe(true);
+      fireEvent.click(submit());
+      expect(createCredentialPrintBatch).not.toHaveBeenCalled();
+      // The footer stays one row with the notice above it.
+      expect(within(dialog).getByTestId("batch-footer").className).toContain("grid-cols-2");
+
+      fireEvent.click(within(dialog).getByRole("button", { name: /Exportar estas/ }));
+      expect(within(dialog).queryByText(OUTDATED)).toBeNull();
+      expect(submit().hasAttribute("disabled")).toBe(false);
+      fireEvent.click(submit());
+      await waitFor(() => expect(createCredentialPrintBatch).toHaveBeenCalledTimes(1));
+      expect(
+        createCredentialPrintBatch.mock.calls[0]![0].holders.map((holder: { key: string }) => holder.key),
+      ).toEqual([`participant:${andres.participations[0]}`]);
+    });
+
+    it("unblocks when hand changes are undone back to what was exported", () => {
+      stubDownload();
+      renderWithCredentials(<PrintBatchDialog />, { data: festival().data });
+      const dialog = open();
+      fireEvent.click(within(dialog).getByRole("button", { name: /Exportar estas/ }));
+      const search = within(dialog).getByLabelText("Quitar o sumar a alguien");
+      fireEvent.change(search, { target: { value: "camila" } });
+      fireEvent.click(within(dialog).getByRole("checkbox", { name: "Incluir a Camila Rojas en el lote" }));
+      expect(within(dialog).getByText(OUTDATED)).toBeTruthy();
+      fireEvent.click(within(dialog).getByRole("button", { name: "Quitar" }));
+      expect(within(dialog).queryByText(OUTDATED)).toBeNull();
+      expect(
+        within(dialog).getByRole("button", { name: "Marcar como enviadas" }).hasAttribute("disabled"),
+      ).toBe(false);
+    });
+
+    it("blocks marking when a refresh changes what the CSV carried", () => {
+      stubDownload();
+      const { data } = festival();
+      // The provider alone, so a rerender hands it new data as a refresh does.
+      const page = (next: CredentialsData) => (
+        <CredentialsProvider
+          festivalId={next.festival.id}
+          tab="resumen"
+          data={next}
+          initialFilters={DEFAULT_CREDENTIAL_FILTERS}
+          isAdmin
+        >
+          <PrintBatchDialog />
+        </CredentialsProvider>
+      );
+      const view = render(page(data));
+      const dialog = open();
+      fireEvent.click(within(dialog).getByRole("button", { name: /Exportar estas/ }));
+      expect(within(dialog).queryByText(OUTDATED)).toBeNull();
+      view.rerender(page(renamed(data, "Lucía Fernández", "Lucía Fernández Paz")));
+      expect(within(dialog).getByText(OUTDATED)).toBeTruthy();
+      expect(
+        within(dialog).getByRole("button", { name: "Marcar como enviadas" }).hasAttribute("disabled"),
+      ).toBe(true);
+    });
+
+    it("blocks marking when a refresh moves a holder to another group with the same counts", () => {
+      stubDownload();
+      const { data } = festival();
+      const page = (next: CredentialsData) => (
+        <CredentialsProvider
+          festivalId={next.festival.id}
+          tab="resumen"
+          data={next}
+          initialFilters={DEFAULT_CREDENTIAL_FILTERS}
+          isAdmin
+        >
+          <PrintBatchDialog />
+        </CredentialsProvider>
+      );
+      const view = render(page(data));
+      const dialog = open();
+      fireEvent.click(within(dialog).getByRole("button", { name: /Exportar estas/ }));
+      // Lucía's stand turns Emprendimiento: same default rule, so the same
+      // counts, but the CSV's Grupo column no longer matches.
+      view.rerender(page(renamed(data, "illustration", "entrepreneurship")));
+      expect(within(dialog).getByText(OUTDATED)).toBeTruthy();
+      expect(
+        within(dialog).getByRole("button", { name: "Marcar como enviadas" }).hasAttribute("disabled"),
+      ).toBe(true);
+    });
+
+    it("keeps the status region mounted and empty until the notice appears", () => {
+      stubDownload();
+      renderWithCredentials(<PrintBatchDialog />, { data: festival().data });
+      const dialog = open();
+      const status = within(dialog).getByRole("status");
+      expect(status.textContent).toBe("");
+      fireEvent.click(within(dialog).getByRole("button", { name: /Exportar estas/ }));
+      const search = within(dialog).getByLabelText("Quitar o sumar a alguien");
+      fireEvent.change(search, { target: { value: "lucia" } });
+      fireEvent.click(within(dialog).getByRole("checkbox", { name: "Incluir a Lucía Fernández en el lote" }));
+      expect(within(dialog).getByRole("status")).toBe(status);
+      expect(status.textContent).toBe(OUTDATED);
+    });
+
+    it("sends exactly the exported holders when nothing changed", async () => {
+      const createObjectURL = stubDownload();
+      createCredentialPrintBatch.mockResolvedValue({ success: true, message: "Listo." });
+      const { data, lucia, andres } = festival();
+      renderWithCredentials(<PrintBatchDialog />, { data });
+      const dialog = open();
+      fireEvent.click(within(dialog).getByRole("button", { name: /Exportar estas/ }));
+      const blob = createObjectURL.mock.calls[0]![0];
+      const csv = await blob.text();
+      // The batch note is not in the CSV, so writing one does not block.
+      fireEvent.change(within(dialog).getByLabelText("Nota"), { target: { value: "Imprenta Sol" } });
+      expect(within(dialog).queryByText(OUTDATED)).toBeNull();
+      fireEvent.click(within(dialog).getByRole("button", { name: "Marcar como enviadas" }));
+      await waitFor(() => expect(createCredentialPrintBatch).toHaveBeenCalledTimes(1));
+      const holders = createCredentialPrintBatch.mock.calls[0]![0].holders as {
+        key: string;
+        name: string;
+      }[];
+      expect(holders.map((holder) => holder.key).sort()).toEqual(
+        [`participant:${lucia.participations[0]}`, `participant:${andres.participations[0]}`].sort(),
+      );
+      for (const holder of holders) expect(csv).toContain(holder.name);
+    });
+  });
+
+  it("never blocks marking when no CSV was exported", async () => {
+    createCredentialPrintBatch.mockResolvedValue({ success: true, message: "Listo." });
+    renderWithCredentials(<PrintBatchDialog />, { data: festival().data });
+    const dialog = open();
+    const search = within(dialog).getByLabelText("Quitar o sumar a alguien");
+    fireEvent.change(search, { target: { value: "lucia" } });
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Incluir a Lucía Fernández en el lote" }));
+    expect(within(dialog).queryByText(OUTDATED)).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Marcar como enviadas" }));
+    await waitFor(() => expect(createCredentialPrintBatch).toHaveBeenCalledTimes(1));
   });
 });

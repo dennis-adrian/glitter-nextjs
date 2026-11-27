@@ -35,6 +35,7 @@ import {
   CREDENTIALS_COPY,
   PRINT_BATCH_NOTE_MAX,
   type CredentialFilters,
+  type CredentialGroup,
 } from "@/app/lib/credentials/definitions";
 import {
   credentialsExportFilename,
@@ -71,6 +72,38 @@ function holderDetail(holder: CredentialHolder) {
     .join(" · ");
 }
 
+/**
+ * What the CSV carries for the selection, order aside: an exported file and a
+ * submit with the same signature describe the same batch.
+ */
+function batchSignature(rows: readonly BatchRow[]): string {
+  return JSON.stringify(
+    [...rows]
+      .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+      .map((row) => [
+        row.key,
+        row.group,
+        row.name,
+        row.note,
+        row.standLabel,
+        row.named,
+        row.unnamed,
+        row.reprint,
+      ]),
+  );
+}
+
+type BatchRow = {
+  key: string;
+  group: CredentialGroup;
+  name: string;
+  note: string | null;
+  standLabel: string | null;
+  named: number;
+  unnamed: number;
+  reprint: boolean;
+};
+
 /** Every holder the new-or-short rule pre-selects under the page's filters. */
 export function defaultBatchSelection(holders: readonly CredentialHolder[]): string[] {
   return holders
@@ -97,6 +130,8 @@ export default function PrintBatchDialog() {
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [note, setNote] = useState("");
+  /** The batch the last CSV carried, or null when none was exported yet. */
+  const [exported, setExported] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const everyone = useMemo(
@@ -122,6 +157,18 @@ export default function PrintBatchDialog() {
   const named = groups.reduce((sum, row) => sum + row.named, 0);
   const unnamed = groups.reduce((sum, row) => sum + row.unnamed, 0);
   const total = named + unnamed;
+
+  const rows: BatchRow[] = chosen.map((holder) => ({
+    key: holder.key,
+    group: holder.group,
+    name: holder.name,
+    note: holder.note,
+    standLabel: holder.standLabel,
+    ...batchCountsFor(holder),
+  }));
+  // Marking must record what went to the printer: once a CSV is out, any
+  // change to it (hand edits, undo, a refresh while open) needs a new export.
+  const exportOutdated = exported !== null && exported !== batchSignature(rows);
 
   const results = query.trim()
     ? everyone.filter((holder) => matchesSearch(holder, query)).slice(0, 50)
@@ -149,6 +196,7 @@ export default function PrintBatchDialog() {
       setLastBatchId(view.print.lastBatch?.id ?? null);
       setQuery("");
       setNote("");
+      setExported(null);
     }
   }
 
@@ -163,21 +211,17 @@ export default function PrintBatchDialog() {
     link.download = credentialsExportFilename(data.festival).replace(/\.csv$/, "-lote.csv");
     link.click();
     URL.revokeObjectURL(url);
+    setExported(batchSignature(rows));
   }
 
   function submit() {
+    if (exportOutdated) return;
     startTransition(async () => {
       try {
         const result = await createCredentialPrintBatch({
           festivalId,
           lastBatchId,
-          holders: chosen.map((holder) => ({
-            key: holder.key,
-            name: holder.name,
-            note: holder.note,
-            standLabel: holder.standLabel,
-            ...batchCountsFor(holder),
-          })),
+          holders: rows,
           note,
         });
         if (!result.success) {
@@ -428,27 +472,47 @@ export default function PrintBatchDialog() {
             </section>
           </div>
 
-          {/* One row, never stacked; on the phone sheet it stays pinned below
-              the scrolling content. */}
-          <div
-            className={cn(
-              "grid shrink-0 grid-cols-2 gap-2 border-t pt-4",
-              isDesktop ? "sm:flex sm:justify-end" : "px-4 pb-4",
-            )}
-            data-testid="batch-footer"
-          >
-            <Button
-              type="button"
-              variant="outline"
-              wrap
-              disabled={isPending}
-              onClick={() => setOpen(false)}
+          {/* One flex item with the footer, so the dialog's gap never opens
+              around the empty notice. */}
+          <div className="shrink-0">
+            {/* Always mounted, so screen readers announce the notice when it
+                appears; empty, it has no padding and takes no space. */}
+            <div role="status" className={isDesktop ? undefined : "px-4"}>
+              {exportOutdated && (
+                <p className="break-words pt-3 pb-2 text-sm text-destructive">
+                  Cambió la selección desde que exportaste el CSV. Exportalo de nuevo antes de
+                  marcar el lote.
+                </p>
+              )}
+            </div>
+
+            {/* One row, never stacked; on the phone sheet it stays pinned below
+                the scrolling content. */}
+            <div
+              className={cn(
+                "grid grid-cols-2 gap-2 border-t pt-4",
+                isDesktop ? "sm:flex sm:justify-end" : "px-4 pb-4",
+              )}
+              data-testid="batch-footer"
             >
-              Cancelar
-            </Button>
-            <Button type="button" wrap disabled={isPending || total === 0} onClick={submit}>
-              {isPending ? "Guardando..." : "Marcar como enviadas"}
-            </Button>
+              <Button
+                type="button"
+                variant="outline"
+                wrap
+                disabled={isPending}
+                onClick={() => setOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                wrap
+                disabled={isPending || total === 0 || exportOutdated}
+                onClick={submit}
+              >
+                {isPending ? "Guardando..." : "Marcar como enviadas"}
+              </Button>
+            </div>
           </div>
         </DrawerDialogContent>
       </DrawerDialog>
