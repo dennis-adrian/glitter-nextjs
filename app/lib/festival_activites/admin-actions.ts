@@ -47,6 +47,7 @@ import {
 } from "@/app/lib/festival_activites/waitlist-promotion";
 import {
   countVariantSeats,
+  isActiveInActivity,
   lockVariant,
   notInActivity,
   wasRemovedFromActivity,
@@ -1580,6 +1581,15 @@ export async function notifyWaitlistEntry(
           ok: false as const,
           message:
             "El participante fue removido de esta actividad. Restauralo desde la lista de participantes.",
+        };
+      }
+
+      // An entry left behind by an earlier enrolment: inviting it would seat
+      // the profile in a second variant.
+      if (await isActiveInActivity(tx, entry.activityId, entry.userId)) {
+        return {
+          ok: false as const,
+          message: "El participante ya está inscrito en esta actividad",
         };
       }
 

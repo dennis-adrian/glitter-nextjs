@@ -41,6 +41,7 @@ import {
   type ParticipationPreviewData,
   countVariantSeats,
   eligibleWaitlistEntries,
+  isActiveInActivity,
   lockVariant,
   wasRemovedFromActivity,
 } from "@/app/lib/festival_activites/queries";
@@ -126,16 +127,29 @@ async function consumeOwnWaitlistEntry(
 }
 
 /**
- * Invites the next waiter to a seat once an enrolment committed. No job
- * retries it, so a failure is logged for staff to invite by hand.
+ * Most invitations one request sends: each one waits for an email, and a
+ * later enrolment attempt offers whatever seats remain.
+ */
+const MAX_SEAT_OFFERS = 5;
+
+/**
+ * Invites waiters to a variant's free seats once an enrolment committed, one
+ * per seat: a raised limit can free several at once, and nothing else would
+ * offer the rest. Each promotion counts again under the variant lock, so it
+ * stops once no seat is left. No job retries a failure, so it is logged for
+ * staff to invite by hand.
  */
 async function offerSeatOn(activityId: number, detailId: number) {
-  const promotion = await promoteFromWaitlist(activityId, detailId);
-  if (isPromotionFailure(promotion)) {
-    console.error("Could not offer a seat to the waitlist", {
-      activityId,
-      detailId,
-    });
+  for (let offer = 0; offer < MAX_SEAT_OFFERS; offer++) {
+    const promotion = await promoteFromWaitlist(activityId, detailId);
+    if (isPromotionFailure(promotion)) {
+      console.error("Could not offer a seat to the waitlist", {
+        activityId,
+        detailId,
+      });
+      return;
+    }
+    if (!promotion) return;
   }
 }
 
@@ -1499,6 +1513,11 @@ export async function enrollFromWaitlistInvitation(
       }
       if (await wasRemovedFromActivity(tx, entry.activityId, userId)) {
         throw new Error(removedParticipantMessage);
+      }
+      // Active in another variant: the invitation came from an entry an
+      // earlier enrolment left behind.
+      if (await isActiveInActivity(tx, entry.activityId, userId)) {
+        throw new Error("Ya estás inscrito en esta actividad");
       }
 
       // Verify capacity one more time

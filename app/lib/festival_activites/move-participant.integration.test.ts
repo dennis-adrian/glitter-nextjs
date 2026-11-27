@@ -946,7 +946,9 @@ describeDatabase("moving a participant between variants", () => {
     // Each enrolment reads the session once, at its start.
     currentProfile.mockResolvedValueOnce(first).mockResolvedValueOnce(second);
 
-    const results = await Promise.all(
+    // Both queue for the variant before either counts, so an enrolment that
+    // skipped the lock would take the seat too.
+    const results = await behindLock(variantLock(target), 2, () =>
       [first, second].map((profile) =>
         enrollInActivity(
           profile as BaseProfile,
@@ -2089,5 +2091,81 @@ describeDatabase("moving a participant between variants", () => {
       client.release();
     }
     expect((await waitlistRow(entry.id))?.notifiedForDetailId).toBe(source);
+  });
+
+  it("offers every seat a raised limit freed, not only the first", async () => {
+    const { activityId, participant } = fixture;
+    const variant = await createVariant(activityId, 1);
+    await enroll(variant, participant.id);
+    const first = await addToWaitlist((await createUser("first")).id, 1);
+    const second = await addToWaitlist((await createUser("second")).id, 2);
+    const third = await addToWaitlist((await createUser("third")).id, 3);
+    // Staff raise the limit by two, which invites nobody.
+    await integrationDb!
+      .update(festivalActivityDetails)
+      .set({ participationLimit: 3 })
+      .where(eq(festivalActivityDetails.id, variant));
+
+    expect(await enrollAs(await createUser("outsider"), variant)).toEqual({
+      success: false,
+      message: RESERVED_MESSAGE,
+    });
+
+    expect((await waitlistRow(first.id))?.notifiedForDetailId).toBe(variant);
+    expect((await waitlistRow(second.id))?.notifiedForDetailId).toBe(variant);
+    expect((await waitlistRow(third.id))?.notifiedAt).toBeNull();
+    expect(sendEmail).toHaveBeenCalledTimes(2);
+  });
+
+  it("neither invites nor seats a waitlist entry of a profile already enrolled", async () => {
+    const { festivalId, source, target } = fixture;
+    // An entry an enrolment from before this branch left behind.
+    const enrolled = await createUser("enrolled");
+    await enroll(target, enrolled.id);
+    const stale = await addToWaitlist(enrolled.id, 1);
+
+    expect(await notifyWaitlistEntry(stale.id, festivalId)).toEqual({
+      success: false,
+      message: "El participante ya está inscrito en esta actividad",
+    });
+    expect(sendEmail).not.toHaveBeenCalled();
+
+    // Invited anyway (by an older run), it still cannot take a second seat.
+    await integrationDb!
+      .update(festivalActivityWaitlist)
+      .set(invitedTo(source))
+      .where(eq(festivalActivityWaitlist.id, stale.id));
+    currentProfile.mockResolvedValue(enrolled);
+    expect(
+      await enrollFromWaitlistInvitation(enrolled.id, stale.id, festivalId),
+    ).toEqual({
+      success: false,
+      message: "Ya estás inscrito en esta actividad",
+    });
+    expect(await activeIn(source)).toBe(0);
+  });
+
+  it("invites by the category the freed variant has under its lock", async () => {
+    const { source, target, participant } = fixture;
+    const row = await enroll(source, participant.id);
+    // An illustration profile waits; staff make source gastronomy-only while
+    // the move's promotion waits for it.
+    const waiting = await addToWaitlist((await createUser("waiting")).id, 1);
+
+    const [move] = await behindLock(
+      variantLock(source),
+      1,
+      () => [moveActivityParticipant(row.id, target)],
+      (client) =>
+        client.query(
+          "update festival_activity_details set category = 'gastronomy' where id = $1",
+          [source],
+        ),
+    );
+
+    expect(move).toMatchObject({ success: true });
+    expect(move.invitedName).toBeUndefined();
+    expect((await waitlistRow(waiting.id))?.notifiedAt).toBeNull();
+    expect(sendEmail).not.toHaveBeenCalled();
   });
 });

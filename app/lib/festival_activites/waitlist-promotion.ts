@@ -12,7 +12,10 @@ import { and, count, eq, gt, isNull, sql } from "drizzle-orm";
 import ActivityWaitlistInvitationEmail from "@/app/emails/activity-waitlist-invitation";
 import { sendEmail } from "@/app/vendors/resend";
 import { assertSent } from "@/app/vendors/resend-result";
-import { eligibleWaitlistEntries } from "@/app/lib/festival_activites/queries";
+import {
+  eligibleWaitlistEntries,
+  lockVariant,
+} from "@/app/lib/festival_activites/queries";
 import { db } from "@/db";
 import {
   festivalActivities,
@@ -55,7 +58,6 @@ export async function promoteFromWaitlist(
   try {
     const [variant] = await db
       .select({
-        category: festivalActivityDetails.category,
         activityName: festivalActivities.name,
         waitlistWindowMinutes: festivalActivities.waitlistWindowMinutes,
         festivalId: festivalActivities.festivalId,
@@ -82,15 +84,11 @@ export async function promoteFromWaitlist(
 
     return await db.transaction(async (tx): Promise<WaitlistPromotion> => {
       // Locking the variant serializes promotions into it, so two freed-slot
-      // events cannot both count the same last seat. NO KEY UPDATE, as in
-      // lockVariant: held through the email send, it must not block the
-      // foreign-key checks of votes and enrolments into the variant.
-      const [capacity] = await tx
-        .select({ limit: festivalActivityDetails.participationLimit })
-        .from(festivalActivityDetails)
-        .where(eq(festivalActivityDetails.id, freedVariantId))
-        .for("no key update");
-      if (capacity?.limit) {
+      // events cannot both count the same last seat. Its limit and category
+      // are the ones read under the lock, in case staff just changed them.
+      const capacity = await lockVariant(tx, freedVariantId);
+      if (!capacity) return null;
+      if (capacity.participationLimit) {
         const now = new Date();
         const [{ activeCount }] = await tx
           .select({ activeCount: count() })
@@ -110,7 +108,9 @@ export async function promoteFromWaitlist(
               gt(festivalActivityWaitlist.expiresAt, now),
             ),
           );
-        if (activeCount + reservedCount >= capacity.limit) return null;
+        if (activeCount + reservedCount >= capacity.participationLimit) {
+          return null;
+        }
       }
 
       const notifiedAt = new Date();
@@ -130,7 +130,7 @@ export async function promoteFromWaitlist(
 						FROM ${festivalActivityWaitlist}
 						INNER JOIN ${users}
 							ON ${users.id} = ${festivalActivityWaitlist.userId}
-						WHERE ${eligibleWaitlistEntries(activityId, variant.category)}
+						WHERE ${eligibleWaitlistEntries(activityId, capacity.category)}
 						ORDER BY ${festivalActivityWaitlist.position} ASC
 						LIMIT 1
 						FOR UPDATE OF ${festivalActivityWaitlist} SKIP LOCKED

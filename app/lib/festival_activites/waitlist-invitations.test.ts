@@ -12,6 +12,7 @@ const {
   dbMock,
   currentProfile,
   wasRemovedFromActivity,
+  isActiveInActivity,
   lockVariant,
   countVariantSeats,
   eligibleWaitlistEntries,
@@ -19,6 +20,7 @@ const {
   dbMock: { transaction: vi.fn(), select: vi.fn(), update: vi.fn() },
   currentProfile: vi.fn(),
   wasRemovedFromActivity: vi.fn(),
+  isActiveInActivity: vi.fn(),
   lockVariant: vi.fn(),
   countVariantSeats: vi.fn(),
   eligibleWaitlistEntries: vi.fn(),
@@ -37,6 +39,7 @@ vi.mock("@/app/lib/users/helpers", () => ({
 vi.mock("@/app/lib/users/queries", () => ({ fetchAdminUsers: vi.fn() }));
 vi.mock("@/app/lib/festival_activites/queries", () => ({
   wasRemovedFromActivity,
+  isActiveInActivity,
   lockVariant,
   countVariantSeats,
   eligibleWaitlistEntries,
@@ -77,6 +80,7 @@ const accepted = async () => resendReply({ id: "email-1" }, 200);
 
 beforeEach(() => {
   vi.resetAllMocks();
+  isActiveInActivity.mockResolvedValue(false);
   // The locked variant as the server would read it: unlimited, any category.
   lockVariant.mockImplementation(async (_tx, id: number) => ({
     id,

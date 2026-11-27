@@ -294,6 +294,35 @@ export async function wasRemovedFromActivity(
   return removed !== undefined;
 }
 
+/**
+ * Whether the profile is active in any variant of the activity. A waitlist
+ * entry can outlive an enrolment (one from before enrolment consumed it), and
+ * inviting or seating it would put the profile in a second variant.
+ */
+export async function isActiveInActivity(
+  executor: DbOrTx,
+  activityId: number,
+  userId: number,
+): Promise<boolean> {
+  const [active] = await executor
+    .select({ id: festivalActivityParticipants.id })
+    .from(festivalActivityParticipants)
+    .innerJoin(
+      festivalActivityDetails,
+      eq(festivalActivityDetails.id, festivalActivityParticipants.detailsId),
+    )
+    .where(
+      and(
+        eq(festivalActivityDetails.activityId, activityId),
+        eq(festivalActivityParticipants.userId, userId),
+        isNull(festivalActivityParticipants.removedAt),
+      ),
+    )
+    .limit(1);
+
+  return active !== undefined;
+}
+
 /** The profile id that owns an activity participation, or null when there is none. */
 export async function fetchActivityParticipationOwnerId(
   participationId: number,
