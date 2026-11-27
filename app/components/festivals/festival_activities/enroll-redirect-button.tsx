@@ -19,7 +19,7 @@ import { Form } from "@/app/components/ui/form";
 import SubmitButton from "@/app/components/simple-submit-button";
 import {
   getUserWaitlistEntry,
-  isActivityDetailFull,
+  isActivityDetailFullFor,
   isProfileEnrolledInActivity,
 } from "@/app/lib/festival_sectors/helpers";
 import Image from "next/image";
@@ -93,8 +93,20 @@ export default function EnrollRedirectButton({
     );
   }
 
+  // A seat held by an invitation or owed to a waiter ahead is not open to the
+  // profile, so the first variant with one actually open is the one to send.
+  // Only variants of the profile's category count: the server refuses the
+  // others, and an open one of another category says nothing about whether
+  // this profile should queue.
+  const isFull = (detail: (typeof activity.details)[number]) =>
+    isActivityDetailFullFor(activity, detail, forProfile.id);
+  const eligibleDetails = activity.details.filter(
+    (detail) =>
+      detail.category === null || detail.category === forProfile.category,
+  );
   const activityDetail =
-    activity.details.find((d) => !isActivityDetailFull(d)) ??
+    eligibleDetails.find((d) => !isFull(d)) ??
+    eligibleDetails[0] ??
     activity.details[0];
 
   const action = form.handleSubmit(async (data) => {
@@ -125,6 +137,9 @@ export default function EnrollRedirectButton({
           }
         } else {
           toast.error(result.message);
+          // A refusal usually means this page's counts are stale (a seat
+          // was taken or reserved meanwhile), so show the current options.
+          router.refresh();
         }
       } catch (error) {
         toastActionError(error, "Error inesperado al procesar la inscripción");
@@ -138,10 +153,12 @@ export default function EnrollRedirectButton({
         const result = await joinActivityWaitlist(forProfile, activity.id);
         if (result.success) {
           toast.success(result.message);
-          router.refresh();
         } else {
           toast.error(result.message);
         }
+        // On a refusal too: "Todavía hay cupos" means a seat this page counted
+        // as held has opened (an invitation lapsed), so it should offer it.
+        router.refresh();
       } catch (error) {
         toastActionError(
           error,
@@ -197,7 +214,8 @@ export default function EnrollRedirectButton({
 
   const allVariantsFull =
     activity.type !== "sticker_print" &&
-    activity.details.every((d) => isActivityDetailFull(d));
+    eligibleDetails.length > 0 &&
+    eligibleDetails.every(isFull);
   const waitlistEntry = getUserWaitlistEntry(forProfile.id, activity);
   const hasActiveInvite =
     waitlistEntry?.notifiedAt &&
@@ -503,8 +521,9 @@ export default function EnrollRedirectButton({
   }
 
   if (
-    acceptedUserCategories.length > 0 &&
-    !acceptedUserCategories.includes(forProfile.category)
+    eligibleDetails.length === 0 ||
+    (acceptedUserCategories.length > 0 &&
+      !acceptedUserCategories.includes(forProfile.category))
   ) {
     return (
       <div className="flex flex-col gap-2">
