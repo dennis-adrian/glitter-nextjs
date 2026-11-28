@@ -81,6 +81,7 @@ const VOTER = { id: 7, role: "user", status: "verified" };
 const HOUR = 60 * 60 * 1000;
 const openVariant = {
   festivalId: 1,
+  isVisible: true,
   allowsVoting: true,
   votingStartDate: new Date(Date.now() - HOUR),
   votingEndDate: new Date(Date.now() + HOUR),
@@ -106,6 +107,16 @@ beforeEach(() => {
 });
 
 describe("addFestivalActivityVote", () => {
+  it("refuses a draft activity", async () => {
+    dbState.results = [[{ ...openVariant, isVisible: false }]];
+
+    expect(await addFestivalActivityVote(participantVote)).toEqual({
+      success: false,
+      message: "Esta actividad no tiene votación",
+    });
+    expect(dbState.inserted).toEqual([]);
+  });
+
   it("refuses an activity without voting", async () => {
     dbState.results = [[{ ...openVariant, allowsVoting: false }]];
 

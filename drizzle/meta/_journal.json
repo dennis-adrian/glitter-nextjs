@@ -2262,6 +2262,13 @@
       "when": 1795804370162,
       "tag": "0323_site_links_statistics",
       "breakpoints": true
+    },
+    {
+      "idx": 324,
+      "version": "7",
+      "when": 1795874285663,
+      "tag": "0324_festival_activity_visibility",
+      "breakpoints": true
     }
   ]
 }

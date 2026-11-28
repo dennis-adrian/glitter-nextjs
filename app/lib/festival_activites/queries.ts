@@ -127,7 +127,8 @@ function scopeActivityToViewer(
  * for the signed-in viewer. Profiles are narrowed to public fields, and a
  * viewer who is not staff gets only their own votes, waitlist entry and review
  * feedback, so the result is safe to pass to client components on pages any
- * signed-in user can open.
+ * signed-in user can open. A draft (`isVisible` false) is null for anyone but
+ * staff.
  */
 export async function fetchFestivalActivity(activityId: number) {
   const [viewer, activity] = await Promise.all([
@@ -137,6 +138,7 @@ export async function fetchFestivalActivity(activityId: number) {
   if (!activity) return null;
 
   const isStaff = viewer?.role === "admin" || viewer?.role === "festival_admin";
+  if (!activity.isVisible && !isStaff) return null;
   return isStaff
     ? activity
     : scopeActivityToViewer(activity, viewer?.id ?? null);
@@ -184,6 +186,23 @@ export async function lockVariant(tx: Tx, detailId: number) {
     .where(eq(festivalActivityDetails.id, detailId))
     .for("no key update");
   return variant;
+}
+
+/**
+ * Whether the activity is published (not a draft). False when it does not
+ * exist. Seat and waitlist writers call it under the lock that hiding the
+ * activity also takes, so the answer holds until their transaction ends.
+ */
+export async function isActivityVisible(
+  executor: DbOrTx,
+  activityId: number,
+): Promise<boolean> {
+  const [row] = await executor
+    .select({ isVisible: festivalActivities.isVisible })
+    .from(festivalActivities)
+    .where(eq(festivalActivities.id, activityId))
+    .limit(1);
+  return row?.isVisible ?? false;
 }
 
 /**

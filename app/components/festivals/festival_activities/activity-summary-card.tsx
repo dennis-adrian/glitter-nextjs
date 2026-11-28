@@ -2,6 +2,8 @@ import Link from "next/link";
 import { ChevronRightIcon, ClipboardListIcon, PencilIcon } from "lucide-react";
 
 import ActivityActionsDropdown from "@/app/components/festivals/festival_activities/activity-actions-dropdown";
+import ActivityVisibilityButton from "@/app/components/festivals/festival_activities/activity-visibility-button";
+import { Badge } from "@/app/components/ui/badge";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -106,13 +108,22 @@ export default function ActivitySummaryCard({
           href={detailHref}
           className="flex items-center justify-between gap-2 px-6 py-4 rounded-t-lg hover:bg-muted/50 transition-colors group"
         >
-          <CardTitle className="text-base font-semibold leading-tight group-hover:underline">
-            {activity.name}
-          </CardTitle>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <CardTitle className="min-w-0 break-words text-base font-semibold leading-tight group-hover:underline">
+              {activity.name}
+            </CardTitle>
+            {!activity.isVisible && <Badge variant="amber">Borrador</Badge>}
+          </div>
           <ChevronRightIcon className="w-4 h-4 text-muted-foreground shrink-0" />
         </Link>
       </CardHeader>
       <CardContent className="pt-0 space-y-3">
+        {!activity.isVisible && (
+          <p className="text-xs text-muted-foreground">
+            Solo el equipo puede verla. Publicala para que los participantes
+            puedan inscribirse.
+          </p>
+        )}
         <div className="space-y-3">
           {activity.details.map((detail, index) => {
             const activeParticipants = detail.participants.filter(
@@ -176,7 +187,7 @@ export default function ActivitySummaryCard({
             </p>
           )}
 
-        <div className="flex gap-2 pt-1">
+        <div className="flex flex-wrap gap-2 pt-1">
           <Button asChild variant="outline" size="sm">
             <Link
               href={`/dashboard/festivals/${festivalId}/festival_activities/${activity.id}/edit`}
@@ -192,6 +203,11 @@ export default function ActivitySummaryCard({
             <ClipboardListIcon className="w-4 h-4 mr-1" />
             Iniciar revisión
           </RedirectButton>
+          <ActivityVisibilityButton
+            activityId={activity.id}
+            festivalId={festivalId}
+            isVisible={activity.isVisible}
+          />
           <ActivityActionsDropdown
             festivalId={festivalId}
             activityId={activity.id}

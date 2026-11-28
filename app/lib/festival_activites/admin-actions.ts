@@ -35,6 +35,7 @@ import {
   lte,
   ne,
   or,
+  sql,
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/app/vendors/resend";
@@ -216,6 +217,8 @@ export async function createFestivalActivity(
           votingStartDate: data.votingStartDate,
           votingEndDate: data.votingEndDate,
           waitlistWindowMinutes: data.waitlistWindowMinutes ?? null,
+          // New activities start as drafts; staff publish them when ready.
+          isVisible: false,
         })
         .returning({ id: festivalActivities.id });
 
@@ -240,7 +243,8 @@ export async function createFestivalActivity(
 
     return {
       success: true,
-      message: "Actividad creada correctamente",
+      message:
+        "Actividad creada como borrador. Publicala cuando esté lista para los participantes.",
       activityId,
     };
   } catch (error) {
@@ -423,6 +427,109 @@ export async function updateFestivalActivity(
         : "Error al actualizar la actividad";
     console.error("Error updating festival activity:", error);
     return { success: false, message };
+  }
+}
+
+/**
+ * Publishes a draft activity, or hides a published one again. Hiding is
+ * refused once anyone has taken part (enrolled, even if later removed) or
+ * joined the waitlist: they would lose the activity from their pages.
+ *
+ * Hiding first locks every variant, in id order, and then the waitlist's
+ * advisory lock, which are the locks enrolment and the waitlist take before
+ * they re-read the visibility. So a seat or entry taken meanwhile is counted
+ * here, and anyone who waited on these locks sees the draft. Enrolment holds
+ * one variant at most and never waits on another, so the order cannot
+ * deadlock with it.
+ */
+export async function setFestivalActivityVisibility(
+  activityId: number,
+  festivalId: number,
+  isVisible: boolean,
+): Promise<{ success: boolean; message: string }> {
+  const profile = await getAdminProfile();
+  if (!profile) {
+    return {
+      success: false,
+      message: "No tienes permisos para realizar esta acción",
+    };
+  }
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      if (!isVisible) {
+        await tx
+          .select({ id: festivalActivityDetails.id })
+          .from(festivalActivityDetails)
+          .where(eq(festivalActivityDetails.activityId, activityId))
+          .orderBy(asc(festivalActivityDetails.id))
+          .for("no key update");
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(${activityId})`);
+
+        const [{ participants }] = await tx
+          .select({ participants: count() })
+          .from(festivalActivityParticipants)
+          .innerJoin(
+            festivalActivityDetails,
+            eq(
+              festivalActivityDetails.id,
+              festivalActivityParticipants.detailsId,
+            ),
+          )
+          .where(eq(festivalActivityDetails.activityId, activityId));
+        const [{ waiting }] = await tx
+          .select({ waiting: count() })
+          .from(festivalActivityWaitlist)
+          .where(eq(festivalActivityWaitlist.activityId, activityId));
+
+        if (participants > 0 || waiting > 0) {
+          return {
+            success: false,
+            message:
+              "No se puede ocultar una actividad que ya tiene participantes o lista de espera.",
+          };
+        }
+      }
+
+      const [updated] = await tx
+        .update(festivalActivities)
+        .set({ isVisible, updatedAt: new Date() })
+        .where(
+          and(
+            eq(festivalActivities.id, activityId),
+            eq(festivalActivities.festivalId, festivalId),
+          ),
+        )
+        .returning({ id: festivalActivities.id });
+
+      if (!updated) {
+        return { success: false, message: "Actividad no encontrada" };
+      }
+      return {
+        success: true,
+        message: isVisible
+          ? "Actividad publicada"
+          : "Actividad oculta. Ahora es un borrador.",
+      };
+    });
+
+    if (result.success) {
+      revalidatePath(`/dashboard/festivals/${festivalId}/festival_activities`);
+      revalidatePath(
+        `/dashboard/festivals/${festivalId}/festival_activities/${activityId}`,
+      );
+      revalidatePath("/(site)/(routes)/festivals/[id]", "layout");
+      revalidatePath("/(site)/(routes)/profiles/[profileId]", "layout");
+      revalidatePath("/(site)/(routes)/my_participations", "layout");
+      revalidatePath("/");
+    }
+    return result;
+  } catch (error) {
+    console.error("Error changing festival activity visibility:", error);
+    return {
+      success: false,
+      message: "No se pudo cambiar la visibilidad de la actividad",
+    };
   }
 }
 

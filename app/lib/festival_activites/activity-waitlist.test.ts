@@ -88,6 +88,7 @@ function fullActivity(
   return {
     id: 4,
     type,
+    isVisible: true,
     waitlistWindowMinutes: 60,
     details: [
       {
@@ -126,6 +127,21 @@ describe("joinActivityWaitlist", () => {
     expect(await joinActivityWaitlist(forProfile, 4)).toEqual({
       success: false,
       message: "No tenés permisos para inscribirte en esta actividad",
+    });
+    expect(dbState.transactions).toBe(0);
+  });
+
+  it("refuses a draft activity", async () => {
+    dbState.results = [
+      {
+        ...fullActivity("sticker_print", [{ userId: 30, removedAt: null }]),
+        isVisible: false,
+      },
+    ];
+
+    expect(await joinActivityWaitlist(forProfile, 4)).toEqual({
+      success: false,
+      message: "La actividad no existe",
     });
     expect(dbState.transactions).toBe(0);
   });

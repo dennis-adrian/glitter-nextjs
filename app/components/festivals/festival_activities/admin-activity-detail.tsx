@@ -1,5 +1,6 @@
 import ActivityDetails from "@/app/components/festivals/festival_activities/admin-activity-details";
 import PageBreadcrumbs from "@/app/components/navbar/page-breadcrumbs";
+import { Badge } from "@/app/components/ui/badge";
 import { ScreenTitle } from "@/app/components/navbar/screen-bar";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 
@@ -27,12 +28,21 @@ export default function AdminActivityDetail({
               : undefined
           }
         />
-        <h1
-          className="text-2xl font-bold leading-tight"
-          data-installed-title=""
-        >
-          {activity.name}
-        </h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1
+            className="min-w-0 break-words text-2xl font-bold leading-tight"
+            data-installed-title=""
+          >
+            {activity.name}
+          </h1>
+          {!activity.isVisible && <Badge variant="amber">Borrador</Badge>}
+        </div>
+        {!activity.isVisible && (
+          <p className="text-sm text-muted-foreground">
+            Borrador: solo el equipo puede ver esta actividad. Publicala para
+            que los participantes puedan verla e inscribirse.
+          </p>
+        )}
       </div>
       <ActivityDetails activity={activity} />
     </div>
