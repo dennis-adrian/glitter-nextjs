@@ -67,11 +67,24 @@ export const credentialRulesFormSchema = z.object({
 export type CredentialRulesFormInput = z.input<typeof credentialRulesFormSchema>;
 export type CredentialRulesFormValues = z.output<typeof credentialRulesFormSchema>;
 
+/**
+ * The rules the form was based on: the last ones it took as saved. The server
+ * refuses a save or a reset when the festival's rules are no longer these, so
+ * a form that has not seen another admin's save cannot silently undo it.
+ */
+const baseRules = z.object(credentialRulesFormSchema.shape, {
+  error: "Actualizá la página y revisá las reglas antes de guardar.",
+});
+
 export const saveCredentialRulesSchema = z.object({
   festivalId: id,
   rules: credentialRulesFormSchema,
+  baseRules,
 });
 export type SaveCredentialRulesInput = z.input<typeof saveCredentialRulesSchema>;
+
+export const resetCredentialRulesSchema = z.object({ festivalId: id, baseRules });
+export type ResetCredentialRulesInput = z.input<typeof resetCredentialRulesSchema>;
 
 export const festivalOnlySchema = z.object({ festivalId: id });
 export type FestivalOnlyInput = z.input<typeof festivalOnlySchema>;
@@ -81,12 +94,23 @@ export const RULE_FORM_CATEGORY_GROUPS = CATEGORY_CREDENTIAL_GROUPS;
 
 /* External overrides ------------------------------------------------ */
 
-export const externalCredentialQuantitySchema = z.object({
-  festivalId: id,
-  externalParticipantId: id,
-  /** Null returns to the per-stand rule. */
-  quantity: quantity(EXTERNAL_CREDENTIAL_QUANTITY_MAX).nullable(),
-});
+export const externalCredentialQuantitySchema = z
+  .object({
+    festivalId: id,
+    externalParticipantId: id,
+    /** Null returns to the per-stand rule. */
+    quantity: quantity(EXTERNAL_CREDENTIAL_QUANTITY_MAX).nullable(),
+    /**
+     * The stand count the screen showed when the total was typed. A total is
+     * refused when the participant's stands changed since, so it is never
+     * stored against a count the admin did not see. Not needed to clear.
+     */
+    standCount: quantity(POSTGRES_INT_MAX).optional(),
+  })
+  .refine((input) => input.quantity === null || input.standCount !== undefined, {
+    message: "Actualizá la página y revisá la cantidad.",
+    path: ["standCount"],
+  });
 export type ExternalCredentialQuantityInput = z.input<
   typeof externalCredentialQuantitySchema
 >;

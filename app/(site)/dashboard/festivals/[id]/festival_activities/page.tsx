@@ -23,7 +23,9 @@ export default async function Page({ params }: FestivalActivitiesPageProps) {
 
   const { id: festivalId } = validatedParams.data;
 
-  const festival = await fetchFullFestivalById(festivalId);
+  const festival = await fetchFullFestivalById(festivalId, {
+    includeHidden: true,
+  });
 
   if (!festival) {
     return notFound();

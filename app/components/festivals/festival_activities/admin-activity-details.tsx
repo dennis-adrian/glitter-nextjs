@@ -6,6 +6,7 @@ import { Button } from "@/app/components/ui/button";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 import { getMaterialConfig } from "@/app/lib/festival_activites/helpers";
 import ActivityParticipantsTable from "./activity-participants-table";
+import ActivityVisibilityButton from "./activity-visibility-button";
 import ActivityWaitlistTable from "./activity-waitlist-table";
 import type { MoveTargetVariant } from "./move-participant-variant-menu";
 
@@ -58,6 +59,11 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
           {totalParticipants !== 1 ? "s" : ""}
         </h2>
         <div className="flex flex-wrap gap-2">
+          <ActivityVisibilityButton
+            activityId={activity.id}
+            festivalId={activity.festivalId}
+            isVisible={activity.isVisible}
+          />
           <Button asChild variant="outline" size="sm">
             <Link
               href={`/dashboard/festivals/${activity.festivalId}/festival_activities/${activity.id}/edit`}

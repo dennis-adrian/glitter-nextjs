@@ -73,6 +73,7 @@ function storedActivity() {
   return {
     id: 4,
     festivalId: 1,
+    isVisible: true,
     details: [
       {
         id: 3,
@@ -171,6 +172,27 @@ describe("fetchFestivalActivity", () => {
     profileMock.mockResolvedValue(profile);
 
     expect(await fetchFestivalActivity(4)).toEqual(storedActivity());
+  });
+
+  it.each([
+    ["a signed-out visitor", null],
+    ["a participant", VIEWER],
+  ])("hides a draft activity from %s", async (_, profile) => {
+    profileMock.mockResolvedValue(profile);
+    findFirstMock.mockResolvedValue({ ...storedActivity(), isVisible: false });
+
+    expect(await fetchFestivalActivity(4)).toBeNull();
+  });
+
+  it.each([
+    ["a festival admin", FESTIVAL_ADMIN],
+    ["an admin", ADMIN],
+  ])("shows a draft activity to %s", async (_, profile) => {
+    profileMock.mockResolvedValue(profile);
+    const draft = { ...storedActivity(), isVisible: false };
+    findFirstMock.mockResolvedValue(draft);
+
+    expect(await fetchFestivalActivity(4)).toEqual(draft);
   });
 
   it("returns null for a missing activity", async () => {

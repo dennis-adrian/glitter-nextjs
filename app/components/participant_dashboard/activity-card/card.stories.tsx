@@ -33,6 +33,7 @@ function activity(
     votingEndDate: null,
     accessLevel: "public",
     waitlistWindowMinutes: 60,
+    isVisible: true,
     createdAt: now,
     updatedAt: now,
     details: [

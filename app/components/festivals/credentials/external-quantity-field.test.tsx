@@ -18,14 +18,15 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function field(override: number | null) {
+function field(override: number | null, standCount = 2) {
   return (
     <ExternalQuantityField
       festivalId={1}
       externalParticipantId={7}
       name="Refugio Huellitas"
       override={override}
-      defaultQuantity={4}
+      defaultQuantity={2 * standCount}
+      standCount={standCount}
     />
   );
 }
@@ -67,6 +68,7 @@ describe("ExternalQuantityField", () => {
         festivalId: 1,
         externalParticipantId: 7,
         quantity: 6,
+        standCount: 2,
       }),
     );
     expect(setExternalCredentialQuantity).toHaveBeenCalledTimes(1);
@@ -115,6 +117,7 @@ describe("ExternalQuantityField", () => {
       festivalId: 1,
       externalParticipantId: 7,
       quantity: 8,
+      standCount: 2,
     });
     expect(toast.error).not.toHaveBeenCalled();
     expect(toast.warning).not.toHaveBeenCalled();
@@ -205,6 +208,167 @@ describe("ExternalQuantityField", () => {
     finish({ success: false, message: "No se pudo." });
     await waitFor(() => expect(input().value).toBe("4"));
     expect(toast.error).toHaveBeenCalledWith("No se pudo.");
+  });
+
+  it("keeps the draft, marked, when the stands changed under it, and saves it after a refresh", async () => {
+    setExternalCredentialQuantity.mockResolvedValueOnce({
+      success: false,
+      message: "Cambió la cantidad de espacios de Refugio Huellitas mientras editabas.",
+      standsChanged: true,
+    });
+    setExternalCredentialQuantity.mockResolvedValue({ success: true, message: "ok" });
+    const { rerender } = render(field(3));
+    fireEvent.change(input(), { target: { value: "6" } });
+    fireEvent.blur(input());
+    await waitFor(() => expect(setExternalCredentialQuantity).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(input().disabled).toBe(false));
+    expect(toast.error).toHaveBeenCalledWith(
+      "Cambió la cantidad de espacios de Refugio Huellitas mientras editabas.",
+    );
+    expect(input().value).toBe("6");
+    expect(input().getAttribute("aria-invalid")).toBe("true");
+
+    // The refresh brings 3 stands; the same total is sent against them.
+    rerender(field(3, 3));
+    expect(input().value).toBe("6");
+    fireEvent.blur(input());
+    await waitFor(() => expect(setExternalCredentialQuantity).toHaveBeenCalledTimes(2));
+    expect(setExternalCredentialQuantity).toHaveBeenLastCalledWith({
+      festivalId: 1,
+      externalParticipantId: 7,
+      quantity: 6,
+      standCount: 3,
+    });
+    await waitFor(() => expect(input().getAttribute("aria-invalid")).toBeNull());
+  });
+
+  it("sends the stand count a draft was typed against, not one a refresh brought", async () => {
+    setExternalCredentialQuantity.mockResolvedValueOnce({
+      success: false,
+      message: "Cambió la cantidad de espacios de Refugio Huellitas mientras editabas.",
+      standsChanged: true,
+    });
+    setExternalCredentialQuantity.mockResolvedValue({ success: true, message: "ok" });
+    const { rerender } = render(field(null, 1));
+    fireEvent.change(input(), { target: { value: "1" } });
+    rerender(field(null, 2));
+    expect(input().value).toBe("1");
+    fireEvent.blur(input());
+    await waitFor(() => expect(setExternalCredentialQuantity).toHaveBeenCalledTimes(1));
+    expect(setExternalCredentialQuantity).toHaveBeenCalledWith({
+      festivalId: 1,
+      externalParticipantId: 7,
+      quantity: 1,
+      standCount: 1,
+    });
+    await waitFor(() => expect(input().disabled).toBe(false));
+    expect(toast.error).toHaveBeenCalledWith(
+      "Cambió la cantidad de espacios de Refugio Huellitas mientras editabas.",
+    );
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(input().value).toBe("1");
+    expect(input().getAttribute("aria-invalid")).toBe("true");
+    expect(input().className).toContain("border-amber-500");
+
+    // Warned, the admin confirms the same total against the count shown.
+    rerender(field(null, 2));
+    fireEvent.blur(input());
+    await waitFor(() => expect(setExternalCredentialQuantity).toHaveBeenCalledTimes(2));
+    expect(setExternalCredentialQuantity).toHaveBeenLastCalledWith({
+      festivalId: 1,
+      externalParticipantId: 7,
+      quantity: 1,
+      standCount: 2,
+    });
+    await waitFor(() => expect(input().getAttribute("aria-invalid")).toBeNull());
+  });
+
+  it("does not move a draft's stand count before a refusal", async () => {
+    setExternalCredentialQuantity.mockResolvedValue({ success: true, message: "ok" });
+    const { rerender } = render(field(3, 2));
+    fireEvent.change(input(), { target: { value: "6" } });
+    rerender(field(3, 3));
+    rerender(field(3, 4));
+    fireEvent.keyDown(input(), { key: "Enter" });
+    await waitFor(() =>
+      expect(setExternalCredentialQuantity).toHaveBeenCalledWith({
+        festivalId: 1,
+        externalParticipantId: 7,
+        quantity: 6,
+        standCount: 2,
+      }),
+    );
+  });
+
+  it("waits for the refreshed count after a refusal that arrives first", async () => {
+    // The realistic order: the refusal lands while the prop still shows the
+    // old count, and router.refresh brings the new one afterwards.
+    setExternalCredentialQuantity.mockResolvedValueOnce({
+      success: false,
+      message: "Cambió la cantidad de espacios.",
+      standsChanged: true,
+    });
+    setExternalCredentialQuantity.mockResolvedValue({ success: true, message: "ok" });
+    const { rerender } = render(field(3, 1));
+    fireEvent.change(input(), { target: { value: "6" } });
+    fireEvent.blur(input());
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(input().disabled).toBe(false));
+    rerender(field(3, 1));
+    rerender(field(3, 3));
+    fireEvent.blur(input());
+    await waitFor(() => expect(setExternalCredentialQuantity).toHaveBeenCalledTimes(2));
+    expect(setExternalCredentialQuantity).toHaveBeenLastCalledWith({
+      festivalId: 1,
+      externalParticipantId: 7,
+      quantity: 6,
+      standCount: 3,
+    });
+  });
+
+  it("follows the stand count while untouched and sends the current one", async () => {
+    setExternalCredentialQuantity.mockResolvedValue({ success: true, message: "ok" });
+    const { rerender } = render(field(3, 1));
+    rerender(field(3, 3));
+    fireEvent.change(input(), { target: { value: "6" } });
+    fireEvent.blur(input());
+    await waitFor(() =>
+      expect(setExternalCredentialQuantity).toHaveBeenCalledWith({
+        festivalId: 1,
+        externalParticipantId: 7,
+        quantity: 6,
+        standCount: 3,
+      }),
+    );
+  });
+
+  it("clears without a stand count after the stands changed under the draft", async () => {
+    setExternalCredentialQuantity.mockResolvedValue({ success: true, message: "ok" });
+    const { rerender } = render(field(3, 1));
+    fireEvent.change(input(), { target: { value: "" } });
+    rerender(field(3, 2));
+    fireEvent.blur(input());
+    await waitFor(() =>
+      expect(setExternalCredentialQuantity).toHaveBeenCalledWith({
+        festivalId: 1,
+        externalParticipantId: 7,
+        quantity: null,
+      }),
+    );
+  });
+
+  it("clears without a stand count", async () => {
+    setExternalCredentialQuantity.mockResolvedValue({ success: true, message: "ok" });
+    render(field(3));
+    fireEvent.change(input(), { target: { value: "" } });
+    fireEvent.blur(input());
+    await waitFor(() =>
+      expect(setExternalCredentialQuantity).toHaveBeenCalledWith({
+        festivalId: 1,
+        externalParticipantId: 7,
+        quantity: null,
+      }),
+    );
   });
 
   it("goes back to the current saved total after an invalid number", () => {

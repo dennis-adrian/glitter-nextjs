@@ -127,7 +127,8 @@ function scopeActivityToViewer(
  * for the signed-in viewer. Profiles are narrowed to public fields, and a
  * viewer who is not staff gets only their own votes, waitlist entry and review
  * feedback, so the result is safe to pass to client components on pages any
- * signed-in user can open.
+ * signed-in user can open. A draft (`isVisible` false) is null for anyone but
+ * staff.
  */
 export async function fetchFestivalActivity(activityId: number) {
   const [viewer, activity] = await Promise.all([
@@ -137,6 +138,7 @@ export async function fetchFestivalActivity(activityId: number) {
   if (!activity) return null;
 
   const isStaff = viewer?.role === "admin" || viewer?.role === "festival_admin";
+  if (!activity.isVisible && !isStaff) return null;
   return isStaff
     ? activity
     : scopeActivityToViewer(activity, viewer?.id ?? null);
@@ -184,6 +186,30 @@ export async function lockVariant(tx: Tx, detailId: number) {
     .where(eq(festivalActivityDetails.id, detailId))
     .for("no key update");
   return variant;
+}
+
+/**
+ * Whether the activity is published (not a draft), for a writer about to give
+ * a profile a seat or a waitlist entry in it. False when it does not exist.
+ *
+ * Reads the row FOR KEY SHARE, held until `tx` ends. Hiding the activity
+ * locks it FOR UPDATE before counting who took part, so the two serialize: a
+ * writer that read it published commits first and is counted, and one that
+ * waited reads the draft. KEY SHARE conflicts with nothing else staff do to
+ * the row (an edit takes NO KEY UPDATE), so a writer holding a variant lock
+ * never waits here on a transaction that waits for that variant.
+ */
+export async function isActivityVisible(
+  tx: Tx,
+  activityId: number,
+): Promise<boolean> {
+  const [row] = await tx
+    .select({ isVisible: festivalActivities.isVisible })
+    .from(festivalActivities)
+    .where(eq(festivalActivities.id, activityId))
+    .limit(1)
+    .for("key share");
+  return row?.isVisible ?? false;
 }
 
 /**
