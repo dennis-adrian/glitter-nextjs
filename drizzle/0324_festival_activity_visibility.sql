@@ -1,0 +1,1 @@
+ALTER TABLE "festival_activities" ADD COLUMN "is_visible" boolean DEFAULT true NOT NULL;

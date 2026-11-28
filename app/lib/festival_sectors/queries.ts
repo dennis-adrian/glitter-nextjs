@@ -14,6 +14,7 @@ import { FullFestival } from "@/app/lib/festivals/definitions";
 import { withMembershipReservationsBySector } from "@/app/lib/reservations/stand-occupancy";
 import { db } from "@/db";
 import {
+  festivalActivities,
   festivals,
   festivalSectors,
   profileSubcategories,
@@ -263,9 +264,13 @@ export async function fetchFestivalSectorsByUserCategory(
  * participant's proofs and every vote. Participant pages that hand it to
  * client components strip the roster and scope the activities to the profile
  * first (`withoutParticipantRoster`).
+ *
+ * Draft activities (`isVisible` false) are left out unless `includeHidden`,
+ * which only staff screens pass.
  */
 export async function fetchFullFestivalById(
   festivalId: number,
+  { includeHidden = false }: { includeHidden?: boolean } = {},
 ): Promise<FullFestival | undefined | null> {
   try {
     return await db.query.festivals.findFirst({
@@ -298,6 +303,9 @@ export async function fetchFullFestivalById(
           },
         },
         festivalActivities: {
+          where: includeHidden
+            ? undefined
+            : eq(festivalActivities.isVisible, true),
           with: {
             details: {
               orderBy: (details, { asc }) => [asc(details.id)],

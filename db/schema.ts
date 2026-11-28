@@ -2704,6 +2704,11 @@ export const festivalActivities = pgTable(
     proofUploadLimitDate: timestamp("proof_upload_limit_date"),
     accessLevel: accessLevelEnum("access_level").default("public").notNull(),
     waitlistWindowMinutes: integer("waitlist_window_minutes"),
+    /**
+     * False while the activity is a draft: only staff see it, and nobody can
+     * enroll in it or join its waitlist. Staff publish it when it is ready.
+     */
+    isVisible: boolean("is_visible").default(true).notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

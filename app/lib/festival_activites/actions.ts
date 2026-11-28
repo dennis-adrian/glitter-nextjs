@@ -42,6 +42,7 @@ import {
   countVariantSeats,
   eligibleWaitlistEntries,
   isActiveInActivity,
+  isActivityVisible,
   lockProfileInActivity,
   lockVariant,
   wasRemovedFromActivity,
@@ -227,6 +228,7 @@ export const addFestivalActivityVote = async (
           allowsVoting: festivalActivities.allowsVoting,
           votingStartDate: festivalActivities.votingStartDate,
           votingEndDate: festivalActivities.votingEndDate,
+          isVisible: festivalActivities.isVisible,
         })
         .from(festivalActivityDetails)
         .innerJoin(
@@ -236,7 +238,7 @@ export const addFestivalActivityVote = async (
         .where(eq(festivalActivityDetails.id, activityVariantId))
         .limit(1);
 
-      if (!variant || !variant.allowsVoting) {
+      if (!variant || !variant.isVisible || !variant.allowsVoting) {
         throw new VoteRejectedError("Esta actividad no tiene votación");
       }
 
@@ -406,7 +408,7 @@ export async function enrollInActivity(
         .where(eq(festivalActivityDetails.activityId, activity.id)),
     ]);
 
-    if (!dbActivity) {
+    if (!dbActivity || !dbActivity.isVisible) {
       return { success: false, message: "Actividad no encontrada" };
     }
 
@@ -474,6 +476,12 @@ export async function enrollInActivity(
           success: false,
           message: "No tenés permisos para inscribirte en esta actividad",
         };
+      }
+      // Again inside the transaction, holding the activity row until the
+      // commit (see `isActivityVisible`): a draft read here is final, and a
+      // seat taken here stops the activity from being hidden.
+      if (!(await isActivityVisible(tx, dbActivity.id))) {
+        return { success: false, message: "Actividad no encontrada" };
       }
       const limit =
         variant?.participationLimit && variant.participationLimit > 0
@@ -696,6 +704,9 @@ export async function enrollInBestStandActivity(
         };
       }
 
+      // FOR UPDATE locks the activity row too, which a hide also locks before
+      // counting: one waits for the other, and the visibility condition is
+      // re-checked on the row as the hide left it.
       const variantResult = await tx.execute(
         sql`
 					SELECT
@@ -709,6 +720,7 @@ export async function enrollInBestStandActivity(
 						AND ${festivalActivityDetails.category} = ${activeProfile.category}
 						AND ${festivalActivities.festivalId} = ${festivalId}
 						AND ${festivalActivities.type} = 'best_stand'
+						AND ${festivalActivities.isVisible} = true
 					LIMIT 1
 					FOR UPDATE
 				`,
@@ -1180,7 +1192,7 @@ export async function joinActivityWaitlist(
       },
     });
 
-    if (!activity) {
+    if (!activity || !activity.isVisible) {
       return { success: false, message: "La actividad no existe" };
     }
 
@@ -1265,6 +1277,17 @@ export async function joinActivityWaitlist(
 
         // Serialize position assignment for each activity within this tx.
         await tx.execute(sql`SELECT pg_advisory_xact_lock(${activityId})`);
+
+        // Held until the commit (see `isActivityVisible`): a draft read here
+        // is final, and an entry added here stops the activity from being
+        // hidden.
+        if (!(await isActivityVisible(tx, activityId))) {
+          return {
+            success: false as const,
+            message: "La actividad no existe",
+            retry: false as const,
+          };
+        }
 
         const [maxRow] = await tx
           .select({

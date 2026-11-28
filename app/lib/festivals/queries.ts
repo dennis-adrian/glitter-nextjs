@@ -93,7 +93,9 @@ export async function fetchFestival({
             stands: true,
           },
         },
+        // Drafts are staff-only, and no caller of this one is a staff screen.
         festivalActivities: {
+          where: eq(festivalActivities.isVisible, true),
           with: {
             details: {
               with: {
@@ -122,13 +124,18 @@ export async function fetchFestival({
  * (with staff feedback), every vote with its voter, and the waitlists. Pages
  * that hand them to a participant's client components pass each through
  * `scopeActivityToViewer` first; public pages derive only what they render.
+ * Drafts (`isVisible` false) are left out: every caller serves participants or
+ * the public.
  */
 export async function fetchFestivalActivitiesByFestivalId(
   festivalId: number,
 ): Promise<FestivalActivityWithDetailsAndParticipants[]> {
   try {
     return (await db.query.festivalActivities.findMany({
-      where: eq(festivalActivities.festivalId, festivalId),
+      where: and(
+        eq(festivalActivities.festivalId, festivalId),
+        eq(festivalActivities.isVisible, true),
+      ),
       with: {
         details: {
           with: {

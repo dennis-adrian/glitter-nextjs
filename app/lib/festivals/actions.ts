@@ -761,7 +761,10 @@ export async function fetchPublicFestivalPage(
     with: {
       festivalDates: true,
       festivalActivities: {
-        where: eq(festivalActivities.accessLevel, "public"),
+        where: and(
+          eq(festivalActivities.accessLevel, "public"),
+          eq(festivalActivities.isVisible, true),
+        ),
       },
     },
   });
