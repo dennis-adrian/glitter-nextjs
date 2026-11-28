@@ -195,9 +195,12 @@ export async function lockVariant(tx: Tx, detailId: number) {
  * Reads the row FOR KEY SHARE, held until `tx` ends. Hiding the activity
  * locks it FOR UPDATE before counting who took part, so the two serialize: a
  * writer that read it published commits first and is counted, and one that
- * waited reads the draft. KEY SHARE conflicts with nothing else staff do to
- * the row (an edit takes NO KEY UPDATE), so a writer holding a variant lock
- * never waits here on a transaction that waits for that variant.
+ * waited reads the draft.
+ *
+ * Call it before locking a variant. A transaction that locks the activity
+ * row and then a variant (deleting the festival cascades that way) would
+ * otherwise deadlock with a writer holding the variant. An edit takes only
+ * NO KEY UPDATE on the row, which KEY SHARE does not wait for.
  */
 export async function isActivityVisible(
   tx: Tx,

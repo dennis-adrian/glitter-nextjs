@@ -451,6 +451,41 @@ describeDatabase("draft festival activities", () => {
     ).toEqual([]);
   });
 
+  it("locks the activity before the variant when enrolling", async () => {
+    const { festivalId, activityId, variantId, participant } = fixture;
+    await setFestivalActivityVisibility(activityId, festivalId, true);
+
+    // Holds the variant, so the enrolment stops at its variant lock.
+    const variantHolder = await pool!.connect();
+    const activityProbe = await pool!.connect();
+    try {
+      await variantHolder.query("begin");
+      await variantHolder.query(
+        "select id from festival_activity_details where id = $1 for no key update",
+        [variantId],
+      );
+
+      currentProfile.mockResolvedValue(participant);
+      const enrolling = enroll(participant);
+      await waitForLockWaiter("%festival_activity_details%for no key update%");
+
+      // The enrolment already holds the activity row: deleting the festival
+      // (activity row, then variants) waits for it instead of deadlocking.
+      await expect(
+        activityProbe.query(
+          "select id from festival_activities where id = $1 for update nowait",
+          [activityId],
+        ),
+      ).rejects.toMatchObject({ code: "55P03" });
+
+      await variantHolder.query("rollback");
+      expect(await enrolling).toMatchObject({ success: true });
+    } finally {
+      variantHolder.release();
+      activityProbe.release();
+    }
+  });
+
   it("refuses a participant and an activity of another festival", async () => {
     const { festivalId, activityId, participant } = fixture;
 

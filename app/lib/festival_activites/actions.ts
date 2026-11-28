@@ -460,6 +460,13 @@ export async function enrollInActivity(
 
     let offerSeatToWaitlist = false;
     const result = await db.transaction(async (tx) => {
+      // Again inside the transaction, holding the activity row until the
+      // commit, and before the variant lock (see `isActivityVisible`): a
+      // draft read here is final, and a seat taken here stops the activity
+      // from being hidden.
+      if (!(await isActivityVisible(tx, dbActivity.id))) {
+        return { success: false, message: "Actividad no encontrada" };
+      }
       // Counting under the variant lock keeps a concurrent enrolment, move
       // or restore from taking the same last seat. The limit is the one
       // read under it, never the one read above: staff may have just set
@@ -476,12 +483,6 @@ export async function enrollInActivity(
           success: false,
           message: "No tenés permisos para inscribirte en esta actividad",
         };
-      }
-      // Again inside the transaction, holding the activity row until the
-      // commit (see `isActivityVisible`): a draft read here is final, and a
-      // seat taken here stops the activity from being hidden.
-      if (!(await isActivityVisible(tx, dbActivity.id))) {
-        return { success: false, message: "Actividad no encontrada" };
       }
       const limit =
         variant?.participationLimit && variant.participationLimit > 0

@@ -35,6 +35,7 @@ import {
   lte,
   ne,
   or,
+  sql,
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/app/vendors/resend";
@@ -440,6 +441,12 @@ export async function updateFestivalActivity(
  * one that got there first is counted here, and one that waited sees the
  * draft. That covers every variant, including one staff add meanwhile. The
  * hide takes no other lock, so it cannot be part of a deadlock.
+ *
+ * The writers that skip that check (accepting a waitlist invitation, staff
+ * promoting the waitlist, restores and moves) start from a waitlist entry or
+ * a participation, and turn an entry into a participation atomically. So
+ * both are checked in one statement, under one snapshot: it sees the entry
+ * or the participation, never neither.
  */
 export async function setFestivalActivityVisibility(
   activityId: number,
@@ -471,23 +478,23 @@ export async function setFestivalActivityVisibility(
           return { success: false, message: "Actividad no encontrada" };
         }
 
-        const [{ participants }] = await tx
-          .select({ participants: count() })
-          .from(festivalActivityParticipants)
-          .innerJoin(
-            festivalActivityDetails,
-            eq(
-              festivalActivityDetails.id,
-              festivalActivityParticipants.detailsId,
-            ),
-          )
-          .where(eq(festivalActivityDetails.activityId, activityId));
-        const [{ waiting }] = await tx
-          .select({ waiting: count() })
-          .from(festivalActivityWaitlist)
-          .where(eq(festivalActivityWaitlist.activityId, activityId));
+        const { rows } = await tx.execute<{ takenPart: boolean }>(sql`
+          SELECT
+            EXISTS (
+              SELECT 1
+              FROM ${festivalActivityParticipants}
+              INNER JOIN ${festivalActivityDetails}
+                ON ${festivalActivityDetails.id} = ${festivalActivityParticipants.detailsId}
+              WHERE ${festivalActivityDetails.activityId} = ${activityId}
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM ${festivalActivityWaitlist}
+              WHERE ${festivalActivityWaitlist.activityId} = ${activityId}
+            ) AS "takenPart"
+        `);
 
-        if (participants > 0 || waiting > 0) {
+        if (rows[0]?.takenPart) {
           return {
             success: false,
             message:
