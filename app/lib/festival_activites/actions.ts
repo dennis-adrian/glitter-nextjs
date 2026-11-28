@@ -477,9 +477,9 @@ export async function enrollInActivity(
           message: "No tenés permisos para inscribirte en esta actividad",
         };
       }
-      // Again under the variant lock: `setFestivalActivityVisibility` takes
-      // every variant's lock before hiding the activity, so a draft read here
-      // is final and a seat taken here stops the activity from being hidden.
+      // Again inside the transaction, holding the activity row until the
+      // commit (see `isActivityVisible`): a draft read here is final, and a
+      // seat taken here stops the activity from being hidden.
       if (!(await isActivityVisible(tx, dbActivity.id))) {
         return { success: false, message: "Actividad no encontrada" };
       }
@@ -704,6 +704,9 @@ export async function enrollInBestStandActivity(
         };
       }
 
+      // FOR UPDATE locks the activity row too, which a hide also locks before
+      // counting: one waits for the other, and the visibility condition is
+      // re-checked on the row as the hide left it.
       const variantResult = await tx.execute(
         sql`
 					SELECT
@@ -1273,10 +1276,11 @@ export async function joinActivityWaitlist(
         }
 
         // Serialize position assignment for each activity within this tx.
-        // Hiding the activity takes this lock too, so the visibility read
-        // after it is final, and an entry added here keeps it published.
         await tx.execute(sql`SELECT pg_advisory_xact_lock(${activityId})`);
 
+        // Held until the commit (see `isActivityVisible`): a draft read here
+        // is final, and an entry added here stops the activity from being
+        // hidden.
         if (!(await isActivityVisible(tx, activityId))) {
           return {
             success: false as const,

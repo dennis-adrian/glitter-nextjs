@@ -35,7 +35,6 @@ import {
   lte,
   ne,
   or,
-  sql,
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/app/vendors/resend";
@@ -435,12 +434,12 @@ export async function updateFestivalActivity(
  * refused once anyone has taken part (enrolled, even if later removed) or
  * joined the waitlist: they would lose the activity from their pages.
  *
- * Hiding first locks every variant, in id order, and then the waitlist's
- * advisory lock, which are the locks enrolment and the waitlist take before
- * they re-read the visibility. So a seat or entry taken meanwhile is counted
- * here, and anyone who waited on these locks sees the draft. Enrolment holds
- * one variant at most and never waits on another, so the order cannot
- * deadlock with it.
+ * Hiding locks the activity row FOR UPDATE before counting, and holds it
+ * through the update. Every writer that seats a profile or adds a waitlist
+ * entry re-reads the visibility FOR KEY SHARE first (`isActivityVisible`), so
+ * one that got there first is counted here, and one that waited sees the
+ * draft. That covers every variant, including one staff add meanwhile. The
+ * hide takes no other lock, so it cannot be part of a deadlock.
  */
 export async function setFestivalActivityVisibility(
   activityId: number,
@@ -458,13 +457,19 @@ export async function setFestivalActivityVisibility(
   try {
     const result = await db.transaction(async (tx) => {
       if (!isVisible) {
-        await tx
-          .select({ id: festivalActivityDetails.id })
-          .from(festivalActivityDetails)
-          .where(eq(festivalActivityDetails.activityId, activityId))
-          .orderBy(asc(festivalActivityDetails.id))
-          .for("no key update");
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(${activityId})`);
+        const [locked] = await tx
+          .select({ id: festivalActivities.id })
+          .from(festivalActivities)
+          .where(
+            and(
+              eq(festivalActivities.id, activityId),
+              eq(festivalActivities.festivalId, festivalId),
+            ),
+          )
+          .for("update");
+        if (!locked) {
+          return { success: false, message: "Actividad no encontrada" };
+        }
 
         const [{ participants }] = await tx
           .select({ participants: count() })

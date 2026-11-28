@@ -147,6 +147,26 @@ function enroll(profile: UserRow) {
   );
 }
 
+/**
+ * Resolves once some backend waits on a row lock with a statement matching
+ * `pattern`, so a test can let the other transaction go on knowing it is
+ * blocked rather than merely not started.
+ */
+async function waitForLockWaiter(pattern: string) {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const { rows } = await pool!.query<{ waiting: number }>(
+      `select count(*)::int as waiting from pg_stat_activity
+       where datname = current_database()
+         and wait_event_type = 'Lock'
+         and query ilike $1`,
+      [pattern],
+    );
+    if (rows[0].waiting > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`No backend waited on a lock for ${pattern}`);
+}
+
 describeDatabase("draft festival activities", () => {
   beforeAll(async () => {
     process.env.POSTGRES_URL = testDatabaseUrl;
@@ -187,6 +207,8 @@ describeDatabase("draft festival activities", () => {
         name: `Activity visibility ${Date.now()}`,
         status: "active",
         festivalType: "glitter",
+        // Out of the automatic "reservations open" scan other suites run.
+        reservationsOpenNoticeAuto: false,
       })
       .returning({ id: festivals.id });
     festivalIds.push(festival.id);
@@ -339,6 +361,94 @@ describeDatabase("draft festival activities", () => {
       await setFestivalActivityVisibility(activityId, festivalId, false),
     ).toMatchObject({ success: false });
     expect(await isVisible(activityId)).toBe(true);
+  });
+
+  it("waits for an enrolment in progress and then refuses to hide", async () => {
+    const { festivalId, activityId, variantId, participant } = fixture;
+    await setFestivalActivityVisibility(activityId, festivalId, true);
+
+    // An enrolment that has read the activity published, as
+    // `isActivityVisible` does, and has not committed its seat yet.
+    const enrolment = await pool!.connect();
+    try {
+      await enrolment.query("begin");
+      await enrolment.query(
+        "select is_visible from festival_activities where id = $1 for key share",
+        [activityId],
+      );
+
+      const hiding = setFestivalActivityVisibility(
+        activityId,
+        festivalId,
+        false,
+      );
+      await waitForLockWaiter("%festival_activities%for update%");
+
+      await enrolment.query(
+        "insert into festival_activity_participants (details_id, user_id) values ($1, $2)",
+        [variantId, participant.id],
+      );
+      await enrolment.query("commit");
+
+      expect(await hiding).toMatchObject({ success: false });
+      expect(await isVisible(activityId)).toBe(true);
+    } finally {
+      enrolment.release();
+    }
+  });
+
+  it("makes an enrolment that waited on a hide see the draft", async () => {
+    const { festivalId, activityId, variantId, participant } = fixture;
+    await setFestivalActivityVisibility(activityId, festivalId, true);
+    // A variant added after the activity was published: hiding covers it,
+    // since it locks the activity rather than the variants it can see.
+    const [newVariant] = await integrationDb!
+      .insert(festivalActivityDetails)
+      .values({ activityId, participationLimit: 5 })
+      .returning({ id: festivalActivityDetails.id });
+
+    // A hide that has locked the activity and not committed yet.
+    const hide = await pool!.connect();
+    try {
+      await hide.query("begin");
+      await hide.query(
+        "select id from festival_activities where id = $1 for update",
+        [activityId],
+      );
+      await hide.query(
+        "update festival_activities set is_visible = false where id = $1",
+        [activityId],
+      );
+
+      currentProfile.mockResolvedValue(participant);
+      const enrolling = enrollInActivity(
+        participant as BaseProfile,
+        festivalId,
+        { id: newVariant.id } as ActivityDetailsWithParticipants,
+        { id: activityId } as FestivalActivity,
+      );
+      await waitForLockWaiter("%festival_activities%for key share%");
+      await hide.query("commit");
+
+      expect(await enrolling).toEqual({
+        success: false,
+        message: "Actividad no encontrada",
+      });
+    } finally {
+      hide.release();
+    }
+
+    expect(
+      await integrationDb!
+        .select()
+        .from(festivalActivityParticipants)
+        .where(
+          inArray(festivalActivityParticipants.detailsId, [
+            variantId,
+            newVariant.id,
+          ]),
+        ),
+    ).toEqual([]);
   });
 
   it("refuses a participant and an activity of another festival", async () => {

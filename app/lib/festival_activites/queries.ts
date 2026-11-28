@@ -189,19 +189,26 @@ export async function lockVariant(tx: Tx, detailId: number) {
 }
 
 /**
- * Whether the activity is published (not a draft). False when it does not
- * exist. Seat and waitlist writers call it under the lock that hiding the
- * activity also takes, so the answer holds until their transaction ends.
+ * Whether the activity is published (not a draft), for a writer about to give
+ * a profile a seat or a waitlist entry in it. False when it does not exist.
+ *
+ * Reads the row FOR KEY SHARE, held until `tx` ends. Hiding the activity
+ * locks it FOR UPDATE before counting who took part, so the two serialize: a
+ * writer that read it published commits first and is counted, and one that
+ * waited reads the draft. KEY SHARE conflicts with nothing else staff do to
+ * the row (an edit takes NO KEY UPDATE), so a writer holding a variant lock
+ * never waits here on a transaction that waits for that variant.
  */
 export async function isActivityVisible(
-  executor: DbOrTx,
+  tx: Tx,
   activityId: number,
 ): Promise<boolean> {
-  const [row] = await executor
+  const [row] = await tx
     .select({ isVisible: festivalActivities.isVisible })
     .from(festivalActivities)
     .where(eq(festivalActivities.id, activityId))
-    .limit(1);
+    .limit(1)
+    .for("key share");
   return row?.isVisible ?? false;
 }
 
